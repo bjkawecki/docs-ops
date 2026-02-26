@@ -2,3 +2,7 @@
 pnpm-lock.yaml
 package-lock.json
 yarn.lock
+
+# Dependencies und Store
+node_modules/
+.pnpm-store/

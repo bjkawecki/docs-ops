@@ -7,15 +7,41 @@ Plattform für interne Dokumentation: Markdown-Dokumente, Struktur Firma → Abt
 - **Konzept und Architektur:** [docs/platform/](docs/platform/) – Einstieg: [Doc-Platform-Konzept.md](docs/platform/Doc-Platform-Konzept.md). Struktur der Ordner: [docs/platform/README.md](docs/platform/README.md).
 - **Umsetzungsplan:** [docs/plan/](docs/plan/) – Technologie-Stack, Infrastruktur & Deployment, [Umsetzungs-Todo](docs/plan/Umsetzungs-Todo.md).
 
-## Voraussetzungen (geplant)
+## Voraussetzungen
 
-- Node.js (LTS, siehe `.nvmrc`)
-- pnpm (Package Manager)
-- Docker oder Podman (für Installation und Betrieb)
+- **Für Installation/Betrieb:** Docker (mit `docker compose`) oder Podman mit podman-compose.
+- **Für Entwicklung:** Node.js (LTS, siehe `.nvmrc`), pnpm (Package Manager).
 
-## Installation (geplant)
+## Installation
 
-Die Installation wird über ein Shell-Skript (`install.sh`) und Docker Compose erfolgen. Anleitung folgt mit der Umsetzung.
+Im Repo-Root ausführen:
+
+```bash
+./install.sh
+```
+
+Das Skript prüft Docker/Podman und startet den Stack (`docker compose up -d`). Die App ist nach kurzer Startzeit unter **http://localhost/health** erreichbar.
+
+Alternativ manuell: `docker compose up -d`.
+
+## Entwicklungsumgebung
+
+Kurze Anleitung (Makefile, Befehle, wann was): [docs/Development-Anleitung.md](docs/Development-Anleitung.md).
+
+- **Schnell-Dev (täglich):** Nur PostgreSQL und MinIO in Docker, Backend auf dem Host.
+
+  ```bash
+  docker compose -f docker-compose.dev.yml up -d
+  pnpm --filter backend dev
+  ```
+
+  Backend dann unter http://localhost:8080/health.
+
+- **Prod-nah (vor Release):** Vollständiger Stack mit Caddy, App per Volume-Mount und Watch.
+  ```bash
+  docker compose up
+  ```
+  Zugriff über http://localhost (Caddy leitet auf die App weiter).
 
 ## MVP und Reihenfolge
 

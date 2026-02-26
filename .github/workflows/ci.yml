@@ -10,7 +10,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@4
+      - uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -18,7 +18,7 @@ jobs:
           version: 9
 
       - name: Set up Node.js
-        uses: actions/setup-node@4
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: 'pnpm'
@@ -32,18 +32,13 @@ jobs:
       - name: Format check
         run: pnpm run format:check
 
-  # Install script test: run when install.sh and docker-compose.yml exist.
-  # Uncomment and adjust when Umsetzungs-Todo Abschnitt 1 is done.
-  # install-test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@4
-  #     - name: Set up Docker
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y docker.io
-  #         sudo systemctl start docker
-  #     - name: Run install script
-  #       run: chmod +x install.sh && ./install.sh
-  #     - name: Health check
-  #       run: curl -f http://localhost/health || curl -f http://localhost:8080/health
+  install-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run install script
+        run: chmod +x install.sh && ./install.sh
+      - name: Wait for stack
+        run: sleep 30
+      - name: Health check
+        run: curl -f http://localhost/health || curl -f http://localhost:8080/health
