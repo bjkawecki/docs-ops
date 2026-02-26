@@ -8,13 +8,13 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 1. Grundgerüst / Infrastruktur
 
-- [ ] Repo-Struktur anlegen (Backend, Frontend, `docker-compose.yml`, `docs/`, `scripts/`)
-- [ ] `docker-compose.yml`: App, PostgreSQL, MinIO, Caddy (ggf. separater Worker später)
-- [ ] Dev-Setup: **Schnell-Dev** (nur DB + MinIO in Docker, App/Frontend auf Host) und **Prod-nah** (vollständiger Stack mit Caddy, App per Volume + Watch; Zugriff über http://localhost) – siehe [Infrastruktur §9](Infrastruktur-und-Deployment.md#9-entwicklungsumgebung)
-- [ ] `install.sh`: Voraussetzungen prüfen (Docker/Podman), Stack starten
-- [ ] Caddy-Beispiel-Config (Reverse Proxy auf App)
-- [ ] Minimale App startet und ist über Caddy erreichbar
-- [ ] **CI:** Job zum Test des Install-Skripts (frischer Runner, `install.sh` ausführen, Health-Check) – siehe [Infrastruktur §10](Infrastruktur-und-Deployment.md#10-test-des-install-skripts)
+- [x] Repo-Struktur anlegen (Backend, Frontend, `docker-compose.yml`, `docs/`, `scripts/`)
+- [x] `docker-compose.yml`: App, PostgreSQL, MinIO, Caddy (ggf. separater Worker später)
+- [x] Dev-Setup: **Schnell-Dev** (nur DB + MinIO in Docker, App/Frontend auf Host) und **Prod-nah** (vollständiger Stack mit Caddy, App per Volume + Watch; Zugriff über http://localhost) – siehe [Infrastruktur §9](Infrastruktur-und-Deployment.md#9-entwicklungsumgebung)
+- [x] `install.sh`: Voraussetzungen prüfen (Docker/Podman), Stack starten
+- [x] Caddy-Beispiel-Config (Reverse Proxy auf App)
+- [x] Minimale App startet und ist über Caddy erreichbar
+- [x] **CI:** Job zum Test des Install-Skripts (frischer Runner, `install.sh` ausführen, Health-Check) – siehe [Infrastruktur §10](Infrastruktur-und-Deployment.md#10-test-des-install-skripts)
 
 ---
 
