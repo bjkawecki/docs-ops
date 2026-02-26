@@ -17,9 +17,9 @@ make install
 
 ## Wann welches Makefile?
 
-| Wo | Wann nutzen |
-|----|-------------|
-| **Makefile (Repo-Root)** | Standard für den Alltag: install, lint, format, check, dev, docker-* – immer aus dem Root arbeiten. |
+| Wo                        | Wann nutzen                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Makefile (Repo-Root)**  | Standard für den Alltag: install, lint, format, check, dev, docker-\* – immer aus dem Root arbeiten.                                                                |
 | **apps/backend/Makefile** | Nur wenn du dich gezielt im Backend-Ordner aufhältst und dort `make dev` / `make build` / `make start` ausführen willst. Entspricht `pnpm run dev` etc. im Backend. |
 
 **Empfehlung:** Im Repo-Root arbeiten und `make …` aus dem Root-Makefile nutzen. Das Root-Makefile ruft intern `pnpm --filter backend …` auf.
@@ -28,13 +28,13 @@ make install
 
 **Was läuft wo?**
 
-| Komponente    | Schnell-Dev (`make docker-dev` + `make dev`) | Vollständiger Stack (`make docker-up`) |
-|---------------|-----------------------------------------------|----------------------------------------|
-| **Postgres**  | ✅ in Docker                                  | ✅ in Docker                           |
-| **MinIO**     | ✅ in Docker                                  | ✅ in Docker                           |
-| **Backend**   | ✅ auf dem **Host** (du startest mit `make dev`) | ✅ als Container „app“                 |
-| **Caddy**     | ❌ nicht gestartet                            | ✅ Reverse Proxy                       |
-| **Frontend**  | ❌ (noch Platzhalter, später auf dem Host)    | ❌ (folgt in Abschnitt 6)               |
+| Komponente   | Schnell-Dev (`make docker-dev` + `make dev`)     | Vollständiger Stack (`make docker-up`) |
+| ------------ | ------------------------------------------------ | -------------------------------------- |
+| **Postgres** | ✅ in Docker                                     | ✅ in Docker                           |
+| **MinIO**    | ✅ in Docker                                     | ✅ in Docker                           |
+| **Backend**  | ✅ auf dem **Host** (du startest mit `make dev`) | ✅ als Container „app“                 |
+| **Caddy**    | ❌ nicht gestartet                               | ✅ Reverse Proxy                       |
+| **Frontend** | ❌ (noch Platzhalter, später auf dem Host)       | ❌ (folgt in Abschnitt 6)              |
 
 Schnell-Dev heißt: **Nur** die Datenbanken (Postgres, MinIO) laufen in Docker. Caddy und Backend-Container werden **nicht** gestartet. Du startest Backend (und später Frontend) selbst auf deinem Rechner – damit du sofort Hot-Reload hast und keine Images bauen musst.
 
@@ -73,18 +73,22 @@ Dabei wird `docker-compose.override.yml` automatisch geladen: Die App (Backend) 
 
 **Frontend:** Das Frontend ist aktuell noch ein Platzhalter (React/Vite kommt in Abschnitt 6 des Umsetzungsplans). Sobald es existiert, wird entweder:
 
-- ein **Frontend-Dev-Service** in Docker ergänzt (z. B. Vite auf Port 5173) und Caddy routet `/` zum Frontend und z. B. `/api` zum Backend, oder  
+- ein **Frontend-Dev-Service** in Docker ergänzt (z. B. Vite auf Port 5173) und Caddy routet `/` zum Frontend und z. B. `/api` zum Backend, oder
 - du startest Frontend auf dem Host (`pnpm --filter frontend dev`) und erreichst es unter **http://localhost:5173**; Caddy bleibt für Backend unter **http://localhost** zuständig, bis das Routing um Frontend erweitert ist.
 
 **Kurz:** Caddy + Backend in der Entwicklung = `docker compose up` (oder `make docker-up` für Hintergrund). Frontend folgt, sobald die App steht.
 
 ## Qualität vor Commit / wie CI
 
+**Automatisch bei jedem Commit:** Über **Husky** + **lint-staged** werden vor dem Commit nur die gestagten Dateien mit Prettier formatiert und mit ESLint geprüft (und wo möglich automatisch gefixt). Nach einem frischen Clone einmal `pnpm install` ausführen, dann sind die Hooks aktiv.
+
+Manuell (wie im CI):
+
 ```bash
 make check
 ```
 
-Führt Lint + Prettier-Check aus (wie der CI-Workflow). Bei Bedarf vorher formatieren:
+Führt Lint + Prettier-Check auf dem gesamten Repo aus. Bei Bedarf vorher formatieren:
 
 ```bash
 make format
@@ -92,20 +96,20 @@ make format
 
 ## Weitere Make-Ziele (Root)
 
-| Ziel | Beschreibung |
-|------|--------------|
-| `make install` | `pnpm install` |
-| `make lint` | ESLint |
-| `make format` | Prettier (Dateien anpassen) |
-| `make format-check` | Prettier nur prüfen |
-| `make check` | Lint + Format-Check |
-| `make dev` | Backend im Dev-Modus (tsx watch) |
-| `make build` | Backend bauen |
-| `make start` | Backend starten (nach build) |
-| `make docker-up` | Vollständiger Stack (`docker compose up -d`) |
-| `make docker-down` | Stack stoppen |
-| `make docker-dev` | Nur Postgres + MinIO in Docker (Backend/Frontend startest du mit `make dev` auf dem Host) |
-| `make clean` | node_modules und Build-Artefakte entfernen |
+| Ziel                | Beschreibung                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `make install`      | `pnpm install`                                                                            |
+| `make lint`         | ESLint                                                                                    |
+| `make format`       | Prettier (Dateien anpassen)                                                               |
+| `make format-check` | Prettier nur prüfen                                                                       |
+| `make check`        | Lint + Format-Check                                                                       |
+| `make dev`          | Backend im Dev-Modus (tsx watch)                                                          |
+| `make build`        | Backend bauen                                                                             |
+| `make start`        | Backend starten (nach build)                                                              |
+| `make docker-up`    | Vollständiger Stack (`docker compose up -d`)                                              |
+| `make docker-down`  | Stack stoppen                                                                             |
+| `make docker-dev`   | Nur Postgres + MinIO in Docker (Backend/Frontend startest du mit `make dev` auf dem Host) |
+| `make clean`        | node_modules und Build-Artefakte entfernen                                                |
 
 ## Prod-nah testen (vor Release)
 
