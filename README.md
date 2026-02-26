@@ -17,6 +17,11 @@ Plattform für interne Dokumentation: Markdown-Dokumente, Struktur Firma → Abt
 
 Die Installation wird über ein Shell-Skript (`install.sh`) und Docker Compose erfolgen. Anleitung folgt mit der Umsetzung.
 
+## MVP und Reihenfolge
+
+- Umsetzung startet mit **Abschnitt 1 (Grundgerüst)** und **Abschnitt 2 (Datenmodell & Backend-Basis)** des [Umsetzungs-Todos](docs/plan/Umsetzungs-Todo.md), danach Auth, Rechte, Kern-API, Frontend, Dokumente-UI (Abschnitte 3–7).
+- **Phase 2** (bewusst später): Versionierung & PR-Workflow, PDF-Export, erweiterte Volltextsuche, ggf. Aggregator (Git/SharePoint). Siehe [Umsetzungs-Todo](docs/plan/Umsetzungs-Todo.md) Abschnitte 8–11.
+
 ## Branch-Strategie
 
 - **main** als Default-Branch. Optionale Nutzung von **develop** für Integration.

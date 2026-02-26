@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@4
+        with:
+          node-version-file: .nvmrc
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Format check
+        run: pnpm run format:check
+
+  # Install script test: run when install.sh and docker-compose.yml exist.
+  # Uncomment and adjust when Umsetzungs-Todo Abschnitt 1 is done.
+  # install-test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@4
+  #     - name: Set up Docker
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y docker.io
+  #         sudo systemctl start docker
+  #     - name: Run install script
+  #       run: chmod +x install.sh && ./install.sh
+  #     - name: Health check
+  #       run: curl -f http://localhost/health || curl -f http://localhost:8080/health
