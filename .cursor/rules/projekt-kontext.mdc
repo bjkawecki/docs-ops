@@ -1,0 +1,29 @@
+---
+description: Projekt-Kontext und Technologie-Stack der internen Dokumentationsplattform
+alwaysApply: true
+---
+
+# Projekt: Interne Dokumentationsplattform
+
+Dieses Repo ist eine **interne Dokumentationsplattform** (Firma → Abteilung → Team, Kontexte Prozess/Projekt/Nutzerspace, Markdown-Dokumente mit expliziten Rechten, PR/Draft-Workflow). Konzept und Designprinzipien stehen in **`docs/platform/`** (Struktur siehe `docs/platform/README.md`), Umsetzungsplan in **`docs/plan/`**.
+
+## Technologie-Stack (verbindlich)
+
+- **Package Manager:** **pnpm** (durchgängig; keine npm/yarn). Befehle: `pnpm install`, `pnpm run lint`, `pnpm test` usw.
+- **Backend:** Node.js (TypeScript), **Fastify**, **Prisma**, PostgreSQL. Optional Bun als Runtime.
+- **Frontend:** **React** mit **Vite** und TypeScript (kein Next.js für die interne App).
+- **Infrastruktur:** Docker, **Caddy** als Reverse Proxy, **MinIO** (S3-kompatibel) für Anhänge/Exporte, **pg-boss** für Async-Jobs (z. B. PDF-Export mit Pandoc).
+- **Datenmodell:** Siehe `docs/platform/datenmodell/` (Pseudocode Datenmodell, Rechteableitung); Rechte explizit (Leser/Schreiber pro Dokument, Teams, Superuser).
+
+## Repo-Struktur (geplant)
+
+- Backend und Frontend getrennt (z. B. `apps/backend`, `apps/frontend` oder `backend/`, `frontend/`). `docker-compose.yml` im Repo-Root, `scripts/` für install/update, `docs/` wie vorhanden. Geteilte Typen (z. B. aus Prisma) zwischen Backend und Frontend nutzen.
+
+## Beim Coden
+
+- Bei Architektur-, Stack- oder Konventionsfragen zuerst **`docs/plan/`** und **`docs/platform/`** heranziehen. Umsetzungsschritte: **`docs/plan/Umsetzungs-Todo.md`**. Keine Stack-Änderungen ohne Abgleich mit dem Plan (z. B. kein anderes Framework/ORM als festgelegt).
+- **API:** REST, JSON. Dokumentbezogene Zugriffe nur mit Rechteprüfung (`canRead`/`canWrite`). Schwere Aufgaben (PDF-Export, Index-Update) als Job (pg-boss), nicht im Request.
+- **Konfiguration:** Über Umgebungsvariablen; keine Secrets oder Passwörter im Repo oder in Default-Configs.
+- **Tests:** Vitest, Supertest für API. Neue Logik und Rechte-Funktionen testen; TDD optional.
+- **Kommentare:** Sinnvoll und nach offizieller Konvention. JSDoc für öffentliche APIs (exportierte Funktionen, Klassen); Inline-Kommentare nur wo nötig („warum“, nicht „was“). Orientierung an TypeScript/React-Docs.
+- Antworten und Code auf Deutsch, sofern der Nutzer auf Deutsch schreibt.
