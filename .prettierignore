@@ -1,0 +1,4 @@
+# Lockfiles (auto-generated, nicht von Prettier formatieren)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
