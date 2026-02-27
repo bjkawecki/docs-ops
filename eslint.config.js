@@ -4,7 +4,15 @@ const prettier = require('eslint-config-prettier');
 
 module.exports = tseslint.config(
   {
-    ignores: ['node_modules/', 'dist/', 'build/', 'coverage/', 'docs/'],
+    ignores: [
+      'node_modules/',
+      '**/dist/',
+      '**/generated/',
+      'build/',
+      'coverage/',
+      'docs/',
+      '**/prisma.config.ts',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
