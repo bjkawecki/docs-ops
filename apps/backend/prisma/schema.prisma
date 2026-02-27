@@ -1,0 +1,249 @@
+// Abschnitt 2: Datenmodell – Organisation, Kontexte, Dokumente, Rechte
+// Entwurf: docs/plan/Prisma-Schema-Entwurf.md
+// Kontexte getrennt (Process, Project, Subcontext, UserSpace). Owner für Process/Project (genau einer).
+// Context: genau ein Kontext pro Document (Schema). Löschung Kontext → Process/Project/Subcontext/UserSpace + Documents cascade.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Organisation (Firma → Abteilung → Team, vgl. docs/platform/datenmodell, Doc-Platform-Konzept) ---
+
+/// Oberste Organisationseinheit. Enthält Abteilungen; Struktur bestimmt Ownership, nicht automatisch Zugriff.
+model Company {
+  id          String       @id @default(cuid())
+  name        String
+  departments Department[]
+}
+
+/// Abteilung mit Teams; kann Prozesse und Projekte besitzen (Owner). Rechte werden explizit vergeben.
+model Department {
+  id                     String          @id @default(cuid())
+  name                   String
+  companyId              String
+  company                Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  teams                  Team[]
+  owners                 Owner[]         @relation("OwnerDepartment")
+  supervisors            Supervisor[]
+  documentGrantDept      DocumentGrantDepartment[]
+}
+
+/// Autonome Einheit: Mitglieder sehen Team-Dokumente (Leserechte), Schreibrechte nur für Teamleader/explizite Grants.
+/// Kann Prozesse und Projekte besitzen (Owner). Dynamisch zusammensetzbar.
+model Team {
+  id           String          @id @default(cuid())
+  name         String
+  departmentId String
+  department   Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  members      TeamMember[]
+  leaders      TeamLeader[]
+  owners       Owner[]         @relation("OwnerTeam")
+  documentGrantTeam DocumentGrantTeam[]
+}
+
+/// Zuordnung Nutzer ↔ Team (Mitgliedschaft). Nur Team-Mitgliedschaft zählt für Zugriff auf Team-Dokumente.
+model TeamMember {
+  teamId String
+  userId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([teamId, userId])
+}
+
+/// Teamleader: Nutzer mit Schreibrechten für ein Team. Schreibrechte nur über diese oder explizite Grants.
+model TeamLeader {
+  teamId String
+  userId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([teamId, userId])
+}
+
+/// Nutzer: Mitglied in Teams (TeamMember), optional Teamleader (TeamLeader). isAdmin: sieht alles, legt Struktur an, fügt User hinzu.
+/// Kann Nutzerspaces besitzen; erhält explizite Zugriffsrechte über DocumentGrantUser. email/externalId für Auth/SSO.
+model User {
+  id                    String       @id @default(cuid())
+  name                  String
+  email                 String?      @unique
+  externalId            String?      // SSO/LDAP – eindeutige Kennung vom IdP
+  isAdmin               Boolean      @default(false) // Sieht alle Dokumente; legt Struktur (Company, Dept, Team) an, fügt User hinzu
+  deletedAt             DateTime?    // Soft delete: deaktivierter Account, Zugriff entzogen
+  teamMemberships       TeamMember[]
+  leaderOfTeams         TeamLeader[]
+  supervisorOfDepartments Supervisor[]
+  userSpaces            UserSpace[]
+  documentGrantUser     DocumentGrantUser[]
+}
+
+/// Supervisor einer Abteilung: hat Leserechte auf alle Dokumente in Kontexten, die der Abteilung oder ihren Teams gehören
+/// (Prozesse, Projekte, Unterkontexte) – nicht auf Nutzerspaces. Ableitung in der App (Rechteableitung).
+model Supervisor {
+  departmentId String
+  userId       String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([departmentId, userId])
+}
+
+/// Owner-Abstraktion: Prozess/Projekt haben genau einen Owner (Schema: ownerId).
+/// Inhaltlich genau einer: Abteilung oder Team (departmentId bzw. teamId gesetzt, App-Validierung).
+model Owner {
+  id             String    @id @default(cuid())
+  departmentId   String?
+  teamId         String?
+  department     Department? @relation("OwnerDepartment", fields: [departmentId], references: [id], onDelete: Cascade)
+  team           Team?      @relation("OwnerTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  processes      Process[]
+  projects       Project[]
+}
+
+// --- Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext; vgl. Konzept §3) ---
+
+/// Abstraktion „ein Kontext“: Jeder Kontexttyp hat genau eine Context-Zeile.
+/// Document hat Pflicht-FK contextId → genau ein Kontext im Schema. Löschen der Context-Zeile löscht den Kontexttyp und alle Documents (Cascade).
+model Context {
+  id          String       @id @default(cuid())
+  process     Process?
+  project     Project?
+  subcontext  Subcontext?
+  userSpace   UserSpace?
+  documents   Document[]
+}
+
+/// Prozess: dauerhafter Kontext (z. B. Onboarding), selten archiviert.
+/// Genau ein Owner (ownerId → Owner). Kontext-Zeile (contextId → Context); Dokumente über Context.
+model Process {
+  id          String     @id @default(cuid())
+  name        String
+  contextId   String     @unique
+  context     Context    @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       Owner      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  deletedAt   DateTime?  // Soft delete / Archiv
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+/// Projekt: zeitlich begrenzter Kontext, wird archiviert. Genau ein Owner über ownerId.
+/// Kann Unterkontexte haben (z. B. Protokolle, Meilensteine).
+model Project {
+  id           String       @id @default(cuid())
+  name         String
+  contextId    String       @unique
+  context      Context      @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  ownerId      String
+  owner        Owner        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subcontexts  Subcontext[]
+  deletedAt    DateTime?    // Soft delete / Archiv
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+/// Unterkontext: optionale Gliederung unter einem Projekt (z. B. Protokolle, Meilensteine, Module).
+/// Nur bei Projekten; Zugriff auf Unterkontexte kann vererbt oder explizit gesetzt werden.
+model Subcontext {
+  id         String    @id @default(cuid())
+  name       String
+  contextId  String    @unique
+  context    Context   @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+/// Nutzerspace: persönlicher Kontext eines Nutzers. Dokumente optional für andere Nutzer/Teams/Abteilungen freigegeben.
+model UserSpace {
+  id          String    @id @default(cuid())
+  name        String
+  contextId   String    @unique
+  context     Context   @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  ownerUserId String
+  owner       User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// --- Dokumente und Tags ---
+
+/// Einzelne inhaltliche Einheit (Markdown). Gehört genau einem Kontext (contextId, Schema).
+/// Zugriff nur über explizite Grants (DocumentGrantUser/Team/Department); Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
+model Document {
+  id             String                   @id @default(cuid())
+  title          String
+  content        String                   @db.Text
+  contextId      String
+  context        Context                  @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  deletedAt      DateTime?                // Soft delete: aus Listen ausblenden, ggf. wiederherstellbar
+  documentTags   DocumentTag[]
+  grantUser      DocumentGrantUser[]
+  grantTeam      DocumentGrantTeam[]
+  grantDepartment DocumentGrantDepartment[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+}
+
+/// Tag: global, für Kategorisierung und Filterung (z. B. „beliebteste Tags“ auf Startseite). Normalisiert, n:m zu Dokumenten.
+model Tag {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  documentTags DocumentTag[]
+}
+
+/// n:m Dokument ↔ Tag.
+model DocumentTag {
+  documentId String
+  tagId      String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@id([documentId, tagId])
+}
+
+// --- Zugriffsrechte (explizit; vgl. Rechteableitung Pseudocode) ---
+
+/// Rolle pro Grant: Lesen oder Schreiben. Schreibrechte nur für Teamleader bzw. explizit gewährte Schreiber.
+enum GrantRole {
+  Read
+  Write
+}
+
+/// Zugriffsrecht Dokument → User. Pro Zeile genau ein Grantee (Schema).
+model DocumentGrantUser {
+  documentId String
+  userId     String
+  role       GrantRole
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([documentId, userId, role])
+  @@index([documentId])
+  @@index([userId])
+}
+
+/// Zugriffsrecht Dokument → Team. Pro Zeile genau ein Grantee (Schema).
+model DocumentGrantTeam {
+  documentId String
+  teamId     String
+  role       GrantRole
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  @@id([documentId, teamId, role])
+  @@index([documentId])
+  @@index([teamId])
+}
+
+/// Zugriffsrecht Dokument → Department. Pro Zeile genau ein Grantee (Schema).
+model DocumentGrantDepartment {
+  documentId   String
+  departmentId String
+  role         GrantRole
+  document     Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  @@id([documentId, departmentId, role])
+  @@index([documentId])
+  @@index([departmentId])
+}

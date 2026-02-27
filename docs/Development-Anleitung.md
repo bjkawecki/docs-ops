@@ -54,6 +54,8 @@ Schnell-Dev heißt: **Nur** die Datenbanken (Postgres, MinIO) laufen in Docker. 
    pnpm --filter backend dev
    ```
 
+3. **Wenn „Authentifizierung fehlgeschlagen“ (Credentials):** Die Compose-Dateien setzen User `app`, Passwort `app`, DB `docsops`. Wenn das Volume früher mit anderen Werten angelegt wurde, ignoriert Postgres die aktuellen Umgebungsvariablen. **Fix:** Volume neu anlegen: `docker compose -f docker-compose.dev.yml down -v`, dann `docker compose -f docker-compose.dev.yml up -d`. Für Prisma/Migrationen vom Host: `DATABASE_URL=postgresql://app:app@localhost:5432/docsops` setzen (oder `.env` aus `.env.example` anlegen). Prisma-Befehle **im Backend-Verzeichnis** ausführen: `cd apps/backend`, dann z. B. `pnpm exec prisma migrate dev --name init`. **Nach Schema-Umbau** (z. B. getrennte Kontexte, Tags normalisiert): Zuerst `pnpm exec prisma migrate reset` (DB leeren, Datenverlust), dann `pnpm exec prisma migrate dev --name init` – erzeugt und wendet die neue Init-Migration an.
+
 ## Caddy + Backend (+ Frontend) in der Entwicklung starten
 
 Wenn du mit **Caddy** und **Backend** (und später Frontend) unter einer Adresse arbeiten willst – z. B. um Routing wie in Produktion zu testen – startest du den vollständigen Stack. Das **Backend** läuft dann im Container mit Volume-Mount und Watch (Hot-Reload); **Caddy** leitet auf das Backend weiter.

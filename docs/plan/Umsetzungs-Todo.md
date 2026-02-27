@@ -20,11 +20,11 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 2. Datenmodell & Backend-Basis
 
-- [ ] Prisma-Schema: Firma, Abteilung, Team, Nutzer, Kontexte (Prozess, Projekt, Unterkontext, Nutzerspace), Dokument, Zugriffsrechte (n:m)
-- [ ] Migrationen anlegen und ausführen (`prisma migrate`)
-- [ ] Fastify-Skelett (TypeScript), Prisma anbinden
-- [ ] Health-Route (DB-Erreichbarkeit)
-- [ ] Erste Lese-Route gegen DB (z. B. Liste Firma/Abteilungen) zum Abgleich mit Schema
+- [x] Prisma-Schema: Firma, Abteilung, Team, Nutzer, Kontexte (Prozess, Projekt, Unterkontext, Nutzerspace), Dokument, Zugriffsrechte (n:m)
+- [x] Migrationen anlegen und ausführen (`prisma migrate`)
+- [x] Fastify-Skelett (TypeScript), Prisma anbinden
+- [x] Health-Route (DB-Erreichbarkeit)
+- [x] Erste Lese-Route gegen DB (z. B. Liste Firma/Abteilungen) zum Abgleich mit Schema
 
 ---
 

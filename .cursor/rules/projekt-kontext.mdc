@@ -22,8 +22,10 @@ Dieses Repo ist eine **interne Dokumentationsplattform** (Firma → Abteilung �
 
 ## Beim Coden
 
+- **Vorausschauend programmieren:** Keine Platzhalter-Lösungen mit der Absicht, es „später anders“ zu machen. Schema, APIs und Strukturen von vornherein so anlegen, dass sie den geplanten Anforderungen entsprechen (z. B. Auth-Felder, normalisierte Strukturen, explizite FKs statt Polymorph).
 - Bei Architektur-, Stack- oder Konventionsfragen zuerst **`docs/plan/`** und **`docs/platform/`** heranziehen. Umsetzungsschritte: **`docs/plan/Umsetzungs-Todo.md`**. Keine Stack-Änderungen ohne Abgleich mit dem Plan (z. B. kein anderes Framework/ORM als festgelegt).
 - **API:** REST, JSON. Dokumentbezogene Zugriffe nur mit Rechteprüfung (`canRead`/`canWrite`). Schwere Aufgaben (PDF-Export, Index-Update) als Job (pg-boss), nicht im Request.
+- **Prisma:** Möglichst **kein SQL selbst schreiben**. Schema in `prisma/schema.prisma` anpassen und Migrationen von Prisma erzeugen lassen (`pnpm exec prisma migrate dev --name <name>` im Backend). **Keine CHECK-Constraints in der DB:** Constraints vor allem durch gutes Schema abbilden (Struktur, FKs, Unique, NOT NULL). Was das Schema nicht ausdrücken kann (z. B. „genau einer von mehreren FKs“), in der App validieren (z. B. Zod). Nur in echten Ausnahmen (z. B. komplexe Datenmigrationen) Migrationen manuell anpassen.
 - **Konfiguration:** Über Umgebungsvariablen; keine Secrets oder Passwörter im Repo oder in Default-Configs.
 - **Tests:** Vitest, Supertest für API. Neue Logik und Rechte-Funktionen testen; TDD optional.
 - **Kommentare:** Sinnvoll und nach offizieller Konvention. JSDoc für öffentliche APIs (exportierte Funktionen, Klassen); Inline-Kommentare nur wo nötig („warum“, nicht „was“). Orientierung an TypeScript/React-Docs.

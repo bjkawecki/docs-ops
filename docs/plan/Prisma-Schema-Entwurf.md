@@ -2,6 +2,8 @@
 
 Tabellen und Spalten für die spätere `prisma/schema.prisma`, abgeleitet aus [Pseudocode Datenmodell](../platform/datenmodell/Pseudocode%20Datenmodell.md) und [Rechteableitung](../platform/datenmodell/Rechteableitung%20Pseudocode.md). Namenskonvention: Englisch; Implementierung nutzt `canRead`/`canWrite` (vgl. [projekt-kontext.mdc](../../.cursor/rules/projekt-kontext.mdc)).
 
+**Umsetzung (Stand):** Kontexte als getrennte Tabellen (Process, Project, Subcontext, UserSpace); DocumentGrant mit FKs (granteeUserId/granteeTeamId/granteeDepartmentId); Tags normalisiert (Tag + DocumentTag n:m); User mit email, externalId für Auth.
+
 ---
 
 ## 1. Organisation
