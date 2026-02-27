@@ -66,10 +66,12 @@ model TeamLeader {
 
 /// Nutzer: Mitglied in Teams (TeamMember), optional Teamleader (TeamLeader). isAdmin: sieht alles, legt Struktur an, fügt User hinzu.
 /// Kann Nutzerspaces besitzen; erhält explizite Zugriffsrechte über DocumentGrantUser. email/externalId für Auth/SSO.
+/// passwordHash nur für lokalen Login; SSO-Nutzer (externalId) brauchen keins.
 model User {
   id                    String       @id @default(cuid())
   name                  String
   email                 String?      @unique
+  passwordHash          String?      // Argon2-Hash für lokalen Login
   externalId            String?      // SSO/LDAP – eindeutige Kennung vom IdP
   isAdmin               Boolean      @default(false) // Sieht alle Dokumente; legt Struktur (Company, Dept, Team) an, fügt User hinzu
   deletedAt             DateTime?    // Soft delete: deaktivierter Account, Zugriff entzogen
@@ -78,6 +80,16 @@ model User {
   supervisorOfDepartments Supervisor[]
   userSpaces            UserSpace[]
   documentGrantUser     DocumentGrantUser[]
+  sessions              Session[]
+}
+
+/// Session für Cookie-basierte Auth. Session-ID = id im httpOnly-Cookie; Ablauf über expiresAt.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Supervisor einer Abteilung: hat Leserechte auf alle Dokumente in Kontexten, die der Abteilung oder ihren Teams gehören

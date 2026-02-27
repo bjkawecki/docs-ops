@@ -1,7 +1,7 @@
 # docs-ops – Makefile
 # Nutzung: make [Ziel]. Ohne Ziel: make help
 
-.PHONY: help install lint format format-check check clean dev build start docker-up docker-down docker-dev
+.PHONY: help install lint format format-check check clean dev build start test docker-up docker-down docker-dev
 
 # Standard-Ziel: Hilfe anzeigen
 help:
@@ -15,6 +15,7 @@ help:
 	@echo "  make dev          Backend im Dev-Modus starten (tsx watch)"
 	@echo "  make build        Backend bauen"
 	@echo "  make start        Backend starten (nach build)"
+	@echo "  make test         Backend-Tests ausführen (Vitest)"
 	@echo "  make docker-up    Stack starten (docker compose up -d)"
 	@echo "  make docker-down  Stack stoppen"
 	@echo "  make docker-dev   Nur Postgres + MinIO (Schnell-Dev)"
@@ -44,6 +45,9 @@ build:
 
 start:
 	pnpm --filter backend start
+
+test:
+	pnpm --filter backend test
 
 docker-up:
 	docker compose up -d

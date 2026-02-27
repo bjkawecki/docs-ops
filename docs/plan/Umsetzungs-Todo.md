@@ -30,9 +30,9 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 3. Auth
 
-- [ ] Login (lokal oder LDAP/SSO-Anbindung)
-- [ ] **Sessions** (Postgres, httpOnly-Cookie); Middleware „Nutzer aus Request“
-- [ ] Geschützte Routen nur mit gültiger Auth
+- [x] Login (lokal oder LDAP/SSO-Anbindung)
+- [x] **Sessions** (Postgres, httpOnly-Cookie); Middleware „Nutzer aus Request“
+- [x] Geschützte Routen nur mit gültiger Auth
 
 ---
 
