@@ -23,8 +23,7 @@ Festlegungen für die REST-API der internen Dokumentationsplattform. Siehe [Tech
 
 ## Auth
 
-- **Header:** `Authorization: Bearer <token>` (JWT) oder Cookie-basierte Session (je nach Umsetzung).
-- Geschützte Routen: Backend prüft Token/Session und leitet bei fehlender oder ungültiger Auth mit `401` ab.
+- **Auth:** Cookie-basierte Session (Session-ID im httpOnly-Cookie; Session-Daten in Postgres). Geschützte Routen: Backend prüft Session und leitet bei fehlender oder ungültiger Auth mit `401` ab.
 - Bei fehlender Berechtigung für eine Ressource: `403 Forbidden`.
 
 ---

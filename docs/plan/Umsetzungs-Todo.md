@@ -31,7 +31,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 ## 3. Auth
 
 - [ ] Login (lokal oder LDAP/SSO-Anbindung)
-- [ ] Session oder JWT; Middleware „nutzer aus Request“
+- [ ] **Sessions** (Postgres, httpOnly-Cookie); Middleware „Nutzer aus Request“
 - [ ] Geschützte Routen nur mit gültiger Auth
 
 ---

@@ -172,11 +172,12 @@ model UserSpace {
 // --- Dokumente und Tags ---
 
 /// Einzelne inhaltliche Einheit (Markdown). Gehört genau einem Kontext (contextId, Schema).
-/// Zugriff nur über explizite Grants (DocumentGrantUser/Team/Department); Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
+/// Optional: PDF-Version (pdfUrl, z. B. Export-URL aus MinIO). Zugriff über Grants; Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
 model Document {
   id             String                   @id @default(cuid())
   title          String
   content        String                   @db.Text
+  pdfUrl         String?                  // URL zur PDF-Version (z. B. MinIO/S3 nach Export)
   contextId      String
   context        Context                  @relation(fields: [contextId], references: [id], onDelete: Cascade)
   deletedAt      DateTime?                // Soft delete: aus Listen ausblenden, ggf. wiederherstellbar

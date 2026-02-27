@@ -54,7 +54,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 ## 7. Weitere genutzte Technologien
 
-- **Auth:** Session oder JWT; Passport.js (oder Fastify-Plugin) mit LDAP/OIDC für SSO.
+- **Auth:** **Sessions** (Postgres, httpOnly-Cookie); lokaler Login (E-Mail + Passwort), später Passport.js oder Fastify-Plugin mit LDAP/OIDC für SSO.
 - **Markdown:** remark oder markdown-it, gray-matter für Frontmatter/Tags.
 - **Validierung:** **Zod** (verbindlich). Request-Bodies und Parameter mit Zod-Schemas validieren; Schemas und abgeleitete Typen mit Frontend teilbar.
 - **S3/MinIO:** @aws-sdk/client-s3 oder minio (npm).
