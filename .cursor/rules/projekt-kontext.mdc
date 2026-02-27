@@ -13,6 +13,7 @@ Dieses Repo ist eine **interne Dokumentationsplattform** (Firma → Abteilung �
 - **Backend:** Node.js (TypeScript), **Fastify**, **Prisma**, PostgreSQL. Optional Bun als Runtime.
 - **Frontend:** **React** mit **Vite** und TypeScript (kein Next.js für die interne App).
 - **Infrastruktur:** Docker, **Caddy** als Reverse Proxy, **MinIO** (S3-kompatibel) für Anhänge/Exporte, **pg-boss** für Async-Jobs (z. B. PDF-Export mit Pandoc).
+- **Validierung:** **Zod** (verbindlich). Request-Bodies und Parameter im Backend und Frontend mit Zod-Schemas validieren; Typen aus Schemas ableiten (z. B. `z.infer`). Kein Fastify-JSON-Schema für Request-Input.
 - **Datenmodell:** Siehe `docs/platform/datenmodell/` (Pseudocode Datenmodell, Rechteableitung); Rechte explizit (Leser/Schreiber pro Dokument, Teams, Superuser).
 
 ## Repo-Struktur (geplant)

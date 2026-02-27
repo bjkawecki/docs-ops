@@ -1,6 +1,16 @@
+import { createRequire } from 'node:module';
 import Fastify from 'fastify';
 
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json') as { name: string; version: string };
+
 const app = Fastify({ logger: true });
+
+app.get('/', async () => ({
+  name: pkg.name,
+  version: pkg.version,
+  _links: { health: '/health' },
+}));
 
 app.get('/health', async () => ({ status: 'ok' }));
 

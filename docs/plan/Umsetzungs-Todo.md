@@ -50,7 +50,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [ ] CRUD Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext)
 - [ ] CRUD Dokumente (Titel, Markdown-Inhalt, Kontext, Tags)
 - [ ] Zuweisung Leser/Schreiber pro Dokument (Nutzer, Team, Abteilung)
-- [ ] Validierung (z. B. Zod), Fehlerbehandlung
+- [ ] Validierung (Zod), Fehlerbehandlung
 
 ---
 

@@ -24,7 +24,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 ### Backend
 
 - **Runtime:** Node.js (TypeScript). Optional Bun als drop-in-Alternative.
-- **Framework:** Fastify. Validierung z. B. über JSON Schema.
+- **Framework:** Fastify. Validierung mit **Zod** (Request-Bodies, Parameter); kein Fastify-JSON-Schema für Request-Input.
 - **ORM:** Prisma. Schema in `prisma/schema.prisma`, Migrationen mit `prisma migrate`, generierte Typen teilbar mit Frontend.
 
 ### Frontend
@@ -56,7 +56,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 - **Auth:** Session oder JWT; Passport.js (oder Fastify-Plugin) mit LDAP/OIDC für SSO.
 - **Markdown:** remark oder markdown-it, gray-matter für Frontmatter/Tags.
-- **Validierung:** JSON Schema (Fastify) oder Zod (teilbar mit Frontend).
+- **Validierung:** **Zod** (verbindlich). Request-Bodies und Parameter mit Zod-Schemas validieren; Schemas und abgeleitete Typen mit Frontend teilbar.
 - **S3/MinIO:** @aws-sdk/client-s3 oder minio (npm).
 - **Frontend:** TanStack Query, React Router; Backend Deltas/Versionierung: diff-match-patch.
 - **Logging:** pino. Health-Check-Route für Deploy/Monitoring.

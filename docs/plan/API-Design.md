@@ -17,7 +17,7 @@ Festlegungen für die REST-API der internen Dokumentationsplattform. Siehe [Tech
   - `{ "error": "<kurze menschenlesbare Meldung>", "code": "<optionaler Fehlercode>" }`
   - Oder RFC-7807-ähnlich (`type`, `title`, `status`, `detail`, `instance`).
 - HTTP-Status-Codes nutzen: `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict, `500` Internal Server Error.
-- Bei Validierungsfehlern (z. B. Zod): `400` mit Details zu ungültigen Feldern (z. B. `errors: [{ path, message }]`).
+- Bei Validierungsfehlern (Zod): `400` mit Details zu ungültigen Feldern (z. B. `errors: [{ path, message }]`).
 
 ---
 

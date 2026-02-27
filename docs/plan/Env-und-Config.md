@@ -34,5 +34,5 @@
 
 ## Validierung und XSS
 
-- **Eingaben:** Alle Request-Bodies und Parameter mit **Zod** (oder vergleichbar) validieren; ungültige Werte → `400` mit Fehlerdetails.
+- **Eingaben:** Alle Request-Bodies und Parameter mit **Zod** validieren; ungültige Werte → `400` mit Fehlerdetails.
 - **Markdown-Rendering:** Beim Ausliefern von gerendertem Markdown (HTML) **XSS-Schutz** sicherstellen: sichere Markdown-Library (z. B. mit Sanitizing) oder nachträgliches Sanitizing (z. B. DOMPurify auf dem Frontend oder entsprechende Lib im Backend). Kein ungefiltertes HTML aus Nutzerinhalt ausliefern.
