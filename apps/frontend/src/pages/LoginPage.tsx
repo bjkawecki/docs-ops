@@ -17,8 +17,8 @@ export function LoginPage() {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      if (res.status === 401) throw new Error('Ungültige Anmeldedaten');
-      if (!res.ok) throw new Error('Login fehlgeschlagen');
+      if (res.status === 401) throw new Error('Invalid credentials');
+      if (!res.ok) throw new Error('Login failed');
     },
     onSuccess: () => navigate(from, { replace: true }),
   });
@@ -36,14 +36,14 @@ export function LoginPage() {
       >
         <Stack gap="md">
           <TextInput
-            label="E-Mail"
+            label="Email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
           <PasswordInput
-            label="Passwort"
+            label="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -54,7 +54,7 @@ export function LoginPage() {
             </Text>
           )}
           <Button type="submit" loading={login.isPending}>
-            Anmelden
+            Log in
           </Button>
         </Stack>
       </form>

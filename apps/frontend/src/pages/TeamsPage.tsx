@@ -10,7 +10,7 @@ export function TeamsPage() {
     queryKey: ['companies'],
     queryFn: async () => {
       const res = await apiFetch('/api/v1/companies?limit=50');
-      if (!res.ok) throw new Error('Fehler beim Laden');
+      if (!res.ok) throw new Error('Error loading');
       return res.json() as Promise<CompaniesRes>;
     },
   });
@@ -18,7 +18,7 @@ export function TeamsPage() {
   if (isPending) return <Loader size="sm" />;
   if (isError) {
     return (
-      <Alert color="red" title="Fehler">
+      <Alert color="red" title="Error">
         {error?.message}
       </Alert>
     );
@@ -26,9 +26,9 @@ export function TeamsPage() {
 
   return (
     <Stack gap="md">
-      <Title order={2}>Teams / Abteilungen</Title>
+      <Title order={2}>Teams / Departments</Title>
       <Text size="sm" c="dimmed">
-        Bereich Teams – erste Liste (Firmen). Inhalt folgt in Abschnitt 7.
+        Teams – first list (companies). Content to follow.
       </Text>
       {data && data.items.length > 0 ? (
         <List>
@@ -38,7 +38,7 @@ export function TeamsPage() {
         </List>
       ) : (
         <Text size="sm" c="dimmed">
-          Keine Einträge.
+          No entries.
         </Text>
       )}
     </Stack>

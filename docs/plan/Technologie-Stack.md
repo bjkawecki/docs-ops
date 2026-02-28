@@ -31,6 +31,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 - **Framework:** React mit Vite und TypeScript (kein Next.js).
 - **Component-/Style-Library:** Mantine (`@mantine/core`, `@mantine/hooks`).
+- **Sprache:** Standardsprache für UI, Routen und API-Pfade ist **Englisch** (Labels, URLs, Fehlerschlüssel); i18n optional später.
 
 ---
 

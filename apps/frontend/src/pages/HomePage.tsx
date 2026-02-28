@@ -7,7 +7,7 @@ export function HomePage() {
       <Title order={2} mb="md">
         Dashboard
       </Title>
-      <p>Überblick über die interne Dokumentation. Quick-Links:</p>
+      <p>Overview of internal documentation. Quick links:</p>
       <Group mt="md" gap="sm">
         <Button component={Link} to="/teams" variant="light" size="sm">
           Teams
@@ -15,11 +15,11 @@ export function HomePage() {
         <Button component={Link} to="/repositories" variant="light" size="sm">
           Repositories
         </Button>
-        <Button component={Link} to="/prozesse" variant="light" size="sm">
-          Prozesse
+        <Button component={Link} to="/processes" variant="light" size="sm">
+          Processes
         </Button>
-        <Anchor component={Link} to="/firma" size="sm">
-          Firma
+        <Anchor component={Link} to="/company" size="sm">
+          Company
         </Anchor>
         <Anchor component={Link} to="/templates" size="sm">
           Templates

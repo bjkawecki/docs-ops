@@ -29,4 +29,5 @@ Dieses Repo ist eine **interne Dokumentationsplattform** (Firma → Abteilung �
 - **Konfiguration:** Über Umgebungsvariablen; keine Secrets oder Passwörter im Repo oder in Default-Configs.
 - **Tests:** Vitest, Supertest für API. Neue Logik und Rechte-Funktionen testen; TDD optional.
 - **Kommentare:** Sinnvoll und nach offizieller Konvention. JSDoc für öffentliche APIs (exportierte Funktionen, Klassen); Inline-Kommentare nur wo nötig („warum“, nicht „was“). Orientierung an TypeScript/React-Docs.
+- **Sprache (Code & Produkt):** **Standardsprache ist Englisch** für UI-Texte (Labels, Buttons, Meldungen), URL-Pfade und Routen (z. B. `/teams`, `/repositories`, `/admin`), API-Pfade (`/api/v1/...`), Log-/Fehlerschlüssel und nutzerbezogene Bezeichner. i18n optional später; bis dahin alles auf Englisch. Doku in `docs/` und Kommentare können weiterhin auf Deutsch sein.
 - Antworten und Code auf Deutsch, sofern der Nutzer auf Deutsch schreibt.

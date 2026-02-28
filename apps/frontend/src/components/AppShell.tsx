@@ -8,7 +8,7 @@ export function AppShell() {
   const logout = useMutation({
     mutationFn: async () => {
       const res = await apiFetch('/api/v1/auth/logout', { method: 'POST' });
-      if (!res.ok) throw new Error('Logout fehlgeschlagen');
+      if (!res.ok) throw new Error('Logout failed');
     },
     onSuccess: () => navigate('/login', { replace: true }),
   });
@@ -24,7 +24,7 @@ export function AppShell() {
             onClick={() => logout.mutate()}
             loading={logout.isPending}
           >
-            Abmelden
+            Log out
           </Button>
         </Group>
       </MantineAppShell.Header>
@@ -40,11 +40,11 @@ export function AppShell() {
             <Anchor component={Link} to="/repositories" size="sm">
               Repositories
             </Anchor>
-            <Anchor component={Link} to="/prozesse" size="sm">
-              Prozesse
+            <Anchor component={Link} to="/processes" size="sm">
+              Processes
             </Anchor>
-            <Anchor component={Link} to="/firma" size="sm">
-              Firma
+            <Anchor component={Link} to="/company" size="sm">
+              Company
             </Anchor>
             <Anchor component={Link} to="/templates" size="sm">
               Templates

@@ -2,7 +2,7 @@
 
 Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. Siehe [Technologie-Stack](Technologie-Stack.md), [Infrastruktur & Deployment](Infrastruktur-und-Deployment.md) und [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md).
 
-**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–7 (Kern-API, Frontend, Dokumente-UI). **Phase 2** (später): Abschnitte 8–11 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku).
+**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–10 (Kern-API, Frontend, Layout, Dashboard, Admin-UI, Dokumente-UI). **Phase 2** (später): Abschnitte 11–15 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku).
 
 ---
 
@@ -68,16 +68,43 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 7. Dokumente in der UI
+## 7. Layout & Navigation
+
+- [ ] **Sidebar:** persistente Navigation (Bereiche: Teams, Repositories, Prozesse, ggf. Admin); kontextabhängig erweiterbar
+- [ ] **Breadcrumbs:** Pfad/Kontext anzeigen (z. B. Firma → Abteilung → Team → Dokument)
+- [ ] Einheitliches Layout für alle Bereiche (Header, Sidebar, Inhalt)
+- [ ] **Einheitliche UX:** Loading States (Skeletons/Spinner), Fehlerbehandlung (API-Fehler, 404, Fehlerseite), Toasts/Notifications für Erfolg und Fehler
+
+---
+
+## 8. Dashboard / Home
+
+- [ ] **Startseite:** Überblick (z. B. letzte Änderungen, „meine“ Dokumente)
+- [ ] **Quick Links:** Repositories, Teams, Prozesse, Firma, ggf. Vorlagen (vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
+- [ ] Optional: Platzhalter für Benachrichtigungen/Updates (später an Async Jobs anbinden)
+
+---
+
+## 9. Admin-UI / Nutzerverwaltung
+
+- [ ] **Zugang:** Admin-Bereich nur für Nutzer mit `isAdmin` (Route-Guard, ggf. Menüpunkt nur für Admins)
+- [ ] **Nutzerverwaltung:** Nutzer anzeigen, anlegen, bearbeiten (Name, E-Mail, Admin-Flag, ggf. deaktivieren)
+- [ ] **Zuordnungen in der UI:** TeamMember, TeamLeader, Supervisor verwalten (an bestehende API anbinden)
+- [ ] Optional: Organisation (Firma, Abteilung, Team) anzeigen/bearbeiten im Admin
+
+---
+
+## 10. Dokumente in der UI
 
 - [ ] Listen/Filter nach Kontext, Team, Tags
+- [ ] **Tag-Verwaltung:** Tags anzeigen, Dokumenten zuweisen, nach Tags filtern
 - [ ] Markdown-Editor + Vorschau (z. B. TipTap oder Textarea + Preview)
 - [ ] Anzeige mit Rechte-Checks (Lesen/Schreiben nur wenn berechtigt)
 - [ ] Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten
 
 ---
 
-## 8. Versionierung & PR-Workflow
+## 11. Versionierung & PR-Workflow
 
 - [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs
 - [ ] Deltas/Deduplizierung (diff-match-patch, Blob-Referenzen)
@@ -86,7 +113,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 9. Objekt-Speicher (MinIO)
+## 12. Objekt-Speicher (MinIO)
 
 - [ ] S3-Client (MinIO) im Backend anbinden
 - [ ] Upload/Download für Anhänge und Bilder (Dokumente)
@@ -94,7 +121,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 10. Async Jobs
+## 13. Async Jobs
 
 - [ ] pg-boss einbinden (Queue, Worker)
 - [ ] Worker-Prozess oder -Container für Jobs
@@ -103,7 +130,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 11. Volltextsuche
+## 14. Volltextsuche
 
 - [ ] PostgreSQL Full-Text-Search oder externe Engine (Meilisearch/Typesense)
 - [ ] Such-API (Query, Filter nach Kontext/Team)
@@ -111,10 +138,11 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 12. Deployment & Doku
+## 15. Deployment & Doku
 
 - [ ] `install.sh` und ggf. `scripts/update.sh` finalisieren
 - [ ] CI-Job für Install-Skript-Test (bereits in Abschnitt 1 angelegt; hier finalisieren)
+- [ ] CI erweitern: Frontend-Tests (Unit/Component), optional E2E (z. B. Playwright)
 - [ ] Caddy-Config im Repo, Doku zu VPN (WireGuard o. Ä.) und Reverse Proxy
 - [ ] Backup-Konzept (DB, MinIO), Hinweis in App vor Update
 - [ ] README: Voraussetzungen, Installation, Update
