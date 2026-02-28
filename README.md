@@ -28,7 +28,7 @@ Alternativ manuell: `docker compose up -d`.
 
 Kurze Anleitung (Makefile, Befehle, wann was): [docs/Development-Anleitung.md](docs/Development-Anleitung.md).
 
-- **Schnell-Dev (täglich):** Nur PostgreSQL und MinIO in Docker, Backend auf dem Host.
+- **Schnell-Dev (täglich):** Nur PostgreSQL 18 und MinIO in Docker, Backend auf dem Host.
 
   ```bash
   docker compose -f docker-compose.dev.yml up -d

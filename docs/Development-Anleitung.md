@@ -28,13 +28,13 @@ make install
 
 **Was läuft wo?**
 
-| Komponente   | Schnell-Dev (`make docker-dev` + `make dev`)     | Vollständiger Stack (`make docker-up`) |
-| ------------ | ------------------------------------------------ | -------------------------------------- |
-| **Postgres** | ✅ in Docker                                     | ✅ in Docker                           |
-| **MinIO**    | ✅ in Docker                                     | ✅ in Docker                           |
-| **Backend**  | ✅ auf dem **Host** (du startest mit `make dev`) | ✅ als Container „app“                 |
-| **Caddy**    | ❌ nicht gestartet                               | ✅ Reverse Proxy                       |
-| **Frontend** | ❌ (noch Platzhalter, später auf dem Host)       | ❌ (folgt in Abschnitt 6)              |
+| Komponente        | Schnell-Dev (`make docker-dev` + `make dev`)     | Vollständiger Stack (`make docker-up`) |
+| ----------------- | ------------------------------------------------ | -------------------------------------- |
+| **PostgreSQL 18** | ✅ in Docker (`postgres:18-alpine`)              | ✅ in Docker                           |
+| **MinIO**         | ✅ in Docker                                     | ✅ in Docker                           |
+| **Backend**       | ✅ auf dem **Host** (du startest mit `make dev`) | ✅ als Container „app“                 |
+| **Caddy**         | ❌ nicht gestartet                               | ✅ Reverse Proxy                       |
+| **Frontend**      | ❌ (noch Platzhalter, später auf dem Host)       | ❌ (folgt in Abschnitt 6)              |
 
 Schnell-Dev heißt: **Nur** die Datenbanken (Postgres, MinIO) laufen in Docker. Caddy und Backend-Container werden **nicht** gestartet. Du startest Backend (und später Frontend) selbst auf deinem Rechner – damit du sofort Hot-Reload hast und keine Images bauen musst.
 
@@ -54,7 +54,7 @@ Schnell-Dev heißt: **Nur** die Datenbanken (Postgres, MinIO) laufen in Docker. 
    pnpm --filter backend dev
    ```
 
-3. **Wenn „Authentifizierung fehlgeschlagen“ (Credentials):** Die Compose-Dateien setzen User `app`, Passwort `app`, DB `docsops`. Wenn das Volume früher mit anderen Werten angelegt wurde, ignoriert Postgres die aktuellen Umgebungsvariablen. **Fix:** Volume neu anlegen: `docker compose -f docker-compose.dev.yml down -v`, dann `docker compose -f docker-compose.dev.yml up -d`. Für Prisma/Migrationen vom Host: `DATABASE_URL=postgresql://app:app@localhost:5432/docsops` setzen (oder `.env` aus `.env.example` anlegen). Prisma-Befehle **im Backend-Verzeichnis** ausführen: `cd apps/backend`, dann z. B. `pnpm exec prisma migrate dev --name init`. **Nach Schema-Umbau** (z. B. getrennte Kontexte, Tags normalisiert): Zuerst `pnpm exec prisma migrate reset` (DB leeren, Datenverlust), dann `pnpm exec prisma migrate dev --name init` – erzeugt und wendet die neue Init-Migration an.
+3. **Wenn „Authentifizierung fehlgeschlagen“ (Credentials):** Die Compose-Dateien setzen User `app`, Passwort `app`, DB `docsops` (PostgreSQL 18). Wenn das Volume früher mit anderen Werten angelegt wurde, ignoriert Postgres die aktuellen Umgebungsvariablen. **Fix:** Volume neu anlegen: `docker compose -f docker-compose.dev.yml down -v`, dann `docker compose -f docker-compose.dev.yml up -d`. Für Prisma/Migrationen vom Host: `DATABASE_URL=postgresql://app:app@localhost:5432/docsops` setzen (oder `.env` aus `.env.example` anlegen). Prisma-Befehle **im Backend-Verzeichnis** ausführen: `cd apps/backend`, dann z. B. `pnpm exec prisma migrate dev --name init`. **Nach Schema-Umbau** (z. B. getrennte Kontexte, Tags normalisiert): Zuerst `pnpm exec prisma migrate reset` (DB leeren, Datenverlust), dann `pnpm exec prisma migrate dev --name init` – erzeugt und wendet die neue Init-Migration an.
 
 ## Caddy + Backend (+ Frontend) in der Entwicklung starten
 

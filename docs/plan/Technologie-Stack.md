@@ -35,7 +35,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 ## 4. Datenbank & ORM
 
-- **Datenbank:** PostgreSQL. Nutzer, Organisation (Firma/Abteilung/Team), Kontexte, Dokumente, Rechte n:m (vgl. [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md)); Full-Text-Search.
+- **Datenbank:** PostgreSQL 18 (Docker-Image `postgres:18-alpine`). Nutzer, Organisation (Firma/Abteilung/Team), Kontexte, Dokumente, Rechte n:m (vgl. [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md)); Full-Text-Search.
 - **Zugriff:** Prisma. `prisma migrate dev` (Entwicklung), `prisma migrate deploy` (Deploy).
 
 ---

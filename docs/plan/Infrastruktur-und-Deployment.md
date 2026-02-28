@@ -95,7 +95,7 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 
 - **Ziel:** Lokal so entwickeln, dass das Verhalten dem Server möglichst nahekommt; Install-Skript testbar machen.
 - **Zwei Modi:**
-  - **Schnell-Dev (täglich):** Backend und Frontend auf dem Host mit `npm run dev`; nur **PostgreSQL + MinIO** in Docker (z. B. `docker compose up db minio` oder kleines `compose.dev.yml`). Schnell, wenig Ressourcen.
+  - **Schnell-Dev (täglich):** Backend und Frontend auf dem Host mit `npm run dev`; nur **PostgreSQL 18 + MinIO** in Docker (z. B. `docker compose up db minio` oder kleines `compose.dev.yml`). Schnell, wenig Ressourcen.
   - **Prod-nah (regelmäßig / vor Release):** Vollständiger Stack mit **Caddy** starten (`docker compose up`). App mit Volume-Mount und Watch (nodemon/tsx); Zugriff über **http://localhost** wie auf dem Server. So werden Proxy, Basis-URL und Routing früh abgeglichen.
 - **Umsetzung:** Eine `docker-compose.yml` (oder Basis + Override); Dev-Override mit Volume-Mounts und Dev-Command für die App. Caddy leitet auf App (und ggf. Frontend-Dev-Server) weiter.
 
