@@ -50,11 +50,15 @@ services:
       start_period: 10s
 
   frontend:
-    image: node:24-alpine
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node-dev
+    image: docsops-node-dev
+    user: '${UID:-1000}:${GID:-1000}'
     working_dir: /app
     volumes:
       - .:/app
-    command: sh -c "corepack enable pnpm && pnpm install && pnpm --filter frontend run dev"
+    command: sh -c "pnpm install && pnpm --filter frontend run dev"
     environment:
       CI: 'true'
       VITE_API_URL: ''

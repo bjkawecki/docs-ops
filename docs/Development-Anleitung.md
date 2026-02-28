@@ -75,7 +75,9 @@ Dabei wird `docker-compose.override.yml` automatisch geladen: Die App (Backend) 
 
 **Frontend (Abschnitt 6 – Szenario B):** Ab Abschnitt 6 gilt **eine Origin**: Caddy routet `/api/*` zum Backend und `/` zum Frontend. Das Frontend läuft als eigener Service im Stack (Vite-Dev-Server oder Build). Du erreichst die gesamte App unter **http://localhost:5000** – HTML/JS vom Frontend, API unter `http://localhost:5000/api/v1/...`. Session-Cookie gilt für eine Domain, CORS ist nicht nötig. Optional für reine Host-Entwicklung: Frontend auf dem Host mit `pnpm --filter frontend dev` (dann CORS im Backend für `http://localhost:5173`).
 
-**Kurz:** Vollständiger Stack = `docker compose up`; danach **http://localhost:5000** für App und API (Caddy leitet nach Pfad weiter).
+**Kurz:** Vollständiger Stack = `docker compose up`; danach **http://localhost:5000** für App und API (Caddy leitet nach Pfad weiter). Beim Start werden automatisch die Migrationen ausgeführt und – falls in der `.env` `ADMIN_EMAIL` und `ADMIN_PASSWORD` gesetzt sind – ein Admin angelegt (falls noch keiner existiert).
+
+**Hinweis:** App und Frontend laufen mit deiner User-ID (`UID`/`GID`), damit `node_modules` und `generated` dir gehören. Wenn deine IDs nicht 1000:1000 sind: vor dem Start `export UID=$(id -u) GID=$(id -g)` setzen (oder in `~/.bashrc`). Falls doch EACCES auftritt: `sudo chown -R $(whoami): node_modules apps/*/node_modules apps/backend/generated`, dann `pnpm install`.
 
 ## Qualität vor Commit / wie CI
 

@@ -34,12 +34,11 @@ describe('Organisation (Companies, Departments, Teams)', () => {
 
   afterAll(async () => {
     if (companyId) await prisma.company.deleteMany({ where: { id: companyId } });
-    await prisma.session.deleteMany({
-      where: { userId: { in: [adminId, userId] } },
-    });
-    await prisma.user.deleteMany({
-      where: { id: { in: [adminId, userId] } },
-    });
+    const ids = [adminId, userId].filter((id): id is string => id != null);
+    if (ids.length > 0) {
+      await prisma.session.deleteMany({ where: { userId: { in: ids } } });
+      await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    }
     await app.close();
   });
 

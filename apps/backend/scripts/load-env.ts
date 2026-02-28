@@ -25,7 +25,8 @@ if (!existingPath) {
   process.exit(1);
 }
 
-const result = config({ path: existingPath, override: true });
+// override: false – bereits gesetzte Variablen (z. B. DATABASE_URL im Container) nicht überschreiben
+const result = config({ path: existingPath, override: false });
 if (!result.parsed || Object.keys(result.parsed).length === 0) {
   console.error('Fehler: .env-Datei ist leer oder konnte nicht gelesen werden:', existingPath);
   process.exit(1);

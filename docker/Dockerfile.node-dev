@@ -1,0 +1,4 @@
+# Basis-Image für App- und Frontend-Dev-Container: pnpm ist bereits aktiviert.
+# Beim Start laufen die Services mit user ${UID}:${GID}, sodass node_modules dir gehören.
+FROM node:24-alpine
+RUN corepack enable pnpm
