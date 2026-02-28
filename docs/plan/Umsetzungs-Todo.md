@@ -38,7 +38,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 4. Rechte
 
-- [ ] Logik `canRead(userId, dokumentId)` / `canWrite(userId, dokumentId)` (vgl. [Rechteableitung Pseudocode](../platform/datenmodell/Rechteableitung%20Pseudocode.md); Pseudocode dort auf Deutsch, Implementierung auf Englisch)
+- [ ] Logik `canRead(userId, dokumentId)` / `canWrite(userId, dokumentId)` (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md))
 - [ ] Middleware für Dokument-Routen (z. B. `requireDocumentAccess('read'|'write')`)
 - [ ] Anbindung an Prisma (User inkl. Teams, Abteilungen, Superuser; Dokument inkl. Leser/Schreiber)
 
@@ -56,6 +56,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 6. Frontend-Basis
 
+- [ ] Passende Component-/Style-Library auswählen (noch zu finden)
 - [ ] React (Vite, TypeScript), React Router, TanStack Query
 - [ ] Layout (Hauptnavigation), Routing-Struktur (/, /teams/, /repositories/, /prozesse/, … vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
 - [ ] API-Client (Base-URL, Auth-Header), Typen aus Backend/Prisma teilen

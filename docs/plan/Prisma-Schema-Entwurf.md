@@ -1,6 +1,6 @@
 # Prisma-Schema-Entwurf
 
-Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Datenmodell](../platform/datenmodell/Pseudocode%20Datenmodell.md) und [Rechteableitung](../platform/datenmodell/Rechteableitung%20Pseudocode.md). Namenskonvention: Englisch; Implementierung nutzt `canRead`/`canWrite` (vgl. [projekt-kontext.mdc](../../.cursor/rules/projekt-kontext.mdc)).
+Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Datenmodell](../platform/datenmodell/Pseudocode%20Datenmodell.md) und [Rechteableitung](../platform/datenmodell/Rechteableitung.md). Namenskonvention: Englisch; Implementierung nutzt `canRead`/`canWrite` (vgl. [projekt-kontext.mdc](../../.cursor/rules/projekt-kontext.mdc)).
 
 **Umsetzungsstand (aktuell in `apps/backend/prisma/schema.prisma`):** Getrennte Kontext-Tabellen (Process, Project, Subcontext, UserSpace) mit **Context**-Abstraktion für Document; **Owner**-Abstraktion für Process/Project (genau einer: Department oder Team); Zugriffsrechte in drei Tabellen (DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment) mit genau einem Grantee pro Zeile; Tags normalisiert (Tag + DocumentTag n:m); User mit email, externalId, isAdmin, deletedAt; Supervisor, TeamLeader (statt Superuser); Soft Delete (Document, Process, Project, User); Document mit optionalem pdfUrl.
 
@@ -58,7 +58,7 @@ Pro Zeile genau ein Grantee (Schema), keine polymorphe granteeType/granteeId:
 - **GrantRole:** Enum Read | Write.
 - Composite-PK jeweils (documentId, granteeId, role); Indizes auf documentId und Grantee-Id für Abfragen.
 
-Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId, documentId)` wie im [Rechteableitung-Pseudocode](../platform/datenmodell/Rechteableitung%20Pseudocode.md); zusätzlich isAdmin (sieht alles) und Supervisor (Leserecht auf Abteilungs-Kontexte).
+Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId, documentId)` wie in der [Rechteableitung](../platform/datenmodell/Rechteableitung.md); zusätzlich isAdmin (sieht alles) und Supervisor (Leserecht auf Abteilungs-Kontexte).
 
 ---
 

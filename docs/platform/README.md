@@ -7,7 +7,7 @@ Konzept und Architektur der internen Dokumentationsplattform. **Einstieg:** [Doc
 | Ordner              | Inhalt                                                                                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **/** (Wurzel)      | [Doc-Platform-Konzept.md](Doc-Platform-Konzept.md) – Grundidee, Organisationsstruktur, Kontexte, Rechte (Hauptdokument). |
-| **datenmodell/**    | Datenmodell und Rechte-Logik: Pseudocode Datenmodell, Rechteableitung (Pseudocode).                                      |
+| **datenmodell/**    | Datenmodell und Rechte-Logik: Pseudocode Datenmodell, Rechteableitung.                                                   |
 | **versionierung/**  | Versionierung (Snapshots + Deltas), Pseudo-Git, Pull-Request-Workflow; inkl. zugehörige Diagramme (SVG).                 |
 | **ui-architektur/** | UI und Nutzung: Intranet-Dashboard (URLs, Seiten), Intranet-Plattform, Markdown-basierte Dokumentationsplattform.        |
 | **diagramme/**      | Strukturelle Übersichten (Hierarchie, Kontexte, Struktur-Diagramme) als SVG.                                             |

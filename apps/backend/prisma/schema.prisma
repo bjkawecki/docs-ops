@@ -217,7 +217,7 @@ model DocumentTag {
   @@id([documentId, tagId])
 }
 
-// --- Zugriffsrechte (explizit; vgl. Rechteableitung Pseudocode) ---
+// --- Zugriffsrechte (explizit; vgl. Rechteableitung) ---
 
 /// Rolle pro Grant: Lesen oder Schreiben. Schreibrechte nur für Teamleader bzw. explizit gewährte Schreiber.
 enum GrantRole {
