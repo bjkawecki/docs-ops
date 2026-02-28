@@ -12,7 +12,8 @@
     "start": "node dist/src/index.js",
     "prepare": "prisma generate",
     "prisma:generate": "prisma generate",
-    "test": "vitest run"
+    "test": "vitest run",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

@@ -6,7 +6,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-    command: sh -c "corepack enable pnpm && pnpm install && pnpm --filter backend run dev"
+    command: sh -c "corepack enable pnpm && pnpm install && pnpm --filter backend exec prisma migrate deploy && pnpm --filter backend run dev"
     environment:
       CI: 'true'
       PORT: 8080

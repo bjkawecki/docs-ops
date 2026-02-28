@@ -13,6 +13,6 @@
     "declaration": true,
     "declarationMap": true
   },
-  "include": ["src/**/*.ts", "generated/prisma/**/*.ts", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "generated/prisma/**/*.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

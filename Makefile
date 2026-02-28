@@ -1,7 +1,7 @@
 # docs-ops – Makefile
 # Nutzung: make [Ziel]. Ohne Ziel: make help
 
-.PHONY: help install lint format format-check check clean dev build start test docker-up docker-up-fg docker-down docker-dev
+.PHONY: help install lint format format-check check clean dev build start test docker-up docker-up-fg docker-down docker-dev migrate admin-create
 
 # Standard-Ziel: Hilfe anzeigen
 help:
@@ -20,6 +20,8 @@ help:
 	@echo "  make docker-up-fg Stack starten im Vordergrund (docker compose up)"
 	@echo "  make docker-down  Stack stoppen"
 	@echo "  make docker-dev   Nur Postgres + MinIO (Schnell-Dev)"
+	@echo "  make migrate      Prisma-Migrationen anwenden (DB-Schema); vor admin-create nötig"
+	@echo "  make admin-create Admin anlegen (falls noch keiner); ADMIN_EMAIL/ADMIN_PASSWORD in .env"
 	@echo "  make clean        node_modules und Build-Artefakte entfernen"
 	@echo ""
 
@@ -61,6 +63,12 @@ docker-down:
 
 docker-dev:
 	docker compose -f docker-compose.dev.yml up -d
+
+migrate:
+	pnpm --filter backend exec prisma migrate deploy
+
+admin-create:
+	pnpm --filter backend run create-admin
 
 clean:
 	rm -rf node_modules

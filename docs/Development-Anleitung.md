@@ -68,14 +68,14 @@ docker compose up
 
 Dabei wird `docker-compose.override.yml` automatisch geladen: Die App (Backend) läuft als Node-Container mit gemountetem Quellcode und `pnpm --filter backend run dev` – Änderungen am Backend werden also live nachgeladen.
 
-- **URL:** **http://localhost:4000** (Caddy auf Port 4000; routet `/` → Frontend, `/api` → Backend)
+- **URL:** **http://localhost:5000** (Caddy auf Port 5000; routet `/` → Frontend, `/api` → Backend)
 - **Läuft:** Postgres, MinIO, Backend (mit Watch), Frontend (Vite-Dev-Server), Caddy
 
 **Mit Makefile:** `make docker-up` startet den Stack im Hintergrund (`-d`); ohne `-d` siehst du die Logs im Vordergrund (z. B. Backend-Watch). Für Entwicklung oft praktisch: `docker compose up` (ohne `-d`) in einem Terminal, dann siehst du Caddy- und Backend-Logs.
 
-**Frontend (Abschnitt 6 – Szenario B):** Ab Abschnitt 6 gilt **eine Origin**: Caddy routet `/api/*` zum Backend und `/` zum Frontend. Das Frontend läuft als eigener Service im Stack (Vite-Dev-Server oder Build). Du erreichst die gesamte App unter **http://localhost:4000** – HTML/JS vom Frontend, API unter `http://localhost:4000/api/v1/...`. Session-Cookie gilt für eine Domain, CORS ist nicht nötig. Optional für reine Host-Entwicklung: Frontend auf dem Host mit `pnpm --filter frontend dev` (dann CORS im Backend für `http://localhost:5173`).
+**Frontend (Abschnitt 6 – Szenario B):** Ab Abschnitt 6 gilt **eine Origin**: Caddy routet `/api/*` zum Backend und `/` zum Frontend. Das Frontend läuft als eigener Service im Stack (Vite-Dev-Server oder Build). Du erreichst die gesamte App unter **http://localhost:5000** – HTML/JS vom Frontend, API unter `http://localhost:5000/api/v1/...`. Session-Cookie gilt für eine Domain, CORS ist nicht nötig. Optional für reine Host-Entwicklung: Frontend auf dem Host mit `pnpm --filter frontend dev` (dann CORS im Backend für `http://localhost:5173`).
 
-**Kurz:** Vollständiger Stack = `docker compose up`; danach **http://localhost:4000** für App und API (Caddy leitet nach Pfad weiter).
+**Kurz:** Vollständiger Stack = `docker compose up`; danach **http://localhost:5000** für App und API (Caddy leitet nach Pfad weiter).
 
 ## Qualität vor Commit / wie CI
 
@@ -112,7 +112,7 @@ make format
 
 ## Prod-nah testen (vor Release)
 
-Gleicher Stack wie im Abschnitt **Caddy + Backend in der Entwicklung starten**: `make docker-up` oder `docker compose up`. Zugriff über **http://localhost:4000**.
+Gleicher Stack wie im Abschnitt **Caddy + Backend in der Entwicklung starten**: `make docker-up` oder `docker compose up`. Zugriff über **http://localhost:5000**.
 
 ## Ohne Makefile (pnpm direkt)
 
