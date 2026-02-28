@@ -2,8 +2,9 @@ import { createRequire } from 'node:module';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import { prisma } from './db.js';
-import { companiesRoutes } from './routes/companies.js';
 import { authRoutes } from './auth/routes.js';
+import { companiesRoutes } from './routes/companies.js';
+import { documentsRoutes } from './routes/documents.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { name: string; version: string };
@@ -41,5 +42,6 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   app.register(authRoutes, { prefix: '/api/v1' });
   app.register(companiesRoutes, { prefix: '/api/v1' });
+  app.register(documentsRoutes, { prefix: '/api/v1' });
   return app;
 }

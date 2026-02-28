@@ -38,9 +38,9 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 4. Rechte
 
-- [ ] Logik `canRead(userId, dokumentId)` / `canWrite(userId, dokumentId)` (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md))
-- [ ] Middleware für Dokument-Routen (z. B. `requireDocumentAccess('read'|'write')`)
-- [ ] Anbindung an Prisma (User inkl. Teams, Abteilungen, Superuser; Dokument inkl. Leser/Schreiber)
+- [x] Logik `canRead(userId, dokumentId)` / `canWrite(userId, dokumentId)` (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md))
+- [x] Middleware für Dokument-Routen (z. B. `requireDocumentAccess('read'|'write')`)
+- [x] Anbindung an Prisma (User inkl. Teams, Abteilungen, Superuser; Dokument inkl. Leser/Schreiber)
 
 ---
 

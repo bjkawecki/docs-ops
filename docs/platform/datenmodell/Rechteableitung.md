@@ -39,4 +39,4 @@ Dokument D1 liegt im Projekt P1; Owner von P1 ist Team T1. Die Zugriffsrechte am
 
 ## Implementierung
 
-Die Prüflogik wird im Backend in den Funktionen `canRead` und `canWrite` umgesetzt; Dokument-Routen nutzen eine Middleware (z. B. `requireDocumentAccess('read'|'write')`), die diese Funktionen aufruft.
+Die Prüflogik liegt unter `apps/backend/src/permissions/` (canRead, canWrite, requireDocumentAccess). Dokument-Routen nutzen die Middleware `requireDocumentAccess('read'|'write')`, die diese Funktionen aufruft.
