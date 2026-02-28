@@ -70,3 +70,26 @@ Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
 
 Schema liegt in `apps/backend/prisma/schema.prisma`; Migrationen unter `apps/backend/prisma/migrations/`.
+
+---
+
+## 6. Löschverhalten (Cascades und Restrict)
+
+Das Schema nutzt **Restrict** für die Organisations- und Owner-Hierarchie, damit Parent-Ressourcen nur gelöscht werden können, wenn keine abhängigen Kinder mehr existieren. Alle übrigen Abhängigkeiten verwenden **Cascade**.
+
+**Restrict-Regeln (Löschen blockiert, solange Kinder existieren):**
+
+- **Company:** Löschen nur möglich, wenn **keine** Departments existieren (FK Department → Company: `onDelete: Restrict`).
+- **Department:** Löschen nur möglich, wenn **keine** Teams und **keine** Owner mit dieser departmentId existieren (Team → Department und Owner → Department: `onDelete: Restrict`).
+- **Team:** Löschen nur möglich, wenn **kein** Owner mit diesem teamId existiert (Owner → Team: `onDelete: Restrict`).
+
+**API-Verhalten:** DELETE Company/Department/Team antwortet mit **409 Conflict**, wenn die DB das Löschen wegen Restrict verweigert (Fehlerformat: `{ "error": "<Meldung>", "code": "P2003" }` optional). Die Routen liefern spezifische Meldungen (z. B. „Firma kann nicht gelöscht werden, solange Abteilungen existieren.“).
+
+**Cascade (bei tatsächlicher Löschung):**
+
+- **Company löschen** (nach vorherigem Löschen aller Departments) → siehe Department/Team.
+- **Department löschen** (wenn keine Teams/Owner mehr) → Supervisor-Zuordnungen dieser Abteilung, DocumentGrantDepartment usw. (Cascade).
+- **Team löschen** (wenn kein Owner mehr) → TeamMember, TeamLeader, DocumentGrantTeam (Cascade).
+- **Owner** → Process/Project (Cascade); Process/Project → Context → Documents (Cascade).
+- **User löschen** (physisch) → Sessions, TeamMember, TeamLeader, Supervisor, UserSpaces, DocumentGrants (Cascade). Soft-Delete (`deletedAt`) entzieht Zugriff in der App, ohne Datensätze zu entfernen.
+- **Context löschen** → Process/Project/Subcontext/UserSpace (je nach Kontexttyp) und alle Documents dieses Kontexts (Cascade).

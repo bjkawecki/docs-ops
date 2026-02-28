@@ -31,6 +31,9 @@ export function requireDocumentAccess(
     if (!doc) {
       return reply.status(404).send({ error: 'Dokument nicht gefunden' });
     }
+    if (mode === 'read' && doc.deletedAt != null) {
+      return reply.status(404).send({ error: 'Dokument nicht gefunden' });
+    }
     const allowed =
       mode === 'read'
         ? await canRead(prisma, request.user.id, doc)

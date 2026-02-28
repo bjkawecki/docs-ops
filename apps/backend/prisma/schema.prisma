@@ -26,7 +26,7 @@ model Department {
   id                     String          @id @default(cuid())
   name                   String
   companyId              String
-  company                Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   teams                  Team[]
   owners                 Owner[]         @relation("OwnerDepartment")
   supervisors            Supervisor[]
@@ -39,7 +39,7 @@ model Team {
   id           String          @id @default(cuid())
   name         String
   departmentId String
-  department   Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department   Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   members      TeamMember[]
   leaders      TeamLeader[]
   owners       Owner[]         @relation("OwnerTeam")
@@ -108,8 +108,8 @@ model Owner {
   id             String    @id @default(cuid())
   departmentId   String?
   teamId         String?
-  department     Department? @relation("OwnerDepartment", fields: [departmentId], references: [id], onDelete: Cascade)
-  team           Team?      @relation("OwnerTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  department     Department? @relation("OwnerDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
+  team           Team?      @relation("OwnerTeam", fields: [teamId], references: [id], onDelete: Restrict)
   processes      Process[]
   projects       Project[]
 }

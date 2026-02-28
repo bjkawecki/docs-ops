@@ -88,8 +88,11 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       headers: { cookie: cookieHeader },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(Array.isArray(body)).toBe(true);
+    const body = res.json() as { items: unknown[]; total: number; limit: number; offset: number };
+    expect(Array.isArray(body.items)).toBe(true);
+    expect(typeof body.total).toBe('number');
+    expect(body.limit).toBeDefined();
+    expect(body.offset).toBeDefined();
   });
 
   it('GET /api/v1/auth/me mit gültiger Session → 200 + User', async () => {

@@ -48,11 +48,12 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 5. Kern-API
 
-- [ ] CRUD Organisation (Firma, Abteilung, Team)
-- [ ] CRUD Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext)
-- [ ] CRUD Dokumente (Titel, Markdown-Inhalt, Kontext, Tags)
-- [ ] Zuweisung Leser/Schreiber pro Dokument (Nutzer, Team, Abteilung)
-- [ ] Validierung (Zod), Fehlerbehandlung
+- [x] CRUD Organisation (Firma, Abteilung, Team)
+- [x] CRUD Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext)
+- [x] CRUD Dokumente (Titel, Markdown-Inhalt, Kontext, Tags)
+- [x] Zuweisung Leser/Schreiber pro Dokument (Nutzer, Team, Abteilung)
+- [x] API für Zuordnungen (TeamMember, TeamLeader, Supervisor) – GET/POST/DELETE pro Ressource; Berechtigung: Admin alles, Supervisor für Teams seiner Abteilung (Member + Leader), TeamLeader für sein Team (nur Member)
+- [x] Validierung (Zod), Fehlerbehandlung
 
 ---
 

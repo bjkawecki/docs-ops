@@ -20,3 +20,17 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
   }
   (request as FastifyRequest & { user: RequestUser }).user = result.user;
 }
+
+/**
+ * PreHandler: Muss nach requireAuth laufen. Prüft request.user.isAdmin; sonst 403.
+ * Für Organisation (Company, Department, Team) und andere Admin-only Aktionen.
+ */
+export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const user = (request as FastifyRequest & { user?: RequestUser }).user;
+  if (!user) {
+    return reply.status(401).send({ error: 'Nicht angemeldet' });
+  }
+  if (!user.isAdmin) {
+    return reply.status(403).send({ error: 'Nur für Administratoren' });
+  }
+}

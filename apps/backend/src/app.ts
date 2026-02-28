@@ -3,8 +3,10 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import { prisma } from './db.js';
 import { authRoutes } from './auth/routes.js';
-import { companiesRoutes } from './routes/companies.js';
+import { organisationRoutes } from './routes/organisation.js';
+import { contextRoutes } from './routes/contexts.js';
 import { documentsRoutes } from './routes/documents.js';
+import assignmentsRoutes from './routes/assignments.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { name: string; version: string };
@@ -66,6 +68,14 @@ export async function buildApp(): Promise<FastifyInstance> {
         return reply.status(404).send({ error: 'Ressource nicht gefunden' });
       }
 
+      // Prisma P2003 (Foreign key constraint failed – Restrict)
+      if (err.code === 'P2003') {
+        return reply.status(409).send({
+          error: 'Ressource kann nicht gelöscht werden, da Abhängigkeiten existieren.',
+          code: 'P2003',
+        });
+      }
+
       // Fastify/HTTP mit statusCode
       if (err.statusCode != null && err.statusCode >= 400) {
         return reply.status(err.statusCode).send({
@@ -100,7 +110,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   app.register(authRoutes, { prefix: '/api/v1' });
-  app.register(companiesRoutes, { prefix: '/api/v1' });
+  app.register(organisationRoutes, { prefix: '/api/v1' });
+  app.register(contextRoutes, { prefix: '/api/v1' });
   app.register(documentsRoutes, { prefix: '/api/v1' });
+  app.register(assignmentsRoutes, { prefix: '/api/v1' });
   return app;
 }

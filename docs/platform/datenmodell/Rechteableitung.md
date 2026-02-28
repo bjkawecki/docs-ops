@@ -40,3 +40,17 @@ Dokument D1 liegt im Projekt P1; Owner von P1 ist Team T1. Die Zugriffsrechte am
 ## Implementierung
 
 Die Prüflogik liegt unter `apps/backend/src/permissions/` (canRead, canWrite, requireDocumentAccess). Dokument-Routen nutzen die Middleware `requireDocumentAccess('read'|'write')`, die diese Funktionen aufruft.
+
+## Kontext- und Organisations-Rechte
+
+Zusätzlich zu den dokumentbezogenen Rechten (canRead/canWrite) gelten folgende **hierarchischen Rechte** für Kontexte und die Organisationsstruktur. „Lesen/schreiben“ umfasst fachlich auch das **Anlegen** der jeweiligen Ressource.
+
+- **Admin (isAdmin):** Darf alles lesen und schreiben. **Company**, **Department** und **Team** können nur von Admins angelegt und gelöscht werden.
+
+- **Supervisor:** Darf für **sein Department** Prozesse und Projekte lesen, schreiben und anlegen. Keine Erstellung oder Löschung von Companies, Departments oder Teams.
+
+- **Team-Leader:** Darf für **sein Team** Prozesse und Projekte lesen, schreiben und anlegen.
+
+- **Unterkontexte:** Wer ein Projekt lesen/schreiben darf (Supervisor oder Team-Leader je nach Owner des Projekts), darf auch dessen **Unterkontexte** anlegen, bearbeiten und löschen.
+
+Die Implementierung berücksichtigt Kontext-Rechte (z. B. `canWriteContext` bzw. Prüfung für Process-/Project-/Subcontext-Routen) in Abschnitt 5 der Kern-API.
