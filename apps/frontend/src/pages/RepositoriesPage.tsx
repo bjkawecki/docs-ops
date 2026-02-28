@@ -1,12 +1,15 @@
-import { Title, Text, Stack } from '@mantine/core';
+import { Card } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 
 export function RepositoriesPage() {
   return (
-    <Stack gap="md">
-      <Title order={2}>Repositories / Projects</Title>
-      <Text size="sm" c="dimmed">
-        Repositories – content to follow.
-      </Text>
-    </Stack>
+    <>
+      <PageHeader title="Repositories / Projects" description="Repositories – content to follow." />
+      <Card withBorder padding="md">
+        <span style={{ fontSize: 14, color: 'var(--mantine-color-dimmed)' }}>
+          Content to follow.
+        </span>
+      </Card>
+    </>
   );
 }

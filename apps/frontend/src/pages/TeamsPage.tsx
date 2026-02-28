@@ -1,7 +1,8 @@
-import { Title, Text, Stack, List, Loader, Alert } from '@mantine/core';
+import { List, Loader, Alert, Card } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import type { Company } from 'backend/api-types';
 import { apiFetch } from '../api/client';
+import { PageHeader } from '../components/PageHeader';
 
 type CompaniesRes = { items: Company[]; total: number; limit: number; offset: number };
 
@@ -25,22 +26,22 @@ export function TeamsPage() {
   }
 
   return (
-    <Stack gap="md">
-      <Title order={2}>Teams / Departments</Title>
-      <Text size="sm" c="dimmed">
-        Teams – first list (companies). Content to follow.
-      </Text>
-      {data && data.items.length > 0 ? (
-        <List>
-          {data.items.map((c) => (
-            <List.Item key={c.id}>{c.name}</List.Item>
-          ))}
-        </List>
-      ) : (
-        <Text size="sm" c="dimmed">
-          No entries.
-        </Text>
-      )}
-    </Stack>
+    <>
+      <PageHeader
+        title="Teams / Departments"
+        description="Teams – first list (companies). Content to follow."
+      />
+      <Card withBorder padding="md">
+        {data && data.items.length > 0 ? (
+          <List>
+            {data.items.map((c) => (
+              <List.Item key={c.id}>{c.name}</List.Item>
+            ))}
+          </List>
+        ) : (
+          <span style={{ fontSize: 14, color: 'var(--mantine-color-dimmed)' }}>No entries.</span>
+        )}
+      </Card>
+    </>
   );
 }

@@ -2,7 +2,7 @@
 
 Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. Siehe [Technologie-Stack](Technologie-Stack.md), [Infrastruktur & Deployment](Infrastruktur-und-Deployment.md) und [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md).
 
-**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–10 (Kern-API, Frontend, Layout, Dashboard, Admin-UI, Dokumente-UI). **Phase 2** (später): Abschnitte 11–15 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku).
+**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–11 (Kern-API, Frontend, Layout, Admin-UI, Settings, Dashboard, Dokumente-UI). **Phase 2** (später): Abschnitte 12–17 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen).
 
 ---
 
@@ -70,14 +70,49 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 7. Layout & Navigation
 
-- [ ] **Sidebar:** persistente Navigation (Bereiche: Teams, Repositories, Prozesse, ggf. Admin); kontextabhängig erweiterbar
-- [ ] **Breadcrumbs:** Pfad/Kontext anzeigen (z. B. Firma → Abteilung → Team → Dokument)
-- [ ] Einheitliches Layout für alle Bereiche (Header, Sidebar, Inhalt)
-- [ ] **Einheitliche UX:** Loading States (Skeletons/Spinner), Fehlerbehandlung (API-Fehler, 404, Fehlerseite), Toasts/Notifications für Erfolg und Fehler
+- [x] **Struktur (Backstage-orientiert):** Zweiteiliges Layout ohne Nav-Kopfleiste: nur **Sidebar** (links) + **Main** (rechts). Main immer: (1) Seiten-Header oben (Titel, ggf. Metadaten/Aktionen), (2) bei Unterbereichen Tabs, sonst direkt (3) Content.
+- [x] **Sidebar:** Logo oben, gruppierte Nav-Einträge (Teams, Repositories, Prozesse, ggf. Admin); unten z. B. Notifications/Settings; aktiver Eintrag hervorheben.
+- [x] **Main-Content:** Thematische Karten/Cards, einheitliche Abstände; Loading States (Skeletons/Spinner), Fehlerbehandlung (API-Fehler, 404, Fehlerseite), Toasts/Notifications für Erfolg und Fehler.
 
 ---
 
-## 8. Dashboard / Home
+## 8. Admin-UI / Nutzerverwaltung
+
+- [ ] **Zugang & Struktur**
+  - Admin-Bereich nur für Nutzer mit `isAdmin` (Route-Guard; 403/Redirect für Nicht-Admins).
+  - Route z. B. `/admin` mit Unterrouten (z. B. `/admin/users`, `/admin/teams`, `/admin/organisation`).
+  - Menüpunkt „Admin“ in der Sidebar nur anzeigen, wenn aktueller Nutzer `isAdmin` (Frontend: Nutzerdaten aus Session/Me-API).
+- [ ] **Backend: Nutzer-API (falls noch nicht vorhanden)**
+  - GET `/api/v1/admin/users` – Nutzerliste (paginiert, Filter optional); nur für Admins (`requireAdmin`).
+  - POST `/api/v1/admin/users` – Nutzer anlegen (Name, E-Mail, Passwort, optional `isAdmin`); nur für Admins.
+  - PATCH `/api/v1/admin/users/:userId` – Nutzer bearbeiten (Name, E-Mail, `isAdmin`, ggf. `deletedAt` für Deaktivierung/Soft Delete).
+  - Optional: Passwort zurücksetzen (eigener Endpoint oder Teil von PATCH); keine Anzeige des bestehenden Passworts.
+- [ ] **Frontend: Nutzerverwaltung**
+  - Seite „Nutzer“ (z. B. `/admin/users`): Tabelle/Liste mit Name, E-Mail, Admin-Flag, Status (aktiv/deaktiviert); Suche/Filter, Pagination.
+  - Nutzer anlegen: Formular (Name, E-Mail, Passwort, Checkbox isAdmin); Validierung; Toast bei Erfolg/Fehler.
+  - Nutzer bearbeiten: Formular (Name, E-Mail, isAdmin, ggf. „Deaktivieren“); keine Passwort-Anzeige, optional „Passwort setzen“.
+- [ ] **Frontend: Zuordnungen (TeamMember, TeamLeader, Supervisor)**
+  - Anbindung an bestehende API: `GET/POST/DELETE /teams/:teamId/members`, `.../leaders`, `GET/POST/DELETE /departments/:departmentId/supervisors`.
+  - Pro Team: Mitglieder anzeigen, hinzufügen (User auswählen), entfernen; Team-Leader anzeigen, hinzufügen, entfernen. Berechtigung laut Backend (Supervisor/TeamLeader/Admin).
+  - Pro Abteilung: Supervisor-Liste anzeigen, hinzufügen, entfernen. Nur für Admins oder Supervisor derselben Abteilung (falls API das erlaubt).
+  - UI: z. B. Unterbereich „Teams“ unter `/admin/teams` mit Navigation Team wählen → Mitglieder/Leader verwalten; oder Integration in Organisationsbaum (Abteilung → Teams → Mitglieder).
+- [ ] **Optional: Organisation im Admin**
+  - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md): Company/Department/Team nur von Admins).
+  - Falls Kern-API bereits CRUD für Organisation bietet: reine UI-Anbindung; sonst Backend-Erweiterung prüfen.
+
+---
+
+## 9. Settings-Seite
+
+- [ ] **Route & Zugang:** Einstiegsseite unter z. B. `/settings`, erreichbar aus der Sidebar (unten, wie in Abschnitt 7).
+- [ ] **Layout:** Seiten-Header „Settings“, darunter Tabs für Unterbereiche (z. B. General, Appearance).
+- [ ] **General:** Profil/Identity-Anzeige (aktueller Nutzer, zugehörige Teams/Entitäten); optional Bearbeitung von Anzeigename.
+- [ ] **Appearance:** Theme (Hell/Dunkel/Auto) wie in Abschnitt 7; Einstellung persistieren (z. B. localStorage oder Backend). Optional: „Pin Sidebar“ (Sidebar ein-/ausklappbar).
+- [ ] Optional: weitere Tabs später (z. B. Notifications, Benachrichtigungseinstellungen).
+
+---
+
+## 10. Dashboard / Home
 
 - [ ] **Startseite:** Überblick (z. B. letzte Änderungen, „meine“ Dokumente)
 - [ ] **Quick Links:** Repositories, Teams, Prozesse, Firma, ggf. Vorlagen (vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
@@ -85,16 +120,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 9. Admin-UI / Nutzerverwaltung
-
-- [ ] **Zugang:** Admin-Bereich nur für Nutzer mit `isAdmin` (Route-Guard, ggf. Menüpunkt nur für Admins)
-- [ ] **Nutzerverwaltung:** Nutzer anzeigen, anlegen, bearbeiten (Name, E-Mail, Admin-Flag, ggf. deaktivieren)
-- [ ] **Zuordnungen in der UI:** TeamMember, TeamLeader, Supervisor verwalten (an bestehende API anbinden)
-- [ ] Optional: Organisation (Firma, Abteilung, Team) anzeigen/bearbeiten im Admin
-
----
-
-## 10. Dokumente in der UI
+## 11. Dokumente in der UI
 
 - [ ] Listen/Filter nach Kontext, Team, Tags
 - [ ] **Tag-Verwaltung:** Tags anzeigen, Dokumenten zuweisen, nach Tags filtern
@@ -104,7 +130,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 11. Versionierung & PR-Workflow
+## 12. Versionierung & PR-Workflow
 
 - [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs
 - [ ] Deltas/Deduplizierung (diff-match-patch, Blob-Referenzen)
@@ -113,7 +139,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 12. Objekt-Speicher (MinIO)
+## 13. Objekt-Speicher (MinIO)
 
 - [ ] S3-Client (MinIO) im Backend anbinden
 - [ ] Upload/Download für Anhänge und Bilder (Dokumente)
@@ -121,7 +147,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 13. Async Jobs
+## 14. Async Jobs
 
 - [ ] pg-boss einbinden (Queue, Worker)
 - [ ] Worker-Prozess oder -Container für Jobs
@@ -130,7 +156,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 14. Volltextsuche
+## 15. Volltextsuche
 
 - [ ] PostgreSQL Full-Text-Search oder externe Engine (Meilisearch/Typesense)
 - [ ] Such-API (Query, Filter nach Kontext/Team)
@@ -138,7 +164,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 15. Deployment & Doku
+## 16. Deployment & Doku
 
 - [ ] `install.sh` und ggf. `scripts/update.sh` finalisieren
 - [ ] CI-Job für Install-Skript-Test (bereits in Abschnitt 1 angelegt; hier finalisieren)
@@ -146,3 +172,14 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [ ] Caddy-Config im Repo, Doku zu VPN (WireGuard o. Ä.) und Reverse Proxy
 - [ ] Backup-Konzept (DB, MinIO), Hinweis in App vor Update
 - [ ] README: Voraussetzungen, Installation, Update
+
+---
+
+## 17. Layout- & UX-Ergänzungen (Phase 2)
+
+- [ ] **Suchfeld in der Sidebar:** Anbindung an Volltextsuche (vgl. Abschnitt 15).
+- [ ] **Breadcrumbs:** Pfad/Kontext anzeigen (z. B. Company → Abteilung → Team → Dokument).
+- [ ] **Pin Sidebar:** Sidebar ein-/ausklappbar, Option in Settings („Pin“).
+- [ ] **Theme-UI:** Umschaltung Hell/Dunkel/Auto in Settings, persistiert (technische Vorbereitung ggf. bereits in Abschnitt 7/9).
+- [ ] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) definieren und umsetzen.
+- [ ] **Icons & A11y:** Einheitliche Icon-Bibliothek; Tastatur/Screenreader für Sidebar und Tabs.

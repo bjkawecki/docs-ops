@@ -1,30 +1,33 @@
-import { Group, Title, Anchor, Button } from '@mantine/core';
+import { Group, Button, Card } from '@mantine/core';
 import { Link } from 'react-router-dom';
+import { PageHeader } from '../components/PageHeader';
 
 export function HomePage() {
   return (
     <>
-      <Title order={2} mb="md">
-        Dashboard
-      </Title>
-      <p>Overview of internal documentation. Quick links:</p>
-      <Group mt="md" gap="sm">
-        <Button component={Link} to="/teams" variant="light" size="sm">
-          Teams
-        </Button>
-        <Button component={Link} to="/repositories" variant="light" size="sm">
-          Repositories
-        </Button>
-        <Button component={Link} to="/processes" variant="light" size="sm">
-          Processes
-        </Button>
-        <Anchor component={Link} to="/company" size="sm">
-          Company
-        </Anchor>
-        <Anchor component={Link} to="/templates" size="sm">
-          Templates
-        </Anchor>
-      </Group>
+      <PageHeader
+        title="Dashboard"
+        description="Overview of internal documentation. Quick links:"
+      />
+      <Card withBorder padding="md">
+        <Group gap="sm">
+          <Button component={Link} to="/teams" variant="light" size="sm">
+            Teams
+          </Button>
+          <Button component={Link} to="/repositories" variant="light" size="sm">
+            Repositories
+          </Button>
+          <Button component={Link} to="/processes" variant="light" size="sm">
+            Processes
+          </Button>
+          <Button component={Link} to="/company" variant="light" size="sm">
+            Company
+          </Button>
+          <Button component={Link} to="/templates" variant="light" size="sm">
+            Templates
+          </Button>
+        </Group>
+      </Card>
     </>
   );
 }

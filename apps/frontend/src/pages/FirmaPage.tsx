@@ -1,12 +1,15 @@
-import { Title, Text, Stack } from '@mantine/core';
+import { Card } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 
 export function FirmaPage() {
   return (
-    <Stack gap="md">
-      <Title order={2}>Company</Title>
-      <Text size="sm" c="dimmed">
-        Company – content to follow.
-      </Text>
-    </Stack>
+    <>
+      <PageHeader title="Company" description="Company – content to follow." />
+      <Card withBorder padding="md">
+        <span style={{ fontSize: 14, color: 'var(--mantine-color-dimmed)' }}>
+          Content to follow.
+        </span>
+      </Card>
+    </>
   );
 }

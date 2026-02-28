@@ -11,6 +11,9 @@ services:
     volumes:
       - .:/app
     command: sh -c "pnpm install && pnpm --filter backend exec prisma migrate deploy && (pnpm --filter backend run create-admin || true) && pnpm --filter backend run dev"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       CI: 'true'
       PORT: 8080
@@ -20,9 +23,6 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8080/health']
       interval: 5s

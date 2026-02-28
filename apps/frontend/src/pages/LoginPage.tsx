@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TextInput, PasswordInput, Button, Stack, Text, Paper, Title } from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../api/client';
 
 export function LoginPage() {
@@ -21,12 +22,15 @@ export function LoginPage() {
       if (!res.ok) throw new Error('Login failed');
     },
     onSuccess: () => navigate(from, { replace: true }),
+    onError: (err) => {
+      notifications.show({ title: 'Login failed', message: err.message, color: 'red' });
+    },
   });
 
   return (
     <Paper p="xl" maw={400} mx="auto" mt="xl" radius="md" withBorder>
       <Title order={3} mb="md">
-        Anmelden
+        Log in
       </Title>
       <form
         onSubmit={(e) => {

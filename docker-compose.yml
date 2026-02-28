@@ -59,11 +59,11 @@ services:
     volumes:
       - .:/app
     command: sh -c "pnpm install && pnpm --filter frontend run dev"
+    depends_on:
+      - app
     environment:
       CI: 'true'
       VITE_API_URL: ''
-    depends_on:
-      - app
     # Vite dev server
     expose:
       - '5173'
