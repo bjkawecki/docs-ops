@@ -28,13 +28,13 @@ make install
 
 **Was läuft wo?**
 
-| Komponente        | Schnell-Dev (`make docker-dev` + `make dev`)     | Vollständiger Stack (`make docker-up`) |
-| ----------------- | ------------------------------------------------ | -------------------------------------- |
-| **PostgreSQL 18** | ✅ in Docker (`postgres:18-alpine`)              | ✅ in Docker                           |
-| **MinIO**         | ✅ in Docker                                     | ✅ in Docker                           |
-| **Backend**       | ✅ auf dem **Host** (du startest mit `make dev`) | ✅ als Container „app“                 |
-| **Caddy**         | ❌ nicht gestartet                               | ✅ Reverse Proxy                       |
-| **Frontend**      | ❌ (noch Platzhalter, später auf dem Host)       | ❌ (folgt in Abschnitt 6)              |
+| Komponente        | Schnell-Dev (`make docker-dev` + `make dev`)     | Vollständiger Stack (`make docker-up`)      |
+| ----------------- | ------------------------------------------------ | ------------------------------------------- |
+| **PostgreSQL 18** | ✅ in Docker (`postgres:18-alpine`)              | ✅ in Docker                                |
+| **MinIO**         | ✅ in Docker                                     | ✅ in Docker                                |
+| **Backend**       | ✅ auf dem **Host** (du startest mit `make dev`) | ✅ als Container „app“                      |
+| **Caddy**         | ❌ nicht gestartet                               | ✅ Reverse Proxy                            |
+| **Frontend**      | ❌ (optional auf Host; sonst im Stack)           | ✅ als Service, Caddy routet `/` → Frontend |
 
 Schnell-Dev heißt: **Nur** die Datenbanken (Postgres, MinIO) laufen in Docker. Caddy und Backend-Container werden **nicht** gestartet. Du startest Backend (und später Frontend) selbst auf deinem Rechner – damit du sofort Hot-Reload hast und keine Images bauen musst.
 
@@ -68,17 +68,14 @@ docker compose up
 
 Dabei wird `docker-compose.override.yml` automatisch geladen: Die App (Backend) läuft als Node-Container mit gemountetem Quellcode und `pnpm --filter backend run dev` – Änderungen am Backend werden also live nachgeladen.
 
-- **URL:** **http://localhost** (Caddy → Backend auf Port 8080)
-- **Läuft:** Postgres, MinIO, Backend (mit Watch), Caddy
+- **URL:** **http://localhost:4000** (Caddy auf Port 4000; routet `/` → Frontend, `/api` → Backend)
+- **Läuft:** Postgres, MinIO, Backend (mit Watch), Frontend (Vite-Dev-Server), Caddy
 
 **Mit Makefile:** `make docker-up` startet den Stack im Hintergrund (`-d`); ohne `-d` siehst du die Logs im Vordergrund (z. B. Backend-Watch). Für Entwicklung oft praktisch: `docker compose up` (ohne `-d`) in einem Terminal, dann siehst du Caddy- und Backend-Logs.
 
-**Frontend:** Das Frontend ist aktuell noch ein Platzhalter (React/Vite kommt in Abschnitt 6 des Umsetzungsplans). Sobald es existiert, wird entweder:
+**Frontend (Abschnitt 6 – Szenario B):** Ab Abschnitt 6 gilt **eine Origin**: Caddy routet `/api/*` zum Backend und `/` zum Frontend. Das Frontend läuft als eigener Service im Stack (Vite-Dev-Server oder Build). Du erreichst die gesamte App unter **http://localhost:4000** – HTML/JS vom Frontend, API unter `http://localhost:4000/api/v1/...`. Session-Cookie gilt für eine Domain, CORS ist nicht nötig. Optional für reine Host-Entwicklung: Frontend auf dem Host mit `pnpm --filter frontend dev` (dann CORS im Backend für `http://localhost:5173`).
 
-- ein **Frontend-Dev-Service** in Docker ergänzt (z. B. Vite auf Port 5173) und Caddy routet `/` zum Frontend und z. B. `/api` zum Backend, oder
-- du startest Frontend auf dem Host (`pnpm --filter frontend dev`) und erreichst es unter **http://localhost:5173**; Caddy bleibt für Backend unter **http://localhost** zuständig, bis das Routing um Frontend erweitert ist.
-
-**Kurz:** Caddy + Backend in der Entwicklung = `docker compose up` (oder `make docker-up` für Hintergrund). Frontend folgt, sobald die App steht.
+**Kurz:** Vollständiger Stack = `docker compose up`; danach **http://localhost:4000** für App und API (Caddy leitet nach Pfad weiter).
 
 ## Qualität vor Commit / wie CI
 
@@ -115,7 +112,7 @@ make format
 
 ## Prod-nah testen (vor Release)
 
-Gleicher Stack wie im Abschnitt **Caddy + Backend in der Entwicklung starten**: `make docker-up` oder `docker compose up`. Zugriff über **http://localhost**.
+Gleicher Stack wie im Abschnitt **Caddy + Backend in der Entwicklung starten**: `make docker-up` oder `docker compose up`. Zugriff über **http://localhost:4000**.
 
 ## Ohne Makefile (pnpm direkt)
 

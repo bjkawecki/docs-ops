@@ -96,15 +96,15 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 - **Ziel:** Lokal so entwickeln, dass das Verhalten dem Server möglichst nahekommt; Install-Skript testbar machen.
 - **Zwei Modi:**
   - **Schnell-Dev (täglich):** Backend und Frontend auf dem Host mit `npm run dev`; nur **PostgreSQL 18 + MinIO** in Docker (z. B. `docker compose up db minio` oder kleines `compose.dev.yml`). Schnell, wenig Ressourcen.
-  - **Prod-nah (regelmäßig / vor Release):** Vollständiger Stack mit **Caddy** starten (`docker compose up`). App mit Volume-Mount und Watch (nodemon/tsx); Zugriff über **http://localhost** wie auf dem Server. So werden Proxy, Basis-URL und Routing früh abgeglichen.
-- **Umsetzung:** Eine `docker-compose.yml` (oder Basis + Override); Dev-Override mit Volume-Mounts und Dev-Command für die App. Caddy leitet auf App (und ggf. Frontend-Dev-Server) weiter.
+  - **Prod-nah (regelmäßig / vor Release):** Vollständiger Stack mit **Caddy** starten (`docker compose up`). App mit Volume-Mount und Watch (nodemon/tsx); Zugriff über **http://localhost:4000** wie auf dem Server. So werden Proxy, Basis-URL und Routing früh abgeglichen.
+- **Umsetzung:** Eine `docker-compose.yml` (oder Basis + Override); Dev-Override mit Volume-Mounts und Dev-Command für die App. Ab Abschnitt 6 (Frontend-Basis): **Caddy routet nach Pfad** – `/api/*` an die App (Backend), `/` an den Frontend-Service (eine Origin, Session-Cookie ohne CORS). Frontend als eigener Service im Stack (Vite-Dev-Server oder Build).
 
 ---
 
 ## 10. Test des Install-Skripts
 
 - **Problem:** `install.sh` lässt sich auf der lokalen Dev-Maschine nicht realistisch testen (Repo und Dienste sind schon da).
-- **Empfehlung:** **CI (z. B. GitHub Actions)** auf einem frischen Runner: Repo auschecken, Voraussetzungen (Docker) sicherstellen, `install.sh` ausführen (oder die gleichen Schritte: `docker compose up -d`), danach **Health-Check** (z. B. `curl http://localhost/health`). Bei Erfolg ist der Install-Pfad getestet. Optional: VM (Vagrant/Multipass) oder Container als „Mini-Server“ für manuellen Test; Shellcheck für das Skript.
+- **Empfehlung:** **CI (z. B. GitHub Actions)** auf einem frischen Runner: Repo auschecken, Voraussetzungen (Docker) sicherstellen, `install.sh` ausführen (oder die gleichen Schritte: `docker compose up -d`), danach **Health-Check** (z. B. `curl http://localhost:4000/health`). Bei Erfolg ist der Install-Pfad getestet. Optional: VM (Vagrant/Multipass) oder Container als „Mini-Server“ für manuellen Test; Shellcheck für das Skript.
 - **Umsetzung:** CI-Job in `.github/workflows/` (oder vergleichbar), der bei Push/PR den Install-Ablauf durchspielt und die Erreichbarkeit der App prüft.
 
 ---

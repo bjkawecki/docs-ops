@@ -20,7 +20,7 @@ Im Repo-Root ausführen:
 ./install.sh
 ```
 
-Das Skript prüft Docker/Podman und startet den Stack (`docker compose up -d`). Die App ist nach kurzer Startzeit unter **http://localhost/health** erreichbar.
+Das Skript prüft Docker/Podman und startet den Stack (`docker compose up -d`). Die App ist nach kurzer Startzeit unter **http://localhost:4000/health** erreichbar.
 
 Alternativ manuell: `docker compose up -d`.
 
@@ -41,7 +41,7 @@ Kurze Anleitung (Makefile, Befehle, wann was): [docs/Development-Anleitung.md](d
   ```bash
   docker compose up
   ```
-  Zugriff über http://localhost (Caddy leitet auf die App weiter).
+  Zugriff über http://localhost:4000 (Caddy leitet auf die App weiter).
 
 ## MVP und Reihenfolge
 

@@ -21,8 +21,8 @@ services:
     image: minio/minio:latest
     command: server /data
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-docsops}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-docsopsdev}
     ports:
       - '9000:9000'
       - '9001:9001'

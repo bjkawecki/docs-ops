@@ -17,8 +17,9 @@ services:
     image: minio/minio:latest
     command: server /data
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      # Nicht die MinIO-Defaults nutzen (Warnung vermeiden). Für Prod: .env mit echten Werten.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-docsops}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-docsopsdev}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -46,14 +47,30 @@ services:
       retries: 5
       start_period: 10s
 
+  frontend:
+    image: node:24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "corepack enable pnpm && pnpm install && pnpm --filter frontend run dev"
+    environment:
+      CI: 'true'
+      VITE_API_URL: ''
+    depends_on:
+      - app
+    # Vite dev server
+    expose:
+      - '5173'
+
   caddy:
     image: caddy:2-alpine
     ports:
-      - '80:80'
+      - '4000:80'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - app
+      - frontend
 
 volumes:
   postgres_data:

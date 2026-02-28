@@ -2,12 +2,13 @@
 # Caddy leitet auf app:8080; Backend-Code wird live neu geladen.
 services:
   app:
-    image: node:22-alpine
+    image: node:24-alpine
     working_dir: /app
     volumes:
       - .:/app
     command: sh -c "corepack enable pnpm && pnpm install && pnpm --filter backend run dev"
     environment:
+      CI: 'true'
       PORT: 8080
       DATABASE_URL: postgresql://app:app@postgres:5432/docsops
       MINIO_ENDPOINT: minio

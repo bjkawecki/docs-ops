@@ -2,5 +2,28 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "Platzhalter – React/Vite folgt in Abschnitt 6"
+  "type": "module",
+  "description": "React/Vite Frontend – Dokumentationsplattform (Abschnitt 6)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "dependencies": {
+    "@mantine/core": "^7.15.0",
+    "@mantine/hooks": "^7.15.0",
+    "@tanstack/react-query": "^5.62.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.0.1",
+    "backend": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.3",
+    "vite": "^7.3.1"
+  }
 }

@@ -23,13 +23,14 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 ### Backend
 
-- **Runtime:** Node.js (TypeScript). Optional Bun als drop-in-Alternative.
+- **Runtime:** Node.js 24 LTS (TypeScript). Siehe `.nvmrc`; Optional Bun als drop-in-Alternative.
 - **Framework:** Fastify. Validierung mit **Zod** (Request-Bodies, Parameter); kein Fastify-JSON-Schema für Request-Input.
 - **ORM:** Prisma. Schema in `prisma/schema.prisma`, Migrationen mit `prisma migrate`, generierte Typen teilbar mit Frontend.
 
 ### Frontend
 
 - **Framework:** React mit Vite und TypeScript (kein Next.js).
+- **Component-/Style-Library:** Mantine (`@mantine/core`, `@mantine/hooks`).
 
 ---
 
@@ -58,7 +59,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 - **Markdown:** remark oder markdown-it, gray-matter für Frontmatter/Tags.
 - **Validierung:** **Zod** (verbindlich). Request-Bodies und Parameter mit Zod-Schemas validieren; Schemas und abgeleitete Typen mit Frontend teilbar.
 - **S3/MinIO:** @aws-sdk/client-s3 oder minio (npm).
-- **Frontend:** TanStack Query, React Router; Backend Deltas/Versionierung: diff-match-patch.
+- **Frontend:** Mantine, TanStack Query, React Router; Backend Deltas/Versionierung: diff-match-patch.
 - **Logging:** Pino mit konfigurierbarem Level (`LOG_LEVEL`); in Dev optional Pretty-Format (pino-pretty), in Prod JSON. Siehe [Env-und-Config](Env-und-Config.md). Health-Check-Route für Deploy/Monitoring.
 - **Zentraler Error-Handler:** Fastify `setErrorHandler` für einheitliche Fehlerantworten (Zod → 400, Prisma P2025 → 404, sonst 500).
 - **Optional (später):** Swagger/OpenAPI, Vitest + Supertest, Pandoc im Container für PDF-Worker.
