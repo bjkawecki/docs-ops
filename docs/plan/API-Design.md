@@ -18,6 +18,7 @@ Festlegungen für die REST-API der internen Dokumentationsplattform. Siehe [Tech
   - Oder RFC-7807-ähnlich (`type`, `title`, `status`, `detail`, `instance`).
 - HTTP-Status-Codes nutzen: `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict, `500` Internal Server Error.
 - Bei Validierungsfehlern (Zod): `400` mit Details zu ungültigen Feldern (z. B. `errors: [{ path, message }]`).
+- Die Umsetzung erfolgt im Backend durch einen zentralen Error-Handler (Zod, Prisma, HTTP-Status).
 
 ---
 

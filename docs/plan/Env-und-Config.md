@@ -9,6 +9,7 @@
 | Variable                    | Beschreibung                                         | Beispiel (nur Format)                     |
 | --------------------------- | ---------------------------------------------------- | ----------------------------------------- |
 | **DATABASE_URL**            | PostgreSQL-Verbindungs-URL                           | `postgresql://user:pass@host:5432/dbname` |
+| **LOG_LEVEL**               | Optional: Log-Level für Pino (Backend)               | `info`, `debug`, `warn`                   |
 | **SESSION_SECRET**          | Geheimnis für Session-Cookie (Signatur/Verifikation) | Lang genug, zufällig                      |
 | **SESSION_MAX_AGE_SECONDS** | Optional: Session-Laufzeit in Sekunden               | z. B. `604800` (7 Tage)                   |
 | **MINIO_ENDPOINT**          | MinIO-URL (S3-kompatibel)                            | `http://minio:9000`                       |

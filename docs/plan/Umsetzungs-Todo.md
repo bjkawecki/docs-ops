@@ -25,6 +25,8 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [x] Fastify-Skelett (TypeScript), Prisma anbinden
 - [x] Health-Route (DB-Erreichbarkeit)
 - [x] Erste Lese-Route gegen DB (z. B. Liste Firma/Abteilungen) zum Abgleich mit Schema
+- [x] Logger-Konfiguration (Level über `LOG_LEVEL`, Format Dev/Prod; Pino, optional pino-pretty in Dev)
+- [x] Zentraler Error-Handler (Fastify `setErrorHandler`; Zod → 400, Prisma NotFound → 404, sonst 500; einheitliches Fehlerformat)
 
 ---
 
