@@ -1,6 +1,6 @@
 # DocsOps
 
-Interne Dokumentationsplattform (Firma → Abteilung → Team, Markdown-Dokumente, Rechte, PR/Draft-Workflow).
+Interne Dokumentationsplattform .
 
 ## Dokumentation
 
