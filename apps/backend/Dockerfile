@@ -3,10 +3,11 @@
 FROM node:24-alpine AS builder
 RUN corepack enable pnpm
 WORKDIR /app
+# Hoisted node_modules so binaries (prisma, tsc) are in PATH when running from any package
+RUN echo "node-linker=hoisted" > .npmrc
 COPY package.json pnpm-lock.yaml* ./
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile || pnpm install
-# prisma from backend package; tsc from root (backend's tsc is in devDependencies)
 RUN pnpm --filter backend exec prisma generate --schema=prisma/schema.prisma && \
     pnpm exec tsc -p apps/backend/tsconfig.json
 
