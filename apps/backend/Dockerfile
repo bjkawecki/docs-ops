@@ -8,8 +8,9 @@ RUN echo "node-linker=hoisted" > .npmrc
 COPY package.json pnpm-lock.yaml* ./
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile || pnpm install
-RUN pnpm --filter backend exec prisma generate --schema=prisma/schema.prisma && \
-    pnpm exec tsc -p apps/backend/tsconfig.json
+# Use root node_modules binaries (hoisted); pnpm exec would point to backend/node_modules which doesn't exist
+RUN ./node_modules/.bin/prisma generate --schema=apps/backend/prisma/schema.prisma && \
+    ./node_modules/.bin/tsc -p apps/backend/tsconfig.build.json
 
 # Run
 FROM node:24-alpine
