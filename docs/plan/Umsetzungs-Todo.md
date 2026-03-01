@@ -103,27 +103,29 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ## 9. Admin-UI / Nutzerverwaltung
 
-- [ ] **Zugang & Struktur**
+**Stand Backend:** `requireAdmin` ist vorhanden (`auth/middleware.ts`), wird in Organisation- und Assignments-Routen genutzt. **Nutzer-API** unter `/api/v1/admin/users` ist umgesetzt (GET/POST/PATCH, reset-password).
+
+- [x] **Zugang & Struktur**
   - Admin-Bereich nur für Nutzer mit `isAdmin` (Route-Guard; 403/Redirect für Nicht-Admins).
   - Route z. B. `/admin` mit Unterrouten (z. B. `/admin/users`, `/admin/teams`, `/admin/organisation`).
   - Menüpunkt „Admin“ in der Sidebar nur anzeigen, wenn aktueller Nutzer `isAdmin` (Frontend: Nutzerdaten aus Session/Me-API).
-- [ ] **Backend: Nutzer-API (falls noch nicht vorhanden)**
-  - GET `/api/v1/admin/users` – Nutzerliste (paginiert, Filter optional); nur für Admins (`requireAdmin`).
+- [x] **Backend: Nutzer-API (neu)**
+  - GET `/api/v1/admin/users` – Nutzerliste (paginiert); Filter optional, inkl. **Filter „nur Aktive“ / „inkl. Deaktivierte“** (z. B. Query-Parameter `includeDeactivated=true`); nur für Admins (`requireAdmin`).
   - POST `/api/v1/admin/users` – Nutzer anlegen (Name, E-Mail, Passwort, optional `isAdmin`); nur für Admins.
-  - PATCH `/api/v1/admin/users/:userId` – Nutzer bearbeiten (Name, E-Mail, `isAdmin`, ggf. `deletedAt` für Deaktivierung/Soft Delete).
-  - Optional: Passwort zurücksetzen (eigener Endpoint oder Teil von PATCH); keine Anzeige des bestehenden Passworts.
-- [ ] **Frontend: Nutzerverwaltung**
-  - Seite „Nutzer“ (z. B. `/admin/users`): Tabelle/Liste mit Name, E-Mail, Admin-Flag, Status (aktiv/deaktiviert); Suche/Filter, Pagination.
-  - Nutzer anlegen: Formular (Name, E-Mail, Passwort, Checkbox isAdmin); Validierung; Toast bei Erfolg/Fehler.
-  - Nutzer bearbeiten: Formular (Name, E-Mail, isAdmin, ggf. „Deaktivieren“); keine Passwort-Anzeige, optional „Passwort setzen“.
-- [ ] **Frontend: Zuordnungen (TeamMember, TeamLeader, Supervisor)**
+  - PATCH `/api/v1/admin/users/:userId` – Nutzer bearbeiten (Name, E-Mail, `isAdmin`); **Deaktivierung:** `deletedAt` setzen (Soft Delete); **Reaktivierung:** `deletedAt` auf `null` setzen (Admin kann deaktivierte Nutzer wieder aktivieren). Kein Hard-Delete.
+  - **Passwort-Reset:** Nur Admin setzt für andere Nutzer ein neues Passwort (eigener Endpoint z. B. POST `/api/v1/admin/users/:userId/reset-password` mit Body `{ newPassword }` oder Teil von PATCH); keine Anzeige des bestehenden Passworts. Kein Self-Service „Passwort vergessen“ in dieser Phase.
+- [x] **Frontend: Nutzerverwaltung**
+  - Seite „Nutzer“ (z. B. `/admin/users`): Tabelle/Liste mit Name, E-Mail, Admin-Flag, Status (aktiv/deaktiviert); **Filter/Tabs:** z. B. „Aktive“ / „Alle (inkl. deaktiviert)“; Suche, Pagination.
+  - Nutzer anlegen: Formular (Name, E-Mail, Passwort, Checkbox isAdmin); Validierung (wie §8: E-Mail eindeutig, Passwort mind. 8 Zeichen); Toast bei Erfolg/Fehler.
+  - Nutzer bearbeiten: Formular (Name, E-Mail, isAdmin); **Deaktivieren**-Button/Aktion; **Reaktivieren** für deaktivierte Nutzer; keine Passwort-Anzeige, optional „Passwort setzen“ (Admin-Reset).
+- [x] **Frontend: Zuordnungen (TeamMember, TeamLeader, Supervisor)**
   - Anbindung an bestehende API: `GET/POST/DELETE /teams/:teamId/members`, `.../leaders`, `GET/POST/DELETE /departments/:departmentId/supervisors`.
   - Pro Team: Mitglieder anzeigen, hinzufügen (User auswählen), entfernen; Team-Leader anzeigen, hinzufügen, entfernen. Berechtigung laut Backend (Supervisor/TeamLeader/Admin).
   - Pro Abteilung: Supervisor-Liste anzeigen, hinzufügen, entfernen. Nur für Admins oder Supervisor derselben Abteilung (falls API das erlaubt).
   - UI: z. B. Unterbereich „Teams“ unter `/admin/teams` mit Navigation Team wählen → Mitglieder/Leader verwalten; oder Integration in Organisationsbaum (Abteilung → Teams → Mitglieder).
-- [ ] **Optional: Organisation im Admin**
-  - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md): Company/Department/Team nur von Admins).
-  - Falls Kern-API bereits CRUD für Organisation bietet: reine UI-Anbindung; sonst Backend-Erweiterung prüfen.
+- [x] **Optional: Organisation im Admin**
+  - **Nur UI:** Kern-API (Abschnitt 5) bietet bereits CRUD für Firma, Abteilung, Team; Admin-Organisation ist reine UI-Anbindung an diese Routen, keine Backend-Erweiterung nötig.
+  - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md)).
 
 ---
 

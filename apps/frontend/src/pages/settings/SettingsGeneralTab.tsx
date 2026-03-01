@@ -360,13 +360,12 @@ export function SettingsGeneralTab() {
         <Stack gap="md">
           {user.isAdmin ? (
             <Text size="sm" c="dimmed">
-              Administratoren können sich nicht selbst deaktivieren. Bitte wenden Sie sich an einen
-              anderen Admin.
+              Administrators cannot deactivate their own account. Please ask another administrator.
             </Text>
           ) : (
             <Text size="sm" c="dimmed">
-              Account deaktivieren? Sie können sich bis zur Freischaltung durch einen Administrator
-              nicht mehr anmelden.
+              Deactivate account? You will not be able to log in until an administrator reactivates
+              you.
             </Text>
           )}
           <Group justify="flex-end" mt="md">

@@ -31,6 +31,10 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   app.post('/companies', { preHandler: [requireAuth, requireAdmin] }, async (request, reply) => {
+    const count = await request.server.prisma.company.count();
+    if (count > 0) {
+      return reply.status(409).send({ error: 'Es kann nur eine Firma angelegt werden.' });
+    }
     const body = createCompanyBodySchema.parse(request.body);
     const company = await request.server.prisma.company.create({
       data: { name: body.name },

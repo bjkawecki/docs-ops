@@ -33,9 +33,10 @@ export const createTeamBodySchema = z.object({
   name: z.string().min(1).max(255),
 });
 
-/** Body: Team aktualisieren. */
+/** Body: Team aktualisieren (Name und/oder Abteilung wechseln). */
 export const updateTeamBodySchema = z.object({
   name: z.string().min(1).max(255).optional(),
+  departmentId: z.string().cuid().optional(),
 });
 
 /** Params: companyId. */

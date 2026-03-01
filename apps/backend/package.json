@@ -14,6 +14,7 @@
     "prisma:generate": "prisma generate",
     "test": "vitest run",
     "create-admin": "tsx scripts/create-admin.ts",
+    "seed": "tsx scripts/run-seed.ts",
     "migrate:remove-failed-user-preferences": "prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
   },
   "dependencies": {

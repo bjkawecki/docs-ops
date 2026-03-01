@@ -1,6 +1,7 @@
 /**
  * Legt einen Admin-Nutzer an, falls noch keiner existiert.
- * Liest ADMIN_EMAIL, ADMIN_PASSWORD und optional ADMIN_NAME aus der Umgebung.
+ * Pflicht: ADMIN_EMAIL, ADMIN_PASSWORD sowie ein Anzeigename über ADMIN_NAME
+ * oder ADMIN_VORNAME + ADMIN_NACHNAME (dann Anzeigename = "Vorname Nachname").
  * DATABASE_URL wird wie im Rest der App verwendet (z. B. aus .env).
  */
 import { assertRequiredEnv } from './load-env.js';
@@ -12,7 +13,16 @@ async function main() {
 
   const email = process.env.ADMIN_EMAIL!.trim();
   const password = process.env.ADMIN_PASSWORD!;
-  const name = process.env.ADMIN_NAME?.trim() ?? 'Admin';
+  const vorname = process.env.ADMIN_VORNAME?.trim();
+  const nachname = process.env.ADMIN_NACHNAME?.trim();
+  const nameExplicit = process.env.ADMIN_NAME?.trim();
+  const name = vorname && nachname ? `${vorname} ${nachname}`.trim() : nameExplicit;
+  if (!name) {
+    console.error(
+      'Fehler: Anzeigename fehlt. ADMIN_NAME setzen oder ADMIN_VORNAME und ADMIN_NACHNAME.'
+    );
+    process.exit(1);
+  }
 
   const existing = await prisma.user.findFirst({ where: { isAdmin: true } });
   if (existing) {

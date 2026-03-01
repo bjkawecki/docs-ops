@@ -31,6 +31,6 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
     return reply.status(401).send({ error: 'Nicht angemeldet' });
   }
   if (!user.isAdmin) {
-    return reply.status(403).send({ error: 'Nur für Administratoren' });
+    return reply.status(403).send({ error: 'Administrators only' });
   }
 }
