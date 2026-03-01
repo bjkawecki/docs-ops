@@ -1,4 +1,10 @@
-import 'dotenv/config';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+try {
+  require('dotenv/config');
+} catch {
+  /* dotenv optional (e.g. Docker build) */
+}
 import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
