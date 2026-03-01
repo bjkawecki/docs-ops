@@ -34,16 +34,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run install script
-        run: chmod +x install.sh && ./install.sh
+      - name: Start stack (base compose only)
+        run: docker compose -f docker-compose.yml up -d
       - name: Wait for stack
-        run: sleep 45
+        run: sleep 30
       - name: Health check
         run: |
-          for i in $(seq 1 18); do
+          for i in $(seq 1 12); do
             if curl -sf http://localhost:5000/health; then echo "OK"; exit 0; fi
-            echo "Attempt $i/18, waiting 10s..."
-            sleep 10
+            echo "Attempt $i/12, waiting 5s..."
+            sleep 5
           done
           echo "Health check failed"
           exit 1

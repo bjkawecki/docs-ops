@@ -13,8 +13,9 @@ FROM node:24-alpine
 WORKDIR /app
 COPY --from=builder /app/apps/backend/dist ./dist
 COPY --from=builder /app/apps/backend/package.json ./
+COPY --from=builder /app/apps/backend/prisma ./prisma
 RUN npm install --omit=dev
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/index.js"]
