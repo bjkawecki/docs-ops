@@ -6,8 +6,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile || pnpm install
-# Run from workspace root so prisma/tsc resolve from shared node_modules
-RUN pnpm exec prisma generate --schema=apps/backend/prisma/schema.prisma && \
+# prisma from backend package; tsc from root (backend's tsc is in devDependencies)
+RUN pnpm --filter backend exec prisma generate --schema=prisma/schema.prisma && \
     pnpm exec tsc -p apps/backend/tsconfig.json
 
 # Run
