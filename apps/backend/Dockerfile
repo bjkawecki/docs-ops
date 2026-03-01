@@ -6,7 +6,9 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile || pnpm install
-RUN pnpm --filter backend run build
+# Run from workspace root so prisma/tsc resolve from shared node_modules
+RUN pnpm exec prisma generate --schema=apps/backend/prisma/schema.prisma && \
+    pnpm exec tsc -p apps/backend/tsconfig.json
 
 # Run
 FROM node:24-alpine
