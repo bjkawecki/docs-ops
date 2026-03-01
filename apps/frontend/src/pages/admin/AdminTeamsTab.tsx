@@ -54,7 +54,7 @@ export function AdminTeamsTab() {
 
   const companyId = companiesData?.items?.[0]?.id ?? null;
 
-  const { data: departmentsData, isPending: departmentsPending } = useQuery({
+  const { data: departmentsData } = useQuery({
     queryKey: ['companies', companyId, 'departments'],
     queryFn: async (): Promise<DepartmentsRes> => {
       const res = await apiFetch(`/api/v1/companies/${companyId}/departments?limit=100`);
@@ -118,7 +118,11 @@ export function AdminTeamsTab() {
     onSuccess: () => {
       invalidateDepartments();
       closeCreateTeam();
-      notifications.show({ title: 'Team created', color: 'green' });
+      notifications.show({
+        title: 'Team created',
+        message: 'The team has been created.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -149,7 +153,11 @@ export function AdminTeamsTab() {
       invalidateDepartments();
       setEditingTeam(null);
       setTeamId(null);
-      notifications.show({ title: 'Team updated', color: 'green' });
+      notifications.show({
+        title: 'Team updated',
+        message: 'The team has been updated.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -166,7 +174,11 @@ export function AdminTeamsTab() {
     onSuccess: () => {
       invalidateDepartments();
       setTeamId(null);
-      notifications.show({ title: 'Team deleted', color: 'green' });
+      notifications.show({
+        title: 'Team deleted',
+        message: 'The team has been deleted.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -187,7 +199,11 @@ export function AdminTeamsTab() {
     onSuccess: () => {
       invalidateAssignments();
       setAddMembersOpened(false);
-      notifications.show({ title: 'Member added', color: 'green' });
+      notifications.show({
+        title: 'Member added',
+        message: 'The member has been added.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -203,7 +219,11 @@ export function AdminTeamsTab() {
     },
     onSuccess: () => {
       invalidateAssignments();
-      notifications.show({ title: 'Member removed', color: 'green' });
+      notifications.show({
+        title: 'Member removed',
+        message: 'The member has been removed.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -224,7 +244,11 @@ export function AdminTeamsTab() {
     onSuccess: () => {
       invalidateAssignments();
       setAddLeadersOpened(false);
-      notifications.show({ title: 'Team leader added', color: 'green' });
+      notifications.show({
+        title: 'Team leader added',
+        message: 'The team leader has been added.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -240,7 +264,11 @@ export function AdminTeamsTab() {
     },
     onSuccess: () => {
       invalidateAssignments();
-      notifications.show({ title: 'Team leader removed', color: 'green' });
+      notifications.show({
+        title: 'Team leader removed',
+        message: 'The team leader has been removed.',
+        color: 'green',
+      });
     },
     onError: (err: Error) =>
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
@@ -265,7 +293,6 @@ export function AdminTeamsTab() {
             setTeamId(null);
           }}
           disabled={!companyId}
-          loading={departmentsPending}
           clearable
         />
         <Group align="flex-end" gap="sm">
