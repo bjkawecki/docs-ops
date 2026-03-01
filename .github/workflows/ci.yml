@@ -41,7 +41,7 @@ jobs:
       - name: Health check
         run: |
           for i in $(seq 1 12); do
-            if curl -sf http://localhost:5000/health; then echo "OK"; exit 0; fi
+            if curl -sf http://127.0.0.1:5000/health; then echo "OK"; exit 0; fi
             echo "Attempt $i/12, waiting 5s..."
             sleep 5
           done
