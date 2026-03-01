@@ -2,7 +2,7 @@
 
 Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. Siehe [Technologie-Stack](Technologie-Stack.md), [Infrastruktur & Deployment](Infrastruktur-und-Deployment.md) und [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md).
 
-**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–11 (Kern-API, Frontend, Layout, Admin-UI, Settings, Dashboard, Dokumente-UI). **Phase 2** (später): Abschnitte 12–17 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen).
+**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–11 (Kern-API, Frontend, Layout, Settings, Admin-UI, Dashboard, Dokumente-UI). **Phase 2** (später): Abschnitte 12–17 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen).
 
 ---
 
@@ -76,7 +76,32 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ---
 
-## 8. Admin-UI / Nutzerverwaltung
+## 8. Settings-Seite
+
+Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstellungen von Anfang an im Backend persistieren (kein localStorage als Übergang).
+
+- [x] **Route & Layout**
+  - Einstiegsseite unter z. B. `/settings`, erreichbar aus der Sidebar (unten, wie in Abschnitt 7).
+  - Seiten-Header „Settings“, darunter eine General-Ansicht mit Cards (Profile, Account, Appearance, Notifications, Language, Security, DocsOps Identity).
+- [x] **Backend: Me & Preferences**
+  - GET `/api/v1/me` – erweiterte Nutzerdaten inkl. Zugehörigkeiten (Teams mit Rolle Mitglied/Leader, Abteilung(en), Supervisor, ggf. eigene Nutzerspaces) für DocsOps-Identity; nur eigener User (Session); inkl. `hasLocalLogin` (Account-Card nur bei lokalem Login).
+  - PATCH `/api/v1/me` – eigenes Profil bearbeiten (**nur Anzeigename**); nur eigener User; Validierung (Zod). E-Mail/Passwort über Account (PATCH `/api/v1/me/account`).
+  - GET/PATCH `/api/v1/me/preferences` – User-Preferences (z. B. `theme: 'light'|'dark'|'auto'`, `sidebarPinned: boolean`, `locale: 'en'|'de'`). Persistenz im Backend (User-Preferences-Feld); eine Quelle der Wahrheit für alle Clients.
+  - POST `/api/v1/me/deactivate` – Self-Deactivate (setzt `deletedAt`); nur für Nicht-Admins (letzter Admin darf nicht); alle Sessions des Users löschen.
+  - PATCH `/api/v1/me/account` – E-Mail und/oder Passwort ändern (nur bei lokalem Login, d. h. `passwordHash` gesetzt); Zod: `email?`, `currentPassword?`, `newPassword?` (Mindestlänge 8); E-Mail-Uniqueness, Verifizierung aktuelles Passwort.
+  - GET `/api/v1/me/sessions` – Liste der Sessions (id, createdAt, expiresAt, isCurrent aus Session-Cookie); DELETE `/api/v1/me/sessions/:sessionId` (nur eigene Session); optional DELETE `/api/v1/me/sessions` = alle anderen Sessions beenden.
+- [x] **General (Cards: Profile, Account, Appearance, Notifications, Language, Security, DocsOps Identity)**
+  - **Profile-Card:** Anzeige User (Name, E-Mail read-only, isAdmin). **Dreipunkt-Menü** (Mantine Menu): „Edit“ → Modal nur **Anzeigename**, PATCH `/api/v1/me`; „Deactivate“ (rot, nur wenn `!user.isAdmin`) → Bestätigungs-Modal, POST `/me/deactivate`, dann Logout + Redirect zu Login, Toast.
+  - **Account-Card:** Nur bei lokalem Login (hasLocalLogin): E-Mail read-only, Buttons „Change email“ / „Change password“ mit Modals; PATCH `/api/v1/me/account`. Bei SSO: Hinweis „Login managed by SSO“, keine Bearbeitung.
+  - **Appearance-Card:** Theme **Light / Dark / Auto**, „Pin Sidebar“; Persistenz über PATCH `/api/v1/me/preferences`; Theme app-weit (ThemeFromPreferences).
+  - **Notifications-Card:** Platzhalter („Notification preferences will be available here …“); konkrete Optionen später (vgl. §14, §17).
+  - **Language-Card:** Select English/Deutsch (`locale: 'en'|'de'`), PATCH `/api/v1/me/preferences` mit `locale`; gespeicherte Preference für spätere i18n-Nutzung.
+  - **Security-Card (Sessions):** Liste der Sessions (Created, Expires, „Current session“-Badge), Revoke pro Zeile (außer aktueller Session), optional „Revoke all other sessions“.
+  - **DocsOps-Identity-Card:** User-Entity und Ownership-/Zugehörigkeits-Entitäten (Teams inkl. Rolle, Abteilung(en), Supervisor, eigene Nutzerspaces). Daten aus GET `/api/v1/me`.
+
+---
+
+## 9. Admin-UI / Nutzerverwaltung
 
 - [ ] **Zugang & Struktur**
   - Admin-Bereich nur für Nutzer mit `isAdmin` (Route-Guard; 403/Redirect für Nicht-Admins).
@@ -99,16 +124,6 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [ ] **Optional: Organisation im Admin**
   - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md): Company/Department/Team nur von Admins).
   - Falls Kern-API bereits CRUD für Organisation bietet: reine UI-Anbindung; sonst Backend-Erweiterung prüfen.
-
----
-
-## 9. Settings-Seite
-
-- [ ] **Route & Zugang:** Einstiegsseite unter z. B. `/settings`, erreichbar aus der Sidebar (unten, wie in Abschnitt 7).
-- [ ] **Layout:** Seiten-Header „Settings“, darunter Tabs für Unterbereiche (z. B. General, Appearance).
-- [ ] **General:** Profil/Identity-Anzeige (aktueller Nutzer, zugehörige Teams/Entitäten); optional Bearbeitung von Anzeigename.
-- [ ] **Appearance:** Theme (Hell/Dunkel/Auto) wie in Abschnitt 7; Einstellung persistieren (z. B. localStorage oder Backend). Optional: „Pin Sidebar“ (Sidebar ein-/ausklappbar).
-- [ ] Optional: weitere Tabs später (z. B. Notifications, Benachrichtigungseinstellungen).
 
 ---
 
@@ -180,6 +195,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [ ] **Suchfeld in der Sidebar:** Anbindung an Volltextsuche (vgl. Abschnitt 15).
 - [ ] **Breadcrumbs:** Pfad/Kontext anzeigen (z. B. Company → Abteilung → Team → Dokument).
 - [ ] **Pin Sidebar:** Sidebar ein-/ausklappbar, Option in Settings („Pin“).
-- [ ] **Theme-UI:** Umschaltung Hell/Dunkel/Auto in Settings, persistiert (technische Vorbereitung ggf. bereits in Abschnitt 7/9).
+- [ ] **Theme-UI:** Umschaltung Hell/Dunkel/Auto in Settings (Abschnitt 8), persistiert im Backend; technische Vorbereitung dort umgesetzt.
+- [ ] **Notifications-UI in Settings:** Notifications-Card in Settings mit konkreten Optionen (E-Mail bei Dokument-Änderungen, PRs, Erinnerungen), Anbindung an Async Jobs / Preferences (vgl. §14).
 - [ ] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) definieren und umsetzen.
 - [ ] **Icons & A11y:** Einheitliche Icon-Bibliothek; Tastatur/Screenreader für Sidebar und Tabs.

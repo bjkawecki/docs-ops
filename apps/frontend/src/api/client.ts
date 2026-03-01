@@ -12,11 +12,12 @@ export const apiBase = getBase();
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const url = path.startsWith('http') ? path : `${apiBase}${path}`;
+  const hasBody = init?.body != null && init.body !== '';
   return fetch(url, {
     ...init,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody && { 'Content-Type': 'application/json' }),
       ...init?.headers,
     },
   });

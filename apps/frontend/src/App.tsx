@@ -10,6 +10,7 @@ import { TemplatesPage } from './pages/TemplatesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AuthGuard } from './components/AuthGuard';
+import { ThemeFromPreferences } from './components/ThemeFromPreferences';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
@@ -21,7 +22,9 @@ function App() {
           path="/"
           element={
             <AuthGuard>
-              <AppShell />
+              <ThemeFromPreferences>
+                <AppShell />
+              </ThemeFromPreferences>
             </AuthGuard>
           }
         >

@@ -7,6 +7,7 @@ import { organisationRoutes } from './routes/organisation.js';
 import { contextRoutes } from './routes/contexts.js';
 import { documentsRoutes } from './routes/documents.js';
 import assignmentsRoutes from './routes/assignments.js';
+import meRoutes from './routes/me.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { name: string; version: string };
@@ -114,5 +115,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(contextRoutes, { prefix: '/api/v1' });
   app.register(documentsRoutes, { prefix: '/api/v1' });
   app.register(assignmentsRoutes, { prefix: '/api/v1' });
+  app.register(meRoutes, { prefix: '/api/v1' });
   return app;
 }

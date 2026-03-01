@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { AppShell as MantineAppShell, Stack, NavLink, Button, Box, Image } from '@mantine/core';
+import { AppShell as MantineAppShell, Stack, NavLink, Button, Box } from '@mantine/core';
+import { DocopsLogo } from './DocopsLogo';
 import { useMutation } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../api/client';
@@ -46,7 +47,7 @@ export function AppShell() {
                   color: 'inherit',
                 }}
               >
-                <Image src="/docops.svg" alt="DocsOps" w={40} h={40} fit="contain" />
+                <DocopsLogo width={40} height={40} />
                 <span style={{ fontWeight: 600 }}>DocsOps</span>
               </Link>
             </MantineAppShell.Section>

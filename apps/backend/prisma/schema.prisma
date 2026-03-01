@@ -75,6 +75,7 @@ model User {
   externalId            String?      // SSO/LDAP – eindeutige Kennung vom IdP
   isAdmin               Boolean      @default(false) // Sieht alle Dokumente; legt Struktur (Company, Dept, Team) an, fügt User hinzu
   deletedAt             DateTime?    // Soft delete: deaktivierter Account, Zugriff entzogen
+  preferences           Json?        // theme: light|dark|auto, sidebarPinned: boolean
   teamMemberships       TeamMember[]
   leaderOfTeams         TeamLeader[]
   supervisorOfDepartments Supervisor[]
