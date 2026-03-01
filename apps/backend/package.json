@@ -8,14 +8,14 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && tsc",
+    "build": "npx prisma generate && tsc",
     "start": "node dist/src/index.js",
-    "prepare": "prisma generate",
-    "prisma:generate": "prisma generate",
+    "prepare": "npx prisma generate",
+    "prisma:generate": "npx prisma generate",
     "test": "vitest run",
     "create-admin": "tsx scripts/create-admin.ts",
     "seed": "tsx scripts/run-seed.ts",
-    "migrate:remove-failed-user-preferences": "prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
+    "migrate:remove-failed-user-preferences": "npx prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
   },
   "dependencies": {
     "prisma": "^7.4.0",
