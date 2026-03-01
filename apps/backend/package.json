@@ -13,7 +13,8 @@
     "prepare": "prisma generate",
     "prisma:generate": "prisma generate",
     "test": "vitest run",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "create-admin": "tsx scripts/create-admin.ts",
+    "migrate:remove-failed-user-preferences": "prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
