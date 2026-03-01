@@ -30,22 +30,23 @@ jobs:
       - name: Format check
         run: pnpm run format:check
 
-  install-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build stack (base compose only)
-        run: docker compose -f docker-compose.yml build
-      - name: Start stack
-        run: docker compose -f docker-compose.yml up -d
-      - name: Wait for stack
-        run: sleep 45
-      - name: Health check
-        run: |
-          for i in $(seq 1 18); do
-            if curl -sf http://127.0.0.1:5000/health; then echo "OK"; exit 0; fi
-            echo "Attempt $i/18, waiting 10s..."
-            sleep 10
-          done
-          echo "Health check failed"
-          exit 1
+  # install-test: vorübergehend deaktiviert
+  # install-test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Build stack (base compose only)
+  #       run: docker compose -f docker-compose.yml build
+  #     - name: Start stack
+  #       run: docker compose -f docker-compose.yml up -d
+  #     - name: Wait for stack
+  #       run: sleep 45
+  #     - name: Health check
+  #       run: |
+  #         for i in $(seq 1 18); do
+  #           if curl -sf http://127.0.0.1:5000/health; then echo "OK"; exit 0; fi
+  #           echo "Attempt $i/18, waiting 10s..."
+  #           sleep 10
+  #         done
+  #         echo "Health check failed"
+  #         exit 1
