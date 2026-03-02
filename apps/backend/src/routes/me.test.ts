@@ -61,7 +61,8 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       identity: {
         teams: unknown[];
         departments: unknown[];
-        supervisorOfDepartments: unknown[];
+        departmentLeads: unknown[];
+        companyLeads: unknown[];
         userSpaces: unknown[];
       };
       preferences: Record<string, unknown>;

@@ -3,7 +3,7 @@ import { loadUser } from './canRead.js';
 
 /**
  * Prüft, ob der Nutzer TeamMember für das Team anlegen/entfernen darf.
- * true wenn isAdmin, oder Supervisor der Abteilung des Teams, oder TeamLeader dieses Teams.
+ * true wenn isAdmin, oder Department Lead der Abteilung des Teams, oder Team Lead dieses Teams.
  */
 export async function canManageTeamMembers(
   prisma: PrismaClient,
@@ -20,14 +20,14 @@ export async function canManageTeamMembers(
   if (!team) return false;
 
   if (user.isAdmin) return true;
-  if (user.supervisorOfDepartments.some((s) => s.departmentId === team.departmentId)) return true;
-  if (user.leaderOfTeams.some((l) => l.teamId === teamId)) return true;
+  if (user.departmentLeads.some((d) => d.departmentId === team.departmentId)) return true;
+  if (user.leadOfTeams.some((l) => l.teamId === teamId)) return true;
   return false;
 }
 
 /**
- * Prüft, ob der Nutzer TeamLeader für das Team anlegen/entfernen darf.
- * true wenn isAdmin oder Supervisor der Abteilung des Teams.
+ * Prüft, ob der Nutzer Team Lead für das Team anlegen/entfernen darf.
+ * true wenn isAdmin oder Department Lead der Abteilung des Teams.
  */
 export async function canManageTeamLeaders(
   prisma: PrismaClient,
@@ -44,15 +44,15 @@ export async function canManageTeamLeaders(
   if (!team) return false;
 
   if (user.isAdmin) return true;
-  if (user.supervisorOfDepartments.some((s) => s.departmentId === team.departmentId)) return true;
+  if (user.departmentLeads.some((d) => d.departmentId === team.departmentId)) return true;
   return false;
 }
 
 /**
- * Prüft, ob der Nutzer Supervisor für die Abteilung anlegen/entfernen darf.
+ * Prüft, ob der Nutzer Department Lead für die Abteilung anlegen/entfernen darf.
  * true nur wenn isAdmin.
  */
-export async function canManageSupervisors(
+export async function canManageDepartmentLeads(
   prisma: PrismaClient,
   userId: string,
   departmentId: string
@@ -71,7 +71,7 @@ export async function canManageSupervisors(
 
 /**
  * Prüft, ob der Nutzer ein Team einsehen darf (für GET members/leaders).
- * true wenn isAdmin, oder Supervisor der Abteilung, oder Mitglied oder Leader des Teams.
+ * true wenn isAdmin, oder Department Lead der Abteilung, oder Mitglied oder Team Lead des Teams.
  */
 export async function canViewTeam(
   prisma: PrismaClient,
@@ -88,15 +88,15 @@ export async function canViewTeam(
   if (!team) return false;
 
   if (user.isAdmin) return true;
-  if (user.supervisorOfDepartments.some((s) => s.departmentId === team.departmentId)) return true;
+  if (user.departmentLeads.some((d) => d.departmentId === team.departmentId)) return true;
   if (user.teamMemberships.some((m) => m.team.id === teamId)) return true;
-  if (user.leaderOfTeams.some((l) => l.teamId === teamId)) return true;
+  if (user.leadOfTeams.some((l) => l.teamId === teamId)) return true;
   return false;
 }
 
 /**
- * Prüft, ob der Nutzer eine Abteilung einsehen darf (für GET supervisors).
- * true wenn isAdmin oder Supervisor dieser Abteilung.
+ * Prüft, ob der Nutzer eine Abteilung einsehen darf (für GET department leads).
+ * true wenn isAdmin oder Department Lead dieser Abteilung.
  */
 export async function canViewDepartment(
   prisma: PrismaClient,
@@ -113,6 +113,50 @@ export async function canViewDepartment(
   if (!department) return false;
 
   if (user.isAdmin) return true;
-  if (user.supervisorOfDepartments.some((s) => s.departmentId === departmentId)) return true;
+  if (user.departmentLeads.some((d) => d.departmentId === departmentId)) return true;
+  return false;
+}
+
+/**
+ * Prüft, ob der Nutzer Company Lead für die Firma anlegen/entfernen darf.
+ * true nur wenn isAdmin.
+ */
+export async function canManageCompanyLeads(
+  prisma: PrismaClient,
+  userId: string,
+  companyId: string
+): Promise<boolean> {
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return false;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+  if (!company) return false;
+
+  return user.isAdmin;
+}
+
+/**
+ * Prüft, ob der Nutzer eine Firma einsehen darf (für GET company leads).
+ * true wenn isAdmin oder Company Lead dieser Firma.
+ */
+export async function canViewCompany(
+  prisma: PrismaClient,
+  userId: string,
+  companyId: string
+): Promise<boolean> {
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return false;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+  if (!company) return false;
+
+  if (user.isAdmin) return true;
+  if (user.companyLeads.some((c) => c.companyId === companyId)) return true;
   return false;
 }

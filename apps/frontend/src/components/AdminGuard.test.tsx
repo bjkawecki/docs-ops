@@ -39,7 +39,7 @@ const adminMe: MeResponse = {
     isAdmin: true,
     hasLocalLogin: true,
   },
-  identity: { teams: [], departments: [], supervisorOfDepartments: [], userSpaces: [] },
+  identity: { teams: [], departments: [], departmentLeads: [], companyLeads: [], userSpaces: [] },
   preferences: {},
 };
 

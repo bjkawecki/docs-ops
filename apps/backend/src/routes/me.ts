@@ -38,7 +38,8 @@ export type MeResponse = {
   identity: {
     teams: MeIdentityTeam[];
     departments: { id: string; name: string }[];
-    supervisorOfDepartments: { id: string; name: string }[];
+    departmentLeads: { id: string; name: string }[];
+    companyLeads: { id: string; name: string }[];
     userSpaces: { id: string; name: string }[];
   };
   preferences: UserPreferences;
@@ -63,19 +64,22 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
             team: { include: { department: true } },
           },
         },
-        leaderOfTeams: {
+        leadOfTeams: {
           include: {
             team: { include: { department: true } },
           },
         },
-        supervisorOfDepartments: {
+        departmentLeads: {
           include: { department: true },
+        },
+        companyLeads: {
+          include: { company: true },
         },
         userSpaces: { select: { id: true, name: true } },
       },
     });
 
-    const leaderTeamIds = new Set(user.leaderOfTeams.map((l) => l.teamId));
+    const leaderTeamIds = new Set(user.leadOfTeams.map((l) => l.teamId));
     const teams: MeIdentityTeam[] = [];
     const departmentMap = new Map<string, { id: string; name: string }>();
 
@@ -94,13 +98,18 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       });
     }
 
-    const supervisorOfDepartments = user.supervisorOfDepartments.map((s) => ({
-      id: s.department.id,
-      name: s.department.name,
+    const departmentLeads = user.departmentLeads.map((d) => ({
+      id: d.department.id,
+      name: d.department.name,
     }));
-    for (const d of supervisorOfDepartments) {
+    for (const d of departmentLeads) {
       departmentMap.set(d.id, { id: d.id, name: d.name });
     }
+
+    const companyLeads = user.companyLeads.map((c) => ({
+      id: c.company.id,
+      name: c.company.name,
+    }));
 
     const preferences: UserPreferences =
       user.preferences != null && typeof user.preferences === 'object'
@@ -118,7 +127,8 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       identity: {
         teams,
         departments: Array.from(departmentMap.values()),
-        supervisorOfDepartments,
+        departmentLeads,
+        companyLeads,
         userSpaces: user.userSpaces,
       },
       preferences,

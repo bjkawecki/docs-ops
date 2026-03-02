@@ -19,7 +19,8 @@ export type MeResponse = {
   identity: {
     teams: MeIdentityTeam[];
     departments: { id: string; name: string }[];
-    supervisorOfDepartments: { id: string; name: string }[];
+    departmentLeads: { id: string; name: string }[];
+    companyLeads: { id: string; name: string }[];
     userSpaces: { id: string; name: string }[];
   };
   preferences: {

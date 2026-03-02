@@ -8,8 +8,9 @@ type UserForPermission = {
   isAdmin: boolean;
   deletedAt: Date | null;
   teamMemberships: { team: { id: string; departmentId: string } }[];
-  leaderOfTeams: { teamId: string; team: { departmentId: string } }[];
-  supervisorOfDepartments: { departmentId: string }[];
+  leadOfTeams: { teamId: string; team: { departmentId: string } }[];
+  departmentLeads: { departmentId: string }[];
+  companyLeads: { companyId: string }[];
 };
 
 /** Für canRead/canWrite: User mit Relationen laden. Export für canWrite. */
@@ -24,8 +25,9 @@ export async function loadUser(
       isAdmin: true,
       deletedAt: true,
       teamMemberships: { include: { team: { select: { id: true, departmentId: true } } } },
-      leaderOfTeams: { include: { team: { select: { departmentId: true } } } },
-      supervisorOfDepartments: { select: { departmentId: true } },
+      leadOfTeams: { include: { team: { select: { departmentId: true } } } },
+      departmentLeads: { select: { departmentId: true } },
+      companyLeads: { select: { companyId: true } },
     },
   });
   return user as UserForPermission | null;
@@ -42,7 +44,14 @@ async function loadDocument(
   return doc as DocumentForPermission | null;
 }
 
-/** Ermittelt den Owner (departmentId oder team.departmentId) des Dokument-Kontexts (Process/Project/Subcontext, kein UserSpace). */
+/** Ermittelt die Company-Owner-ID des Dokument-Kontexts (Process/Project/Subcontext), falls Owner eine Company ist. */
+function getContextOwnerCompanyId(doc: DocumentForPermission): string | null {
+  const ctx = doc.context;
+  const owner = ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
+  return owner?.companyId ?? null;
+}
+
+/** Ermittelt den Department-Owner (departmentId oder team.departmentId) des Dokument-Kontexts (Process/Project/Subcontext, kein UserSpace). */
 function getContextOwnerDepartmentId(doc: DocumentForPermission): string | null {
   const ctx = doc.context;
   if (ctx.process?.owner) {
@@ -67,7 +76,7 @@ function getContextOwnerDepartmentId(doc: DocumentForPermission): string | null 
 }
 
 /**
- * Prüft, ob der Nutzer das Dokument lesen darf (vgl. Rechteableitung).
+ * Prüft, ob der Nutzer das Dokument lesen darf (vgl. Rechtesystem).
  * @param documentOrId - documentId (string) oder bereits geladenes Document mit Context/Grants
  */
 export async function canRead(
@@ -85,25 +94,34 @@ export async function canRead(
   // 1. isAdmin
   if (user.isAdmin) return true;
 
-  // 2. Supervisor (nur Kontexte mit Owner Process/Project/Subcontext, kein UserSpace)
+  // 2. Company Lead (Kontexte mit Company-Owner)
   if (doc.context.userSpace === null) {
-    const ownerDeptId = getContextOwnerDepartmentId(doc);
-    if (ownerDeptId !== null) {
-      const isSupervisor = user.supervisorOfDepartments.some((s) => s.departmentId === ownerDeptId);
-      if (isSupervisor) return true;
+    const ownerCompanyId = getContextOwnerCompanyId(doc);
+    if (ownerCompanyId !== null) {
+      const isCompanyLead = user.companyLeads.some((c) => c.companyId === ownerCompanyId);
+      if (isCompanyLead) return true;
     }
   }
 
-  // 3. UserSpace-Owner
+  // 3. Department Lead (nur Kontexte mit Department/Team-Owner, kein UserSpace)
+  if (doc.context.userSpace === null) {
+    const ownerDeptId = getContextOwnerDepartmentId(doc);
+    if (ownerDeptId !== null) {
+      const isDeptLead = user.departmentLeads.some((d) => d.departmentId === ownerDeptId);
+      if (isDeptLead) return true;
+    }
+  }
+
+  // 4. UserSpace-Owner
   if (doc.context.userSpace && doc.context.userSpace.ownerUserId === userId) {
     return true;
   }
 
-  // 4. Explizite Grants
+  // 5. Explizite Grants
   const userTeamIds = new Set(user.teamMemberships.map((m) => m.team.id));
   const userDepartmentIds = new Set([
     ...user.teamMemberships.map((m) => m.team.departmentId),
-    ...user.leaderOfTeams.map((l) => l.team.departmentId),
+    ...user.leadOfTeams.map((l) => l.team.departmentId),
   ]);
 
   if (doc.grantUser.some((g) => g.userId === userId && g.role === GrantRole.Read)) return true;

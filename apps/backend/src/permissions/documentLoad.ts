@@ -2,8 +2,8 @@ import type { GrantRole } from '../../generated/prisma/client.js';
 
 /**
  * Einheitliches Include für Document-Ladungen in canRead/canWrite und requireDocumentAccess.
- * Lädt Context (process/project/subcontext/userSpace) inkl. Owner für Supervisor-Prüfung,
- * sowie alle Grants für die Rechteableitung.
+ * Lädt Context (process/project/subcontext/userSpace) inkl. Owner für Department-Lead-Prüfung,
+ * sowie alle Grants für die Rechteableitung (vgl. docs/platform/datenmodell/Rechtesystem.md).
  */
 export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
   context: {
@@ -12,6 +12,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
         include: {
           owner: {
             select: {
+              companyId: true,
               departmentId: true,
               teamId: true,
               team: { select: { departmentId: true } },
@@ -23,6 +24,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
         include: {
           owner: {
             select: {
+              companyId: true,
               departmentId: true,
               teamId: true,
               team: { select: { departmentId: true } },
@@ -36,6 +38,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
             include: {
               owner: {
                 select: {
+                  companyId: true,
                   departmentId: true,
                   teamId: true,
                   team: { select: { departmentId: true } },
@@ -55,8 +58,9 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
   grantDepartment: { select: { departmentId: true, role: true } },
 } as const;
 
-/** Owner-Fragment für Supervisor-Prüfung. */
+/** Owner-Fragment für Company-/Department-Lead-Prüfung. */
 type OwnerFragment = {
+  companyId: string | null;
   departmentId: string | null;
   teamId: string | null;
   team: { departmentId: string } | null;

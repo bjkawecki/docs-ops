@@ -51,8 +51,8 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       request.server.prisma.user.count({ where }),
     ]);
     const userIds = users.map((u) => u.id);
-    const [teamLeaderRows, supervisorRows, teamMemberRows] = await Promise.all([
-      request.server.prisma.teamLeader.findMany({
+    const [teamLeadRows, departmentLeadRows, companyLeadRows, teamMemberRows] = await Promise.all([
+      request.server.prisma.teamLead.findMany({
         where: { userId: { in: userIds } },
         select: {
           userId: true,
@@ -62,9 +62,13 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           },
         },
       }),
-      request.server.prisma.supervisor.findMany({
+      request.server.prisma.departmentLead.findMany({
         where: { userId: { in: userIds } },
         select: { userId: true, department: { select: { id: true, name: true } } },
+      }),
+      request.server.prisma.companyLead.findMany({
+        where: { userId: { in: userIds } },
+        select: { userId: true, company: { select: { id: true, name: true } } },
       }),
       request.server.prisma.teamMember.findMany({
         where: { userId: { in: userIds } },
@@ -76,8 +80,9 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         },
       }),
     ]);
-    const teamLeaderSet = new Set(teamLeaderRows.map((r) => r.userId));
-    const supervisorSet = new Set(supervisorRows.map((r) => r.userId));
+    const teamLeadSet = new Set(teamLeadRows.map((r) => r.userId));
+    const departmentLeadSet = new Set(departmentLeadRows.map((r) => r.userId));
+    const companyLeadSet = new Set(companyLeadRows.map((r) => r.userId));
     const teamsByUser = new Map<
       string,
       Array<{ id: string; name: string; departmentName: string }>
@@ -96,7 +101,7 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       }
       departmentsByUser.set(r.userId, deptList);
     }
-    for (const r of teamLeaderRows) {
+    for (const r of teamLeadRows) {
       if (!r.team?.department) continue;
       const list = teamsByUser.get(r.userId) ?? [];
       if (!list.some((t) => t.id === r.team!.id)) {
@@ -109,7 +114,7 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       }
       departmentsByUser.set(r.userId, deptList);
     }
-    for (const r of supervisorRows) {
+    for (const r of departmentLeadRows) {
       const deptList = departmentsByUser.get(r.userId) ?? [];
       if (!deptList.some((d) => d.id === r.department.id)) {
         deptList.push({ id: r.department.id, name: r.department.name });
@@ -119,11 +124,13 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const items = users.map((u) => {
       const role = u.isAdmin
         ? ('Admin' as const)
-        : teamLeaderSet.has(u.id)
-          ? ('Team leader' as const)
-          : supervisorSet.has(u.id)
-            ? ('Supervisor' as const)
-            : ('User' as const);
+        : companyLeadSet.has(u.id)
+          ? ('Company Lead' as const)
+          : departmentLeadSet.has(u.id)
+            ? ('Department Lead' as const)
+            : teamLeadSet.has(u.id)
+              ? ('Team Lead' as const)
+              : ('User' as const);
       return {
         ...u,
         role,

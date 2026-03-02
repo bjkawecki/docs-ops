@@ -33,7 +33,7 @@ import {
 } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 
-export type UserRole = 'User' | 'Team leader' | 'Supervisor' | 'Admin';
+export type UserRole = 'User' | 'Team Lead' | 'Department Lead' | 'Company Lead' | 'Admin';
 
 type UserTeam = { id: string; name: string; departmentName: string };
 type UserDepartment = { id: string; name: string };
@@ -195,26 +195,26 @@ export function AdminUsersTab() {
           throw new Error((err as { error?: string }).error ?? 'Failed to add team member');
         }
         if (teamRole === 'leader') {
-          const leaderRes = await apiFetch(`/api/v1/teams/${teamId}/leaders`, {
+          const leaderRes = await apiFetch(`/api/v1/teams/${teamId}/team-leads`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId }),
           });
           if (!leaderRes.ok) {
             const err = await leaderRes.json().catch(() => ({}));
-            throw new Error((err as { error?: string }).error ?? 'Failed to add team leader');
+            throw new Error((err as { error?: string }).error ?? 'Failed to add team lead');
           }
         }
       }
       if (departmentId && supervisorOfDepartment) {
-        const supRes = await apiFetch(`/api/v1/departments/${departmentId}/supervisors`, {
+        const supRes = await apiFetch(`/api/v1/departments/${departmentId}/department-leads`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId }),
         });
         if (!supRes.ok) {
           const err = await supRes.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error ?? 'Failed to add supervisor');
+          throw new Error((err as { error?: string }).error ?? 'Failed to add department lead');
         }
       }
       return user;
@@ -630,7 +630,7 @@ function CreateUserForm({
           label="Role in team"
           data={[
             { value: 'member', label: 'Member' },
-            { value: 'leader', label: 'Team leader' },
+            { value: 'leader', label: 'Team Lead' },
           ]}
           value={teamRole}
           onChange={(v) => v && setTeamRole(v as 'member' | 'leader')}
@@ -638,7 +638,7 @@ function CreateUserForm({
       )}
       {departmentId && (
         <Switch
-          label="Supervisor of this department"
+          label="Department Lead of this department"
           checked={supervisorOfDepartment}
           onChange={(e) => setSupervisorOfDepartment(e.currentTarget.checked)}
         />

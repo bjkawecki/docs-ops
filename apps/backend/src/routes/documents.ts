@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { requireAuth } from '../auth/middleware.js';
-import { requireDocumentAccess } from '../permissions/index.js';
+import { requireDocumentAccess, canDeleteDocument } from '../permissions/index.js';
 import { canReadContext, canWriteContext } from '../permissions/contextPermissions.js';
 import { GrantRole } from '../../generated/prisma/client.js';
 import {
@@ -163,20 +163,21 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
   );
 
-  /** DELETE Dokument – Soft-Delete (deletedAt setzen). */
-  app.delete(
-    '/documents/:documentId',
-    { preHandler: [requireAuth, requireDocumentAccess('write')] },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const { documentId } = documentIdParamSchema.parse(request.params);
-      await prisma.document.update({
-        where: { id: documentId },
-        data: { deletedAt: new Date() },
-      });
-      return reply.status(204).send();
-    }
-  );
+  /** DELETE Dokument – Soft-Delete (deletedAt setzen). Nur Scope-Lead (canDeleteDocument). */
+  app.delete('/documents/:documentId', { preHandler: requireAuth }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = (request as { user?: { id: string } }).user?.id;
+    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const { documentId } = documentIdParamSchema.parse(request.params);
+    const allowed = await canDeleteDocument(prisma, userId, documentId);
+    if (!allowed)
+      return reply.status(403).send({ error: 'Keine Berechtigung, dieses Dokument zu löschen' });
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { deletedAt: new Date() },
+    });
+    return reply.status(204).send();
+  });
 
   /** GET Grants (User, Team, Department) – requireDocumentAccess('read'). */
   app.get(

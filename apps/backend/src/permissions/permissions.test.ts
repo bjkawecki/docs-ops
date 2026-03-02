@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GrantRole } from '../../generated/prisma/client.js';
 import { buildApp } from '../app.js';
 import { prisma } from '../db.js';
-import { canRead, canWrite } from './index.js';
+import { canRead, canWrite, canDeleteDocument } from './index.js';
 import { hashPassword } from '../auth/password.js';
 
 const TS = `perm-${Date.now()}`;
@@ -25,59 +25,76 @@ describe('Permissions (canRead, canWrite)', () => {
   let teamMemberId: string;
   let teamLeaderId: string;
   let otherUserId: string;
+  let writerOnlyUserId: string;
 
   beforeAll(async () => {
     const pw = await hashPassword('test');
-    const [company, admin, deletedUser, supervisor, userSpaceOwner, teamMember, teamLeader, other] =
-      await Promise.all([
-        prisma.company.create({ data: { name: `Company ${TS}` } }),
-        prisma.user.create({
-          data: { name: 'Admin', email: `admin-${TS}@test.de`, passwordHash: pw, isAdmin: true },
-        }),
-        prisma.user.create({
-          data: {
-            name: 'Deleted',
-            email: `deleted-${TS}@test.de`,
-            passwordHash: pw,
-            deletedAt: new Date(),
-          },
-        }),
-        prisma.user.create({
-          data: {
-            name: 'Supervisor',
-            email: `supervisor-${TS}@test.de`,
-            passwordHash: pw,
-          },
-        }),
-        prisma.user.create({
-          data: {
-            name: 'UserSpace Owner',
-            email: `spaceowner-${TS}@test.de`,
-            passwordHash: pw,
-          },
-        }),
-        prisma.user.create({
-          data: {
-            name: 'Team Member',
-            email: `member-${TS}@test.de`,
-            passwordHash: pw,
-          },
-        }),
-        prisma.user.create({
-          data: {
-            name: 'Team Leader',
-            email: `leader-${TS}@test.de`,
-            passwordHash: pw,
-          },
-        }),
-        prisma.user.create({
-          data: {
-            name: 'Other',
-            email: `other-${TS}@test.de`,
-            passwordHash: pw,
-          },
-        }),
-      ]);
+    const [
+      company,
+      admin,
+      deletedUser,
+      supervisor,
+      userSpaceOwner,
+      teamMember,
+      teamLeader,
+      other,
+      writerOnly,
+    ] = await Promise.all([
+      prisma.company.create({ data: { name: `Company ${TS}` } }),
+      prisma.user.create({
+        data: { name: 'Admin', email: `admin-${TS}@test.de`, passwordHash: pw, isAdmin: true },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'Deleted',
+          email: `deleted-${TS}@test.de`,
+          passwordHash: pw,
+          deletedAt: new Date(),
+        },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'Supervisor',
+          email: `supervisor-${TS}@test.de`,
+          passwordHash: pw,
+        },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'UserSpace Owner',
+          email: `spaceowner-${TS}@test.de`,
+          passwordHash: pw,
+        },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'Team Member',
+          email: `member-${TS}@test.de`,
+          passwordHash: pw,
+        },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'Team Leader',
+          email: `leader-${TS}@test.de`,
+          passwordHash: pw,
+        },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'Other',
+          email: `other-${TS}@test.de`,
+          passwordHash: pw,
+        },
+      }),
+      prisma.user.create({
+        data: {
+          name: 'Writer Only',
+          email: `writeronly-${TS}@test.de`,
+          passwordHash: pw,
+        },
+      }),
+    ]);
 
     companyId = company.id;
     adminId = admin.id;
@@ -87,6 +104,7 @@ describe('Permissions (canRead, canWrite)', () => {
     teamMemberId = teamMember.id;
     teamLeaderId = teamLeader.id;
     otherUserId = other.id;
+    writerOnlyUserId = writerOnly.id;
 
     const dept = await prisma.department.create({
       data: { name: `Dept ${TS}`, companyId },
@@ -104,11 +122,11 @@ describe('Permissions (canRead, canWrite)', () => {
     ownerId = owner.id;
 
     await Promise.all([
-      prisma.supervisor.create({
+      prisma.departmentLead.create({
         data: { userId: supervisorId, departmentId },
       }),
       prisma.teamMember.create({ data: { teamId, userId: teamMemberId } }),
-      prisma.teamLeader.create({ data: { teamId, userId: teamLeaderId } }),
+      prisma.teamLead.create({ data: { teamId, userId: teamLeaderId } }),
     ]);
 
     const ctxProcess = await prisma.context.create({ data: {} });
@@ -147,6 +165,9 @@ describe('Permissions (canRead, canWrite)', () => {
       prisma.documentGrantUser.create({
         data: { documentId: docProcessId, userId: otherUserId, role: GrantRole.Read },
       }),
+      prisma.documentGrantUser.create({
+        data: { documentId: docProcessId, userId: writerOnlyUserId, role: GrantRole.Write },
+      }),
       prisma.documentGrantTeam.create({
         data: { documentId: docProcessId, teamId, role: GrantRole.Read },
       }),
@@ -178,10 +199,10 @@ describe('Permissions (canRead, canWrite)', () => {
     const ctxIds = [contextProcessId, contextUserSpaceId].filter((id): id is string => id != null);
     if (ctxIds.length > 0) await prisma.context.deleteMany({ where: { id: { in: ctxIds } } });
     if (teamId) {
-      await prisma.teamLeader.deleteMany({ where: { teamId } });
+      await prisma.teamLead.deleteMany({ where: { teamId } });
       await prisma.teamMember.deleteMany({ where: { teamId } });
     }
-    if (departmentId) await prisma.supervisor.deleteMany({ where: { departmentId } });
+    if (departmentId) await prisma.departmentLead.deleteMany({ where: { departmentId } });
     if (ownerId) await prisma.owner.deleteMany({ where: { id: ownerId } });
     if (teamId) await prisma.team.deleteMany({ where: { id: teamId } });
     if (departmentId) await prisma.department.deleteMany({ where: { id: departmentId } });
@@ -194,6 +215,7 @@ describe('Permissions (canRead, canWrite)', () => {
       teamMemberId,
       teamLeaderId,
       otherUserId,
+      writerOnlyUserId,
     ].filter((id): id is string => id != null);
     if (userIds.length > 0) {
       await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
@@ -211,7 +233,7 @@ describe('Permissions (canRead, canWrite)', () => {
     expect(await canWrite(prisma, deletedUserId, docProcessId)).toBe(false);
   });
 
-  it('Supervisor der Abteilung → canRead true (Dokument im Process)', async () => {
+  it('Department Lead der Abteilung → canRead true (Dokument im Process)', async () => {
     expect(await canRead(prisma, supervisorId, docProcessId)).toBe(true);
   });
 
@@ -228,7 +250,7 @@ describe('Permissions (canRead, canWrite)', () => {
     expect(await canRead(prisma, teamMemberId, docProcessId)).toBe(true);
   });
 
-  it('Expliziter Grant Team Write nur für TeamLeader → canWrite true (Leader), false (Member)', async () => {
+  it('Expliziter Grant Team Write nur für Team Lead → canWrite true (Leader), false (Member)', async () => {
     expect(await canWrite(prisma, teamLeaderId, docProcessId)).toBe(true);
     expect(await canWrite(prisma, teamMemberId, docProcessId)).toBe(false);
   });
@@ -241,6 +263,33 @@ describe('Permissions (canRead, canWrite)', () => {
   it('Document nicht vorhanden (ID) → false', async () => {
     expect(await canRead(prisma, adminId, 'non-existent-doc-id')).toBe(false);
     expect(await canWrite(prisma, adminId, 'non-existent-doc-id')).toBe(false);
+  });
+
+  describe('canDeleteDocument', () => {
+    it('isAdmin → canDeleteDocument true', async () => {
+      expect(await canDeleteDocument(prisma, adminId, docProcessId)).toBe(true);
+    });
+
+    it('Scope-Lead (Department Lead) → canDeleteDocument true', async () => {
+      expect(await canDeleteDocument(prisma, supervisorId, docProcessId)).toBe(true);
+    });
+
+    it('UserSpace-Owner → canDeleteDocument true für Dokument im Space', async () => {
+      expect(await canDeleteDocument(prisma, userSpaceOwnerId, docUserSpaceId)).toBe(true);
+    });
+
+    it('nur Writer-Grant (kein Lead) → canWrite true, canDeleteDocument false', async () => {
+      expect(await canWrite(prisma, writerOnlyUserId, docProcessId)).toBe(true);
+      expect(await canDeleteDocument(prisma, writerOnlyUserId, docProcessId)).toBe(false);
+    });
+
+    it('Team Lead ohne Kontext-Ownership (Process-Owner = Department) → canDeleteDocument false', async () => {
+      expect(await canDeleteDocument(prisma, teamLeaderId, docProcessId)).toBe(false);
+    });
+
+    it('Dokument nicht vorhanden → canDeleteDocument false', async () => {
+      expect(await canDeleteDocument(prisma, adminId, 'non-existent-doc-id')).toBe(false);
+    });
   });
 });
 

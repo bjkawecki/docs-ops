@@ -22,14 +22,25 @@ import {
   userSpaceIdParamSchema,
 } from './schemas/contexts.js';
 
-/** Findet oder erstellt einen Owner für departmentId oder teamId (genau einer). */
+/** Findet oder erstellt einen Owner für companyId, departmentId oder teamId (genau einer). */
 async function findOrCreateOwner(
   prisma: PrismaClient,
-  opts: { departmentId?: string; teamId?: string }
+  opts: { companyId?: string; departmentId?: string; teamId?: string }
 ): Promise<{ id: string }> {
+  if (opts.companyId) {
+    let owner = await prisma.owner.findFirst({
+      where: { companyId: opts.companyId, departmentId: null, teamId: null },
+    });
+    if (!owner) {
+      owner = await prisma.owner.create({
+        data: { companyId: opts.companyId },
+      });
+    }
+    return { id: owner.id };
+  }
   if (opts.departmentId) {
     let owner = await prisma.owner.findFirst({
-      where: { departmentId: opts.departmentId, teamId: null },
+      where: { departmentId: opts.departmentId, companyId: null, teamId: null },
     });
     if (!owner) {
       owner = await prisma.owner.create({
@@ -40,7 +51,7 @@ async function findOrCreateOwner(
   }
   if (opts.teamId) {
     let owner = await prisma.owner.findFirst({
-      where: { teamId: opts.teamId, departmentId: null },
+      where: { teamId: opts.teamId, companyId: null, departmentId: null },
     });
     if (!owner) {
       owner = await prisma.owner.create({
@@ -49,7 +60,7 @@ async function findOrCreateOwner(
     }
     return { id: owner.id };
   }
-  throw new Error('departmentId oder teamId erforderlich');
+  throw new Error('companyId, departmentId oder teamId erforderlich');
 }
 
 const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
@@ -85,11 +96,13 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
     const body = createProcessBodySchema.parse(request.body);
     const allowed = await canCreateProcessOrProjectForOwner(prisma, userId, {
+      companyId: body.companyId ?? undefined,
       departmentId: body.departmentId ?? undefined,
       teamId: body.teamId ?? undefined,
     });
     if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung, Prozess anzulegen' });
     const owner = await findOrCreateOwner(prisma, {
+      companyId: body.companyId ?? undefined,
       departmentId: body.departmentId ?? undefined,
       teamId: body.teamId ?? undefined,
     });
@@ -188,11 +201,13 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
     const body = createProjectBodySchema.parse(request.body);
     const allowed = await canCreateProcessOrProjectForOwner(prisma, userId, {
+      companyId: body.companyId ?? undefined,
       departmentId: body.departmentId ?? undefined,
       teamId: body.teamId ?? undefined,
     });
     if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung, Projekt anzulegen' });
     const owner = await findOrCreateOwner(prisma, {
+      companyId: body.companyId ?? undefined,
       departmentId: body.departmentId ?? undefined,
       teamId: body.teamId ?? undefined,
     });

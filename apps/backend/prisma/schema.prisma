@@ -16,9 +16,11 @@ datasource db {
 
 /// Oberste Organisationseinheit. Enthält Abteilungen; Struktur bestimmt Ownership, nicht automatisch Zugriff.
 model Company {
-  id          String       @id @default(cuid())
-  name        String
-  departments Department[]
+  id             String        @id @default(cuid())
+  name           String
+  departments    Department[]
+  companyLeads   CompanyLead[]
+  owners         Owner[]       @relation("OwnerCompany")
 }
 
 /// Abteilung mit Teams; kann Prozesse und Projekte besitzen (Owner). Rechte werden explizit vergeben.
@@ -29,11 +31,11 @@ model Department {
   company                Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   teams                  Team[]
   owners                 Owner[]         @relation("OwnerDepartment")
-  supervisors            Supervisor[]
+  departmentLeads        DepartmentLead[]
   documentGrantDept      DocumentGrantDepartment[]
 }
 
-/// Autonome Einheit: Mitglieder sehen Team-Dokumente (Leserechte), Schreibrechte nur für Teamleader/explizite Grants.
+/// Autonome Einheit: Mitglieder sehen Team-Dokumente (Leserechte), Schreibrechte nur für Team Lead/explizite Grants.
 /// Kann Prozesse und Projekte besitzen (Owner). Dynamisch zusammensetzbar.
 model Team {
   id           String          @id @default(cuid())
@@ -41,7 +43,7 @@ model Team {
   departmentId String
   department   Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   members      TeamMember[]
-  leaders      TeamLeader[]
+  teamLeads    TeamLead[]
   owners       Owner[]         @relation("OwnerTeam")
   documentGrantTeam DocumentGrantTeam[]
 }
@@ -55,8 +57,8 @@ model TeamMember {
   @@id([teamId, userId])
 }
 
-/// Teamleader: Nutzer mit Schreibrechten für ein Team. Schreibrechte nur über diese oder explizite Grants.
-model TeamLeader {
+/// Team Lead: Nutzer mit Schreibrechten für ein Team. Schreibrechte nur über diese oder explizite Grants.
+model TeamLead {
   teamId String
   userId String
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -64,7 +66,7 @@ model TeamLeader {
   @@id([teamId, userId])
 }
 
-/// Nutzer: Mitglied in Teams (TeamMember), optional Teamleader (TeamLeader). isAdmin: sieht alles, legt Struktur an, fügt User hinzu.
+/// Nutzer: Mitglied in Teams (TeamMember), optional Team Lead (TeamLead). isAdmin: sieht alles, legt Struktur an, fügt User hinzu.
 /// Kann Nutzerspaces besitzen; erhält explizite Zugriffsrechte über DocumentGrantUser. email/externalId für Auth/SSO.
 /// passwordHash nur für lokalen Login; SSO-Nutzer (externalId) brauchen keins.
 model User {
@@ -77,8 +79,9 @@ model User {
   deletedAt             DateTime?    // Soft delete: deaktivierter Account, Zugriff entzogen
   preferences           Json?        // theme: light|dark|auto, sidebarPinned: boolean
   teamMemberships       TeamMember[]
-  leaderOfTeams         TeamLeader[]
-  supervisorOfDepartments Supervisor[]
+  leadOfTeams           TeamLead[]
+  departmentLeads       DepartmentLead[]
+  companyLeads          CompanyLead[]
   userSpaces            UserSpace[]
   documentGrantUser     DocumentGrantUser[]
   sessions              Session[]
@@ -93,9 +96,9 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/// Supervisor einer Abteilung: hat Leserechte auf alle Dokumente in Kontexten, die der Abteilung oder ihren Teams gehören
+/// Department Lead: Nutzer mit Leserechten auf alle Dokumente in Kontexten der Abteilung und ihrer Teams
 /// (Prozesse, Projekte, Unterkontexte) – nicht auf Nutzerspaces. Ableitung in der App (Rechteableitung).
-model Supervisor {
+model DepartmentLead {
   departmentId String
   userId       String
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
@@ -103,12 +106,24 @@ model Supervisor {
   @@id([departmentId, userId])
 }
 
+/// Company Lead: Nutzer mit Lese-/Schreibrechten auf Prozesse und Projekte mit Company-Owner.
+/// Darf für die Firma Prozesse/Projekte anlegen und bearbeiten. Nur Admins verwalten Company-Lead-Zuordnungen.
+model CompanyLead {
+  companyId String
+  userId    String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([companyId, userId])
+}
+
 /// Owner-Abstraktion: Prozess/Projekt haben genau einen Owner (Schema: ownerId).
-/// Inhaltlich genau einer: Abteilung oder Team (departmentId bzw. teamId gesetzt, App-Validierung).
+/// Inhaltlich genau einer: Company, Abteilung oder Team (companyId, departmentId bzw. teamId gesetzt, App-Validierung).
 model Owner {
   id             String    @id @default(cuid())
+  companyId      String?
   departmentId   String?
   teamId         String?
+  company        Company?    @relation("OwnerCompany", fields: [companyId], references: [id], onDelete: Restrict)
   department     Department? @relation("OwnerDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
   team           Team?      @relation("OwnerTeam", fields: [teamId], references: [id], onDelete: Restrict)
   processes      Process[]
@@ -220,7 +235,7 @@ model DocumentTag {
 
 // --- Zugriffsrechte (explizit; vgl. Rechteableitung) ---
 
-/// Rolle pro Grant: Lesen oder Schreiben. Schreibrechte nur für Teamleader bzw. explizit gewährte Schreiber.
+/// Rolle pro Grant: Lesen oder Schreiben. Schreibrechte nur für Team Lead bzw. explizit gewährte Schreiber.
 enum GrantRole {
   Read
   Write

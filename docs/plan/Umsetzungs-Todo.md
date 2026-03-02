@@ -40,7 +40,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 ## 4. Rechte
 
-- [x] Logik `canRead(userId, dokumentId)` / `canWrite(userId, dokumentId)` (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md))
+- [x] Logik `canRead(userId, dokumentId)` / `canWrite(userId, dokumentId)` (vgl. [Rechtesystem](../platform/datenmodell/Rechtesystem.md))
 - [x] Middleware für Dokument-Routen (z. B. `requireDocumentAccess('read'|'write')`)
 - [x] Anbindung an Prisma (User inkl. Teams, Abteilungen, Superuser; Dokument inkl. Leser/Schreiber)
 
@@ -52,7 +52,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [x] CRUD Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext)
 - [x] CRUD Dokumente (Titel, Markdown-Inhalt, Kontext, Tags)
 - [x] Zuweisung Leser/Schreiber pro Dokument (Nutzer, Team, Abteilung)
-- [x] API für Zuordnungen (TeamMember, TeamLeader, Supervisor) – GET/POST/DELETE pro Ressource; Berechtigung: Admin alles, Supervisor für Teams seiner Abteilung (Member + Leader), TeamLeader für sein Team (nur Member)
+- [x] API für Zuordnungen (TeamMember, Team Lead, Department Lead) – GET/POST/DELETE pro Ressource; Berechtigung: Admin alles, Department Lead für Teams seiner Abteilung (Member + Team Lead), Team Lead für sein Team (nur Member)
 - [x] Validierung (Zod), Fehlerbehandlung
 
 ---
@@ -84,7 +84,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
   - Einstiegsseite unter z. B. `/settings`, erreichbar aus der Sidebar (unten, wie in Abschnitt 7).
   - Seiten-Header „Settings“, darunter eine General-Ansicht mit Cards (Profile, Account, Appearance, Notifications, Language, Security, DocsOps Identity).
 - [x] **Backend: Me & Preferences**
-  - GET `/api/v1/me` – erweiterte Nutzerdaten inkl. Zugehörigkeiten (Teams mit Rolle Mitglied/Leader, Abteilung(en), Supervisor, ggf. eigene Nutzerspaces) für DocsOps-Identity; nur eigener User (Session); inkl. `hasLocalLogin` (Account-Card nur bei lokalem Login).
+  - GET `/api/v1/me` – erweiterte Nutzerdaten inkl. Zugehörigkeiten (Teams mit Rolle Mitglied/Team Lead, Abteilung(en), Department Lead, ggf. eigene Nutzerspaces) für DocsOps-Identity; nur eigener User (Session); inkl. `hasLocalLogin` (Account-Card nur bei lokalem Login).
   - PATCH `/api/v1/me` – eigenes Profil bearbeiten (**nur Anzeigename**); nur eigener User; Validierung (Zod). E-Mail/Passwort über Account (PATCH `/api/v1/me/account`).
   - GET/PATCH `/api/v1/me/preferences` – User-Preferences (z. B. `theme: 'light'|'dark'|'auto'`, `sidebarPinned: boolean`, `locale: 'en'|'de'`). Persistenz im Backend (User-Preferences-Feld); eine Quelle der Wahrheit für alle Clients.
   - POST `/api/v1/me/deactivate` – Self-Deactivate (setzt `deletedAt`); nur für Nicht-Admins (letzter Admin darf nicht); alle Sessions des Users löschen.
@@ -97,7 +97,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
   - **Notifications-Card:** Platzhalter („Notification preferences will be available here …“); konkrete Optionen später (vgl. §14, §17).
   - **Language-Card:** Select English/Deutsch (`locale: 'en'|'de'`), PATCH `/api/v1/me/preferences` mit `locale`; gespeicherte Preference für spätere i18n-Nutzung.
   - **Security-Card (Sessions):** Liste der Sessions (Created, Expires, „Current session“-Badge), Revoke pro Zeile (außer aktueller Session), optional „Revoke all other sessions“.
-  - **DocsOps-Identity-Card:** User-Entity und Ownership-/Zugehörigkeits-Entitäten (Teams inkl. Rolle, Abteilung(en), Supervisor, eigene Nutzerspaces). Daten aus GET `/api/v1/me`.
+  - **DocsOps-Identity-Card:** User-Entity und Ownership-/Zugehörigkeits-Entitäten (Teams inkl. Rolle, Abteilung(en), Department Lead, eigene Nutzerspaces). Daten aus GET `/api/v1/me`.
 
 ---
 
@@ -118,14 +118,14 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
   - Seite „Nutzer“ (z. B. `/admin/users`): Tabelle/Liste mit Name, E-Mail, Admin-Flag, Status (aktiv/deaktiviert); **Filter/Tabs:** z. B. „Aktive“ / „Alle (inkl. deaktiviert)“; Suche, Pagination.
   - Nutzer anlegen: Formular (Name, E-Mail, Passwort, Checkbox isAdmin); Validierung (wie §8: E-Mail eindeutig, Passwort mind. 8 Zeichen); Toast bei Erfolg/Fehler.
   - Nutzer bearbeiten: Formular (Name, E-Mail, isAdmin); **Deaktivieren**-Button/Aktion; **Reaktivieren** für deaktivierte Nutzer; keine Passwort-Anzeige, optional „Passwort setzen“ (Admin-Reset).
-- [x] **Frontend: Zuordnungen (TeamMember, TeamLeader, Supervisor)**
+- [x] **Frontend: Zuordnungen (TeamMember, Team Lead, Department Lead)**
   - Anbindung an bestehende API: `GET/POST/DELETE /teams/:teamId/members`, `.../leaders`, `GET/POST/DELETE /departments/:departmentId/supervisors`.
-  - Pro Team: Mitglieder anzeigen, hinzufügen (User auswählen), entfernen; Team-Leader anzeigen, hinzufügen, entfernen. Berechtigung laut Backend (Supervisor/TeamLeader/Admin).
-  - Pro Abteilung: Supervisor-Liste anzeigen, hinzufügen, entfernen. Nur für Admins oder Supervisor derselben Abteilung (falls API das erlaubt).
+  - Pro Team: Mitglieder anzeigen, hinzufügen (User auswählen), entfernen; Team Lead anzeigen, hinzufügen, entfernen. Berechtigung laut Backend (Department Lead/Team Lead/Admin).
+  - Pro Abteilung: Department-Lead-Liste anzeigen, hinzufügen, entfernen. Nur für Admins (Department-Lead-Zuordnung).
   - UI: z. B. Unterbereich „Teams“ unter `/admin/teams` mit Navigation Team wählen → Mitglieder/Leader verwalten; oder Integration in Organisationsbaum (Abteilung → Teams → Mitglieder).
 - [x] **Optional: Organisation im Admin**
   - **Nur UI:** Kern-API (Abschnitt 5) bietet bereits CRUD für Firma, Abteilung, Team; Admin-Organisation ist reine UI-Anbindung an diese Routen, keine Backend-Erweiterung nötig.
-  - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechteableitung](../platform/datenmodell/Rechteableitung.md)).
+  - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechtesystem](../platform/datenmodell/Rechtesystem.md)).
 
 ---
 

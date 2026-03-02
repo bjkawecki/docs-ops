@@ -56,6 +56,7 @@ export function AdminOrganisationTab() {
   const [addSupervisorForDepartmentId, setAddSupervisorForDepartmentId] = useState<string | null>(
     null
   );
+  const [addCompanyLeadOpened, setAddCompanyLeadOpened] = useState(false);
 
   const { data: companiesData, isPending: companiesPending } = useQuery({
     queryKey: ['companies'],
@@ -82,24 +83,37 @@ export function AdminOrganisationTab() {
 
   const departments = departmentsData?.items ?? [];
 
-  const { data: supervisorsDataForModal } = useQuery({
-    queryKey: ['departments', addSupervisorForDepartmentId, 'supervisors'],
+  const { data: departmentLeadsDataForModal } = useQuery({
+    queryKey: ['departments', addSupervisorForDepartmentId, 'department-leads'],
     queryFn: async (): Promise<AssignmentListRes> => {
       const res = await apiFetch(
-        `/api/v1/departments/${addSupervisorForDepartmentId}/supervisors?limit=100`
+        `/api/v1/departments/${addSupervisorForDepartmentId}/department-leads?limit=100`
       );
       if (!res.ok) throw new Error('Failed to load');
       return res.json();
     },
     enabled: !!addSupervisorForDepartmentId,
   });
-  const supervisorsForModal = supervisorsDataForModal?.items ?? [];
+  const departmentLeadsForModal = departmentLeadsDataForModal?.items ?? [];
+
+  const { data: companyLeadsData, isPending: companyLeadsPending } = useQuery({
+    queryKey: ['companies', companyId, 'company-leads'],
+    queryFn: async (): Promise<AssignmentListRes> => {
+      const res = await apiFetch(`/api/v1/companies/${companyId}/company-leads?limit=100`);
+      if (!res.ok) throw new Error('Failed to load');
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+  const companyLeads = companyLeadsData?.items ?? [];
 
   const invalidateCompanies = () => queryClient.invalidateQueries({ queryKey: ['companies'] });
   const invalidateDepartments = () =>
     queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'departments'] });
+  const invalidateCompanyLeads = () =>
+    queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'company-leads'] });
   const invalidateSupervisors = (departmentId: string) => {
-    queryClient.invalidateQueries({ queryKey: ['departments', departmentId, 'supervisors'] });
+    queryClient.invalidateQueries({ queryKey: ['departments', departmentId, 'department-leads'] });
   };
 
   const createCompany = useMutation({
@@ -299,7 +313,7 @@ export function AdminOrganisationTab() {
 
   const addSupervisor = useMutation({
     mutationFn: async ({ departmentId, userId }: { departmentId: string; userId: string }) => {
-      const res = await apiFetch(`/api/v1/departments/${departmentId}/supervisors`, {
+      const res = await apiFetch(`/api/v1/departments/${departmentId}/department-leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -313,8 +327,8 @@ export function AdminOrganisationTab() {
       invalidateSupervisors(departmentId);
       setAddSupervisorForDepartmentId(null);
       notifications.show({
-        title: 'Supervisor added',
-        message: 'The supervisor has been added.',
+        title: 'Department Lead added',
+        message: 'The department lead has been added.',
         color: 'green',
       });
     },
@@ -323,7 +337,7 @@ export function AdminOrganisationTab() {
 
   const removeSupervisor = useMutation({
     mutationFn: async ({ departmentId, userId }: { departmentId: string; userId: string }) => {
-      const res = await apiFetch(`/api/v1/departments/${departmentId}/supervisors/${userId}`, {
+      const res = await apiFetch(`/api/v1/departments/${departmentId}/department-leads/${userId}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -334,8 +348,53 @@ export function AdminOrganisationTab() {
     onSuccess: (_, { departmentId }) => {
       invalidateSupervisors(departmentId);
       notifications.show({
-        title: 'Supervisor removed',
-        message: 'The supervisor has been removed.',
+        title: 'Department Lead removed',
+        message: 'The department lead has been removed.',
+        color: 'green',
+      });
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const addCompanyLead = useMutation({
+    mutationFn: async ({ companyId: cid, userId }: { companyId: string; userId: string }) => {
+      const res = await apiFetch(`/api/v1/companies/${cid}/company-leads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? res.statusText);
+      }
+    },
+    onSuccess: () => {
+      invalidateCompanyLeads();
+      setAddCompanyLeadOpened(false);
+      notifications.show({
+        title: 'Company Lead added',
+        message: 'The company lead has been added.',
+        color: 'green',
+      });
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const removeCompanyLead = useMutation({
+    mutationFn: async ({ companyId: cid, userId }: { companyId: string; userId: string }) => {
+      const res = await apiFetch(`/api/v1/companies/${cid}/company-leads/${userId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? res.statusText);
+      }
+    },
+    onSuccess: () => {
+      invalidateCompanyLeads();
+      notifications.show({
+        title: 'Company Lead removed',
+        message: 'The company lead has been removed.',
         color: 'green',
       });
     },
@@ -413,6 +472,50 @@ export function AdminOrganisationTab() {
                   Create department
                 </Button>
               </Group>
+              <Box mb="md">
+                <Text size="xs" fw={600} mb="xs">
+                  Company leads
+                </Text>
+                {companyLeadsPending ? (
+                  <Loader size="xs" />
+                ) : companyLeads.length === 0 ? (
+                  <Text size="xs" c="dimmed">
+                    No company leads
+                  </Text>
+                ) : (
+                  <List size="xs">
+                    {companyLeads.map((u) => (
+                      <List.Item key={u.id}>
+                        <Group justify="space-between" gap="xs">
+                          <span>{u.name}</span>
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            onClick={() =>
+                              companyId && removeCompanyLead.mutate({ companyId, userId: u.id })
+                            }
+                            loading={removeCompanyLead.isPending}
+                          >
+                            <IconTrash size={10} />
+                          </ActionIcon>
+                        </Group>
+                      </List.Item>
+                    ))}
+                  </List>
+                )}
+                {companyId && (
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    leftSection={<IconPlus size={12} />}
+                    mt="xs"
+                    onClick={() => setAddCompanyLeadOpened(true)}
+                  >
+                    Add Company Lead
+                  </Button>
+                )}
+              </Box>
               {departmentsPending ? (
                 <Loader size="xs" />
               ) : departments.length === 0 ? (
@@ -533,8 +636,15 @@ export function AdminOrganisationTab() {
           addSupervisorForDepartmentId &&
           addSupervisor.mutate({ departmentId: addSupervisorForDepartmentId, userId })
         }
-        excludeIds={supervisorsForModal.map((u) => u.id)}
+        excludeIds={departmentLeadsForModal.map((u) => u.id)}
         loading={addSupervisor.isPending}
+      />
+      <UserPickerModal
+        opened={addCompanyLeadOpened && !!companyId}
+        onClose={() => setAddCompanyLeadOpened(false)}
+        onSelect={(userId) => companyId && addCompanyLead.mutate({ companyId, userId })}
+        excludeIds={companyLeads.map((u) => u.id)}
+        loading={addCompanyLead.isPending}
       />
     </Box>
   );
@@ -567,16 +677,16 @@ function DepartmentCard({
   deleteTeamIsPending: boolean;
   removeSupervisorIsPending: boolean;
 }) {
-  const { data: supervisorsData, isPending: supervisorsPending } = useQuery({
-    queryKey: ['departments', department.id, 'supervisors'],
+  const { data: departmentLeadsData, isPending: departmentLeadsPending } = useQuery({
+    queryKey: ['departments', department.id, 'department-leads'],
     queryFn: async (): Promise<AssignmentListRes> => {
-      const res = await apiFetch(`/api/v1/departments/${department.id}/supervisors?limit=100`);
+      const res = await apiFetch(`/api/v1/departments/${department.id}/department-leads?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
       return res.json();
     },
     enabled: !!department.id,
   });
-  const supervisors = supervisorsData?.items ?? [];
+  const departmentLeads = departmentLeadsData?.items ?? [];
   const teams = department.teams ?? [];
 
   return (
@@ -596,7 +706,7 @@ function DepartmentCard({
               Add team
             </Menu.Item>
             <Menu.Item leftSection={<IconPlus size={14} />} onClick={onAddSupervisor}>
-              Add Supervisor
+              Add Department Lead
             </Menu.Item>
             <Menu.Divider />
             <Menu.Item leftSection={<IconPencil size={14} />} onClick={onEditDepartment}>
@@ -650,17 +760,17 @@ function DepartmentCard({
         </Box>
         <Box>
           <Text size="xs" fw={600} mb="xs">
-            Supervisors
+            Department leads
           </Text>
-          {supervisorsPending ? (
+          {departmentLeadsPending ? (
             <Loader size="xs" />
-          ) : supervisors.length === 0 ? (
+          ) : departmentLeads.length === 0 ? (
             <Text size="xs" c="dimmed">
-              No supervisors
+              No department leads
             </Text>
           ) : (
             <List size="xs">
-              {supervisors.map((u) => (
+              {departmentLeads.map((u) => (
                 <List.Item key={u.id}>
                   <Group justify="space-between" gap="xs">
                     <span>{u.name}</span>

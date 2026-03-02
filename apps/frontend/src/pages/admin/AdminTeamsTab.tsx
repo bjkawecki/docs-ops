@@ -84,9 +84,9 @@ export function AdminTeamsTab() {
   });
 
   const { data: leadersData, isPending: leadersPending } = useQuery({
-    queryKey: ['teams', teamId, 'leaders'],
+    queryKey: ['teams', teamId, 'team-leads'],
     queryFn: async (): Promise<AssignmentListRes> => {
-      const res = await apiFetch(`/api/v1/teams/${teamId}/leaders?limit=100`);
+      const res = await apiFetch(`/api/v1/teams/${teamId}/team-leads?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
       return res.json();
     },
@@ -95,7 +95,7 @@ export function AdminTeamsTab() {
 
   const invalidateAssignments = () => {
     if (teamId) queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'members'] });
-    if (teamId) queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'leaders'] });
+    if (teamId) queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'team-leads'] });
   };
   const invalidateDepartments = () => {
     if (companyId)
@@ -231,7 +231,7 @@ export function AdminTeamsTab() {
 
   const addLeader = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await apiFetch(`/api/v1/teams/${teamId}/leaders`, {
+      const res = await apiFetch(`/api/v1/teams/${teamId}/team-leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -256,7 +256,9 @@ export function AdminTeamsTab() {
 
   const removeLeader = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await apiFetch(`/api/v1/teams/${teamId}/leaders/${userId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/v1/teams/${teamId}/team-leads/${userId}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error ?? res.statusText);

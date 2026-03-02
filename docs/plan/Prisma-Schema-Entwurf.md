@@ -1,8 +1,8 @@
 # Prisma-Schema-Entwurf
 
-Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Datenmodell](../platform/datenmodell/Pseudocode%20Datenmodell.md) und [Rechteableitung](../platform/datenmodell/Rechteableitung.md). Namenskonvention: Englisch; Implementierung nutzt `canRead`/`canWrite` (vgl. [projekt-kontext.mdc](../../.cursor/rules/projekt-kontext.mdc)).
+Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Datenmodell](../platform/datenmodell/Pseudocode%20Datenmodell.md) und [Rechtesystem](../platform/datenmodell/Rechtesystem.md). Namenskonvention: Englisch; Implementierung nutzt `canRead`/`canWrite` (vgl. [projekt-kontext.mdc](../../.cursor/rules/projekt-kontext.mdc)).
 
-**Umsetzungsstand (aktuell in `apps/backend/prisma/schema.prisma`):** Getrennte Kontext-Tabellen (Process, Project, Subcontext, UserSpace) mit **Context**-Abstraktion für Document; **Owner**-Abstraktion für Process/Project (genau einer: Department oder Team); Zugriffsrechte in drei Tabellen (DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment) mit genau einem Grantee pro Zeile; Tags normalisiert (Tag + DocumentTag n:m); User mit email, externalId, isAdmin, deletedAt; Supervisor, TeamLeader (statt Superuser); Soft Delete (Document, Process, Project, User); Document mit optionalem pdfUrl.
+**Umsetzungsstand (aktuell in `apps/backend/prisma/schema.prisma`):** Getrennte Kontext-Tabellen (Process, Project, Subcontext, UserSpace) mit **Context**-Abstraktion für Document; **Owner**-Abstraktion für Process/Project (genau einer: Department oder Team); Zugriffsrechte in drei Tabellen (DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment) mit genau einem Grantee pro Zeile; Tags normalisiert (Tag + DocumentTag n:m); User mit email, externalId, isAdmin, deletedAt; Rollenbezeichnungen: **Company Lead**, **Department Lead**, **Team Lead** (im Schema: Supervisor, TeamLeader; Company Lead geplant); Soft Delete (Document, Process, Project, User); Document mit optionalem pdfUrl.
 
 ---
 
@@ -16,8 +16,8 @@ Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Dat
 | **User**       | id, name, email?, externalId?, isAdmin, deletedAt? | teamMemberships, leaderOfTeams, supervisorOfDepartments, userSpaces, documentGrantUser      |
 
 - **TeamMember:** Junction Team ↔ User (Mitgliedschaft). @@id([teamId, userId]).
-- **TeamLeader:** Junction Team ↔ User (Schreibrechte als Teamleader). @@id([teamId, userId]).
-- **Supervisor:** Junction Department ↔ User. Nutzer mit Leserechten auf alle Dokumente der Abteilung und ihrer Teams (Prozesse, Projekte, Unterkontexte), nicht auf Nutzerspaces. Ableitung in der App.
+- **TeamLeader** (Rolle: Team Lead): Junction Team ↔ User. Schreibrechte für Team-Kontexte. @@id([teamId, userId]).
+- **Supervisor** (Rolle: Department Lead): Junction Department ↔ User. Nutzer mit Leserechten auf alle Dokumente der Abteilung und ihrer Teams (Prozesse, Projekte, Unterkontexte), nicht auf Nutzerspaces. Ableitung in der App.
 - **Owner:** Abstraktion für Prozess/Projekt. id, departmentId?, teamId? (in der App genau einer gesetzt). Process und Project haben ownerId → Owner.
 
 ---
@@ -58,13 +58,13 @@ Pro Zeile genau ein Grantee (Schema), keine polymorphe granteeType/granteeId:
 - **GrantRole:** Enum Read | Write.
 - Composite-PK jeweils (documentId, granteeId, role); Indizes auf documentId und Grantee-Id für Abfragen.
 
-Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId, documentId)` wie in der [Rechteableitung](../platform/datenmodell/Rechteableitung.md); zusätzlich isAdmin (sieht alles) und Supervisor (Leserecht auf Abteilungs-Kontexte).
+Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId, documentId)` wie im [Rechtesystem](../platform/datenmodell/Rechtesystem.md); zusätzlich isAdmin (sieht alles) und Department Lead / Company Lead (Leserecht auf Abteilungs- bzw. Company-Kontexte).
 
 ---
 
 ## 5. Übersicht (aktueller Stand)
 
-- **Company** → **Department** → **Team**; **User** ↔ Team (TeamMember, TeamLeader); **Supervisor** (Department ↔ User); **Owner** (Department | Team) für Process/Project.
+- **Company** → **Department** → **Team**; **User** ↔ Team (TeamMember, Team Lead/TeamLeader); **Department Lead** (Supervisor, Department ↔ User); **Owner** (Department | Team) für Process/Project.
 - **Context** (Abstraktion) mit 1:1 zu Process | Project | Subcontext | UserSpace. **Document** hat contextId (Pflicht).
 - **Document:** title, content, pdfUrl?, contextId, deletedAt?; Tags über **Tag** + **DocumentTag** (n:m).
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
@@ -88,8 +88,8 @@ Das Schema nutzt **Restrict** für die Organisations- und Owner-Hierarchie, dami
 **Cascade (bei tatsächlicher Löschung):**
 
 - **Company löschen** (nach vorherigem Löschen aller Departments) → siehe Department/Team.
-- **Department löschen** (wenn keine Teams/Owner mehr) → Supervisor-Zuordnungen dieser Abteilung, DocumentGrantDepartment usw. (Cascade).
-- **Team löschen** (wenn kein Owner mehr) → TeamMember, TeamLeader, DocumentGrantTeam (Cascade).
+- **Department löschen** (wenn keine Teams/Owner mehr) → Department-Lead-Zuordnungen (Supervisor) dieser Abteilung, DocumentGrantDepartment usw. (Cascade).
+- **Team löschen** (wenn kein Owner mehr) → TeamMember, TeamLeader (Team Lead), DocumentGrantTeam (Cascade).
 - **Owner** → Process/Project (Cascade); Process/Project → Context → Documents (Cascade).
-- **User löschen** (physisch) → Sessions, TeamMember, TeamLeader, Supervisor, UserSpaces, DocumentGrants (Cascade). Soft-Delete (`deletedAt`) entzieht Zugriff in der App, ohne Datensätze zu entfernen.
+- **User löschen** (physisch) → Sessions, TeamMember, TeamLeader, Supervisor (Department Lead), UserSpaces, DocumentGrants (Cascade). Soft-Delete (`deletedAt`) entzieht Zugriff in der App, ohne Datensätze zu entfernen.
 - **Context löschen** → Process/Project/Subcontext/UserSpace (je nach Kontexttyp) und alle Documents dieses Kontexts (Cascade).

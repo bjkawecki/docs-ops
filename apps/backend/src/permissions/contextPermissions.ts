@@ -6,6 +6,7 @@ type ContextWithOwner = {
   id: string;
   process: {
     owner: {
+      companyId: string | null;
       departmentId: string | null;
       teamId: string | null;
       team: { departmentId: string } | null;
@@ -13,6 +14,7 @@ type ContextWithOwner = {
   } | null;
   project: {
     owner: {
+      companyId: string | null;
       departmentId: string | null;
       teamId: string | null;
       team: { departmentId: string } | null;
@@ -21,6 +23,7 @@ type ContextWithOwner = {
   subcontext: {
     project: {
       owner: {
+        companyId: string | null;
         departmentId: string | null;
         teamId: string | null;
         team: { departmentId: string } | null;
@@ -41,6 +44,7 @@ async function loadContext(
         include: {
           owner: {
             select: {
+              companyId: true,
               departmentId: true,
               teamId: true,
               team: { select: { departmentId: true } },
@@ -52,6 +56,7 @@ async function loadContext(
         include: {
           owner: {
             select: {
+              companyId: true,
               departmentId: true,
               teamId: true,
               team: { select: { departmentId: true } },
@@ -65,6 +70,7 @@ async function loadContext(
             include: {
               owner: {
                 select: {
+                  companyId: true,
                   departmentId: true,
                   teamId: true,
                   team: { select: { departmentId: true } },
@@ -81,43 +87,46 @@ async function loadContext(
 }
 
 function getOwnerFromContext(ctx: ContextWithOwner): {
+  companyId: string | null;
   departmentId: string | null;
   teamId: string | null;
 } {
   const owner = ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
-  if (!owner) return { departmentId: null, teamId: null };
+  if (!owner) return { companyId: null, departmentId: null, teamId: null };
   const departmentId = owner.departmentId ?? owner.team?.departmentId ?? null;
-  return { departmentId, teamId: owner.teamId };
+  return { companyId: owner.companyId, departmentId, teamId: owner.teamId };
 }
 
 /**
- * Prüft, ob der Nutzer einen Prozess/Projekt für den angegebenen Owner (departmentId oder teamId) anlegen darf.
- * isAdmin, Supervisor der Abteilung, Team-Leader des Teams.
+ * Prüft, ob der Nutzer einen Prozess/Projekt für den angegebenen Owner (companyId, departmentId oder teamId) anlegen darf.
+ * isAdmin, Company Lead der Firma, Department Lead der Abteilung, Team Lead des Teams.
  */
 export async function canCreateProcessOrProjectForOwner(
   prisma: PrismaClient,
   userId: string,
-  opts: { departmentId?: string; teamId?: string }
+  opts: { companyId?: string; departmentId?: string; teamId?: string }
 ): Promise<boolean> {
   const user = await loadUser(prisma, userId);
   if (!user || user.deletedAt !== null) return false;
   if (user.isAdmin) return true;
+  if (opts.companyId) {
+    const isCompanyLead = user.companyLeads.some((c) => c.companyId === opts.companyId);
+    if (isCompanyLead) return true;
+  }
   if (opts.departmentId) {
-    const isSupervisor = user.supervisorOfDepartments.some(
-      (s) => s.departmentId === opts.departmentId
-    );
-    if (isSupervisor) return true;
+    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === opts.departmentId);
+    if (isDeptLead) return true;
   }
   if (opts.teamId) {
-    const isLeader = user.leaderOfTeams.some((l) => l.teamId === opts.teamId);
-    if (isLeader) return true;
+    const isTeamLead = user.leadOfTeams.some((l) => l.teamId === opts.teamId);
+    if (isTeamLead) return true;
   }
   return false;
 }
 
 /**
  * Prüft, ob der Nutzer den Kontext schreiben darf (Process/Project/Subcontext anlegen, ändern, löschen).
- * isAdmin, Supervisor (Owner-Abteilung), Team-Leader (Owner-Team); UserSpace: nur Owner oder isAdmin.
+ * isAdmin, Department Lead (Owner-Abteilung), Team Lead (Owner-Team); UserSpace: nur Owner oder isAdmin.
  */
 export async function canWriteContext(
   prisma: PrismaClient,
@@ -138,19 +147,19 @@ export async function canWriteContext(
 
   const { departmentId, teamId } = getOwnerFromContext(ctx);
   if (departmentId) {
-    const isSupervisor = user.supervisorOfDepartments.some((s) => s.departmentId === departmentId);
-    if (isSupervisor) return true;
+    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
+    if (isDeptLead) return true;
   }
   if (teamId) {
-    const isLeader = user.leaderOfTeams.some((l) => l.teamId === teamId);
-    if (isLeader) return true;
+    const isTeamLead = user.leadOfTeams.some((l) => l.teamId === teamId);
+    if (isTeamLead) return true;
   }
   return false;
 }
 
 /**
  * Prüft, ob der Nutzer den Kontext lesen darf (Dokumente auflisten, Kontext anzeigen).
- * isAdmin, UserSpace-Owner, Supervisor (Owner-Abteilung), Mitglied eines Owner-Teams.
+ * isAdmin, UserSpace-Owner, Department Lead (Owner-Abteilung), Mitglied eines Owner-Teams.
  */
 export async function canReadContext(
   prisma: PrismaClient,
@@ -169,10 +178,14 @@ export async function canReadContext(
     return ctx.userSpace.ownerUserId === userId;
   }
 
-  const { departmentId, teamId } = getOwnerFromContext(ctx);
+  const { companyId, departmentId, teamId } = getOwnerFromContext(ctx);
+  if (companyId) {
+    const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
+    if (isCompanyLead) return true;
+  }
   if (departmentId) {
-    const isSupervisor = user.supervisorOfDepartments.some((s) => s.departmentId === departmentId);
-    if (isSupervisor) return true;
+    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
+    if (isDeptLead) return true;
   }
   if (teamId) {
     const isMember = user.teamMemberships.some((m) => m.team.id === teamId);

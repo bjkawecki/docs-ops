@@ -3,27 +3,33 @@ import { paginationQuerySchema } from './organisation.js';
 
 export { paginationQuerySchema };
 
-/** Body: Process anlegen (genau einer: departmentId oder teamId). */
+/** Body: Process anlegen (genau einer: companyId, departmentId oder teamId). */
 export const createProcessBodySchema = z
   .object({
     name: z.string().min(1).max(255),
+    companyId: z.cuid().optional(),
     departmentId: z.cuid().optional(),
     teamId: z.cuid().optional(),
   })
-  .refine((data) => (data.departmentId != null) !== (data.teamId != null), {
-    message: 'Genau einer von departmentId oder teamId muss gesetzt sein',
-  });
+  .refine(
+    (data) =>
+      [data.companyId, data.departmentId, data.teamId].filter((x) => x != null).length === 1,
+    { message: 'Genau einer von companyId, departmentId oder teamId muss gesetzt sein' }
+  );
 
-/** Body: Project anlegen. */
+/** Body: Project anlegen (genau einer: companyId, departmentId oder teamId). */
 export const createProjectBodySchema = z
   .object({
     name: z.string().min(1).max(255),
+    companyId: z.cuid().optional(),
     departmentId: z.cuid().optional(),
     teamId: z.cuid().optional(),
   })
-  .refine((data) => (data.departmentId != null) !== (data.teamId != null), {
-    message: 'Genau einer von departmentId oder teamId muss gesetzt sein',
-  });
+  .refine(
+    (data) =>
+      [data.companyId, data.departmentId, data.teamId].filter((x) => x != null).length === 1,
+    { message: 'Genau einer von companyId, departmentId oder teamId muss gesetzt sein' }
+  );
 
 /** Body: Process/Project/Subcontext/UserSpace aktualisieren. */
 export const updateProcessBodySchema = z.object({

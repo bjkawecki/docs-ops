@@ -16,7 +16,7 @@ async function loadDocument(
 }
 
 /**
- * Prüft, ob der Nutzer das Dokument schreiben darf (vgl. Rechteableitung).
+ * Prüft, ob der Nutzer das Dokument schreiben darf (vgl. Rechtesystem).
  * @param documentOrId - documentId (string) oder bereits geladenes Document mit Context/Grants
  */
 export async function canWrite(
@@ -39,11 +39,25 @@ export async function canWrite(
     return true;
   }
 
-  // 3. Explizite Grants
-  const userLeaderTeamIds = new Set(user.leaderOfTeams.map((l) => l.teamId));
+  // 3. Company Lead (Kontexte mit Company-Owner)
+  if (doc.context.userSpace === null) {
+    const owner =
+      doc.context.process?.owner ??
+      doc.context.project?.owner ??
+      doc.context.subcontext?.project?.owner ??
+      null;
+    const companyId = owner?.companyId ?? null;
+    if (companyId !== null) {
+      const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
+      if (isCompanyLead) return true;
+    }
+  }
+
+  // 4. Explizite Grants
+  const userLeaderTeamIds = new Set(user.leadOfTeams.map((l) => l.teamId));
   const userDepartmentIds = new Set([
     ...user.teamMemberships.map((m) => m.team.departmentId),
-    ...user.leaderOfTeams.map((l) => l.team.departmentId),
+    ...user.leadOfTeams.map((l) => l.team.departmentId),
   ]);
 
   if (doc.grantUser.some((g) => g.userId === userId && g.role === GrantRole.Write)) return true;

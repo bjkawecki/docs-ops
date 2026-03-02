@@ -79,7 +79,7 @@
 
 - **Ownership:** wer ist organisatorisch verantwortlich? (Abteilung oder Team)
 - **Zugriff:** wer darf Inhalte lesen oder schreiben? (explizit definiert)
-- Vorteile: klare Trennung, konsistente Rechteableitung, verständlich für Admins.
+- Vorteile: klare Trennung, konsistentes Rechtesystem, verständlich für Admins.
 
 ---
 

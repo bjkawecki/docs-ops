@@ -16,6 +16,8 @@ describe('Organisation (Companies, Departments, Teams)', () => {
   let adminId: string;
   let userId: string;
   let companyId: string;
+  /** Nur die in diesem Testlauf angelegte Firma in afterAll löschen (es darf nur eine Firma geben). */
+  let companyCreatedInTest = false;
 
   beforeAll(async () => {
     app = await buildApp();
@@ -30,10 +32,21 @@ describe('Organisation (Companies, Departments, Teams)', () => {
     ]);
     adminId = admin.id;
     userId = user.id;
+    const count = await prisma.company.count();
+    if (count === 0) {
+      const company = await prisma.company.create({ data: { name: 'Kern-API Test AG' } });
+      companyId = company.id;
+      companyCreatedInTest = true;
+    } else {
+      const existing = await prisma.company.findFirst({ orderBy: { name: 'asc' } });
+      if (existing) companyId = existing.id;
+      companyCreatedInTest = false;
+    }
   });
 
   afterAll(async () => {
-    if (companyId) await prisma.company.deleteMany({ where: { id: companyId } });
+    if (companyCreatedInTest && companyId)
+      await prisma.company.deleteMany({ where: { id: companyId } });
     const ids = [adminId, userId].filter((id): id is string => id != null);
     if (ids.length > 0) {
       await prisma.session.deleteMany({ where: { userId: { in: ids } } });
@@ -72,7 +85,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('POST /api/v1/companies als Admin → 201', async () => {
+  it('POST /api/v1/companies als Admin → 201 oder 409 (nur eine Firma erlaubt)', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -85,14 +98,27 @@ describe('Organisation (Companies, Departments, Teams)', () => {
       headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
       payload: { name: 'Kern-API Test AG' },
     });
-    expect(res.statusCode).toBe(201);
-    const body = res.json() as { id: string; name: string };
-    expect(body.name).toBe('Kern-API Test AG');
-    expect(body.id).toBeDefined();
-    companyId = body.id;
+    expect([201, 409]).toContain(res.statusCode);
+    if (res.statusCode === 201) {
+      const body = res.json() as { id: string; name: string };
+      expect(body.name).toBe('Kern-API Test AG');
+      expect(body.id).toBeDefined();
+      companyId = body.id;
+      companyCreatedInTest = true;
+    } else {
+      const listRes = await app.inject({
+        method: 'GET',
+        url: '/api/v1/companies',
+        headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
+      });
+      const list = listRes.json() as { items: { id: string }[] };
+      expect(list.items.length).toBeGreaterThanOrEqual(1);
+      companyId = list.items[0].id;
+      companyCreatedInTest = false;
+    }
   });
 
-  it('GET /api/v1/companies mit Auth → 200 + paginierte Liste', async () => {
+  it('GET /api/v1/companies mit Auth → 200 + paginierte Liste (genau eine Firma)', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -106,7 +132,8 @@ describe('Organisation (Companies, Departments, Teams)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { items: unknown[]; total: number; limit: number; offset: number };
     expect(Array.isArray(body.items)).toBe(true);
-    expect(body.total).toBeGreaterThanOrEqual(1);
+    expect(body.total).toBe(1);
+    expect(body.items).toHaveLength(1);
     expect(body.limit).toBeDefined();
     expect(body.offset).toBeDefined();
   });

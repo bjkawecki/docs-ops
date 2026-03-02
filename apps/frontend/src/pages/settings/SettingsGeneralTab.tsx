@@ -306,17 +306,21 @@ export function SettingsGeneralTab() {
                     Ownership Entities
                   </Text>
                   {identity.teams.length > 0 ||
-                  identity.supervisorOfDepartments.length > 0 ||
+                  identity.departmentLeads.length > 0 ||
+                  identity.companyLeads?.length > 0 ||
                   identity.userSpaces.length > 0 ? (
                     <List size="sm">
                       {identity.teams.map((t) => (
                         <List.Item key={t.teamId}>
                           {t.teamName} ({t.departmentName}) –{' '}
-                          {t.role === 'leader' ? 'Leader' : 'Member'}
+                          {t.role === 'leader' ? 'Team Lead' : 'Member'}
                         </List.Item>
                       ))}
-                      {identity.supervisorOfDepartments.map((d) => (
-                        <List.Item key={d.id}>Supervisor: {d.name}</List.Item>
+                      {identity.departmentLeads.map((d) => (
+                        <List.Item key={d.id}>Department Lead: {d.name}</List.Item>
+                      ))}
+                      {identity.companyLeads?.map((c) => (
+                        <List.Item key={c.id}>Company Lead: {c.name}</List.Item>
                       ))}
                       {identity.userSpaces.map((s) => (
                         <List.Item key={s.id}>{s.name}</List.Item>

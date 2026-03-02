@@ -13,6 +13,11 @@ export const teamIdParamSchema = z.object({
   teamId: z.cuid(),
 });
 
+/** Params: companyId. */
+export const companyIdParamSchema = z.object({
+  companyId: z.cuid(),
+});
+
 /** Params: departmentId. */
 export const departmentIdParamSchema = z.object({
   departmentId: z.cuid(),
@@ -24,13 +29,19 @@ export const teamIdUserIdParamSchema = z.object({
   userId: z.cuid(),
 });
 
-/** Params: departmentId + userId (DELETE /departments/:departmentId/supervisors/:userId). */
+/** Params: companyId + userId (DELETE /companies/:companyId/company-leads/:userId). */
+export const companyIdUserIdParamSchema = z.object({
+  companyId: z.cuid(),
+  userId: z.cuid(),
+});
+
+/** Params: departmentId + userId (DELETE /departments/:departmentId/department-leads/:userId). */
 export const departmentIdUserIdParamSchema = z.object({
   departmentId: z.cuid(),
   userId: z.cuid(),
 });
 
-/** Body: User-Zuordnung (POST members, leaders, supervisors). */
+/** Body: User-Zuordnung (POST members, team-leads, department-leads). */
 export const addAssignmentBodySchema = z.object({
   userId: z.cuid(),
 });
