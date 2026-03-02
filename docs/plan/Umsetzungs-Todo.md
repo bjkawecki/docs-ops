@@ -61,7 +61,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 - [x] Component-/Style-Library: **Mantine**
 - [x] React (Vite, TypeScript), React Router, TanStack Query
-- [x] Layout (Hauptnavigation), Routing-Struktur (/, /teams/, /repositories/, /prozesse/, … vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
+- [x] Layout (Hauptnavigation), Routing-Struktur (/, /team/, /catalog, … vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
 - [x] **Caddy/Proxy (Szenario B):** Routing `/api` → Backend, `/` → Frontend (eine Origin, Cookie ohne CORS); Frontend als Service im Stack (Dev-Server oder Build)
 - [x] API-Client (Base-URL = gleiche Origin), Typen aus Backend/Prisma teilen
 - [x] Einfache Seiten pro Bereich (Platzhalter oder erste Listen)

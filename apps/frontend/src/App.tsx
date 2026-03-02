@@ -38,14 +38,15 @@ function App() {
         >
           <Route index element={<HomePage />} />
           <Route path="catalog" element={<CatalogPage />} />
-          <Route path="teams" element={<TeamsPage />} />
-          <Route path="teams/:teamId" element={<TeamContextPage />} />
+          <Route path="team" element={<TeamsPage />} />
+          <Route path="team/:teamId" element={<TeamContextPage />} />
           <Route path="department" element={<DepartmentPage />} />
           <Route path="department/:departmentId" element={<DepartmentContextPage />} />
           <Route path="company" element={<FirmaPage />} />
           <Route path="personal" element={<PersonalPage />} />
           <Route path="shared" element={<SharedPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="teams" element={<Navigate to="/team" replace />} />
           <Route path="repositories" element={<Navigate to="/catalog" replace />} />
           <Route path="processes" element={<Navigate to="/catalog" replace />} />
           <Route path="templates" element={<Navigate to="/" replace />} />

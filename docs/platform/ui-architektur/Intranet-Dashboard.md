@@ -10,8 +10,8 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 | --------------------------- | ---------------------------------------------------------------------- |
 | `/`                         | Home / Dashboard                                                       |
 | `/catalog`                  | Einstieg für alle Dokumente (Tabelle, filter- und suchbar)             |
-| `/teams`                    | Teams-Übersicht (rollenabhängig)                                       |
-| `/teams/:teamId`            | Team-Kontext (Projekte, Prozesse, Dokumente)                           |
+| `/team`                     | Einstieg Team (eigenes Team; rollenabhängig)                           |
+| `/team/:teamId`             | Team-Kontext (Projekte, Prozesse, Dokumente)                           |
 | `/department`               | Abteilung(en) (rollenabhängig: ein Department oder aufklappbare Liste) |
 | `/department/:departmentId` | Abteilungs-Kontext                                                     |
 | `/company`                  | Firma / Company                                                        |

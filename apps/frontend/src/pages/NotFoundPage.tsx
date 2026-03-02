@@ -11,7 +11,7 @@ export function NotFoundPage() {
           The page you are looking for does not exist.
         </Text>
         <Button component={Link} to="/" variant="light" size="sm">
-          Back to Home
+          Back to Dashboard
         </Button>
       </Stack>
     </>

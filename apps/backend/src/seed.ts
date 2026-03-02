@@ -40,8 +40,8 @@ function csvRows(path: string): Record<string, string>[] {
 }
 
 /**
- * Runs seed: creates company, departments, teams, users, members, team leads, department leads
- * from CSV files. Does nothing if at least one company already exists.
+ * Runs seed: creates company, departments, teams, users, members, team leads, department leads,
+ * company leads from CSV files. Does nothing if at least one company already exists.
  */
 export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
   const existing = await prisma.company.count();
@@ -55,7 +55,8 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
   const users = csvRows('users.csv');
   const teamMembers = csvRows('team_members.csv');
   const teamLeaders = csvRows('team_leaders.csv');
-  const supervisors = csvRows('supervisors.csv');
+  const departmentLeads = csvRows('department_leads.csv');
+  const companyLeads = csvRows('company_leads.csv');
 
   if (companies.length === 0) {
     return;
@@ -123,13 +124,24 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     });
   }
 
-  for (const row of supervisors) {
+  for (const row of departmentLeads) {
     const departmentId = departmentById.get(row.department_name);
     const userId = userById.get(row.user_email);
     if (!departmentId || !userId) continue;
     await prisma.departmentLead.upsert({
       where: { departmentId_userId: { departmentId, userId } },
       create: { departmentId, userId },
+      update: {},
+    });
+  }
+
+  for (const row of companyLeads) {
+    const companyId = companyById.get(row.company_name);
+    const userId = userById.get(row.user_email);
+    if (!companyId || !userId) continue;
+    await prisma.companyLead.upsert({
+      where: { companyId_userId: { companyId, userId } },
+      create: { companyId, userId },
       update: {},
     });
   }

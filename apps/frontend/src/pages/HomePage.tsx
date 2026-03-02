@@ -7,7 +7,7 @@ export function HomePage() {
     <PageWithTabs title="Dashboard" description="Overview of internal documentation. Quick links:">
       <Card withBorder padding="md">
         <Group gap="sm">
-          <Button component={Link} to="/teams" variant="light" size="sm">
+          <Button component={Link} to="/team" variant="light" size="sm">
             Teams
           </Button>
           <Button component={Link} to="/catalog" variant="light" size="sm">
