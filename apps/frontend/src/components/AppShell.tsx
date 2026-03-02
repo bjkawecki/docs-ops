@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppShell as MantineAppShell,
@@ -18,6 +18,7 @@ import {
   Badge,
   Divider,
   useMantineColorScheme,
+  useMantineTheme,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -43,6 +44,17 @@ import { DocopsLogo } from './DocopsLogo';
 function isActive(path: string, current: string): boolean {
   if (path === '/') return current === '/';
   return current === path || current.startsWith(path + '/');
+}
+
+/** Gemeinsame Styles für Sidebar-NavLinks (Hover/Active). Nutzt Theme-Variablen. */
+function getNavLinkStyles(): { root: Record<string, unknown> } {
+  return {
+    root: {
+      borderRadius: 'var(--mantine-radius-sm)',
+      minHeight: 'var(--mantine-nav-link-height, 44px)',
+      padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-sm)',
+    },
+  };
 }
 
 /** Rolle aus MeResponse ableiten (gleiche Reihenfolge wie Backend: Admin > Company Lead > Department Lead > Team Lead > User). */
@@ -80,6 +92,16 @@ export function AppShell() {
   const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const { colorScheme } = useMantineColorScheme();
+  const theme = useMantineTheme();
+  const navLinkStyles = useMemo(() => getNavLinkStyles(), []);
+  const sidebarOther = (theme as { other?: Record<string, string> }).other;
+  const sidebarCss = useMemo(() => {
+    const hoverDark = sidebarOther?.sidebarHover ?? 'var(--mantine-color-dark-6)';
+    const hoverLight = sidebarOther?.sidebarHoverLight ?? 'var(--mantine-color-gray-1)';
+    const activeDark = sidebarOther?.sidebarActive ?? 'var(--mantine-color-dark-4)';
+    const activeLight = sidebarOther?.sidebarActiveLight ?? 'var(--mantine-color-gray-2)';
+    return `[data-mantine-color-scheme="dark"] [data-sidebar-parent]:hover, [data-mantine-color-scheme="dark"] [data-user-menu-trigger]:hover, [data-mantine-color-scheme="dark"] [data-sidebar-nav] [data-sidebar-link]:hover { background-color: ${hoverDark}; border-radius: var(--mantine-radius-sm); } [data-mantine-color-scheme="light"] [data-sidebar-parent]:hover, [data-mantine-color-scheme="light"] [data-user-menu-trigger]:hover, [data-mantine-color-scheme="light"] [data-sidebar-nav] [data-sidebar-link]:hover { background-color: ${hoverLight}; border-radius: var(--mantine-radius-sm); } [data-mantine-color-scheme="dark"] [data-sidebar-nav] [data-active] { background-color: ${activeDark}; border-radius: var(--mantine-radius-sm); } [data-mantine-color-scheme="light"] [data-sidebar-nav] [data-active] { background-color: ${activeLight}; border-radius: var(--mantine-radius-sm); }`;
+  }, [sidebarOther]);
   const { data: me } = useMe();
   const isAdmin = me?.user?.isAdmin === true;
   const showDebugMenu = isAdmin || me?.impersonation?.active === true;
@@ -209,28 +231,34 @@ export function AppShell() {
       return (
         <>
           <NavLink
+            data-sidebar-link
             component={Link}
             to="/company"
             label="Company"
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
             fw={600}
+            styles={navLinkStyles}
           />
           <NavLink
+            data-sidebar-link
             component={Link}
             to="/department"
             label="Department"
             active={isActive('/department', location.pathname)}
             leftSection={<IconSitemap size={18} />}
             fw={600}
+            styles={navLinkStyles}
           />
           <NavLink
+            data-sidebar-link
             component={Link}
             to="/team"
             label="Team"
             active={isActive('/team', location.pathname)}
             leftSection={<IconUsersGroup size={18} />}
             fw={600}
+            styles={navLinkStyles}
           />
         </>
       );
@@ -240,42 +268,60 @@ export function AppShell() {
       return (
         <>
           <NavLink
+            data-sidebar-link
             component={Link}
             to="/company"
             label="Company"
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
             fw={600}
+            styles={navLinkStyles}
           />
-          <Group gap={0} wrap="nowrap" style={{ alignItems: 'stretch' }}>
-            <UnstyledButton
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 12px',
-              }}
-              onClick={() => setDepartmentsSectionExpanded((v) => !v)}
+          <Box
+            data-sidebar-parent
+            style={{
+              borderRadius: 'var(--mantine-radius-sm)',
+              display: 'flex',
+              flex: 1,
+              minWidth: 0,
+              minHeight: 'var(--mantine-nav-link-height, 44px)',
+            }}
+          >
+            <Group
+              gap={0}
+              wrap="nowrap"
+              style={{ alignItems: 'stretch', flex: 1, minHeight: '100%' }}
             >
-              <IconSitemap size={18} style={{ flexShrink: 0 }} />
-              <Text size="sm" fw={600} truncate>
-                Departments
-              </Text>
-            </UnstyledButton>
-            <UnstyledButton
-              style={{ flex: 0, padding: '2px 4px' }}
-              onClick={() => setDepartmentsSectionExpanded((v) => !v)}
-              aria-expanded={departmentsSectionExpanded}
-            >
-              {departmentsSectionExpanded ? (
-                <IconChevronDown size={16} style={{ display: 'block' }} />
-              ) : (
-                <IconChevronRight size={16} style={{ display: 'block' }} />
-              )}
-            </UnstyledButton>
-          </Group>
+              <UnstyledButton
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 'var(--mantine-nav-link-height, 44px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-sm)',
+                }}
+                onClick={() => setDepartmentsSectionExpanded((v) => !v)}
+              >
+                <IconSitemap size={18} style={{ flexShrink: 0 }} />
+                <Text size="sm" fw={600} truncate>
+                  Departments
+                </Text>
+              </UnstyledButton>
+              <UnstyledButton
+                style={{ flex: 0, padding: '2px 4px' }}
+                onClick={() => setDepartmentsSectionExpanded((v) => !v)}
+                aria-expanded={departmentsSectionExpanded}
+              >
+                {departmentsSectionExpanded ? (
+                  <IconChevronDown size={16} style={{ display: 'block' }} />
+                ) : (
+                  <IconChevronRight size={16} style={{ display: 'block' }} />
+                )}
+              </UnstyledButton>
+            </Group>
+          </Box>
           <Collapse in={departmentsSectionExpanded}>
             <Box
               style={{
@@ -290,45 +336,63 @@ export function AppShell() {
                 {companyDepartments.items.map((dept) => (
                   <NavLink
                     key={dept.id}
+                    data-sidebar-link
                     component={Link}
                     to={`/department/${dept.id}`}
                     label={dept.name}
                     active={isActive(`/department/${dept.id}`, location.pathname)}
                     style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    styles={navLinkStyles}
                   />
                 ))}
               </Stack>
             </Box>
           </Collapse>
-          <Group gap={0} wrap="nowrap" style={{ alignItems: 'stretch' }}>
-            <UnstyledButton
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 12px',
-              }}
-              onClick={() => setTeamsSectionExpanded((v) => !v)}
+          <Box
+            data-sidebar-parent
+            style={{
+              borderRadius: 'var(--mantine-radius-sm)',
+              display: 'flex',
+              flex: 1,
+              minWidth: 0,
+              minHeight: 'var(--mantine-nav-link-height, 44px)',
+            }}
+          >
+            <Group
+              gap={0}
+              wrap="nowrap"
+              style={{ alignItems: 'stretch', flex: 1, minHeight: '100%' }}
             >
-              <IconUsersGroup size={18} style={{ flexShrink: 0 }} />
-              <Text size="sm" fw={600} truncate>
-                Teams
-              </Text>
-            </UnstyledButton>
-            <UnstyledButton
-              style={{ flex: 0, padding: '2px 4px' }}
-              onClick={() => setTeamsSectionExpanded((v) => !v)}
-              aria-expanded={teamsSectionExpanded}
-            >
-              {teamsSectionExpanded ? (
-                <IconChevronDown size={16} style={{ display: 'block' }} />
-              ) : (
-                <IconChevronRight size={16} style={{ display: 'block' }} />
-              )}
-            </UnstyledButton>
-          </Group>
+              <UnstyledButton
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 'var(--mantine-nav-link-height, 44px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-sm)',
+                }}
+                onClick={() => setTeamsSectionExpanded((v) => !v)}
+              >
+                <IconUsersGroup size={18} style={{ flexShrink: 0 }} />
+                <Text size="sm" fw={600} truncate>
+                  Teams
+                </Text>
+              </UnstyledButton>
+              <UnstyledButton
+                style={{ flex: 0, padding: '2px 4px' }}
+                onClick={() => setTeamsSectionExpanded((v) => !v)}
+                aria-expanded={teamsSectionExpanded}
+              >
+                {teamsSectionExpanded ? (
+                  <IconChevronDown size={16} style={{ display: 'block' }} />
+                ) : (
+                  <IconChevronRight size={16} style={{ display: 'block' }} />
+                )}
+              </UnstyledButton>
+            </Group>
+          </Box>
           <Collapse in={teamsSectionExpanded}>
             <Box
               style={{
@@ -348,6 +412,7 @@ export function AppShell() {
                     {(dept.teams ?? []).map((team) => (
                       <NavLink
                         key={team.id}
+                        data-sidebar-link
                         component={Link}
                         to={`/team/${team.id}`}
                         label={team.name}
@@ -358,6 +423,7 @@ export function AppShell() {
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                         }}
+                        styles={navLinkStyles}
                       />
                     ))}
                   </Box>
@@ -374,12 +440,14 @@ export function AppShell() {
       return (
         <>
           <NavLink
+            data-sidebar-link
             component={Link}
             to="/company"
             label="Company"
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
             fw={600}
+            styles={navLinkStyles}
           />
           <NavLink
             component={Link}
@@ -388,50 +456,67 @@ export function AppShell() {
             active={isActive(`/department/${departmentId}`, location.pathname)}
             leftSection={<IconSitemap size={18} />}
             fw={600}
+            styles={navLinkStyles}
           />
-          <Group gap={0} wrap="nowrap" style={{ alignItems: 'stretch' }}>
-            <UnstyledButton
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 12px',
-              }}
-              onClick={() =>
-                setExpandedDepartmentIds((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(departmentId)) next.delete(departmentId);
-                  else next.add(departmentId);
-                  return next;
-                })
-              }
+          <Box
+            data-sidebar-parent
+            style={{
+              borderRadius: 'var(--mantine-radius-sm)',
+              display: 'flex',
+              flex: 1,
+              minWidth: 0,
+              minHeight: 'var(--mantine-nav-link-height, 44px)',
+            }}
+          >
+            <Group
+              gap={0}
+              wrap="nowrap"
+              style={{ alignItems: 'stretch', flex: 1, minHeight: '100%' }}
             >
-              <IconUsersGroup size={18} style={{ flexShrink: 0 }} />
-              <Text size="sm" fw={600} truncate>
-                Teams
-              </Text>
-            </UnstyledButton>
-            <UnstyledButton
-              style={{ flex: 0, padding: '2px 4px' }}
-              onClick={() =>
-                setExpandedDepartmentIds((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(departmentId)) next.delete(departmentId);
-                  else next.add(departmentId);
-                  return next;
-                })
-              }
-              aria-expanded={isTeamsExpanded}
-            >
-              {isTeamsExpanded ? (
-                <IconChevronDown size={16} style={{ display: 'block' }} />
-              ) : (
-                <IconChevronRight size={16} style={{ display: 'block' }} />
-              )}
-            </UnstyledButton>
-          </Group>
+              <UnstyledButton
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 'var(--mantine-nav-link-height, 44px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-sm)',
+                }}
+                onClick={() =>
+                  setExpandedDepartmentIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(departmentId)) next.delete(departmentId);
+                    else next.add(departmentId);
+                    return next;
+                  })
+                }
+              >
+                <IconUsersGroup size={18} style={{ flexShrink: 0 }} />
+                <Text size="sm" fw={600} truncate>
+                  Teams
+                </Text>
+              </UnstyledButton>
+              <UnstyledButton
+                style={{ flex: 0, padding: '2px 4px' }}
+                onClick={() =>
+                  setExpandedDepartmentIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(departmentId)) next.delete(departmentId);
+                    else next.add(departmentId);
+                    return next;
+                  })
+                }
+                aria-expanded={isTeamsExpanded}
+              >
+                {isTeamsExpanded ? (
+                  <IconChevronDown size={16} style={{ display: 'block' }} />
+                ) : (
+                  <IconChevronRight size={16} style={{ display: 'block' }} />
+                )}
+              </UnstyledButton>
+            </Group>
+          </Box>
           <Collapse in={isTeamsExpanded}>
             <Box
               style={{
@@ -446,12 +531,14 @@ export function AppShell() {
                 {departmentTeams.items.map((team) => (
                   <NavLink
                     key={team.id}
+                    data-sidebar-link
                     component={Link}
                     to={`/team/${team.id}`}
                     label={team.name}
                     active={location.pathname === `/team/${team.id}`}
                     pl="sm"
                     style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    styles={navLinkStyles}
                   />
                 ))}
               </Stack>
@@ -470,6 +557,7 @@ export function AppShell() {
           active={isActive('/company', location.pathname)}
           leftSection={<IconBuildingSkyscraper size={18} />}
           fw={600}
+          styles={navLinkStyles}
         />
         <NavLink
           component={Link}
@@ -478,6 +566,7 @@ export function AppShell() {
           active={isActive('/department', location.pathname)}
           leftSection={<IconSitemap size={18} />}
           fw={600}
+          styles={navLinkStyles}
         />
         <NavLink
           component={Link}
@@ -486,32 +575,14 @@ export function AppShell() {
           active={isActive('/team', location.pathname)}
           leftSection={<IconUsersGroup size={18} />}
           fw={600}
+          styles={navLinkStyles}
         />
       </>
     );
   }
 
   return (
-    <MantineAppShell
-      navbar={{ width: 260, breakpoint: 'sm' }}
-      padding="md"
-      header={{ height: 0 }}
-      styles={{
-        navbar: {
-          '& .mantine-NavLink-root': {
-            borderRadius: 'var(--mantine-radius-sm)',
-            '&:hover': {
-              backgroundColor: 'var(--mantine-color-default-hover)',
-            },
-          },
-          '& [data-user-menu-trigger]': {
-            '&:hover': {
-              backgroundColor: 'var(--mantine-color-default-hover)',
-            },
-          },
-        },
-      }}
-    >
+    <MantineAppShell navbar={{ width: 260, breakpoint: 'sm' }} padding="md" header={{ height: 0 }}>
       {showDebugMenu && (
         <Box
           style={{
@@ -589,11 +660,14 @@ export function AppShell() {
         p="md"
         style={{
           backgroundColor:
-            colorScheme === 'dark' ? 'var(--mantine-color-dark-6)' : 'var(--mantine-color-gray-0)',
+            colorScheme === 'dark'
+              ? (sidebarOther?.sidebarBg ?? 'var(--mantine-color-dark-8)')
+              : (sidebarOther?.sidebarBgLight ?? 'var(--mantine-color-gray-0)'),
         }}
       >
+        <style>{sidebarCss}</style>
         <Stack justify="space-between" style={{ height: '100%' }}>
-          <Box>
+          <Box data-sidebar-nav>
             <MantineAppShell.Section>
               <Link
                 to="/"
@@ -613,20 +687,24 @@ export function AppShell() {
             <MantineAppShell.Section mt="xl">
               <Stack gap={4}>
                 <NavLink
+                  data-sidebar-link
                   component={Link}
                   to="/"
                   label="Dashboard"
                   active={isActive('/', location.pathname)}
                   leftSection={<IconLayoutDashboard size={18} />}
                   fw={600}
+                  styles={navLinkStyles}
                 />
                 <NavLink
+                  data-sidebar-link
                   component={Link}
                   to="/catalog"
                   label="Catalog"
                   active={isActive('/catalog', location.pathname)}
                   leftSection={<IconListSearch size={18} />}
                   fw={600}
+                  styles={navLinkStyles}
                 />
                 <Text size="xs" fw={500} c="dimmed" mt="xs" mb={4}>
                   Organization
@@ -636,20 +714,24 @@ export function AppShell() {
                   Personal
                 </Text>
                 <NavLink
+                  data-sidebar-link
                   component={Link}
                   to="/personal"
                   label="Personal"
                   active={isActive('/personal', location.pathname)}
                   leftSection={<IconUser size={18} />}
                   fw={600}
+                  styles={navLinkStyles}
                 />
                 <NavLink
+                  data-sidebar-link
                   component={Link}
                   to="/shared"
                   label="Shared"
                   active={isActive('/shared', location.pathname)}
                   leftSection={<IconShare size={18} />}
                   fw={600}
+                  styles={navLinkStyles}
                 />
               </Stack>
             </MantineAppShell.Section>
@@ -670,7 +752,7 @@ export function AppShell() {
                     display: 'block',
                     width: '100%',
                     cursor: 'pointer',
-                    padding: '8px 12px',
+                    padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-sm)',
                     borderRadius: 'var(--mantine-radius-sm)',
                   }}
                 >

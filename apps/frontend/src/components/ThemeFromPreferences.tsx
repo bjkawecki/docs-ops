@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { MantineProvider } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
+import { appTheme, appCssVariablesResolver } from '../theme';
 
 export type UserPreferences = {
   theme?: 'light' | 'dark' | 'auto';
@@ -24,5 +25,13 @@ export function ThemeFromPreferences({ children }: { children: ReactNode }) {
   }
 
   const colorScheme = preferences.theme ?? 'light';
-  return <MantineProvider defaultColorScheme={colorScheme}>{children}</MantineProvider>;
+  return (
+    <MantineProvider
+      theme={appTheme}
+      cssVariablesResolver={appCssVariablesResolver}
+      defaultColorScheme={colorScheme}
+    >
+      {children}
+    </MantineProvider>
+  );
 }
