@@ -24,7 +24,7 @@ export function AdminPage() {
       <Tabs value={activeTab}>
         <Tabs.List mb="md">
           {adminTabs.map((t) => (
-            <Tabs.Tab key={t.to} value={t.to} component={Link} to={t.to}>
+            <Tabs.Tab key={t.to} value={t.to} renderRoot={(props) => <Link to={t.to} {...props} />}>
               {t.label}
             </Tabs.Tab>
           ))}

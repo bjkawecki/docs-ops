@@ -14,4 +14,4 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', 'dist'],
   },
-});
+} as Parameters<typeof defineConfig>[0] & { test?: object });
