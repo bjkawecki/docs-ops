@@ -64,9 +64,14 @@ services:
     environment:
       CI: 'true'
       VITE_API_URL: ''
-    # Vite dev server
     expose:
       - '5173'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O - http://localhost:5173/ || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 90s
 
   caddy:
     image: caddy:2-alpine
@@ -75,8 +80,10 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
-      - app
-      - frontend
+      app:
+        condition: service_started
+      frontend:
+        condition: service_started
 
 volumes:
   postgres_data:

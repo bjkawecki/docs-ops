@@ -38,6 +38,12 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
     adminId = admin.id;
     normalUserId = normal.id;
     ssoUserId = sso.id;
+    // Ensure only our admin is admin so "last admin" checks pass. Exclude our 3 users so we don't
+    // overwrite our admin; set all other users (e.g. from other test files) to isAdmin false.
+    await prisma.user.updateMany({
+      where: { id: { notIn: [adminId, normalUserId, ssoUserId] } },
+      data: { isAdmin: false },
+    });
   });
 
   afterAll(async () => {

@@ -1,4 +1,5 @@
-import { Tabs, Title, Text, Stack } from '@mantine/core';
+import { Tabs } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { SettingsGeneralTab } from './settings/SettingsGeneralTab';
 import { SettingsAccountTab } from './settings/SettingsAccountTab';
 import { SettingsSecurityTab } from './settings/SettingsSecurityTab';
@@ -7,14 +8,7 @@ import { SettingsNotificationsTab } from './settings/SettingsNotificationsTab';
 export function SettingsPage() {
   return (
     <>
-      <Stack gap="xs" mb="md">
-        <Title order={1} size="h2">
-          Settings
-        </Title>
-        <Text size="sm" c="dimmed">
-          Profile and appearance.
-        </Text>
-      </Stack>
+      <PageHeader title="Settings" description="Profile and appearance." />
       <Tabs
         defaultValue="general"
         variant="default"

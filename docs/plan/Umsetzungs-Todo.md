@@ -71,7 +71,17 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 ## 7. Layout & Navigation
 
 - [x] **Struktur (Backstage-orientiert):** Zweiteiliges Layout ohne Nav-Kopfleiste: nur **Sidebar** (links) + **Main** (rechts). Main immer: (1) Seiten-Header oben (Titel, ggf. Metadaten/Aktionen), (2) bei Unterbereichen Tabs, sonst direkt (3) Content.
-- [x] **Sidebar:** Logo oben, gruppierte Nav-Einträge (Teams, Repositories, Prozesse, ggf. Admin); unten z. B. Notifications/Settings; aktiver Eintrag hervorheben.
+- [ ] **Tab-Bereich:** Auf **jeder Page außer Catalog** gibt es einen Tab-Bereich unter dem Seiten-Header. Gibt es keine weiteren Tabs, heißt der einzige Tab **„Overview“**. (Catalog hat keinen Tab-Bereich.)
+- [ ] **Sidebar (neu):** Logo oben. Haupt-Navigation in dieser Reihenfolge:
+  - **Home** – Einstieg (Dashboard/Überblick; vgl. §10).
+  - **Catalog** – Entry-Point für alle Dokumente als **Tabelle**, filter-, such- und sortierbar.
+  - **Team / Department / Company** – **Rollenabhängige Darstellung** (Nutzer ohne Team bzw. ohne Team und Department sollen keine leeren Single-Links sehen):
+    - **Team-Member:** Einstieg „Team“ bzw. sein Team (z. B. ein Link zum Team-Kontext).
+    - **Department-Lead:** Sidebar zeigt **„Department“** (sein eine(s), klickbar), darunter **Zwischenüberschrift „Teams“**, darunter die **klickbaren Team-Namen** (Teams dieser Abteilung). Content-Seite wie bisher (Klick auf Department oder Team → Kontext-Übersicht).
+    - **Company-Lead:** **Aufklappbare Struktur:** Zwischenüberschrift **„Departments“**, darunter Abteilungen als **aufklappbare Einträge**; unter jeder Abteilung die zugehörigen **Teams** (klickbar). Hierarchie Company → Department → Team in der Sidebar sichtbar.
+  - **Personal** – Entry-Point für den eigenen UserSpace (ein Nutzer hat genau einen); Card-Grid, eine Card je Kontext (dort typisch eine Karte).
+  - **Shared** – Entry-Point für per Grant geteilte Inhalte; Card-Grid, eine Card je Kontext (Kontexte, in denen mindestens ein Dokument mit mir geteilt wurde). Aktuell nur Document-Grants; **Ausblick:** Kontext-Level-Grants („ganzen Kontext teilen“) als Erweiterung möglich.
+- **Sidebar unten:** Account-Dropdown (Trigger: E-Mail oder Name) mit **Admin** (nur bei `isAdmin`), **Settings**, Trennlinie, **Log out**. Kein Admin in der Haupt-Navigation.
 - [x] **Main-Content:** Thematische Karten/Cards, einheitliche Abstände; Loading States (Skeletons/Spinner), Fehlerbehandlung (API-Fehler, 404, Fehlerseite), Toasts/Notifications für Erfolg und Fehler.
 
 ---

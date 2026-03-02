@@ -23,9 +23,11 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-}
+      ADMIN_VORNAME: ${ADMIN_VORNAME:-}
+      ADMIN_NACHNAME: ${ADMIN_NACHNAME:-}
     healthcheck:
       test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8080/health']
       interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s

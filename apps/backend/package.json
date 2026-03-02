@@ -10,12 +10,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "pnpm exec prisma generate && tsc",
     "start": "node dist/src/index.js",
-    "prepare": "npx prisma generate",
-    "prisma:generate": "npx prisma generate",
+    "prepare": "pnpm exec prisma generate",
+    "prisma:generate": "pnpm exec prisma generate",
     "test": "vitest run",
     "create-admin": "tsx scripts/create-admin.ts",
     "seed": "tsx scripts/run-seed.ts",
-    "migrate:remove-failed-user-preferences": "npx prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
+    "migrate:remove-failed-user-preferences": "pnpm exec prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
   },
   "dependencies": {
     "prisma": "^7.4.0",

@@ -3,10 +3,13 @@ import { AppShell } from './components/AppShell';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { TeamsPage } from './pages/TeamsPage';
-import { RepositoriesPage } from './pages/RepositoriesPage';
-import { ProzessePage } from './pages/ProzessePage';
 import { FirmaPage } from './pages/FirmaPage';
-import { TemplatesPage } from './pages/TemplatesPage';
+import { CatalogPage } from './pages/CatalogPage';
+import { DepartmentPage } from './pages/DepartmentPage';
+import { DepartmentContextPage } from './pages/DepartmentContextPage';
+import { PersonalPage } from './pages/PersonalPage';
+import { SharedPage } from './pages/SharedPage';
+import { TeamContextPage } from './pages/TeamContextPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AuthGuard } from './components/AuthGuard';
@@ -34,12 +37,18 @@ function App() {
           }
         >
           <Route index element={<HomePage />} />
+          <Route path="catalog" element={<CatalogPage />} />
           <Route path="teams" element={<TeamsPage />} />
-          <Route path="repositories" element={<RepositoriesPage />} />
-          <Route path="processes" element={<ProzessePage />} />
+          <Route path="teams/:teamId" element={<TeamContextPage />} />
+          <Route path="department" element={<DepartmentPage />} />
+          <Route path="department/:departmentId" element={<DepartmentContextPage />} />
           <Route path="company" element={<FirmaPage />} />
-          <Route path="templates" element={<TemplatesPage />} />
+          <Route path="personal" element={<PersonalPage />} />
+          <Route path="shared" element={<SharedPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="repositories" element={<Navigate to="/catalog" replace />} />
+          <Route path="processes" element={<Navigate to="/catalog" replace />} />
+          <Route path="templates" element={<Navigate to="/" replace />} />
           <Route
             path="admin"
             element={

@@ -16,21 +16,29 @@ async function main() {
   const vorname = process.env.ADMIN_VORNAME?.trim();
   const nachname = process.env.ADMIN_NACHNAME?.trim();
   const nameExplicit = process.env.ADMIN_NAME?.trim();
-  const name = vorname && nachname ? `${vorname} ${nachname}`.trim() : nameExplicit;
-  if (!name) {
-    console.error(
-      'Fehler: Anzeigename fehlt. ADMIN_NAME setzen oder ADMIN_VORNAME und ADMIN_NACHNAME.'
-    );
-    process.exit(1);
-  }
+  const name =
+    (vorname && nachname ? `${vorname} ${nachname}`.trim() : null) ||
+    nameExplicit ||
+    email ||
+    'Admin';
 
-  const existing = await prisma.user.findFirst({ where: { isAdmin: true } });
-  if (existing) {
-    console.log('Es existiert bereits ein Admin:', existing.email ?? existing.id);
+  const existingAdmin = await prisma.user.findFirst({ where: { isAdmin: true } });
+  if (existingAdmin) {
+    console.log('Es existiert bereits ein Admin:', existingAdmin.email ?? existingAdmin.id);
     return;
   }
 
   const passwordHash = await hashPassword(password);
+  const existingByEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingByEmail) {
+    await prisma.user.update({
+      where: { id: existingByEmail.id },
+      data: { name, passwordHash, isAdmin: true },
+    });
+    console.log('Bestehenden Nutzer zum Admin gemacht:', email);
+    return;
+  }
+
   const user = await prisma.user.create({
     data: {
       name,
@@ -55,6 +63,11 @@ main()
       console.error(
         'Fehler: Tabelle "User" existiert nicht. Zuerst Migrationen ausführen: make migrate'
       );
+    } else if (err?.code === 'P2002') {
+      console.warn(
+        'User mit dieser E-Mail existiert bereits (Unique-Constraint). Überspringe Admin-Anlage.'
+      );
+      process.exit(0);
     } else {
       console.error(e);
     }

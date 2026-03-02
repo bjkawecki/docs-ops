@@ -266,6 +266,10 @@ describe('Permissions (canRead, canWrite)', () => {
   });
 
   describe('canDeleteDocument', () => {
+    beforeAll(async () => {
+      // Other test files (e.g. admin.test) may set isAdmin false globally; ensure our admin is admin.
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+    });
     it('isAdmin → canDeleteDocument true', async () => {
       expect(await canDeleteDocument(prisma, adminId, docProcessId)).toBe(true);
     });

@@ -86,6 +86,8 @@ describe('Organisation (Companies, Departments, Teams)', () => {
   });
 
   it('POST /api/v1/companies als Admin → 201 oder 409 (nur eine Firma erlaubt)', async () => {
+    // Other test files (e.g. admin.test) may set isAdmin false globally
+    await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -119,6 +121,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
   });
 
   it('GET /api/v1/companies mit Auth → 200 + paginierte Liste (genau eine Firma)', async () => {
+    await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
