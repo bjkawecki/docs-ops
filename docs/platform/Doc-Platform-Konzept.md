@@ -12,7 +12,7 @@
 
 ## 2. Organisationsstruktur
 
-- **Firma**
+- **Firma** (engl. Company in API/UI)
   - Oberste Organisationseinheit.
 - **Abteilung**
   - Besteht aus Teams.
@@ -72,6 +72,7 @@
   - Einzelne Nutzer
 - Ownership bestimmt Verantwortlichkeit, nicht automatisch Zugriff.
 - Zugriff auf Unterkontexte kann vererbt oder explizit gesetzt werden.
+- **Rechte im Detail:** Leserechte werden nach oben vererbt (Member der Owner-Unit oder Lead einer übergeordneten Unit), Schreibrechte sind lokal (Lead der Owner-Unit oder expliziter Grant). Siehe [Rechtesystem](datenmodell/Rechtesystem.md).
 
 ---
 

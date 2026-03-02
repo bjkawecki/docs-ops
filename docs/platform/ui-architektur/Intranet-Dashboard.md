@@ -1,157 +1,44 @@
-# Intranet-Dashboard – Ordner- und Seitenstruktur
+# Intranet-Dashboard – URLs und Seitenstruktur
 
-## 1. Home / Dashboard
-
-- URL: /
-- Inhalte:
-  - Überblick über neue oder aktualisierte Dokumente
-  - Quick Links: Repositories, Teams, Prozesse, Firma, Templates
-  - Updates / Benachrichtigungen
-  - Suche (Volltext + Tags)
+Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umsetzungs-Todo §6–7](../../plan/Umsetzungs-Todo.md#7-layout--navigation).
 
 ---
 
-## 2. Repositories / Projekte
+## 1. Hauptbereiche
 
-- URL: /repositories/
-- Unterseiten pro Repository:
-
-Repositories/
-
-- Projekt-A/
-  - README.md # High-Level-Doku
-  - Onboarding.md # Einstieg für neue Entwickler
-  - SOPs.md # Projekt-spezifische Prozesse
-
-- Projekt-B/
-  - README.md
-  - Onboarding.md
-
-- Dynamische Aggregation:
-  - Tag: repository:Projekt-A → zeigt alle relevanten Seiten auf der Projektseite
-  - Tag: onboarding → zeigt alle Onboarding-Dokumente projektübergreifend
+| Route                       | Inhalt                                                                 |
+| --------------------------- | ---------------------------------------------------------------------- |
+| `/`                         | Home / Dashboard                                                       |
+| `/catalog`                  | Einstieg für alle Dokumente (Tabelle, filter- und suchbar)             |
+| `/teams`                    | Teams-Übersicht (rollenabhängig)                                       |
+| `/teams/:teamId`            | Team-Kontext (Projekte, Prozesse, Dokumente)                           |
+| `/department`               | Abteilung(en) (rollenabhängig: ein Department oder aufklappbare Liste) |
+| `/department/:departmentId` | Abteilungs-Kontext                                                     |
+| `/company`                  | Firma / Company                                                        |
+| `/personal`                 | Eigener Nutzerspace                                                    |
+| `/shared`                   | Geteilte Kontexte (Dokumente/Kontexte mit Grant für den Nutzer)        |
+| `/settings`                 | Profil, Account, Theme, Sessions, DocsOps-Identity                     |
+| `/admin`                    | Admin-Bereich (nur für Admins): Nutzer, Teams, Organisation            |
 
 ---
 
-## 3. Teams / Abteilungen
+## 2. Redirects
 
-- URL: /teams/
-- Unterseiten pro Team:
-
-Teams/
-
-- Backend/
-  - Team-Wiki.md
-  - Prozesse.md
-
-- DevOps/
-  - Runbooks.md
-  - Deploy-Prozesse.md
-
-- QA/
-  - Testprozesse.md
-  - Automatisierung.md
-
-- Dynamische Aggregation:
-  - Tag: team:DevOps → zeigt alle relevanten Dokumente für DevOps
-  - Tag: process → zeigt alle teamübergreifenden Prozess-Dokumente
+- `/repositories` → `/catalog`
+- `/processes` → `/catalog`
+- `/templates` → `/`
 
 ---
 
-## 4. Firma / Unternehmensbereich
+## 3. Navigation (Sidebar)
 
-- URL: /firma/
-- Inhalte:
-
-Firma/
-
-- Richtlinien.md # IT-Sicherheit, Compliance
-
-- Onboarding-Company.md # Generelles Firmen-Onboarding
-
-- IT-Sicherheit.md
-
-- HR-Richtlinien.md
-
-- Zweck: alles, was teamübergreifend gilt, klar sichtbar
+- **Oben:** Logo, dann Home, Catalog, Team/Department/Company (rollenabhängig), Personal, Shared.
+- **Unten:** Account-Dropdown mit Admin (nur bei isAdmin), Settings, Log out.
+- Rollenabhängige Darstellung: Team-Member sieht sein Team; Department-Lead sieht Department + Teams; Company-Lead/Admin sieht aufklappbare Departments mit Teams.
 
 ---
 
-## 5. Prozesse / SOPs
+## 4. Ausblick (frühere Konzeptideen, noch nicht umgesetzt)
 
-- URL: /prozesse/
-- Struktur:
-
-Prozesse/
-
-- Kritische-Prozesse/
-  - Deployment.md
-  - Incident-Handling.md
-
-- Regelprozesse/
-  - Code-Review.md
-  - Feature-Release.md
-
-- Ad-hoc-Prozesse/
-  - Notfall-Backup.md
-
-- Dynamische Aggregation:
-  - Tags: prozess:deployment oder kritisch
-  - Filterbar für Prozessart, Team, Repository
-
----
-
-## 6. Templates / Vorlagen
-
-- URL: /templates/
-- Inhalte:
-
-Templates/
-
-- Process_Template.md
-
-- Repo_Template.md
-
-- Onboarding_Template.md
-
-- Zweck: Einheitliche Struktur für neue Dokumente / SOPs
-
----
-
-## 7. Knowledge Hub / FAQs
-
-- URL: /knowledge/
-- Inhalte:
-  - Tipps & Tricks, Best Practices
-  - How-Tos für Entwickler und andere Teams
-- Dynamische Aggregation:
-  - Tag: faq, best-practice, how-to
-
----
-
-## 8. Archiv / Historie
-
-- URL: /archiv/
-- Inhalte:
-  - Alte oder veraltete Dokumente
-  - Änderungen nachvollziehbar für Audits
-- Dynamische Aggregation:
-  - Tag: archiv → alte Versionen automatisch ausblenden / filtern
-
----
-
-## 9. Ressourcen / Tools (optional)
-
-- URL: /ressourcen/
-- Inhalte:
-  - Links zu Git-Repos, Cloud-Speichern, internen Tools
-  - Kurze Beschreibung und Zugriffsrechte
-
----
-
-## Struktur-Empfehlung
-
-- Feste Hauptseiten: Home, Repositories, Teams, Firma, Prozesse, Templates
-- Dynamische Unterseiten & Indizes: per Tags, Projekten, Teams, Prozessart
-- Vorteil: Klar für neue Nutzer, flexibel für wachsende Dokumentation
-- Navigation: Hauptmenü + Filter / Suche + Tag-basierte Aggregation
+- Eigenständige Bereiche wie **Knowledge Hub** (`/knowledge`), **Archiv** (`/archiv`), **Ressourcen** (`/ressourcen`) sind derzeit nicht als eigene Routen umgesetzt; Inhalte können über Catalog, Tags und Kontexte abgebildet werden.
+- **Volltextsuche** und erweiterte Tag-Filter sind in der Planung (Umsetzungs-Todo §15, §17).

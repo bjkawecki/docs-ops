@@ -136,7 +136,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 - [x] **Optional: Organisation im Admin**
   - **Nur UI:** Kern-API (Abschnitt 5) bietet bereits CRUD für Firma, Abteilung, Team; Admin-Organisation ist reine UI-Anbindung an diese Routen, keine Backend-Erweiterung nötig.
   - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechtesystem](../platform/datenmodell/Rechtesystem.md)).
-- [ ] **Dev-Feature (Admin): Ansicht „als Nutzer X“** – Admins können die Oberfläche bzw. Daten so sehen, als wären sie ein anderer Nutzer (ohne sich auszuloggen); nur für Admins, z. B. zur Prüfung von Rechten oder Support.
+- [x] **Dev-Feature (Admin): Ansicht „als Nutzer X“** – Admins können die Oberfläche bzw. Daten so sehen, als wären sie ein anderer Nutzer (ohne sich auszuloggen); nur für Admins, z. B. zur Prüfung von Rechten oder Support.
 
 ---
 

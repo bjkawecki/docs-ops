@@ -1,5 +1,9 @@
 # Versionierung als Snapshots
 
+**Geplant (Phase 2).** Siehe [Umsetzungs-Todo §12](../../plan/Umsetzungs-Todo.md#12-versionierung--pr-workflow).
+
+---
+
 ## 1. Kernidee: Versionierung als Snapshots + Deltas
 
 - Dokument = logische Einheit, z. B. Markdown-Datei.
