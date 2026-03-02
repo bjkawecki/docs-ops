@@ -7,7 +7,7 @@ export type MeIdentityTeam = {
   role: 'member' | 'leader';
 };
 
-/** Response GET /api/v1/me */
+/** Response GET /api/v1/me. Bei Impersonation enthält die Antwort zusätzlich impersonation. */
 export type MeResponse = {
   user: {
     id: string;
@@ -28,4 +28,6 @@ export type MeResponse = {
     sidebarPinned?: boolean;
     locale?: 'en' | 'de';
   };
+  /** Nur gesetzt, wenn Admin gerade als anderer Nutzer agiert. */
+  impersonation?: { active: true; realUser: { id: string; name: string } };
 };

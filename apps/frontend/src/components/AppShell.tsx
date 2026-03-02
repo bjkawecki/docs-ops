@@ -10,9 +10,13 @@ import {
   Collapse,
   UnstyledButton,
   Group,
+  ActionIcon,
+  Modal,
+  ScrollArea,
+  Loader,
+  Button,
 } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import {
   IconChevronDown,
@@ -20,9 +24,10 @@ import {
   IconLogout,
   IconSettings,
   IconShield,
+  IconBug,
 } from '@tabler/icons-react';
 import { apiFetch } from '../api/client';
-import type { MeResponse } from '../api/me-types';
+import { useMe, meQueryKey } from '../hooks/useMe';
 import { DocopsLogo } from './DocopsLogo';
 
 function isActive(path: string, current: string): boolean {
@@ -34,12 +39,23 @@ type DepartmentWithTeams = { id: string; name: string; teams: { id: string; name
 type DepartmentsRes = { items: DepartmentWithTeams[]; total: number };
 type TeamsRes = { items: { id: string; name: string }[]; total: number };
 
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string | null;
+  isAdmin: boolean;
+  deletedAt: Date | null;
+};
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [expandedDepartmentIds, setExpandedDepartmentIds] = useState<Set<string>>(new Set());
-  const { data: me } = useQuery<MeResponse>({ queryKey: ['me'] });
+  const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
+  const { data: me } = useMe();
   const isAdmin = me?.user?.isAdmin === true;
+  const showDebugMenu = isAdmin || me?.impersonation?.active === true;
   const isCompanyLead = (me?.identity?.companyLeads?.length ?? 0) > 0;
   const isDepartmentLead = (me?.identity?.departmentLeads?.length ?? 0) > 0;
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;
@@ -78,6 +94,65 @@ export function AppShell() {
       return res.json() as Promise<TeamsRes>;
     },
     enabled: !!departmentId && isDepartmentLead && !isCompanyLead,
+  });
+
+  const {
+    data: adminUsersRes,
+    isLoading: adminUsersLoading,
+    isError: adminUsersError,
+  } = useQuery<{
+    items: AdminUser[];
+    total: number;
+  }>({
+    queryKey: ['admin', 'users', 'list'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/v1/admin/users?limit=100&includeDeactivated=false');
+      if (!res.ok) throw new Error('Failed to load users');
+      return res.json();
+    },
+    enabled: impersonateModalOpen && showDebugMenu,
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiFetch('/api/v1/admin/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? 'Impersonation fehlgeschlagen');
+      }
+    },
+    onSuccess: () => {
+      setImpersonateModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
+      navigate('/', { replace: true });
+      notifications.show({
+        title: 'Ansicht gewechselt',
+        message: 'Sie sehen die App jetzt als den gewählten Nutzer.',
+        color: 'green',
+      });
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: 'Fehler', message: err.message, color: 'red' });
+    },
+  });
+
+  const stopImpersonateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiFetch('/api/v1/admin/impersonate', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Beenden fehlgeschlagen');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
+      navigate('/', { replace: true });
+      notifications.show({ title: 'Impersonation beendet', color: 'green' });
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: 'Fehler', message: err.message, color: 'red' });
+    },
   });
 
   const logout = useMutation({
@@ -251,6 +326,76 @@ export function AppShell() {
 
   return (
     <MantineAppShell navbar={{ width: 220, breakpoint: 'sm' }} padding="md" header={{ height: 0 }}>
+      {showDebugMenu && (
+        <Box
+          style={{
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            zIndex: 1000,
+          }}
+        >
+          <Menu position="bottom-end" shadow="md" width={220}>
+            <Menu.Target>
+              <ActionIcon variant="subtle" size="md" aria-label="Debug-Menü" color="gray">
+                <IconBug size={18} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                onClick={() => setImpersonateModalOpen(true)}
+                leftSection={<IconShield size={14} />}
+              >
+                Ansicht als Nutzer
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Box>
+      )}
+
+      <Modal
+        title="Ansicht als Nutzer"
+        opened={impersonateModalOpen}
+        onClose={() => setImpersonateModalOpen(false)}
+        size="sm"
+      >
+        {adminUsersLoading ? (
+          <Loader size="sm" />
+        ) : adminUsersError ? (
+          <Text size="sm" c="dimmed">
+            Nutzerliste konnte nicht geladen werden.
+          </Text>
+        ) : (
+          <ScrollArea.Autosize mah={320}>
+            <Stack gap={4}>
+              {(adminUsersRes?.items ?? []).length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  Keine Nutzer vorhanden.
+                </Text>
+              ) : (
+                (adminUsersRes?.items ?? []).map((u) => (
+                  <UnstyledButton
+                    key={u.id}
+                    style={{ textAlign: 'left', padding: '6px 8px', borderRadius: 4 }}
+                    onClick={() => impersonateMutation.mutate(u.id)}
+                    disabled={impersonateMutation.isPending}
+                  >
+                    <Text size="sm" fw={500}>
+                      {u.name}
+                    </Text>
+                    {u.email && (
+                      <Text size="xs" c="dimmed">
+                        {u.email}
+                      </Text>
+                    )}
+                  </UnstyledButton>
+                ))
+              )}
+            </Stack>
+          </ScrollArea.Autosize>
+        )}
+      </Modal>
+
       <MantineAppShell.Navbar p="md">
         <Stack justify="space-between" style={{ height: '100%' }}>
           <Box>
@@ -336,6 +481,34 @@ export function AppShell() {
         </Stack>
       </MantineAppShell.Navbar>
       <MantineAppShell.Main>
+        {me?.impersonation?.active && (
+          <Box
+            py="xs"
+            px="md"
+            mb="md"
+            style={{
+              background: 'var(--mantine-color-yellow-1)',
+              borderBottom: '1px solid var(--mantine-color-yellow-3)',
+            }}
+          >
+            <Group justify="space-between" wrap="nowrap">
+              <Text size="sm">
+                Ansicht als <strong>{me.user.name}</strong>
+                {me.user.email ? ` (${me.user.email})` : ''}. Du bist{' '}
+                {me.impersonation.realUser.name}.
+              </Text>
+              <Button
+                variant="light"
+                size="xs"
+                color="orange"
+                onClick={() => stopImpersonateMutation.mutate()}
+                disabled={stopImpersonateMutation.isPending}
+              >
+                Beenden
+              </Button>
+            </Group>
+          </Box>
+        )}
         <Outlet />
       </MantineAppShell.Main>
     </MantineAppShell>

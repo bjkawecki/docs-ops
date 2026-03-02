@@ -16,6 +16,7 @@ services:
         condition: service_healthy
     environment:
       CI: 'true'
+      NODE_ENV: development
       PORT: 8080
       DATABASE_URL: postgresql://app:app@postgres:5432/docsops
       MINIO_ENDPOINT: minio

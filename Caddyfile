@@ -1,6 +1,10 @@
 # Global: Kein automatischer HTTP→HTTPS-Redirect (sonst leitet Caddy auf https:// um).
 {
 	auto_https disable_redirects
+	log {
+		output stdout
+		format console
+	}
 }
 
 # Szenario B: eine Origin. /api → Backend, / → Frontend. /health und /ready für CI/Health-Check.

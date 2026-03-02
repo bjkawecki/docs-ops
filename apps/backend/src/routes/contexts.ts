@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { PrismaClient } from '../../generated/prisma/client.js';
-import { requireAuth } from '../auth/middleware.js';
+import { requireAuth, getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
 import {
   canReadContext,
   canWriteContext,
@@ -64,14 +64,11 @@ async function findOrCreateOwner(
 }
 
 const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
-  const getUserId = (req: { user?: { id: string } }) => (req as { user: { id: string } }).user?.id;
-
   // --- Processes ---
   app.get('/processes', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const query = paginationQuerySchema.parse(request.query);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
 
     const [all, total] = await Promise.all([
       prisma.process.findMany({
@@ -92,8 +89,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post('/processes', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createProcessBodySchema.parse(request.body);
     const allowed = await canCreateProcessOrProjectForOwner(prisma, userId, {
       companyId: body.companyId ?? undefined,
@@ -121,8 +117,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/processes/:processId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { processId } = processIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const process = await prisma.process.findUniqueOrThrow({
       where: { id: processId },
       include: { context: true, owner: true },
@@ -135,8 +130,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.patch('/processes/:processId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { processId } = processIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const process = await prisma.process.findUniqueOrThrow({
       where: { id: processId },
       select: { contextId: true },
@@ -160,8 +154,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.delete('/processes/:processId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { processId } = processIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const process = await prisma.process.findUniqueOrThrow({
       where: { id: processId },
       select: { contextId: true },
@@ -176,8 +169,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/projects', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const query = paginationQuerySchema.parse(request.query);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const [all, total] = await Promise.all([
       prisma.project.findMany({
         where: { deletedAt: null },
@@ -197,8 +189,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post('/projects', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createProjectBodySchema.parse(request.body);
     const allowed = await canCreateProcessOrProjectForOwner(prisma, userId, {
       companyId: body.companyId ?? undefined,
@@ -226,8 +217,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/projects/:projectId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { projectId } = projectIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const project = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
       include: { context: true, owner: true, subcontexts: true },
@@ -240,8 +230,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.patch('/projects/:projectId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { projectId } = projectIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const project = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
       select: { contextId: true },
@@ -265,8 +254,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.delete('/projects/:projectId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { projectId } = projectIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const project = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
       select: { contextId: true },
@@ -285,8 +273,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       const prisma = request.server.prisma;
       const { projectId } = projectIdParamSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
-      const userId = getUserId(request);
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const project = await prisma.project.findUniqueOrThrow({
         where: { id: projectId },
         select: { contextId: true },
@@ -313,8 +300,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { projectId } = projectIdParamSchema.parse(request.params);
-      const userId = getUserId(request);
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const project = await prisma.project.findUniqueOrThrow({
         where: { id: projectId },
         select: { contextId: true },
@@ -334,8 +320,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/subcontexts/:subcontextId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { subcontextId } = subcontextIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const subcontext = await prisma.subcontext.findUniqueOrThrow({
       where: { id: subcontextId },
       include: { context: true, project: true },
@@ -348,8 +333,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.patch('/subcontexts/:subcontextId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { subcontextId } = subcontextIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const subcontext = await prisma.subcontext.findUniqueOrThrow({
       where: { id: subcontextId },
       include: { project: { select: { contextId: true } } },
@@ -368,8 +352,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.delete('/subcontexts/:subcontextId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { subcontextId } = subcontextIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const subcontext = await prisma.subcontext.findUniqueOrThrow({
       where: { id: subcontextId },
       include: { project: { select: { contextId: true } } },
@@ -384,8 +367,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/user-spaces', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const query = paginationQuerySchema.parse(request.query);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const [items, total] = await Promise.all([
       prisma.userSpace.findMany({
         where: { ownerUserId: userId },
@@ -401,8 +383,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post('/user-spaces', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createUserSpaceBodySchema.parse(request.body);
     const context = await prisma.context.create({ data: {} });
     const userSpace = await prisma.userSpace.create({
@@ -415,8 +396,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/user-spaces/:userSpaceId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const userSpace = await prisma.userSpace.findUniqueOrThrow({
       where: { id: userSpaceId },
       include: { context: true, owner: true },
@@ -433,8 +413,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.patch('/user-spaces/:userSpaceId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const userSpace = await prisma.userSpace.findUniqueOrThrow({
       where: { id: userSpaceId },
       select: { ownerUserId: true },
@@ -452,8 +431,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.delete('/user-spaces/:userSpaceId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
-    const userId = getUserId(request);
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const userSpace = await prisma.userSpace.findUniqueOrThrow({
       where: { id: userSpaceId },
       select: { ownerUserId: true },

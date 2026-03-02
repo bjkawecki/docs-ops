@@ -1,13 +1,12 @@
 import { Button, Card, Text } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
-import type { MeResponse } from '../api/me-types';
+import { useMe } from '../hooks/useMe';
 import { PageWithTabs } from '../components/PageWithTabs';
 
 /**
  * Personal: user's UserSpace(s). Card grid; one space per user. Empty state: CTA "Create your personal space".
  */
 export function PersonalPage() {
-  const { data: me } = useQuery<MeResponse>({ queryKey: ['me'] });
+  const { data: me } = useMe();
   const userSpaces = me?.identity?.userSpaces ?? [];
   const hasSpaces = userSpaces.length > 0;
 

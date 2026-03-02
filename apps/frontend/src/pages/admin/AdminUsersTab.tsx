@@ -32,6 +32,7 @@ import {
   IconArrowsSort,
 } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
+import { meQueryKey } from '../../hooks/useMe';
 
 export type UserRole = 'User' | 'Team Lead' | 'Department Lead' | 'Company Lead' | 'Admin';
 
@@ -254,7 +255,7 @@ export function AdminUsersTab() {
     },
     onSuccess: () => {
       invalidateUsers();
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
       notifications.show({
         title: 'User updated',
         message: 'The user has been updated.',

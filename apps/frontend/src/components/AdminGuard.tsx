@@ -1,15 +1,14 @@
 import { useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import type { MeResponse } from '../api/me-types';
+import { useMe } from '../hooks/useMe';
 
 /**
  * Muss innerhalb von AuthGuard verwendet werden. Leitet Nicht-Admins auf / weiter.
- * Nutzerdaten kommen aus derselben Quelle wie die Sidebar: useQuery(['me']).
+ * Nutzerdaten kommen aus derselben Quelle wie die Sidebar: useMe().
  */
 export function AdminGuard({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const { data: me, isPending } = useQuery<MeResponse>({ queryKey: ['me'] });
+  const { data: me, isPending } = useMe();
 
   useEffect(() => {
     if (isPending || !me) return;

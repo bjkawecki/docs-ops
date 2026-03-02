@@ -71,8 +71,8 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 ## 7. Layout & Navigation
 
 - [x] **Struktur (Backstage-orientiert):** Zweiteiliges Layout ohne Nav-Kopfleiste: nur **Sidebar** (links) + **Main** (rechts). Main immer: (1) Seiten-Header oben (Titel, ggf. Metadaten/Aktionen), (2) bei Unterbereichen Tabs, sonst direkt (3) Content.
-- [ ] **Tab-Bereich:** Auf **jeder Page außer Catalog** gibt es einen Tab-Bereich unter dem Seiten-Header. Gibt es keine weiteren Tabs, heißt der einzige Tab **„Overview“**. (Catalog hat keinen Tab-Bereich.)
-- [ ] **Sidebar (neu):** Logo oben. Haupt-Navigation in dieser Reihenfolge:
+- [x] **Tab-Bereich:** Auf **jeder Page außer Catalog** gibt es einen Tab-Bereich unter dem Seiten-Header. Gibt es keine weiteren Tabs, heißt der einzige Tab **„Overview“**. (Catalog hat keinen Tab-Bereich.)
+- [x] **Sidebar (neu):** Logo oben. Haupt-Navigation in dieser Reihenfolge:
   - **Home** – Einstieg (Dashboard/Überblick; vgl. §10).
   - **Catalog** – Entry-Point für alle Dokumente als **Tabelle**, filter-, such- und sortierbar.
   - **Team / Department / Company** – **Rollenabhängige Darstellung** (Nutzer ohne Team bzw. ohne Team und Department sollen keine leeren Single-Links sehen):
@@ -136,6 +136,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 - [x] **Optional: Organisation im Admin**
   - **Nur UI:** Kern-API (Abschnitt 5) bietet bereits CRUD für Firma, Abteilung, Team; Admin-Organisation ist reine UI-Anbindung an diese Routen, keine Backend-Erweiterung nötig.
   - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechtesystem](../platform/datenmodell/Rechtesystem.md)).
+- [ ] **Dev-Feature (Admin): Ansicht „als Nutzer X“** – Admins können die Oberfläche bzw. Daten so sehen, als wären sie ein anderer Nutzer (ohne sich auszuloggen); nur für Admins, z. B. zur Prüfung von Rechten oder Support.
 
 ---
 
@@ -171,6 +172,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 - [ ] S3-Client (MinIO) im Backend anbinden
 - [ ] Upload/Download für Anhänge und Bilder (Dokumente)
 - [ ] Speicherorte in DB referenzieren; Berechtigungen vor Download prüfen
+- [ ] **Speicherübersicht (Assets aus MinIO):** Nutzung/Speicher pro Nutzer sichtbar – **Nutzer:** nur eigene Nutzung; **Team-Lead:** Nutzung aller Team-Mitglieder; **Department-Lead:** Nutzung aller Members der Abteilung (alle Teams der Abteilung); **Company-Lead / Admin:** Nutzung aller Abteilungen.
 
 ---
 
@@ -178,7 +180,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 - [ ] pg-boss einbinden (Queue, Worker)
 - [ ] Worker-Prozess oder -Container für Jobs
-- [ ] Jobs: Volltext-Index aktualisieren, PDF-Export (Pandoc), ggf. Benachrichtigungen
+- [ ] Jobs: Volltext-Index aktualisieren; **Markdown-Dokumente per Pandoc exportierbar** (z. B. PDF); Pandoc-Befehl/Formel konfigurierbar (Details in der Umsetzung); ggf. Benachrichtigungen
 - [ ] Job-Status/Ergebnis (z. B. Download-Link für PDF) für Frontend
 
 ---

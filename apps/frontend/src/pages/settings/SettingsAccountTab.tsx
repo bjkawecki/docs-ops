@@ -11,11 +11,11 @@ import {
   Grid,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
-import type { MeResponse } from '../../api/me-types';
+import { useMe, meQueryKey } from '../../hooks/useMe';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -30,14 +30,7 @@ export function SettingsAccountTab() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: ['me'],
-    queryFn: async (): Promise<MeResponse> => {
-      const res = await apiFetch('/api/v1/me');
-      if (!res.ok) throw new Error('Failed to load profile');
-      return res.json();
-    },
-  });
+  const { data, isPending, isError, error } = useMe();
 
   useEffect(() => {
     if (changeEmailOpened && data) {
@@ -61,7 +54,7 @@ export function SettingsAccountTab() {
       }
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
       if (variables.newPassword !== undefined) {
         notifications.show({
           title: 'Password updated',

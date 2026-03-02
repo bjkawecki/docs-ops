@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth } from '../auth/middleware.js';
+import { requireAuth, getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
 import {
   canManageTeamMembers,
   canManageTeamLeaders,
@@ -28,8 +28,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const query = assignmentListQuerySchema.parse(request.query);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canViewCompany(request.server.prisma, userId, companyId);
       if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diese Firma' });
@@ -55,8 +54,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const body = addAssignmentBodySchema.parse(request.body);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageCompanyLeads(request.server.prisma, userId, companyId);
       if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -88,8 +86,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     { preHandler: requireAuth },
     async (request, reply) => {
       const { companyId, userId: targetUserId } = companyIdUserIdParamSchema.parse(request.params);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageCompanyLeads(request.server.prisma, userId, companyId);
       if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -111,8 +108,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/teams/:teamId/members', { preHandler: requireAuth }, async (request, reply) => {
     const { teamId } = teamIdParamSchema.parse(request.params);
     const query = assignmentListQuerySchema.parse(request.query);
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
 
     const allowed = await canViewTeam(request.server.prisma, userId, teamId);
     if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
@@ -134,8 +130,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.post('/teams/:teamId/members', { preHandler: requireAuth }, async (request, reply) => {
     const { teamId } = teamIdParamSchema.parse(request.params);
     const body = addAssignmentBodySchema.parse(request.body);
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
 
     const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
     if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -164,8 +159,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     { preHandler: requireAuth },
     async (request, reply) => {
       const { teamId, userId: targetUserId } = teamIdUserIdParamSchema.parse(request.params);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
       if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -186,8 +180,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/teams/:teamId/team-leads', { preHandler: requireAuth }, async (request, reply) => {
     const { teamId } = teamIdParamSchema.parse(request.params);
     const query = assignmentListQuerySchema.parse(request.query);
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
 
     const allowed = await canViewTeam(request.server.prisma, userId, teamId);
     if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
@@ -209,8 +202,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.post('/teams/:teamId/team-leads', { preHandler: requireAuth }, async (request, reply) => {
     const { teamId } = teamIdParamSchema.parse(request.params);
     const body = addAssignmentBodySchema.parse(request.body);
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
 
     const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
     if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -239,8 +231,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     { preHandler: requireAuth },
     async (request, reply) => {
       const { teamId, userId: targetUserId } = teamIdUserIdParamSchema.parse(request.params);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
       if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -264,8 +255,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const query = assignmentListQuerySchema.parse(request.query);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canViewDepartment(request.server.prisma, userId, departmentId);
       if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diese Abteilung' });
@@ -291,8 +281,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const body = addAssignmentBodySchema.parse(request.body);
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageDepartmentLeads(request.server.prisma, userId, departmentId);
       if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
@@ -326,8 +315,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       const { departmentId, userId: targetUserId } = departmentIdUserIdParamSchema.parse(
         request.params
       );
-      const userId = (request as { user?: { id: string } }).user?.id;
-      if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageDepartmentLeads(request.server.prisma, userId, departmentId);
       if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });

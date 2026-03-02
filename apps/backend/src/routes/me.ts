@@ -1,6 +1,10 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth } from '../auth/middleware.js';
-import { SESSION_COOKIE_NAME } from '../auth/middleware.js';
+import {
+  requireAuth,
+  getEffectiveUserId,
+  SESSION_COOKIE_NAME,
+  type RequestWithUser,
+} from '../auth/middleware.js';
 import type { RequestUser } from '../auth/types.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import {
@@ -26,7 +30,7 @@ export type MeIdentityTeam = {
   role: 'member' | 'leader';
 };
 
-/** Response GET /me. */
+/** Response GET /me. Bei aktiver Impersonation wird impersonation mitgesendet. */
 export type MeResponse = {
   user: {
     id: string;
@@ -43,12 +47,14 @@ export type MeResponse = {
     userSpaces: { id: string; name: string }[];
   };
   preferences: UserPreferences;
+  /** Nur gesetzt, wenn Admin gerade als anderer Nutzer agiert. */
+  impersonation?: { active: true; realUser: { id: string; name: string } };
 };
 
 const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
-  /** GET /api/v1/me – erweiterte Nutzerdaten inkl. Identity und Preferences. */
+  /** GET /api/v1/me – erweiterte Nutzerdaten inkl. Identity und Preferences (effektiver User bei Impersonation). */
   app.get('/me', { preHandler: requireAuth }, async (request, reply) => {
-    const userId = (request as { user: RequestUser }).user.id;
+    const userId = getEffectiveUserId(request as RequestWithUser);
 
     const user = await request.server.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -116,6 +122,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         ? (user.preferences as UserPreferences)
         : {};
 
+    const req = request as { user: RequestUser; effectiveUserId?: string };
     const response: MeResponse = {
       user: {
         id: user.id,
@@ -132,6 +139,14 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         userSpaces: user.userSpaces,
       },
       preferences,
+      ...(req.effectiveUserId
+        ? {
+            impersonation: {
+              active: true as const,
+              realUser: { id: req.user.id, name: req.user.name },
+            },
+          }
+        : {}),
     };
     return reply.send(response);
   });
@@ -174,9 +189,9 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.status(204).send();
   });
 
-  /** GET /api/v1/me/preferences – nur Preferences (leichtgewichtig). */
+  /** GET /api/v1/me/preferences – nur Preferences (effektiver User bei Impersonation). */
   app.get('/me/preferences', { preHandler: requireAuth }, async (request, reply) => {
-    const userId = (request as { user: RequestUser }).user.id;
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const user = await request.server.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { preferences: true },

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../app.js';
 import { prisma } from '../db.js';
 import { hashPassword } from '../auth/password.js';
+import { IMPERSONATE_COOKIE_NAME } from '../auth/middleware.js';
 
 const TS = Date.now();
 const ADMIN_EMAIL = `admin-${TS}@example.com`;
@@ -276,5 +277,70 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { newPassword: 'newpass123' },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  describe('Impersonation', () => {
+    it('POST /admin/impersonate als Admin → 204 + Set-Cookie, GET /me liefert Ziel-User + impersonation', async () => {
+      const sessionCookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+      const impersonateRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/impersonate',
+        headers: { cookie: sessionCookie, 'content-type': 'application/json' },
+        payload: { userId: normalUserId },
+      });
+      expect(impersonateRes.statusCode).toBe(204);
+      const setCookie = impersonateRes.headers['set-cookie'];
+      const impersonateCookiePart =
+        typeof setCookie === 'string'
+          ? setCookie.split(';')[0]
+          : Array.isArray(setCookie)
+            ? setCookie[0]?.split(';')[0]
+            : '';
+      expect(impersonateCookiePart).toContain(IMPERSONATE_COOKIE_NAME);
+
+      const meCookie = `${sessionCookie}; ${impersonateCookiePart}`;
+      const meRes = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: { cookie: meCookie },
+      });
+      expect(meRes.statusCode).toBe(200);
+      const meBody = meRes.json() as {
+        user: { id: string; name: string; email: string | null };
+        impersonation?: { active: true; realUser: { id: string; name: string } };
+      };
+      expect(meBody.user.id).toBe(normalUserId);
+      expect(meBody.user.name).toBe('Normal User');
+      expect(meBody.impersonation).toBeDefined();
+      expect(meBody.impersonation!.active).toBe(true);
+      expect(meBody.impersonation!.realUser.id).toBe(adminId);
+      expect(meBody.impersonation!.realUser.name).toBe('Admin User');
+    });
+
+    it('DELETE /admin/impersonate → 204, danach GET /me ohne Impersonation', async () => {
+      const sessionCookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/impersonate',
+        headers: { cookie: sessionCookie, 'content-type': 'application/json' },
+        payload: { userId: normalUserId },
+      });
+      const stopRes = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/admin/impersonate',
+        headers: { cookie: sessionCookie },
+      });
+      expect(stopRes.statusCode).toBe(204);
+
+      const meRes = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: { cookie: sessionCookie },
+      });
+      expect(meRes.statusCode).toBe(200);
+      const meBody = meRes.json() as { user: { id: string }; impersonation?: unknown };
+      expect(meBody.user.id).toBe(adminId);
+      expect(meBody.impersonation).toBeUndefined();
+    });
   });
 });

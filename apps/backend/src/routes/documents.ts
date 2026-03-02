@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth } from '../auth/middleware.js';
+import { requireAuth, getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
 import { requireDocumentAccess, canDeleteDocument } from '../permissions/index.js';
 import { canReadContext, canWriteContext } from '../permissions/contextPermissions.js';
 import { GrantRole } from '../../generated/prisma/client.js';
@@ -46,8 +46,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** GET Dokumente eines Kontexts – canReadContext, paginiert, ohne gelöschte. */
   app.get('/contexts/:contextId/documents', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const { contextId } = contextIdParamSchema.parse(request.params);
     const query = paginationQuerySchema.parse(request.query);
 
@@ -77,8 +76,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** POST Dokument anlegen – canWriteContext(contextId), Tags optional. */
   app.post('/documents', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createDocumentBodySchema.parse(request.body);
 
     const context = await prisma.context.findUnique({
@@ -166,8 +164,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** DELETE Dokument – Soft-Delete (deletedAt setzen). Nur Scope-Lead (canDeleteDocument). */
   app.delete('/documents/:documentId', { preHandler: requireAuth }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const userId = (request as { user?: { id: string } }).user?.id;
-    if (!userId) return reply.status(401).send({ error: 'Nicht angemeldet' });
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const { documentId } = documentIdParamSchema.parse(request.params);
     const allowed = await canDeleteDocument(prisma, userId, documentId);
     if (!allowed)

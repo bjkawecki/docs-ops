@@ -18,13 +18,13 @@ import {
   Select,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useState, useEffect } from 'react';
 import { IconDotsVertical } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
-import type { MeResponse } from '../../api/me-types';
+import { useMe, meQueryKey } from '../../hooks/useMe';
 import type { UserPreferences } from '../../components/ThemeFromPreferences';
 
 export function SettingsGeneralTab() {
@@ -34,14 +34,7 @@ export function SettingsGeneralTab() {
   const [name, setName] = useState('');
   const { setColorScheme } = useMantineColorScheme();
 
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: ['me'],
-    queryFn: async (): Promise<MeResponse> => {
-      const res = await apiFetch('/api/v1/me');
-      if (!res.ok) throw new Error('Failed to load profile');
-      return res.json();
-    },
-  });
+  const { data, isPending, isError, error } = useMe();
 
   useEffect(() => {
     if (data) {
@@ -62,7 +55,7 @@ export function SettingsGeneralTab() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
       notifications.show({
         title: 'Profile updated',
         message: 'Your profile has been saved.',
@@ -109,7 +102,7 @@ export function SettingsGeneralTab() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['me', 'preferences'] });
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
       if (variables.theme !== undefined) {
         setColorScheme(variables.theme);
         notifications.show({
