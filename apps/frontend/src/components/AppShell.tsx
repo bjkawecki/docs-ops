@@ -17,7 +17,7 @@ import {
   Button,
   Badge,
   Divider,
-  Tooltip,
+  useMantineColorScheme,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -79,6 +79,7 @@ export function AppShell() {
   const [teamsSectionExpanded, setTeamsSectionExpanded] = useState(false);
   const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const { colorScheme } = useMantineColorScheme();
   const { data: me } = useMe();
   const isAdmin = me?.user?.isAdmin === true;
   const showDebugMenu = isAdmin || me?.impersonation?.active === true;
@@ -345,20 +346,19 @@ export function AppShell() {
                       {dept.name}
                     </Text>
                     {(dept.teams ?? []).map((team) => (
-                      <Tooltip key={team.id} label={team.name} openDelay={300}>
-                        <NavLink
-                          component={Link}
-                          to={`/team/${team.id}`}
-                          label={team.name}
-                          active={location.pathname === `/team/${team.id}`}
-                          pl="sm"
-                          style={{
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        />
-                      </Tooltip>
+                      <NavLink
+                        key={team.id}
+                        component={Link}
+                        to={`/team/${team.id}`}
+                        label={team.name}
+                        active={location.pathname === `/team/${team.id}`}
+                        pl="sm"
+                        style={{
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      />
                     ))}
                   </Box>
                 ))}
@@ -444,16 +444,15 @@ export function AppShell() {
             >
               <Stack gap={0} pl={0}>
                 {departmentTeams.items.map((team) => (
-                  <Tooltip key={team.id} label={team.name} openDelay={300}>
-                    <NavLink
-                      component={Link}
-                      to={`/team/${team.id}`}
-                      label={team.name}
-                      active={location.pathname === `/team/${team.id}`}
-                      pl="sm"
-                      style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                    />
-                  </Tooltip>
+                  <NavLink
+                    key={team.id}
+                    component={Link}
+                    to={`/team/${team.id}`}
+                    label={team.name}
+                    active={location.pathname === `/team/${team.id}`}
+                    pl="sm"
+                    style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  />
                 ))}
               </Stack>
             </Box>
@@ -462,7 +461,6 @@ export function AppShell() {
       );
     }
 
-    const teams = me.identity.teams ?? [];
     return (
       <>
         <NavLink
@@ -475,31 +473,45 @@ export function AppShell() {
         />
         <NavLink
           component={Link}
+          to="/department"
+          label="Department"
+          active={isActive('/department', location.pathname)}
+          leftSection={<IconSitemap size={18} />}
+          fw={600}
+        />
+        <NavLink
+          component={Link}
           to="/team"
           label="Team"
           active={isActive('/team', location.pathname)}
           leftSection={<IconUsersGroup size={18} />}
           fw={600}
         />
-        {teams.length > 0 &&
-          teams.map((t) => (
-            <Tooltip key={t.teamId} label={t.teamName} openDelay={300}>
-              <NavLink
-                component={Link}
-                to={`/team/${t.teamId}`}
-                label={t.teamName}
-                active={location.pathname === `/team/${t.teamId}`}
-                pl="lg"
-                style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              />
-            </Tooltip>
-          ))}
       </>
     );
   }
 
   return (
-    <MantineAppShell navbar={{ width: 220, breakpoint: 'sm' }} padding="md" header={{ height: 0 }}>
+    <MantineAppShell
+      navbar={{ width: 260, breakpoint: 'sm' }}
+      padding="md"
+      header={{ height: 0 }}
+      styles={{
+        navbar: {
+          '& .mantine-NavLink-root': {
+            borderRadius: 'var(--mantine-radius-sm)',
+            '&:hover': {
+              backgroundColor: 'var(--mantine-color-default-hover)',
+            },
+          },
+          '& [data-user-menu-trigger]': {
+            '&:hover': {
+              backgroundColor: 'var(--mantine-color-default-hover)',
+            },
+          },
+        },
+      }}
+    >
       {showDebugMenu && (
         <Box
           style={{
@@ -511,7 +523,7 @@ export function AppShell() {
         >
           <Menu position="bottom-end" shadow="md" width={220}>
             <Menu.Target>
-              <ActionIcon variant="subtle" size="md" aria-label="Debug-Menü" color="gray">
+              <ActionIcon variant="light" size="md" aria-label="Debug-Menü" color="grape">
                 <IconBug size={18} />
               </ActionIcon>
             </Menu.Target>
@@ -573,7 +585,13 @@ export function AppShell() {
         )}
       </Modal>
 
-      <MantineAppShell.Navbar p="md">
+      <MantineAppShell.Navbar
+        p="md"
+        style={{
+          backgroundColor:
+            colorScheme === 'dark' ? 'var(--mantine-color-dark-6)' : 'var(--mantine-color-gray-0)',
+        }}
+      >
         <Stack justify="space-between" style={{ height: '100%' }}>
           <Box>
             <MantineAppShell.Section>
@@ -646,22 +664,40 @@ export function AppShell() {
               onChange={setAccountMenuOpen}
             >
               <Menu.Target>
-                <NavLink
-                  label={me?.user?.email ?? me?.user?.name ?? 'Account'}
-                  rightSection={
+                <UnstyledButton
+                  data-user-menu-trigger
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    cursor: 'pointer',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--mantine-radius-sm)',
+                  }}
+                >
+                  <Group justify="space-between" wrap="nowrap" align="center" gap="xs">
+                    <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                      <Text size="sm" fw={600} truncate>
+                        {me?.user?.name ?? 'Account'}
+                      </Text>
+                      {me?.user?.email && (
+                        <Text size="xs" c="dimmed" truncate>
+                          {me?.user?.email}
+                        </Text>
+                      )}
+                    </Stack>
                     <Box
                       component="span"
                       style={{
                         display: 'inline-flex',
+                        flexShrink: 0,
                         transition: 'transform 0.2s ease',
                         transform: accountMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                       }}
                     >
                       <IconChevronDown size={14} />
                     </Box>
-                  }
-                  style={{ cursor: 'pointer' }}
-                />
+                  </Group>
+                </UnstyledButton>
               </Menu.Target>
               <Menu.Dropdown>
                 {me?.user?.isAdmin && (
@@ -695,22 +731,35 @@ export function AppShell() {
           <Box
             py="xs"
             px="md"
-            mb="md"
             style={{
-              background: 'var(--mantine-color-yellow-1)',
-              borderBottom: '1px solid var(--mantine-color-yellow-3)',
+              position: 'fixed',
+              bottom: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 900,
+              maxWidth: 650,
+              borderRadius: 'var(--mantine-radius-sm)',
+              boxShadow: 'var(--mantine-shadow-md)',
+              background:
+                colorScheme === 'dark'
+                  ? 'var(--mantine-color-dark-6)'
+                  : 'var(--mantine-color-yellow-2)',
+              border:
+                colorScheme === 'dark'
+                  ? '1px solid var(--mantine-color-dark-5)'
+                  : '1px solid var(--mantine-color-yellow-4)',
             }}
           >
             <Group justify="space-between" wrap="nowrap">
-              <Text size="sm" c="dark.8">
+              <Text size="sm" c={colorScheme === 'dark' ? 'gray.3' : 'dark.7'}>
                 Ansicht als <strong>{me.user.name}</strong>
                 {me.user.email ? ` (${me.user.email})` : ''}, {getDisplayRole(me)}. Du bist{' '}
                 {me.impersonation.realUser.name}.
               </Text>
               <Button
-                variant="light"
+                variant="filled"
                 size="xs"
-                color="orange"
+                color="grape"
                 onClick={() => stopImpersonateMutation.mutate()}
                 disabled={stopImpersonateMutation.isPending}
               >
