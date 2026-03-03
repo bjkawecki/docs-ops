@@ -40,6 +40,7 @@ Owner von Process/Project ist über **Owner** (companyId, departmentId, teamId o
 | **Document** | id, title, content (Text), pdfUrl?, contextId, deletedAt?, createdAt, updatedAt | → context (n:1), documentTags, grantUser, grantTeam, grantDepartment |
 
 - **pdfUrl:** Optional; URL zur PDF-Version (z. B. nach Export in MinIO/S3).
+- **Geplante Erweiterung (noch nicht in `schema.prisma`):** Dokument-Status **draft** vs. **published** – z. B. Feld **status** (Enum `Draft | Published`) oder **publishedAt** (DateTime?, null = Draft). Draft-Dokumente sind nur für Autor und Nutzer mit Schreibrecht sichtbar; nach „Veröffentlichen“ für alle mit Leserecht. Umsetzung in einer späteren Migration (vgl. Umsetzungs-Todo §15, [Versionierung](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
 - **Tag:** id, name (unique). Global, n:m zu Document über **DocumentTag** (documentId, tagId), @@id([documentId, tagId]).
 
 ---

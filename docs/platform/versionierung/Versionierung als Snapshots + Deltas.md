@@ -14,9 +14,11 @@
 
 ## 2. Pull-Request / Draft Workflow
 
-- Leserechte-Nutzer erstellen Drafts (PRs) → neue Versionen / temporäre Snapshots.
-- Schreibrechte-Nutzer prüfen Drafts, kommentieren, genehmigen oder ablehnen.
-- Genehmigte PRs werden in den Hauptbranch / Hauptkontext gemergt.
+Unter „Drafts“ werden zwei Dinge verstanden: (1) **Dokument-Status „draft“** – noch nicht veröffentlichte Dokumente (nur für Autor/Schreiber sichtbar bis zur Veröffentlichung); (2) **PR-/Versions-Draft** – eine eingereichte Änderung an einem (ggf. bereits veröffentlichten) Dokument, die auf Merge wartet.
+
+- Leser und Writer können Drafts/PRs **einreichen** (neue Versionen / temporäre Snapshots vorschlagen).
+- **Mergen** (PR genehmigen und in die Hauptversion übernehmen) darf **nur Scope-Lead** (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin). Ein **Writer-Grant** berechtigt zum Einreichen von PRs, **nicht** zum Mergen.
+- Scope-Lead prüfen Drafts, kommentieren, genehmigen oder lehnen ab. Genehmigte PRs werden in den Hauptbranch / Hauptkontext gemergt.
 - Abgelehnte PRs bleiben als historische Drafts erhalten oder werden gelöscht (Garbage Collection).
 
 ## 3. Speicheroptimierung
@@ -36,9 +38,9 @@
 ## 4. Rechte & Ownership
 
 - Ownership: Abteilung, Team oder Nutzer → Verantwortlichkeit, nicht automatisch Zugriff.
-- Zugriffsrechte: Leserechte → Drafts erstellen; Schreibrechte → Genehmigung / Merge.
+- **PR einreichen:** Leser und Writer dürfen Drafts/PRs erstellen. **Merge:** ausschließlich **Scope-Lead** (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin). Writer-Grant berechtigt nicht zum Mergen (vgl. [Rechtesystem 6b](../datenmodell/Rechtesystem.md)).
 - Drafts sind nur für Nutzer sichtbar, die Zugriff auf das Dokument haben.
-- Änderungen werden erst nach Merge öffentlich.
+- Änderungen werden erst nach Merge öffentlich. Dokumente können zudem einen Status **draft** vs. **published** haben (Draft = bis zur Veröffentlichung nur für Autor/Schreiber sichtbar).
 
 ## 5. Vorteile gegenüber echtem Git für interne Plattformen
 

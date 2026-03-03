@@ -218,6 +218,7 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 - [ ] Markdown-Editor + Vorschau (z. B. TipTap oder Textarea + Preview)
 - [ ] Anzeige mit Rechte-Checks (Lesen/Schreiben nur wenn berechtigt)
 - [ ] Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten
+- [ ] **Drafts-Tab** auf den Kontext-Seiten (Overview, Processes, Projects, Documents, **Drafts**) für unveröffentlichte Dokumente und PR-Übersicht (Details in §15).
 
 ---
 
@@ -225,8 +226,10 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 - [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs
 - [ ] Deltas/Deduplizierung (diff-match-patch, Blob-Referenzen)
-- [ ] Drafts: Leser erstellen Entwurf, Schreiber prüfen/genehmigen/ablehnen
-- [ ] Merge in Hauptversion; Garbage Collection für alte Drafts (vgl. [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md))
+- [ ] **Dokument-Status draft/published:** Dokumente mit Status „draft“ (oder `publishedAt == null`); nur für Autor/Schreiber sichtbar; Veröffentlichung durch Scope-Lead (oder Autor, je nach Festlegung).
+- [ ] **Drafts (zwei Arten):** (1) Noch nicht veröffentlichte Dokumente, (2) PRs (eingereichte Änderungen) die auf Merge warten. Leser/Writer reichen PRs ein; **Merge nur Scope-Lead** (Writer-Grant berechtigt nicht zum Mergen; vgl. [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md)).
+- [ ] Merge in Hauptversion; Garbage Collection für alte Drafts (vgl. [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
+- [ ] **Drafts-Tab in der UI:** Auf Scope-Pages (Personal, Company, Department, Team, ggf. Shared) Tab „Drafts“ mit (1) unveröffentlichten Dokumenten, (2) offenen PRs (auf Merge warten); Filter/Unterteilung optional.
 
 ---
 

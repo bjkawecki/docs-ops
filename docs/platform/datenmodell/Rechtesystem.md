@@ -84,7 +84,7 @@ Leserechte werden nach oben vererbt.
 
 Schreibrechte sind nicht vererbbar.
 
-**Regel:** Ein Nutzer darf ein Dokument **bearbeiten** (Inhalt ändern), wenn er Lead der Owner-Unit ist **oder** explizit Schreibrechte (Writer-Grant) auf diesem Dokument erhalten hat. Keine automatische Schreibvererbung nach oben oder unten.
+**Regel:** Ein Nutzer darf ein Dokument **bearbeiten** (Inhalt ändern, bei PR-Workflow auch PRs einreichen), wenn er Lead der Owner-Unit ist **oder** explizit Schreibrechte (Writer-Grant) auf diesem Dokument erhalten hat. Keine automatische Schreibvererbung nach oben oder unten. Die **direkte Übernahme in die Hauptversion (Merge)** bleibt Scope-Lead vorbehalten (siehe 6b).
 
 **Erstellen und Löschen** (Dokumente anlegen oder löschen, Kontexte anlegen oder löschen) sind **nur** dem **Scope-Lead** (und Admin, Owner von persönlichem Prozess/Projekt via ownerUserId) vorbehalten. Ein expliziter Writer-Grant berechtigt **nicht** zum Erstellen oder Löschen.
 
@@ -95,8 +95,14 @@ Schreibrechte sind nicht vererbbar.
 ### 6a. Reader / Writer / Create-Delete
 
 - **Reader:** Expliziter Lese-Grant (GrantRole Read). Berechtigt zum Lesen des Dokuments.
-- **Writer:** Expliziter Schreib-Grant (GrantRole Write). Berechtigt zur **Bearbeitung** des Dokumentinhalts; **nicht** zum Anlegen oder Löschen von Dokumenten oder Kontexten.
+- **Writer:** Expliziter Schreib-Grant (GrantRole Write). Berechtigt zur **Bearbeitung** des Dokumentinhalts (bei PR-Workflow: PRs einreichen); **nicht** zum Anlegen, Löschen oder **Mergen** von Dokumenten/Kontexten.
 - **Create/Delete:** Dokumente und Kontexte anlegen oder löschen dürfen nur **Scope-Lead** (Team Lead, Department Lead, Company Lead je nach Owner-Unit), Admin und Owner von persönlichem Prozess/Projekt (ownerUserId).
+
+---
+
+### 6b. Merge (PR genehmigen)
+
+**Merge** (eine eingereichte Änderung / PR in die Hauptversion übernehmen) darf **nur Scope-Lead** (Team Lead, Department Lead, Company Lead der Owner-Unit), Admin und Owner von persönlichem Prozess/Projekt (ownerUserId). Ein **Writer-Grant** berechtigt zur **Bearbeitung** des Dokuments und zum **Einreichen von PRs**, **nicht** zum Mergen. Details zum PR-Workflow siehe [Versionierung als Snapshots + Deltas](../versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md).
 
 ---
 
