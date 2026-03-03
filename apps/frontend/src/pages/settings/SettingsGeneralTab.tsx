@@ -300,8 +300,7 @@ export function SettingsGeneralTab() {
                   </Text>
                   {identity.teams.length > 0 ||
                   identity.departmentLeads.length > 0 ||
-                  identity.companyLeads?.length > 0 ||
-                  identity.userSpaces.length > 0 ? (
+                  identity.companyLeads?.length > 0 ? (
                     <List size="sm">
                       {identity.teams.map((t) => (
                         <List.Item key={t.teamId}>
@@ -314,9 +313,6 @@ export function SettingsGeneralTab() {
                       ))}
                       {identity.companyLeads?.map((c) => (
                         <List.Item key={c.id}>Company Lead: {c.name}</List.Item>
-                      ))}
-                      {identity.userSpaces.map((s) => (
-                        <List.Item key={s.id}>{s.name}</List.Item>
                       ))}
                     </List>
                   ) : (

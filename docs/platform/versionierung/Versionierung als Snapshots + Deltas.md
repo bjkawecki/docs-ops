@@ -45,7 +45,7 @@
 - Abstraktion für Nutzer: Kein Git-Wissen nötig, alles läuft über Web-UI.
 - Bessere Rechtekontrolle: Drafts, PRs und Merge explizit durch Superuser gesteuert.
 - Leichtere Skalierung: Versionen können in DB / Object Store gespeichert werden, Delta + Dedup spart Speicher.
-- Kontextintegration: Dokumente bleiben klar an Prozess, Projekt, Unterkontext oder Nutzerspace gebunden.
+- Kontextintegration: Dokumente bleiben klar an Prozess, Projekt oder Unterkontext gebunden.
 
 ## Kurz gesagt:
 

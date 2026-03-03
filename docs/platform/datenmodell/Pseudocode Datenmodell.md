@@ -52,9 +52,7 @@ class Unterkontext(Kontext):
 typ: 'Unterkontext'
 parent: Projekt
 
-class Nutzerspace(Kontext):
-typ: 'Nutzerspace'
-owner: Nutzer # persönlicher Kontext
+# Persönliche Kontexte: Prozesse/Projekte mit Owner = Nutzer (Owner.ownerUserId), kein separates Nutzerspace-Modell.
 
 ---
 
@@ -92,7 +90,7 @@ class Zugriffsrecht:
 
 ## 5. Grundprinzipien
 
-1. Dokumente gehören genau einem Kontext (Projekt, Prozess, Nutzerspace).
+1. Dokumente gehören genau einem Kontext (Projekt, Prozess, Unterkontext).
 2. Struktur (Firma, Abteilung, Team) bestimmt Ownership, **nicht automatisch Zugriff**.
 3. Teams sind autonome Einheiten; Mitglieder sehen nur eigene Team-Dokumente.
 4. Schreibrechte nur für Superuser / Team-Manager.

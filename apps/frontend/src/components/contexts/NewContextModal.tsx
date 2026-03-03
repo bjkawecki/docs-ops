@@ -6,7 +6,8 @@ import { apiFetch } from '../../api/client';
 export type NewContextScope =
   | { type: 'company'; companyId: string }
   | { type: 'department'; departmentId: string }
-  | { type: 'team'; teamId: string };
+  | { type: 'team'; teamId: string }
+  | { type: 'personal' };
 
 export interface NewContextModalProps {
   opened: boolean;
@@ -41,11 +42,13 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
     companyId?: string;
     departmentId?: string;
     teamId?: string;
+    personal?: true;
   } => {
     const trimmed = name.trim();
     if (scope.type === 'company') return { name: trimmed, companyId: scope.companyId };
     if (scope.type === 'department') return { name: trimmed, departmentId: scope.departmentId };
-    return { name: trimmed, teamId: scope.teamId };
+    if (scope.type === 'team') return { name: trimmed, teamId: scope.teamId };
+    return { name: trimmed, personal: true };
   };
 
   const handleSubmit = async () => {

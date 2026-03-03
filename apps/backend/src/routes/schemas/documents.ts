@@ -13,7 +13,7 @@ const cuidArray = z.preprocess(normalizeToCuidArray, z.array(z.string().cuid()))
 
 /** Query: GET /documents (catalog list) – pagination + filters. */
 export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
-  contextType: z.enum(['process', 'project', 'userSpace']).optional(),
+  contextType: z.enum(['process', 'project']).optional(),
   companyId: z.string().cuid().optional(),
   departmentId: z.string().cuid().optional(),
   teamId: z.string().cuid().optional(),

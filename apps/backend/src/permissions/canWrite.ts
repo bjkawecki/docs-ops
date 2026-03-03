@@ -23,26 +23,22 @@ export async function canWrite(
   // 1. isAdmin
   if (user.isAdmin) return true;
 
-  // 2. UserSpace-Owner
-  if (doc.context.userSpace && doc.context.userSpace.ownerUserId === userId) {
-    return true;
+  // 2. Owner of personal context (process/project with ownerUserId)
+  const owner =
+    doc.context.process?.owner ??
+    doc.context.project?.owner ??
+    doc.context.subcontext?.project?.owner ??
+    null;
+  if (owner?.ownerUserId === userId) return true;
+
+  // 3. Company Lead (contexts with company owner)
+  const companyId = owner?.companyId ?? null;
+  if (companyId !== null) {
+    const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
+    if (isCompanyLead) return true;
   }
 
-  // 3. Company Lead (Kontexte mit Company-Owner)
-  if (doc.context.userSpace === null) {
-    const owner =
-      doc.context.process?.owner ??
-      doc.context.project?.owner ??
-      doc.context.subcontext?.project?.owner ??
-      null;
-    const companyId = owner?.companyId ?? null;
-    if (companyId !== null) {
-      const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
-      if (isCompanyLead) return true;
-    }
-  }
-
-  // 4. Explizite Grants
+  // 4. Explicit grants
   const userLeaderTeamIds = new Set(user.leadOfTeams.map((l) => l.teamId));
   const userDepartmentIds = new Set([
     ...user.teamMemberships.map((m) => m.team.departmentId),

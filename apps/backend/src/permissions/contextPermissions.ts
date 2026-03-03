@@ -1,7 +1,7 @@
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { loadUser } from './canRead.js';
 
-/** Context inkl. Owner-Infos für Process/Project/Subcontext und UserSpace. */
+/** Context with owner info for Process/Project/Subcontext. */
 type ContextWithOwner = {
   id: string;
   process: {
@@ -9,6 +9,7 @@ type ContextWithOwner = {
       companyId: string | null;
       departmentId: string | null;
       teamId: string | null;
+      ownerUserId: string | null;
       team: { departmentId: string } | null;
     };
   } | null;
@@ -17,6 +18,7 @@ type ContextWithOwner = {
       companyId: string | null;
       departmentId: string | null;
       teamId: string | null;
+      ownerUserId: string | null;
       team: { departmentId: string } | null;
     };
   } | null;
@@ -26,11 +28,11 @@ type ContextWithOwner = {
         companyId: string | null;
         departmentId: string | null;
         teamId: string | null;
+        ownerUserId: string | null;
         team: { departmentId: string } | null;
       };
     };
   } | null;
-  userSpace: { ownerUserId: string } | null;
 };
 
 async function loadContext(
@@ -47,6 +49,7 @@ async function loadContext(
               companyId: true,
               departmentId: true,
               teamId: true,
+              ownerUserId: true,
               team: { select: { departmentId: true } },
             },
           },
@@ -59,6 +62,7 @@ async function loadContext(
               companyId: true,
               departmentId: true,
               teamId: true,
+              ownerUserId: true,
               team: { select: { departmentId: true } },
             },
           },
@@ -73,6 +77,7 @@ async function loadContext(
                   companyId: true,
                   departmentId: true,
                   teamId: true,
+                  ownerUserId: true,
                   team: { select: { departmentId: true } },
                 },
               },
@@ -80,7 +85,6 @@ async function loadContext(
           },
         },
       },
-      userSpace: { select: { ownerUserId: true } },
     },
   });
   return ctx as ContextWithOwner | null;
@@ -90,25 +94,32 @@ function getOwnerFromContext(ctx: ContextWithOwner): {
   companyId: string | null;
   departmentId: string | null;
   teamId: string | null;
+  ownerUserId: string | null;
 } {
   const owner = ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
-  if (!owner) return { companyId: null, departmentId: null, teamId: null };
+  if (!owner) return { companyId: null, departmentId: null, teamId: null, ownerUserId: null };
   const departmentId = owner.departmentId ?? owner.team?.departmentId ?? null;
-  return { companyId: owner.companyId, departmentId, teamId: owner.teamId };
+  return {
+    companyId: owner.companyId,
+    departmentId,
+    teamId: owner.teamId,
+    ownerUserId: owner.ownerUserId,
+  };
 }
 
 /**
- * Prüft, ob der Nutzer einen Prozess/Projekt für den angegebenen Owner (companyId, departmentId oder teamId) anlegen darf.
- * Company: Admin, Company Lead. Department: Admin, Department Lead, Company Lead der Firma. Team: Admin, Team Lead, Department Lead der Abteilung, Company Lead der Firma.
+ * Checks if the user may create a process/project for the given owner (companyId, departmentId, teamId or ownerUserId).
+ * Personal (ownerUserId): only the user themselves. Org: Admin, Company/Department/Team Lead as per hierarchy.
  */
 export async function canCreateProcessOrProjectForOwner(
   prisma: PrismaClient,
   userId: string,
-  opts: { companyId?: string; departmentId?: string; teamId?: string }
+  opts: { companyId?: string; departmentId?: string; teamId?: string; ownerUserId?: string }
 ): Promise<boolean> {
   const user = await loadUser(prisma, userId);
   if (!user || user.deletedAt !== null) return false;
   if (user.isAdmin) return true;
+  if (opts.ownerUserId !== undefined && opts.ownerUserId === userId) return true;
   if (opts.companyId) {
     const isCompanyLead = user.companyLeads.some((c) => c.companyId === opts.companyId);
     if (isCompanyLead) return true;
@@ -146,8 +157,8 @@ export async function canCreateProcessOrProjectForOwner(
 }
 
 /**
- * Prüft, ob der Nutzer den Kontext schreiben darf (Process/Project/Subcontext anlegen, ändern, löschen).
- * isAdmin, Department Lead (Owner-Abteilung), Team Lead (Owner-Team); UserSpace: nur Owner oder isAdmin.
+ * Checks if the user may write the context (create/edit/delete Process/Project/Subcontext).
+ * isAdmin; or Owner of personal context (ownerUserId); or Department/Team Lead of owner unit.
  */
 export async function canWriteContext(
   prisma: PrismaClient,
@@ -162,11 +173,9 @@ export async function canWriteContext(
 
   if (user.isAdmin) return true;
 
-  if (ctx.userSpace) {
-    return ctx.userSpace.ownerUserId === userId;
-  }
+  const { departmentId, teamId, ownerUserId } = getOwnerFromContext(ctx);
+  if (ownerUserId !== null && ownerUserId === userId) return true;
 
-  const { departmentId, teamId } = getOwnerFromContext(ctx);
   if (departmentId) {
     const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
     if (isDeptLead) return true;
@@ -179,8 +188,8 @@ export async function canWriteContext(
 }
 
 /**
- * Prüft, ob der Nutzer den Kontext lesen darf (Dokumente auflisten, Kontext anzeigen).
- * isAdmin, UserSpace-Owner, Department Lead (Owner-Abteilung), Mitglied eines Owner-Teams.
+ * Checks if the user may read the context (list documents, view context).
+ * isAdmin; or Owner of personal context (ownerUserId); or Company/Department Lead or Team member of owner unit.
  */
 export async function canReadContext(
   prisma: PrismaClient,
@@ -195,11 +204,9 @@ export async function canReadContext(
 
   if (user.isAdmin) return true;
 
-  if (ctx.userSpace) {
-    return ctx.userSpace.ownerUserId === userId;
-  }
+  const { companyId, departmentId, teamId, ownerUserId } = getOwnerFromContext(ctx);
+  if (ownerUserId !== null && ownerUserId === userId) return true;
 
-  const { companyId, departmentId, teamId } = getOwnerFromContext(ctx);
   if (companyId) {
     const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
     if (isCompanyLead) return true;

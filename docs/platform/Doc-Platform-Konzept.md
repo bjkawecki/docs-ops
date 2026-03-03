@@ -5,7 +5,7 @@
 - Plattform für interne Dokumentation, ähnlich Backstage, aber auf Informationsverwaltung fokussiert.
 - Markdown-Dokumente als zentrale Inhalte.
 - Struktur: Firma → Abteilung → Team.
-- Dokumente gehören genau einem Kontext (Projekt, Prozess, Nutzerspace).
+- Dokumente gehören genau einem Kontext (Projekt, Prozess oder Unterkontext).
 - Rechte werden explizit vergeben, Struktur bestimmt nur Ownership, nicht automatisch Zugriff.
 
 ---
@@ -47,16 +47,16 @@
 - Dokumente hängen direkt am Projekt.
 - Zugriff explizit für Teams oder Nutzer, Superuser schreiben.
 
-### 3.3 Nutzerspace
+### 3.3 Persönlicher Bereich (User-Scope)
 
-- Persönliche Dokumente einzelner Nutzer.
-- Zugriff optional für andere Nutzer, Teams oder Abteilungen.
+- Prozesse und Projekte können einem **Nutzer** als Owner gehören (Owner.ownerUserId).
+- Persönliche Dokumente liegen in solchen Prozessen/Projekten; Zugriff optional für andere Nutzer, Teams oder Abteilungen (explizite Grants).
 
 ### 3.4 Dokumente
 
 - Einzelne inhaltliche Einheit.
 - Beispiele: Richtlinien, Vorlagen, Ressourcen (als Tags).
-- Können direkt an Prozess, Projekt oder Nutzerspace hängen.
+- Können direkt an Prozess, Projekt oder Unterkontext hängen.
 - Besitzen explizite Zugriffsrechte.
 
 ---
@@ -92,7 +92,7 @@
 4. Kontexte:
    - Prozesse → dauerhaft, fachlich, direkte Dokumente
    - Projekte → temporär, Unterkontexte möglich
-   - Nutzerspace → persönliche Dokumente, optional freigegeben
+   - Persönliche Kontexte (ownerUserId) → persönliche Dokumente, optional freigegeben
 5. Rechte immer explizit; Schreibrechte auf Superuser beschränkt.
 6. Unterkontexte nur dort, wo sinnvoll für Organisation oder Filterung.
 7. Struktur + Kontext + Rechte bilden ein konsistentes, vorhersehbares System.

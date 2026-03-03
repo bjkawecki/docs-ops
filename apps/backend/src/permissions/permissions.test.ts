@@ -14,14 +14,15 @@ describe('Permissions (canRead, canWrite)', () => {
   let ownerId: string;
   let contextProcessId: string;
   let processId: string;
-  let contextUserSpaceId: string;
-  let userSpaceId: string;
+  let personalOwnerId: string;
+  let contextPersonalId: string;
+  let personalProcessId: string;
   let docProcessId: string;
-  let docUserSpaceId: string;
+  let docPersonalId: string;
   let adminId: string;
   let deletedUserId: string;
   let supervisorId: string;
-  let userSpaceOwnerId: string;
+  let personalOwnerUserId: string;
   let teamMemberId: string;
   let teamLeaderId: string;
   let otherUserId: string;
@@ -61,8 +62,8 @@ describe('Permissions (canRead, canWrite)', () => {
       }),
       prisma.user.create({
         data: {
-          name: 'UserSpace Owner',
-          email: `spaceowner-${TS}@test.de`,
+          name: 'Personal Owner',
+          email: `personalowner-${TS}@test.de`,
           passwordHash: pw,
         },
       }),
@@ -100,7 +101,7 @@ describe('Permissions (canRead, canWrite)', () => {
     adminId = admin.id;
     deletedUserId = deletedUser.id;
     supervisorId = supervisor.id;
-    userSpaceOwnerId = userSpaceOwner.id;
+    personalOwnerUserId = userSpaceOwner.id;
     teamMemberId = teamMember.id;
     teamLeaderId = teamLeader.id;
     otherUserId = other.id;
@@ -136,12 +137,20 @@ describe('Permissions (canRead, canWrite)', () => {
     });
     processId = process.id;
 
-    const ctxUserSpace = await prisma.context.create({ data: {} });
-    contextUserSpaceId = ctxUserSpace.id;
-    const space = await prisma.userSpace.create({
-      data: { name: `Space ${TS}`, contextId: contextUserSpaceId, ownerUserId: userSpaceOwnerId },
+    const personalOwner = await prisma.owner.create({
+      data: { ownerUserId: personalOwnerUserId },
     });
-    userSpaceId = space.id;
+    personalOwnerId = personalOwner.id;
+    const ctxPersonal = await prisma.context.create({ data: {} });
+    contextPersonalId = ctxPersonal.id;
+    const personalProcess = await prisma.process.create({
+      data: {
+        name: `Personal Process ${TS}`,
+        contextId: contextPersonalId,
+        ownerId: personalOwnerId,
+      },
+    });
+    personalProcessId = personalProcess.id;
 
     const docProcess = await prisma.document.create({
       data: {
@@ -152,14 +161,14 @@ describe('Permissions (canRead, canWrite)', () => {
     });
     docProcessId = docProcess.id;
 
-    const docUserSpace = await prisma.document.create({
+    const docPersonal = await prisma.document.create({
       data: {
-        title: `Doc UserSpace ${TS}`,
+        title: `Doc Personal ${TS}`,
         content: '',
-        contextId: contextUserSpaceId,
+        contextId: contextPersonalId,
       },
     });
-    docUserSpaceId = docUserSpace.id;
+    docPersonalId = docPersonal.id;
 
     await Promise.all([
       prisma.documentGrantUser.create({
@@ -181,7 +190,7 @@ describe('Permissions (canRead, canWrite)', () => {
   });
 
   afterAll(async () => {
-    const docIds = [docProcessId, docUserSpaceId].filter((id): id is string => id != null);
+    const docIds = [docProcessId, docPersonalId].filter((id): id is string => id != null);
     if (docIds.length > 0) {
       await prisma.documentGrantUser.deleteMany({
         where: { documentId: { in: docIds } },
@@ -194,10 +203,11 @@ describe('Permissions (canRead, canWrite)', () => {
         where: { id: { in: docIds } },
       });
     }
-    if (userSpaceId) await prisma.userSpace.deleteMany({ where: { id: userSpaceId } });
+    if (personalProcessId) await prisma.process.deleteMany({ where: { id: personalProcessId } });
     if (processId) await prisma.process.deleteMany({ where: { id: processId } });
-    const ctxIds = [contextProcessId, contextUserSpaceId].filter((id): id is string => id != null);
+    const ctxIds = [contextProcessId, contextPersonalId].filter((id): id is string => id != null);
     if (ctxIds.length > 0) await prisma.context.deleteMany({ where: { id: { in: ctxIds } } });
+    if (personalOwnerId) await prisma.owner.deleteMany({ where: { id: personalOwnerId } });
     if (teamId) {
       await prisma.teamLead.deleteMany({ where: { teamId } });
       await prisma.teamMember.deleteMany({ where: { teamId } });
@@ -211,7 +221,7 @@ describe('Permissions (canRead, canWrite)', () => {
       adminId,
       deletedUserId,
       supervisorId,
-      userSpaceOwnerId,
+      personalOwnerUserId,
       teamMemberId,
       teamLeaderId,
       otherUserId,
@@ -224,11 +234,15 @@ describe('Permissions (canRead, canWrite)', () => {
   });
 
   it('isAdmin → canRead/canWrite true', async () => {
-    await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
-    expect(await canRead(prisma, adminId, docProcessId)).toBe(true);
-    // Erneut setzen, damit parallele Test-Suites (z. B. admin.test updateMany) den Admin nicht überschreiben
-    await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
-    expect(await canWrite(prisma, adminId, docProcessId)).toBe(true);
+    // Update + Prüfung in einer Transaktion, damit parallele Suites (z. B. admin.test updateMany) den Admin nicht überschreiben
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+      expect(await canRead(tx, adminId, docProcessId)).toBe(true);
+    });
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+      expect(await canWrite(tx, adminId, docProcessId)).toBe(true);
+    });
   });
 
   it('deleted User → canRead/canWrite false', async () => {
@@ -240,9 +254,9 @@ describe('Permissions (canRead, canWrite)', () => {
     expect(await canRead(prisma, supervisorId, docProcessId)).toBe(true);
   });
 
-  it('UserSpace-Owner → canRead/canWrite true', async () => {
-    expect(await canRead(prisma, userSpaceOwnerId, docUserSpaceId)).toBe(true);
-    expect(await canWrite(prisma, userSpaceOwnerId, docUserSpaceId)).toBe(true);
+  it('Personal process owner (ownerUserId) → canRead/canWrite true', async () => {
+    expect(await canRead(prisma, personalOwnerUserId, docPersonalId)).toBe(true);
+    expect(await canWrite(prisma, personalOwnerUserId, docPersonalId)).toBe(true);
   });
 
   it('Expliziter Grant User Read → canRead true', async () => {
@@ -281,8 +295,8 @@ describe('Permissions (canRead, canWrite)', () => {
       expect(await canDeleteDocument(prisma, supervisorId, docProcessId)).toBe(true);
     });
 
-    it('UserSpace-Owner → canDeleteDocument true für Dokument im Space', async () => {
-      expect(await canDeleteDocument(prisma, userSpaceOwnerId, docUserSpaceId)).toBe(true);
+    it('Personal process owner (ownerUserId) → canDeleteDocument true for document in personal context', async () => {
+      expect(await canDeleteDocument(prisma, personalOwnerUserId, docPersonalId)).toBe(true);
     });
 
     it('nur Writer-Grant (kein Lead) → canWrite true, canDeleteDocument false', async () => {
@@ -319,14 +333,11 @@ describe('requireDocumentAccess (GET /api/v1/documents/:documentId)', () => {
       },
     });
     userId = user.id;
+    const owner = await prisma.owner.create({ data: { ownerUserId: userId } });
     const ctx = await prisma.context.create({ data: {} });
     contextId = ctx.id;
-    await prisma.userSpace.create({
-      data: {
-        name: 'Test Space',
-        contextId: ctx.id,
-        ownerUserId: userId,
-      },
+    await prisma.process.create({
+      data: { name: 'Test Personal Process', contextId: ctx.id, ownerId: owner.id },
     });
     const doc = await prisma.document.create({
       data: { title: 'Test Doc', content: '', contextId: ctx.id },
@@ -337,7 +348,12 @@ describe('requireDocumentAccess (GET /api/v1/documents/:documentId)', () => {
   afterAll(async () => {
     if (documentId) await prisma.document.deleteMany({ where: { id: documentId } });
     if (userId) {
-      await prisma.userSpace.deleteMany({ where: { ownerUserId: userId } });
+      const proc = await prisma.process.findFirst({
+        where: { owner: { ownerUserId: userId } },
+        select: { id: true },
+      });
+      if (proc) await prisma.process.deleteMany({ where: { id: proc.id } });
+      await prisma.owner.deleteMany({ where: { ownerUserId: userId } });
       await prisma.session.deleteMany({ where: { userId } });
       await prisma.user.deleteMany({ where: { id: userId } });
     }

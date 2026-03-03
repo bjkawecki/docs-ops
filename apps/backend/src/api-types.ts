@@ -13,6 +13,5 @@ export type {
   Tag,
   Context,
   Subcontext,
-  UserSpace,
   Owner,
 } from '../generated/prisma/client.js';

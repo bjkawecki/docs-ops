@@ -1,7 +1,7 @@
 // Abschnitt 2: Datenmodell – Organisation, Kontexte, Dokumente, Rechte
 // Entwurf: docs/plan/Prisma-Schema-Entwurf.md
-// Kontexte getrennt (Process, Project, Subcontext, UserSpace). Owner für Process/Project (genau einer).
-// Context: genau ein Kontext pro Document (Schema). Löschung Kontext → Process/Project/Subcontext/UserSpace + Documents cascade.
+// Kontexte getrennt (Process, Project, Subcontext). Owner für Process/Project (genau einer: Company, Department, Team oder User).
+// Context: genau ein Kontext pro Document (Schema). Löschung Kontext → Process/Project/Subcontext + Documents cascade.
 
 generator client {
   provider = "prisma-client"
@@ -67,8 +67,8 @@ model TeamLead {
 }
 
 /// Nutzer: Mitglied in Teams (TeamMember), optional Team Lead (TeamLead). isAdmin: sieht alles, legt Struktur an, fügt User hinzu.
-/// Kann Nutzerspaces besitzen; erhält explizite Zugriffsrechte über DocumentGrantUser. email/externalId für Auth/SSO.
-/// passwordHash nur für lokalen Login; SSO-Nutzer (externalId) brauchen keins.
+/// Kann Prozesse/Projekte als Owner besitzen (Owner.ownerUserId); erhält explizite Zugriffsrechte über DocumentGrantUser.
+/// email/externalId für Auth/SSO. passwordHash nur für lokalen Login; SSO-Nutzer (externalId) brauchen keins.
 model User {
   id                    String       @id @default(cuid())
   name                  String
@@ -82,7 +82,7 @@ model User {
   leadOfTeams           TeamLead[]
   departmentLeads       DepartmentLead[]
   companyLeads          CompanyLead[]
-  userSpaces            UserSpace[]
+  ownedContexts         Owner[]      @relation("OwnerUser")
   documentGrantUser     DocumentGrantUser[]
   sessions              Session[]
 }
@@ -117,20 +117,22 @@ model CompanyLead {
 }
 
 /// Owner-Abstraktion: Prozess/Projekt haben genau einen Owner (Schema: ownerId).
-/// Inhaltlich genau einer: Company, Abteilung oder Team (companyId, departmentId bzw. teamId gesetzt, App-Validierung).
+/// Inhaltlich genau einer: Company, Abteilung, Team oder User (companyId, departmentId, teamId bzw. ownerUserId gesetzt, App-Validierung).
 model Owner {
   id             String    @id @default(cuid())
   companyId      String?
   departmentId   String?
   teamId         String?
+  ownerUserId    String?
   company        Company?    @relation("OwnerCompany", fields: [companyId], references: [id], onDelete: Restrict)
   department     Department? @relation("OwnerDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
   team           Team?      @relation("OwnerTeam", fields: [teamId], references: [id], onDelete: Restrict)
+  ownerUser      User?      @relation("OwnerUser", fields: [ownerUserId], references: [id], onDelete: Cascade)
   processes      Process[]
   projects       Project[]
 }
 
-// --- Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext; vgl. Konzept §3) ---
+// --- Kontexte (Projekt, Prozess, Unterkontext; vgl. Konzept §3) ---
 
 /// Abstraktion „ein Kontext“: Jeder Kontexttyp hat genau eine Context-Zeile.
 /// Document hat Pflicht-FK contextId → genau ein Kontext im Schema. Löschen der Context-Zeile löscht den Kontexttyp und alle Documents (Cascade).
@@ -139,7 +141,6 @@ model Context {
   process     Process?
   project     Project?
   subcontext  Subcontext?
-  userSpace   UserSpace?
   documents   Document[]
 }
 
@@ -183,18 +184,6 @@ model Subcontext {
   project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-}
-
-/// Nutzerspace: persönlicher Kontext eines Nutzers. Dokumente optional für andere Nutzer/Teams/Abteilungen freigegeben.
-model UserSpace {
-  id          String    @id @default(cuid())
-  name        String
-  contextId   String    @unique
-  context     Context   @relation(fields: [contextId], references: [id], onDelete: Cascade)
-  ownerUserId String
-  owner       User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
 }
 
 // --- Dokumente und Tags ---

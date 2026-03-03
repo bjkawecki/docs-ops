@@ -6,8 +6,8 @@ Kurzfassung: Wie die Plattform Inhalte und Rechte handhabt. Details zu Konzept u
 
 ## 1. Markdown als zentrales Format
 
-- Dokumentation (Prozesse, Projekte, Nutzerspace) wird als **Markdown** in der Plattform gepflegt.
-- Dokumente liegen in der **Datenbank** der App; sie gehören genau einem Kontext (Projekt, Prozess, Nutzerspace oder Unterkontext).
+- Dokumentation (Prozesse, Projekte, persönliche Kontexte) wird als **Markdown** in der Plattform gepflegt.
+- Dokumente liegen in der **Datenbank** der App; sie gehören genau einem Kontext (Projekt, Prozess oder Unterkontext).
 - Vorteile: einheitliches Format, versionierbar (geplant: Snapshots/Drafts), portabel, gut lesbar und editierbar.
 
 ---

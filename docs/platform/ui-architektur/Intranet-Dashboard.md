@@ -6,19 +6,19 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 
 ## 1. Hauptbereiche
 
-| Route                       | Inhalt                                                                 |
-| --------------------------- | ---------------------------------------------------------------------- |
-| `/`                         | Home / Dashboard                                                       |
-| `/catalog`                  | Einstieg für alle Dokumente (Tabelle, filter- und suchbar)             |
-| `/team`                     | Einstieg Team (eigenes Team; rollenabhängig)                           |
-| `/team/:teamId`             | Team-Kontext (Projekte, Prozesse, Dokumente)                           |
-| `/department`               | Abteilung(en) (rollenabhängig: ein Department oder aufklappbare Liste) |
-| `/department/:departmentId` | Abteilungs-Kontext                                                     |
-| `/company`                  | Firma / Company                                                        |
-| `/personal`                 | Eigener Nutzerspace                                                    |
-| `/shared`                   | Geteilte Kontexte (Dokumente/Kontexte mit Grant für den Nutzer)        |
-| `/settings`                 | Profil, Account, Theme, Sessions, DocsOps-Identity                     |
-| `/admin`                    | Admin-Bereich (nur für Admins): Nutzer, Teams, Organisation            |
+| Route                       | Inhalt                                                                  |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `/`                         | Home / Dashboard                                                        |
+| `/catalog`                  | Einstieg für alle Dokumente (Tabelle, filter- und suchbar)              |
+| `/team`                     | Einstieg Team (eigenes Team; rollenabhängig)                            |
+| `/team/:teamId`             | Team-Kontext (Projekte, Prozesse, Dokumente)                            |
+| `/department`               | Abteilung(en) (rollenabhängig: ein Department oder aufklappbare Liste)  |
+| `/department/:departmentId` | Abteilungs-Kontext                                                      |
+| `/company`                  | Firma / Company                                                         |
+| `/personal`                 | Persönlicher Bereich (Prozesse, Projekte, Dokumente mit Owner = Nutzer) |
+| `/shared`                   | Geteilte Kontexte (Dokumente/Kontexte mit Grant für den Nutzer)         |
+| `/settings`                 | Profil, Account, Theme, Sessions, DocsOps-Identity                      |
+| `/admin`                    | Admin-Bereich (nur für Admins): Nutzer, Teams, Organisation             |
 
 ---
 

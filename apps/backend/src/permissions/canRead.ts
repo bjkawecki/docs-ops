@@ -52,7 +52,7 @@ function getContextOwnerCompanyId(doc: DocumentForPermission): string | null {
   return owner?.companyId ?? null;
 }
 
-/** Ermittelt den Department-Owner (departmentId oder team.departmentId) des Dokument-Kontexts (Process/Project/Subcontext, kein UserSpace). */
+/** Returns the department id of the document context owner (Process/Project/Subcontext). */
 function getContextOwnerDepartmentId(doc: DocumentForPermission): string | null {
   const ctx = doc.context;
   if (ctx.process?.owner) {
@@ -96,30 +96,29 @@ export async function canRead(
   // 1. isAdmin
   if (user.isAdmin) return true;
 
-  // 2. Company Lead (Kontexte mit Company-Owner)
-  if (doc.context.userSpace === null) {
-    const ownerCompanyId = getContextOwnerCompanyId(doc);
-    if (ownerCompanyId !== null) {
-      const isCompanyLead = user.companyLeads.some((c) => c.companyId === ownerCompanyId);
-      if (isCompanyLead) return true;
-    }
+  // 2. Owner of personal context (process/project with ownerUserId)
+  const owner =
+    doc.context.process?.owner ??
+    doc.context.project?.owner ??
+    doc.context.subcontext?.project?.owner ??
+    null;
+  if (owner?.ownerUserId === userId) return true;
+
+  // 3. Company Lead (contexts with company owner)
+  const ownerCompanyId = getContextOwnerCompanyId(doc);
+  if (ownerCompanyId !== null) {
+    const isCompanyLead = user.companyLeads.some((c) => c.companyId === ownerCompanyId);
+    if (isCompanyLead) return true;
   }
 
-  // 3. Department Lead (nur Kontexte mit Department/Team-Owner, kein UserSpace)
-  if (doc.context.userSpace === null) {
-    const ownerDeptId = getContextOwnerDepartmentId(doc);
-    if (ownerDeptId !== null) {
-      const isDeptLead = user.departmentLeads.some((d) => d.departmentId === ownerDeptId);
-      if (isDeptLead) return true;
-    }
+  // 4. Department Lead (contexts with department/team owner)
+  const ownerDeptId = getContextOwnerDepartmentId(doc);
+  if (ownerDeptId !== null) {
+    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === ownerDeptId);
+    if (isDeptLead) return true;
   }
 
-  // 4. UserSpace-Owner
-  if (doc.context.userSpace && doc.context.userSpace.ownerUserId === userId) {
-    return true;
-  }
-
-  // 5. Explizite Grants
+  // 5. Explicit grants
   const userTeamIds = new Set(user.teamMemberships.map((m) => m.team.id));
   const userDepartmentIds = new Set([
     ...user.teamMemberships.map((m) => m.team.departmentId),

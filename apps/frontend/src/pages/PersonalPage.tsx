@@ -1,16 +1,23 @@
-import { Button, Card, Group, Modal, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
-import { RecentItemsCard } from '../components/contexts';
+import {
+  ContextCard,
+  ContextGrid,
+  EditContextNameModal,
+  NewContextModal,
+  RecentItemsCard,
+} from '../components/contexts';
 import { notifications } from '@mantine/notifications';
 
-type UserSpaceItem = { id: string; name: string; context?: { id: string } };
+type ProcessItem = { id: string; name: string; contextId: string };
+type ProjectItem = { id: string; name: string; contextId: string };
 type DocItem = {
   id: string;
   title: string;
@@ -23,25 +30,46 @@ const PERSONAL_SCOPE = { type: 'personal' as const };
 
 export function PersonalPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [newSpaceName, setNewSpaceName] = useState('');
+  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [editTarget, setEditTarget] = useState<{
+    id: string;
+    name: string;
+    type: 'process' | 'project';
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    type: 'process' | 'project';
+  } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   useMe();
 
   const personalScope = PERSONAL_SCOPE;
   const { items: recentItems } = useRecentItems(personalScope);
 
-  const { data: userSpacesRes, isPending: spacesPending } = useQuery({
-    queryKey: ['user-spaces'],
+  const queryParams = 'limit=50&offset=0&ownerUserId=me';
+
+  const { data: processesData, isPending: processesPending } = useQuery({
+    queryKey: ['processes', 'personal'],
     queryFn: async () => {
-      const res = await apiFetch('/api/v1/user-spaces?limit=100&offset=0');
-      if (!res.ok) throw new Error('Failed to load spaces');
-      return (await res.json()) as { items: UserSpaceItem[]; total: number };
+      const res = await apiFetch(`/api/v1/processes?${queryParams}`);
+      if (!res.ok) throw new Error('Failed to load processes');
+      const data = (await res.json()) as { items: ProcessItem[] };
+      return data.items;
+    },
+  });
+
+  const { data: projectsData, isPending: projectsPending } = useQuery({
+    queryKey: ['projects', 'personal'],
+    queryFn: async () => {
+      const res = await apiFetch(`/api/v1/projects?${queryParams}`);
+      if (!res.ok) throw new Error('Failed to load projects');
+      const data = (await res.json()) as { items: ProjectItem[] };
+      return data.items;
     },
   });
 
   const { data: personalDocsRes, isPending: docsPending } = useQuery({
-    queryKey: ['me', 'personal-documents'],
+    queryKey: [meQueryKey, 'personal-documents'],
     queryFn: async () => {
       const res = await apiFetch('/api/v1/me/personal-documents?limit=50&offset=0');
       if (!res.ok) throw new Error('Failed to load documents');
@@ -49,48 +77,63 @@ export function PersonalPage() {
     },
   });
 
-  const createSpaceMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiFetch('/api/v1/user-spaces', {
-        method: 'POST',
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err?.error ?? res.statusText);
-      }
-      return (await res.json()) as UserSpaceItem;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['user-spaces'] });
-      void queryClient.invalidateQueries({ queryKey: meQueryKey });
-      closeCreate();
-      setNewSpaceName('');
-      notifications.show({
-        title: 'Space created',
-        message: 'Your personal space was created.',
-        color: 'green',
-      });
-    },
-    onError: (e: Error) => {
-      notifications.show({
-        title: 'Error',
-        message: e.message,
-        color: 'red',
-      });
-    },
-  });
+  const invalidateContexts = () => {
+    void queryClient.invalidateQueries({ queryKey: ['processes', 'personal'] });
+    void queryClient.invalidateQueries({ queryKey: ['projects', 'personal'] });
+    void queryClient.invalidateQueries({ queryKey: [meQueryKey, 'personal-documents'] });
+  };
 
-  const userSpaces = userSpacesRes?.items ?? [];
+  const handleEditSuccess = () => {
+    invalidateContexts();
+    setEditTarget(null);
+    notifications.show({
+      title: 'Saved',
+      message: 'Name was updated.',
+      color: 'green',
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    const endpoint = deleteTarget.type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
+    try {
+      const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
+      if (res.status === 204) {
+        invalidateContexts();
+        setDeleteTarget(null);
+        notifications.show({
+          title: 'Deleted',
+          message: 'Context was deleted.',
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const processes = processesData ?? [];
+  const projects = projectsData ?? [];
   const personalDocs = personalDocsRes?.items ?? [];
-  const spacesPreview = userSpaces.slice(0, 5);
+  const processesPreview = processes.slice(0, 5);
+  const projectsPreview = projects.slice(0, 5);
   const docsPreview = personalDocs.slice(0, 5);
 
   const tabs = [
     { value: 'overview', label: 'Overview' },
-    { value: 'spaces', label: 'Spaces' },
+    { value: 'processes', label: 'Processes' },
+    { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
   ];
+  const [activeTab, setActiveTab] = useState(tabs[0].value);
 
   const overviewPanel = (
     <Stack gap="md">
@@ -99,27 +142,56 @@ export function PersonalPage() {
         <Card withBorder padding="md">
           <Stack gap="xs">
             <Text fw={600} size="sm">
-              My spaces
+              Processes
             </Text>
-            {spacesPreview.length === 0 ? (
+            {processesPreview.length === 0 ? (
               <Text size="sm" c="dimmed">
-                No spaces yet.
+                No processes yet.
               </Text>
             ) : (
               <Stack gap={4}>
-                {spacesPreview.map((s) => (
+                {processesPreview.map((p) => (
                   <Link
-                    key={s.id}
-                    to={`/user-spaces/${s.id}`}
+                    key={p.id}
+                    to={`/processes/${p.id}`}
                     style={{ fontSize: 'var(--mantine-font-size-sm)' }}
                   >
-                    {s.name}
+                    {p.name}
                   </Link>
                 ))}
               </Stack>
             )}
             <Group justify="flex-end" mt="xs">
-              <Button variant="subtle" size="xs" onClick={() => setActiveTab('spaces')}>
+              <Button variant="subtle" size="xs" onClick={() => setActiveTab('processes')}>
+                View more
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+        <Card withBorder padding="md">
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Projects
+            </Text>
+            {projectsPreview.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No projects yet.
+              </Text>
+            ) : (
+              <Stack gap={4}>
+                {projectsPreview.map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/projects/${p.id}`}
+                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                  >
+                    {p.name}
+                  </Link>
+                ))}
+              </Stack>
+            )}
+            <Group justify="flex-end" mt="xs">
+              <Button variant="subtle" size="xs" onClick={() => setActiveTab('projects')}>
                 View more
               </Button>
             </Group>
@@ -158,30 +230,66 @@ export function PersonalPage() {
     </Stack>
   );
 
-  const spacesPanel = (
+  const processesPanel = (
     <Stack gap="md">
-      {spacesPending ? (
+      {processesPending ? (
         <Card withBorder padding="md">
           <Text size="sm" c="dimmed">
-            Loading spaces…
+            Loading processes…
           </Text>
         </Card>
-      ) : userSpaces.length === 0 ? (
+      ) : processes.length === 0 ? (
         <Card withBorder padding="md">
           <Text size="sm" c="dimmed">
-            No spaces yet. Use "Create space" to add one.
+            No processes yet. Use "Create" to add one.
           </Text>
         </Card>
       ) : (
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-          {userSpaces.map((s) => (
-            <Card key={s.id} withBorder padding="md" component={Link} to={`/user-spaces/${s.id}`}>
-              <Text fw={600} size="md">
-                {s.name}
-              </Text>
-            </Card>
+        <ContextGrid>
+          {processes.map((p) => (
+            <ContextCard
+              key={p.id}
+              title={p.name}
+              type="process"
+              href={`/processes/${p.id}`}
+              canManage
+              onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
+              onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
+            />
           ))}
-        </SimpleGrid>
+        </ContextGrid>
+      )}
+    </Stack>
+  );
+
+  const projectsPanel = (
+    <Stack gap="md">
+      {projectsPending ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            Loading projects…
+          </Text>
+        </Card>
+      ) : projects.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No projects yet. Use "Create" to add one.
+          </Text>
+        </Card>
+      ) : (
+        <ContextGrid>
+          {projects.map((p) => (
+            <ContextCard
+              key={p.id}
+              title={p.name}
+              type="project"
+              href={`/projects/${p.id}`}
+              canManage
+              onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
+              onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
+            />
+          ))}
+        </ContextGrid>
       )}
     </Stack>
   );
@@ -197,7 +305,7 @@ export function PersonalPage() {
       ) : personalDocs.length === 0 ? (
         <Card withBorder padding="md">
           <Text size="sm" c="dimmed">
-            No documents in your spaces yet.
+            No documents in your processes or projects yet.
           </Text>
         </Card>
       ) : (
@@ -218,41 +326,60 @@ export function PersonalPage() {
     <>
       <PageWithTabs
         title="Personal"
-        description="Your personal documentation spaces and documents."
+        description="Your personal processes, projects and documents."
         actions={
-          <Button variant="light" size="sm" onClick={openCreate}>
-            Create space
+          <Button variant="light" size="sm" onClick={openModal}>
+            Create
           </Button>
         }
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >
-        {[overviewPanel, spacesPanel, documentsPanel]}
+        {[overviewPanel, processesPanel, projectsPanel, documentsPanel]}
       </PageWithTabs>
 
-      <Modal opened={createOpened} onClose={closeCreate} title="Create space" size="sm">
-        <Stack gap="md">
-          <TextInput
-            label="Name"
-            placeholder="Space name"
-            value={newSpaceName}
-            onChange={(e) => setNewSpaceName(e.currentTarget.value)}
-            maxLength={255}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeCreate}>
-              Cancel
-            </Button>
-            <Button
-              disabled={!newSpaceName.trim()}
-              loading={createSpaceMutation.isPending}
-              onClick={() => createSpaceMutation.mutate(newSpaceName)}
-            >
-              Create
-            </Button>
-          </Group>
-        </Stack>
+      <NewContextModal
+        opened={modalOpened}
+        onClose={closeModal}
+        scope={PERSONAL_SCOPE}
+        onSuccess={invalidateContexts}
+      />
+
+      {editTarget != null && (
+        <EditContextNameModal
+          opened
+          onClose={() => setEditTarget(null)}
+          type={editTarget.type}
+          contextId={editTarget.id}
+          currentName={editTarget.name}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+
+      <Modal
+        opened={deleteTarget != null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete context"
+        centered
+      >
+        <Text size="sm" c="dimmed" mb="md">
+          This context and related data will be permanently deleted. Continue?
+        </Text>
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" onClick={() => setDeleteTarget(null)}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={deleteLoading}
+            onClick={() => {
+              void handleDeleteConfirm();
+            }}
+          >
+            Delete
+          </Button>
+        </Group>
       </Modal>
     </>
   );

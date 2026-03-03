@@ -10,7 +10,7 @@ Einheitliche Beschreibung des Rechtesystems: Konzeption (Grundprinzipien, Units,
 
 Das Rechtesystem basiert auf einer hierarchischen Organisationsstruktur.
 
-- Dokumente gehören genau einem Kontext (Projekt, Prozess, Nutzerspace oder Unterkontext).
+- Dokumente gehören genau einem Kontext (Projekt, Prozess oder Unterkontext).
 - Kontexte gehören genau einer organisatorischen Einheit (Unit).
 
 **Prinzipien:**
@@ -47,7 +47,7 @@ Company
 - Ownership ist eindeutig (keine Mehrfach-Owner).
 - Ownership bestimmt nicht automatisch Leserechte quer.
 
-**Nutzerspaces** sind persönliche Kontexte (User-Scope). Sie sind **standardmäßig privat**; Zugriff nur für den Besitzer oder über explizite Lese-/Schreib-Grants.
+**Persönliche Kontexte** (User-Scope): Prozesse und Projekte mit Owner = Nutzer (Owner.ownerUserId). Sie sind **standardmäßig privat**; Zugriff nur für den Besitzer oder über explizite Lese-/Schreib-Grants.
 
 ---
 
@@ -76,7 +76,7 @@ Leserechte werden nach oben vererbt.
 
 **Keine Quer-Vererbung:** Team A kann Team B nicht lesen.
 
-**Nutzerspaces:** Immer privat, sofern kein expliziter Lese-Grant. Weder Company Lead noch Department Lead erhalten automatisch Leserecht auf Nutzerspaces.
+**Persönliche Kontexte (ownerUserId):** Immer privat, sofern kein expliziter Lese-Grant. Weder Company Lead noch Department Lead erhalten automatisch Leserecht auf persönliche Prozesse/Projekte.
 
 ---
 
@@ -86,7 +86,7 @@ Schreibrechte sind nicht vererbbar.
 
 **Regel:** Ein Nutzer darf ein Dokument **bearbeiten** (Inhalt ändern), wenn er Lead der Owner-Unit ist **oder** explizit Schreibrechte (Writer-Grant) auf diesem Dokument erhalten hat. Keine automatische Schreibvererbung nach oben oder unten.
 
-**Erstellen und Löschen** (Dokumente anlegen oder löschen, Kontexte anlegen oder löschen) sind **nur** dem **Scope-Lead** (und Admin, UserSpace-Owner) vorbehalten. Ein expliziter Writer-Grant berechtigt **nicht** zum Erstellen oder Löschen.
+**Erstellen und Löschen** (Dokumente anlegen oder löschen, Kontexte anlegen oder löschen) sind **nur** dem **Scope-Lead** (und Admin, Owner von persönlichem Prozess/Projekt via ownerUserId) vorbehalten. Ein expliziter Writer-Grant berechtigt **nicht** zum Erstellen oder Löschen.
 
 **Beispiel:** Department-Lead kann Team-Dokument lesen, aber nicht bearbeiten (außer über expliziten Grant). Ein Nutzer mit nur Writer-Grant darf das Dokument bearbeiten, aber nicht löschen.
 
@@ -96,13 +96,13 @@ Schreibrechte sind nicht vererbbar.
 
 - **Reader:** Expliziter Lese-Grant (GrantRole Read). Berechtigt zum Lesen des Dokuments.
 - **Writer:** Expliziter Schreib-Grant (GrantRole Write). Berechtigt zur **Bearbeitung** des Dokumentinhalts; **nicht** zum Anlegen oder Löschen von Dokumenten oder Kontexten.
-- **Create/Delete:** Dokumente und Kontexte anlegen oder löschen dürfen nur **Scope-Lead** (Team Lead, Department Lead, Company Lead je nach Owner-Unit), Admin und UserSpace-Owner.
+- **Create/Delete:** Dokumente und Kontexte anlegen oder löschen dürfen nur **Scope-Lead** (Team Lead, Department Lead, Company Lead je nach Owner-Unit), Admin und Owner von persönlichem Prozess/Projekt (ownerUserId).
 
 ---
 
 ### 7. Company-Level (Governance)
 
-Company-Lead besitzt **Leserecht auf alle Kontexte** – mit Ausnahme von Nutzerspaces, die standardmäßig privat sind.
+Company-Lead besitzt **Leserecht auf alle Kontexte** – mit Ausnahme von persönlichen Kontexten (Prozesse/Projekte mit ownerUserId), die standardmäßig privat sind.
 
 - Leserecht auf alle Prozesse, Projekte und Unterkontexte (unabhängig von Owner-Unit).
 - Kein automatisches globales Schreibrecht; Schreiben nur bei Company-Owner-Kontexten oder explizitem Grant.
@@ -117,7 +117,7 @@ Company-Lead besitzt **Leserecht auf alle Kontexte** – mit Ausnahme von Nutzer
 3. Keine Quer-Transparenz
 4. Schreibrechte lokal
 5. Company als Governance-Layer
-6. Nutzerspaces standardmäßig privat
+6. Persönliche Kontexte (ownerUserId) standardmäßig privat
 
 **Mentales Modell:** Team = operative Einheit, Department = koordinierende Einheit, Company = Governance-Ebene. Transparenz nach oben, Autonomie nach unten, keine seitlichen Leaks.
 
@@ -127,7 +127,7 @@ Company-Lead besitzt **Leserecht auf alle Kontexte** – mit Ausnahme von Nutzer
 
 ## Teil II – Rechteableitung (Implementierung)
 
-Der Zugriff wird über **explizite Zuweisung** (Grants) und **abgeleitete Rollen** (isAdmin, Company Lead, Department Lead, Team Lead, UserSpace-Owner) bestimmt. Im Schema: DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment mit `GrantRole` (Read oder Write). Technisch: Department Lead = DepartmentLead, Team Lead = TeamLead, Company Lead = CompanyLead.
+Der Zugriff wird über **explizite Zuweisung** (Grants) und **abgeleitete Rollen** (isAdmin, Company Lead, Department Lead, Team Lead, Owner von persönlichem Prozess/Projekt via ownerUserId) bestimmt. Im Schema: DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment mit `GrantRole` (Read oder Write). Technisch: Department Lead = DepartmentLead, Team Lead = TeamLead, Company Lead = CompanyLead.
 
 ### Voraussetzungen
 
@@ -142,16 +142,16 @@ Ein Nutzer hat Leserecht auf ein Dokument, wenn eine der folgenden Bedingungen z
 
 1. **isAdmin:** Leserecht auf alle Dokumente (und typischerweise Schreibrecht).
 
-2. **Company Lead:** Der Nutzer ist Company Lead einer Firma. **Zielmodell:** Leserecht auf alle Dokumente in Organisations-Kontexten (Prozesse, Projekte, Unterkontexte) – unabhängig davon, ob Owner Company, Department oder Team ist. **Kein** Leserecht auf Nutzerspaces (Nutzerspaces immer privat, sofern kein expliziter Grant).  
+2. **Company Lead:** Der Nutzer ist Company Lead einer Firma. **Zielmodell:** Leserecht auf alle Dokumente in Organisations-Kontexten (Prozesse, Projekte, Unterkontexte) – unabhängig davon, ob Owner Company, Department oder Team ist. **Kein** Leserecht auf persönliche Kontexte (Prozesse/Projekte mit ownerUserId; immer privat, sofern kein expliziter Grant).  
    _Hinweis: Aktuell prüft die Implementierung für Company Lead nur Kontexte mit Company-Owner; die Erweiterung auf alle Organisations-Kontexte ist vorgesehen._
 
-3. **Department Lead:** Leserecht auf alle Dokumente in Kontexten, die seiner Abteilung oder einem ihrer Teams als Owner gehören (Prozesse, Projekte, Unterkontexte). Kein Leserecht auf Nutzerspaces.
+3. **Department Lead:** Leserecht auf alle Dokumente in Kontexten, die seiner Abteilung oder einem ihrer Teams als Owner gehören (Prozesse, Projekte, Unterkontexte). Kein Leserecht auf persönliche Kontexte (ownerUserId).
 
-4. **UserSpace-Owner:** Das Dokument gehört zu einem Nutzerspace, dessen Besitzer der Nutzer ist; dann Leserecht (und Schreibrecht).
+4. **Owner von persönlichem Prozess/Projekt (ownerUserId):** Das Dokument gehört zu einem Prozess oder Projekt, dessen Owner der Nutzer ist (Owner.ownerUserId); dann Leserecht (und Schreibrecht).
 
 5. **Explizite Grants:** Dokument dem Nutzer (DocumentGrantUser Read), einem seiner Teams als Mitglied (DocumentGrantTeam Read) oder seiner Abteilung (DocumentGrantDepartment Read) zugestanden.
 
-Prüfreihenfolge: isAdmin und deletedAt → Company Lead → Department Lead → UserSpace-Owner → explizite Grants.
+Prüfreihenfolge: isAdmin und deletedAt → Company Lead → Department Lead → Owner persönlicher Kontext (ownerUserId) → explizite Grants.
 
 ---
 
@@ -163,7 +163,7 @@ Ein Nutzer hat Schreibrecht auf ein Dokument, wenn:
 
 1. **isAdmin:** Schreibrecht auf alle Dokumente.
 
-2. **UserSpace-Owner:** Besitzer des Nutzerspaces; Schreibrecht auf alle Dokumente in diesem Space.
+2. **Owner von persönlichem Prozess/Projekt (ownerUserId):** Besitzer des Kontexts; Schreibrecht auf alle Dokumente in diesem Prozess/Projekt.
 
 3. **Explizite Grants:** DocumentGrantUser mit Write; DocumentGrantTeam mit Write nur, wenn Nutzer **Team Lead** dieses Teams ist; DocumentGrantDepartment mit Write für Nutzer dieser Abteilung.
 
@@ -171,7 +171,7 @@ Ein Nutzer hat Schreibrecht auf ein Dokument, wenn:
 
 ### Löschen (Dokument)
 
-Ein Nutzer darf ein Dokument (Soft-Delete) nur löschen, wenn er **Scope-Lead** des zugehörigen Kontexts ist (bzw. isAdmin oder UserSpace-Owner). Ein **expliziter Writer-Grant** berechtigt **nicht** zum Löschen. Implementierung: `canDeleteDocument(prisma, userId, documentId)` – entspricht der Prüfung, ob der Nutzer den Kontext schreiben darf (`canWriteContext` auf den Kontext des Dokuments).
+Ein Nutzer darf ein Dokument (Soft-Delete) nur löschen, wenn er **Scope-Lead** des zugehörigen Kontexts ist (bzw. isAdmin oder Owner von persönlichem Prozess/Projekt via ownerUserId). Ein **expliziter Writer-Grant** berechtigt **nicht** zum Löschen. Implementierung: `canDeleteDocument(prisma, userId, documentId)` – entspricht der Prüfung, ob der Nutzer den Kontext schreiben darf (`canWriteContext` auf den Kontext des Dokuments).
 
 ---
 

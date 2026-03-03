@@ -2,9 +2,9 @@ import type { PrismaClient } from '../../generated/prisma/client.js';
 import { canWriteContext } from './contextPermissions.js';
 
 /**
- * Prüft, ob der Nutzer das Dokument löschen darf (vgl. Rechtesystem).
- * Nur Scope-Lead (und Admin, UserSpace-Owner) – expliziter Writer-Grant berechtigt nicht.
- * Implementierung: gleiche Prüfung wie für den Kontext (canWriteContext).
+ * Checks if the user may delete the document (see Rechtesystem).
+ * Only scope lead (and admin, owner of personal process/project via ownerUserId) – explicit writer grant does not suffice.
+ * Implementation: same check as for context (canWriteContext).
  */
 export async function canDeleteDocument(
   prisma: PrismaClient,

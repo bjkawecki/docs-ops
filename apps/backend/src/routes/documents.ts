@@ -48,8 +48,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       contextConditions.push({
         OR: [{ project: { isNot: null } }, { subcontext: { isNot: null } }],
       });
-    } else if (query.contextType === 'userSpace') {
-      contextConditions.push({ userSpace: { isNot: null } });
     }
     if (query.companyId) {
       contextConditions.push({
@@ -107,6 +105,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
                   company: { select: { name: true } },
                   department: { select: { name: true } },
                   team: { select: { name: true } },
+                  ownerUserId: true,
+                  ownerUser: { select: { name: true } },
                 },
               },
             },
@@ -120,6 +120,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
                   company: { select: { name: true } },
                   department: { select: { name: true } },
                   team: { select: { name: true } },
+                  ownerUserId: true,
+                  ownerUser: { select: { name: true } },
                 },
               },
             },
@@ -137,17 +139,12 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
                       company: { select: { name: true } },
                       department: { select: { name: true } },
                       team: { select: { name: true } },
+                      ownerUserId: true,
+                      ownerUser: { select: { name: true } },
                     },
                   },
                 },
               },
-            },
-          },
-          userSpace: {
-            select: {
-              id: true,
-              name: true,
-              owner: { select: { name: true } },
             },
           },
         },
@@ -167,35 +164,41 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
 
     const mapped = items.map((doc) => {
       const ctx = doc.context;
-      let contextType: 'process' | 'project' | 'userSpace' = 'process';
+      let contextType: 'process' | 'project' = 'process';
       let contextName = '';
       let ownerDisplay = 'Personal';
       let contextProcessId: string | null = null;
       let contextProjectId: string | null = null;
-      let contextUserSpaceId: string | null = null;
       if (ctx.process) {
         contextType = 'process';
         contextName = ctx.process.name;
         contextProcessId = ctx.process.id;
         const o = ctx.process.owner;
-        ownerDisplay = o.company?.name ?? o.department?.name ?? o.team?.name ?? ownerDisplay;
+        ownerDisplay =
+          o.company?.name ??
+          o.department?.name ??
+          o.team?.name ??
+          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
       } else if (ctx.project) {
         contextType = 'project';
         contextName = ctx.project.name;
         contextProjectId = ctx.project.id;
         const o = ctx.project.owner;
-        ownerDisplay = o.company?.name ?? o.department?.name ?? o.team?.name ?? ownerDisplay;
+        ownerDisplay =
+          o.company?.name ??
+          o.department?.name ??
+          o.team?.name ??
+          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
       } else if (ctx.subcontext) {
         contextType = 'project';
         contextName = ctx.subcontext.name;
         contextProjectId = ctx.subcontext.project.id;
         const o = ctx.subcontext.project.owner;
-        ownerDisplay = o.company?.name ?? o.department?.name ?? o.team?.name ?? ownerDisplay;
-      } else if (ctx.userSpace) {
-        contextType = 'userSpace';
-        contextName = ctx.userSpace.name;
-        contextUserSpaceId = ctx.userSpace.id;
-        ownerDisplay = ctx.userSpace.owner?.name ?? 'Personal';
+        ownerDisplay =
+          o.company?.name ??
+          o.department?.name ??
+          o.team?.name ??
+          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
       }
       return {
         id: doc.id,
@@ -209,7 +212,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         ownerDisplay,
         contextProcessId,
         contextProjectId,
-        contextUserSpaceId,
       };
     });
 
@@ -291,7 +293,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
 
     const context = await prisma.context.findUnique({
       where: { id: body.contextId },
-      include: { userSpace: { select: { ownerUserId: true } } },
+      include: {
+        process: { include: { owner: { select: { ownerUserId: true } } } },
+        project: { include: { owner: { select: { ownerUserId: true } } } },
+        subcontext: {
+          include: { project: { include: { owner: { select: { ownerUserId: true } } } } },
+        },
+      },
     });
     if (!context) return reply.status(404).send({ error: 'Context not found' });
 

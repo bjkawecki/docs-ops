@@ -25,7 +25,7 @@ export async function getReadableCatalogScope(
   const uniqueDepartmentIds = [...new Set(departmentIds)];
 
   if (user.isAdmin) {
-    const [processes, projects, subcontexts, userSpaces] = await Promise.all([
+    const [processes, projects, subcontexts] = await Promise.all([
       prisma.process.findMany({
         where: { deletedAt: null },
         select: { contextId: true },
@@ -35,13 +35,11 @@ export async function getReadableCatalogScope(
         select: { contextId: true },
       }),
       prisma.subcontext.findMany({ select: { contextId: true } }),
-      prisma.userSpace.findMany({ select: { contextId: true } }),
     ]);
     const contextIds = [
       ...processes.map((p) => p.contextId),
       ...projects.map((p) => p.contextId),
       ...subcontexts.map((s) => s.contextId),
-      ...userSpaces.map((u) => u.contextId),
     ];
     return { contextIds, documentIdsFromGrants: [] };
   }
@@ -53,7 +51,9 @@ export async function getReadableCatalogScope(
   ];
 
   const [
-    userSpaceContexts,
+    personalProcessContexts,
+    personalProjectContexts,
+    personalSubcontextContexts,
     processContexts,
     projectContexts,
     subcontextContexts,
@@ -61,8 +61,16 @@ export async function getReadableCatalogScope(
     grantTeamDocs,
     grantDeptDocs,
   ] = await Promise.all([
-    prisma.userSpace.findMany({
-      where: { ownerUserId: userId },
+    prisma.process.findMany({
+      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      select: { contextId: true },
+    }),
+    prisma.project.findMany({
+      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      select: { contextId: true },
+    }),
+    prisma.subcontext.findMany({
+      where: { project: { owner: { ownerUserId: userId } } },
       select: { contextId: true },
     }),
     ownerOrConditions.length > 0
@@ -98,7 +106,9 @@ export async function getReadableCatalogScope(
   ]);
 
   const contextIds = [
-    ...userSpaceContexts.map((u) => u.contextId),
+    ...personalProcessContexts.map((p) => p.contextId),
+    ...personalProjectContexts.map((p) => p.contextId),
+    ...personalSubcontextContexts.map((s) => s.contextId),
     ...processContexts.map((p) => p.contextId),
     ...projectContexts.map((p) => p.contextId),
     ...subcontextContexts.map((s) => s.contextId),

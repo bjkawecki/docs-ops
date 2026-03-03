@@ -54,7 +54,6 @@ export type MeResponse = {
     departments: { id: string; name: string }[];
     departmentLeads: { id: string; name: string }[];
     companyLeads: { id: string; name: string }[];
-    userSpaces: { id: string; name: string }[];
   };
   preferences: UserPreferences;
   /** Nur gesetzt, wenn Admin gerade als anderer Nutzer agiert. */
@@ -91,7 +90,6 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         companyLeads: {
           include: { company: true },
         },
-        userSpaces: { select: { id: true, name: true } },
       },
     });
 
@@ -146,7 +144,6 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         departments: Array.from(departmentMap.values()),
         departmentLeads,
         companyLeads,
-        userSpaces: user.userSpaces,
       },
       preferences,
       ...(req.effectiveUserId
@@ -161,7 +158,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     return reply.send(response);
   });
 
-  /** GET /api/v1/me/personal-documents – Dokumente in den UserSpaces des Nutzers (paginiert). */
+  /** GET /api/v1/me/personal-documents – Documents in the user's personal processes/projects (paginated). */
   app.get(
     '/me/personal-documents',
     { preHandler: requireAuthPreHandler },
@@ -170,14 +167,27 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
       const query: PaginationQuery = paginationQuerySchema.parse(request.query);
 
-      const userSpaceContextIds = await prisma.userSpace
-        .findMany({
-          where: { ownerUserId: userId },
+      const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
+        prisma.process.findMany({
+          where: { deletedAt: null, owner: { ownerUserId: userId } },
           select: { contextId: true },
-        })
-        .then((rows) => rows.map((r) => r.contextId));
+        }),
+        prisma.project.findMany({
+          where: { deletedAt: null, owner: { ownerUserId: userId } },
+          select: { contextId: true },
+        }),
+        prisma.subcontext.findMany({
+          where: { project: { owner: { ownerUserId: userId } } },
+          select: { contextId: true },
+        }),
+      ]);
+      const personalContextIds = [
+        ...processContexts.map((p) => p.contextId),
+        ...projectContexts.map((p) => p.contextId),
+        ...subcontextContexts.map((s) => s.contextId),
+      ];
 
-      if (userSpaceContextIds.length === 0) {
+      if (personalContextIds.length === 0) {
         return reply.send({
           items: [],
           total: 0,
@@ -188,7 +198,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
 
       const [items, total] = await Promise.all([
         prisma.document.findMany({
-          where: { contextId: { in: userSpaceContextIds }, deletedAt: null },
+          where: { contextId: { in: personalContextIds }, deletedAt: null },
           select: {
             id: true,
             title: true,
@@ -202,7 +212,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           orderBy: { updatedAt: 'desc' },
         }),
         prisma.document.count({
-          where: { contextId: { in: userSpaceContextIds }, deletedAt: null },
+          where: { contextId: { in: personalContextIds }, deletedAt: null },
         }),
       ]);
       return reply.send({ items, total, limit: query.limit, offset: query.offset });

@@ -21,7 +21,6 @@ export type MeResponse = {
     departments: { id: string; name: string }[];
     departmentLeads: { id: string; name: string }[];
     companyLeads: { id: string; name: string }[];
-    userSpaces: { id: string; name: string }[];
   };
   preferences: {
     theme?: 'light' | 'dark' | 'auto';

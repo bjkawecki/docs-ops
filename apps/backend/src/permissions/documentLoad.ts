@@ -1,9 +1,9 @@
 import type { GrantRole } from '../../generated/prisma/client.js';
 
 /**
- * Einheitliches Include für Document-Ladungen in canRead/canWrite und requireDocumentAccess.
- * Lädt Context (process/project/subcontext/userSpace) inkl. Owner für Department-Lead-Prüfung,
- * sowie alle Grants für die Rechteableitung (vgl. docs/platform/datenmodell/Rechtesystem.md).
+ * Unified include for document loads in canRead/canWrite and requireDocumentAccess.
+ * Loads context (process/project/subcontext) with owner for lead and personal-owner checks,
+ * plus all grants (see docs/platform/datenmodell/Rechtesystem.md).
  */
 export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
   context: {
@@ -15,6 +15,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
               companyId: true,
               departmentId: true,
               teamId: true,
+              ownerUserId: true,
               team: { select: { departmentId: true } },
             },
           },
@@ -27,6 +28,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
               companyId: true,
               departmentId: true,
               teamId: true,
+              ownerUserId: true,
               team: { select: { departmentId: true } },
             },
           },
@@ -41,15 +43,13 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
                   companyId: true,
                   departmentId: true,
                   teamId: true,
+                  ownerUserId: true,
                   team: { select: { departmentId: true } },
                 },
               },
             },
           },
         },
-      },
-      userSpace: {
-        select: { ownerUserId: true },
       },
     },
   },
@@ -58,15 +58,16 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
   grantDepartment: { select: { departmentId: true, role: true } },
 } as const;
 
-/** Owner-Fragment für Company-/Department-Lead-Prüfung. */
+/** Owner fragment for lead and personal-owner checks. */
 type OwnerFragment = {
   companyId: string | null;
   departmentId: string | null;
   teamId: string | null;
+  ownerUserId: string | null;
   team: { departmentId: string } | null;
 };
 
-/** Document, geladen mit DOCUMENT_FOR_PERMISSION_INCLUDE (für canRead/canWrite). */
+/** Document loaded with DOCUMENT_FOR_PERMISSION_INCLUDE (for canRead/canWrite). */
 export type DocumentForPermission = {
   id: string;
   contextId: string;
@@ -74,7 +75,6 @@ export type DocumentForPermission = {
     process: { owner: OwnerFragment } | null;
     project: { owner: OwnerFragment } | null;
     subcontext: { project: { owner: OwnerFragment } } | null;
-    userSpace: { ownerUserId: string } | null;
   };
   grantUser: { userId: string; role: GrantRole }[];
   grantTeam: { teamId: string; role: GrantRole }[];

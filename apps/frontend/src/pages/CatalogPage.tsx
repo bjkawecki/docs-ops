@@ -30,12 +30,11 @@ type CatalogDocument = {
   createdAt: string;
   updatedAt: string;
   documentTags: { tag: { id: string; name: string } }[];
-  contextType: 'process' | 'project' | 'userSpace';
+  contextType: 'process' | 'project';
   contextName: string;
   ownerDisplay: string;
   contextProcessId: string | null;
   contextProjectId: string | null;
-  contextUserSpaceId: string | null;
 };
 type CatalogResponse = {
   items: CatalogDocument[];
@@ -59,7 +58,6 @@ function formatDate(iso: string): string {
 function contextHref(doc: CatalogDocument): string {
   if (doc.contextProcessId) return `/processes/${doc.contextProcessId}`;
   if (doc.contextProjectId) return `/projects/${doc.contextProjectId}`;
-  if (doc.contextUserSpaceId) return `/user-spaces/${doc.contextUserSpaceId}`;
   return '#';
 }
 
@@ -71,7 +69,6 @@ export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const contextType = searchParams.get('contextType') ?? '';
-  const ownerFilter = searchParams.get('owner') ?? 'all';
   const tagIds = useMemo(() => {
     const t = searchParams.get('tagIds');
     if (!t) return [];
@@ -125,16 +122,13 @@ export function CatalogPage() {
     const params = new URLSearchParams();
     params.set('limit', String(limit));
     params.set('offset', String(offset));
-    if (contextType && ['process', 'project', 'userSpace'].includes(contextType)) {
+    if (contextType && ['process', 'project'].includes(contextType)) {
       params.set('contextType', contextType);
-    }
-    if (ownerFilter === 'personal') {
-      params.set('contextType', 'userSpace');
     }
     tagIds.forEach((id) => params.append('tagIds', id));
     if (search.trim()) params.set('search', search.trim());
     return params.toString();
-  }, [limit, offset, contextType, ownerFilter, tagIds, search]);
+  }, [limit, offset, contextType, tagIds, search]);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['catalog-documents', catalogQueryParamsString],
@@ -170,21 +164,10 @@ export function CatalogPage() {
                 { value: '', label: 'All' },
                 { value: 'process', label: 'Process' },
                 { value: 'project', label: 'Project' },
-                { value: 'userSpace', label: 'User space' },
               ]}
               value={contextType || null}
               onChange={(v) => setFilter('contextType', v ?? '')}
               clearable
-            />
-            <Select
-              label="Owner"
-              placeholder="All"
-              data={[
-                { value: 'all', label: 'All' },
-                { value: 'personal', label: 'Personal' },
-              ]}
-              value={ownerFilter}
-              onChange={(v) => setFilter('owner', v ?? 'all')}
             />
             <MultiSelect
               label="Tags"
@@ -275,11 +258,7 @@ export function CatalogPage() {
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm">
-                          {doc.contextType === 'process'
-                            ? 'Process'
-                            : doc.contextType === 'project'
-                              ? 'Project'
-                              : 'User space'}
+                          {doc.contextType === 'process' ? 'Process' : 'Project'}
                         </Text>
                       </Table.Td>
                       <Table.Td>
