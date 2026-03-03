@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMe } from '../hooks/useMe';
 
 /**
- * Muss innerhalb von AuthGuard verwendet werden. Leitet Nicht-Admins auf / weiter.
- * Nutzerdaten kommen aus derselben Quelle wie die Sidebar: useMe().
+ * Must be used inside AuthGuard. Redirects non-admins to /.
+ * User data comes from the same source as the sidebar: useMe().
  */
 export function AdminGuard({ children }: { children: ReactNode }) {
   const navigate = useNavigate();

@@ -17,7 +17,7 @@ const authRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const parseResult = loginBodySchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({
-        error: 'Ungültige Eingabe',
+        error: 'Invalid input',
         details: parseResult.error.flatten().fieldErrors,
       });
     }

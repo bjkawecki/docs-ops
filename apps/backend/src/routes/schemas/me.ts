@@ -27,7 +27,7 @@ const MIN_PASSWORD_LENGTH = 8;
 
 /** Body: PATCH /me/account – E-Mail und/oder Passwort (nur bei lokalem Login). */
 export const patchAccountBodySchema = z.object({
-  email: z.string().email('Ungültige E-Mail-Adresse').nullable().optional(),
+  email: z.string().email('Invalid email address').nullable().optional(),
   currentPassword: z.string().optional(),
   newPassword: z
     .string()

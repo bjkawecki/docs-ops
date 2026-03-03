@@ -35,7 +35,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const count = await request.server.prisma.company.count();
       if (count > 0) {
-        return reply.status(409).send({ error: 'Es kann nur eine Firma angelegt werden.' });
+        return reply.status(409).send({ error: 'Only one company can be created.' });
       }
       const body = createCompanyBodySchema.parse(request.body);
       const company = await request.server.prisma.company.create({
@@ -83,7 +83,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         const e = err as { code?: string };
         if (e.code === 'P2003') {
           return reply.status(409).send({
-            error: 'Firma kann nicht gelöscht werden, solange Abteilungen existieren.',
+            error: 'Company cannot be deleted while departments exist.',
           });
         }
         throw err;
@@ -164,8 +164,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         const e = err as { code?: string };
         if (e.code === 'P2003') {
           return reply.status(409).send({
-            error:
-              'Abteilung kann nicht gelöscht werden, solange Teams oder Prozesse/Projekte (Owner) existieren.',
+            error: 'Department cannot be deleted while it has teams or processes/projects (owner).',
           });
         }
         throw err;
@@ -242,8 +241,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         const e = err as { code?: string };
         if (e.code === 'P2003') {
           return reply.status(409).send({
-            error:
-              'Team kann nicht gelöscht werden, solange Prozesse oder Projekte (Owner) diesem Team zugeordnet sind.',
+            error: 'Team cannot be deleted while processes or projects (owner) are assigned to it.',
           });
         }
         throw err;

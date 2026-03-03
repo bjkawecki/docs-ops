@@ -1,6 +1,6 @@
 /**
- * Gemeinsames Item-Format für ContextCard; aus Process/Project (Backend) mappbar.
- * Optional owner für clientseitigen Filter (z. B. owner.companyId === companyId).
+ * Shared item format for ContextCard; mappable from Process/Project (backend).
+ * Optional owner for client-side filter (e.g. owner.companyId === companyId).
  */
 export interface ContextCardItem {
   id: string;

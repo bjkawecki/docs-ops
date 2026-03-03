@@ -60,9 +60,8 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
       });
       if (res.status === 201) {
         notifications.show({
-          title: 'Kontext angelegt',
-          message:
-            selectedType === 'process' ? 'Prozess wurde erstellt.' : 'Projekt wurde erstellt.',
+          title: 'Context created',
+          message: selectedType === 'process' ? 'Process was created.' : 'Project was created.',
           color: 'green',
         });
         onSuccess?.();
@@ -70,15 +69,15 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
       } else {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
-          title: 'Fehler',
+          title: 'Error',
           message: data?.error ?? res.statusText,
           color: 'red',
         });
       }
     } catch (e) {
       notifications.show({
-        title: 'Fehler',
-        message: e instanceof Error ? e.message : 'Netzwerkfehler',
+        title: 'Error',
+        message: e instanceof Error ? e.message : 'Network error',
         color: 'red',
       });
     } finally {
@@ -87,11 +86,11 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
   };
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Neuer Kontext" size="sm">
+    <Modal opened={opened} onClose={handleClose} title="New context" size="sm">
       <Stack gap="md">
         <div>
           <Text size="sm" fw={500} mb="xs">
-            Typ (Pflicht)
+            Type (required)
           </Text>
           <Radio.Group
             value={selectedType ?? ''}
@@ -100,10 +99,10 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
             <Stack gap="xs">
               <Radio
                 value="process"
-                label="Prozess"
-                description="Wiederkehrende Abläufe und Prozesse"
+                label="Process"
+                description="Recurring workflows and processes"
               />
-              <Radio value="project" label="Projekt" description="Zeitlich begrenzte Vorhaben" />
+              <Radio value="project" label="Project" description="Time-limited initiatives" />
             </Stack>
           </Radio.Group>
         </div>
@@ -111,7 +110,7 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
         {selectedType != null && (
           <TextInput
             label="Name"
-            placeholder="Name des Kontexts"
+            placeholder="Context name"
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             maxLength={NAME_MAX_LENGTH}
@@ -121,7 +120,7 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
 
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={handleClose}>
-            Abbrechen
+            Cancel
           </Button>
           <Button
             disabled={!canSubmit}
@@ -130,7 +129,7 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
               void handleSubmit();
             }}
           >
-            Erstellen
+            Create
           </Button>
         </Group>
       </Stack>

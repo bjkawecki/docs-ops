@@ -35,7 +35,7 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canViewCompany(request.server.prisma, userId, companyId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diese Firma' });
+      if (!allowed) return reply.status(403).send({ error: 'No access to this company' });
 
       const [items, total] = await Promise.all([
         request.server.prisma.companyLead.findMany({
@@ -61,22 +61,22 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageCompanyLeads(request.server.prisma, userId, companyId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const company = await request.server.prisma.company.findUnique({
         where: { id: companyId },
       });
-      if (!company) return reply.status(404).send({ error: 'Firma nicht gefunden' });
+      if (!company) return reply.status(404).send({ error: 'Company not found' });
       const user = await request.server.prisma.user.findUnique({
         where: { id: body.userId },
         select: { id: true, deletedAt: true },
       });
-      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
+      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User not found' });
 
       const existing = await request.server.prisma.companyLead.findUnique({
         where: { companyId_userId: { companyId, userId: body.userId } },
       });
-      if (existing) return reply.status(409).send({ error: 'User ist bereits Company Lead' });
+      if (existing) return reply.status(409).send({ error: 'User is already company lead' });
 
       await request.server.prisma.companyLead.create({
         data: { companyId, userId: body.userId },
@@ -93,13 +93,12 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageCompanyLeads(request.server.prisma, userId, companyId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const existing = await request.server.prisma.companyLead.findUnique({
         where: { companyId_userId: { companyId, userId: targetUserId } },
       });
-      if (!existing)
-        return reply.status(404).send({ error: 'Company-Lead-Zuordnung nicht gefunden' });
+      if (!existing) return reply.status(404).send({ error: 'Company lead assignment not found' });
 
       await request.server.prisma.companyLead.delete({
         where: { companyId_userId: { companyId, userId: targetUserId } },
@@ -118,7 +117,7 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canViewTeam(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
+      if (!allowed) return reply.status(403).send({ error: 'No access to this team' });
 
       const [items, total] = await Promise.all([
         request.server.prisma.teamMember.findMany({
@@ -144,20 +143,20 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const team = await request.server.prisma.team.findUnique({ where: { id: teamId } });
-      if (!team) return reply.status(404).send({ error: 'Team nicht gefunden' });
+      if (!team) return reply.status(404).send({ error: 'Team not found' });
       const user = await request.server.prisma.user.findUnique({
         where: { id: body.userId },
         select: { id: true, deletedAt: true },
       });
-      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
+      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User not found' });
 
       const existing = await request.server.prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId, userId: body.userId } },
       });
-      if (existing) return reply.status(409).send({ error: 'User ist bereits Mitglied' });
+      if (existing) return reply.status(409).send({ error: 'User is already a member' });
 
       await request.server.prisma.teamMember.create({
         data: { teamId, userId: body.userId },
@@ -174,12 +173,12 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const existing = await request.server.prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId, userId: targetUserId } },
       });
-      if (!existing) return reply.status(404).send({ error: 'Mitgliedschaft nicht gefunden' });
+      if (!existing) return reply.status(404).send({ error: 'Membership not found' });
 
       await request.server.prisma.teamMember.delete({
         where: { teamId_userId: { teamId, userId: targetUserId } },
@@ -198,7 +197,7 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canViewTeam(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
+      if (!allowed) return reply.status(403).send({ error: 'No access to this team' });
 
       const [items, total] = await Promise.all([
         request.server.prisma.teamLead.findMany({
@@ -224,20 +223,20 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const team = await request.server.prisma.team.findUnique({ where: { id: teamId } });
-      if (!team) return reply.status(404).send({ error: 'Team nicht gefunden' });
+      if (!team) return reply.status(404).send({ error: 'Team not found' });
       const user = await request.server.prisma.user.findUnique({
         where: { id: body.userId },
         select: { id: true, deletedAt: true },
       });
-      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
+      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User not found' });
 
       const existing = await request.server.prisma.teamLead.findUnique({
         where: { teamId_userId: { teamId, userId: body.userId } },
       });
-      if (existing) return reply.status(409).send({ error: 'User ist bereits Team Lead' });
+      if (existing) return reply.status(409).send({ error: 'User is already team lead' });
 
       await request.server.prisma.teamLead.create({
         data: { teamId, userId: body.userId },
@@ -254,12 +253,12 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const existing = await request.server.prisma.teamLead.findUnique({
         where: { teamId_userId: { teamId, userId: targetUserId } },
       });
-      if (!existing) return reply.status(404).send({ error: 'Team-Lead-Zuordnung nicht gefunden' });
+      if (!existing) return reply.status(404).send({ error: 'Team lead assignment not found' });
 
       await request.server.prisma.teamLead.delete({
         where: { teamId_userId: { teamId, userId: targetUserId } },
@@ -278,7 +277,7 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canViewDepartment(request.server.prisma, userId, departmentId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diese Abteilung' });
+      if (!allowed) return reply.status(403).send({ error: 'No access to this department' });
 
       const [items, total] = await Promise.all([
         request.server.prisma.departmentLead.findMany({
@@ -304,22 +303,22 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageDepartmentLeads(request.server.prisma, userId, departmentId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const department = await request.server.prisma.department.findUnique({
         where: { id: departmentId },
       });
-      if (!department) return reply.status(404).send({ error: 'Abteilung nicht gefunden' });
+      if (!department) return reply.status(404).send({ error: 'Department not found' });
       const user = await request.server.prisma.user.findUnique({
         where: { id: body.userId },
         select: { id: true, deletedAt: true },
       });
-      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
+      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User not found' });
 
       const existing = await request.server.prisma.departmentLead.findUnique({
         where: { departmentId_userId: { departmentId, userId: body.userId } },
       });
-      if (existing) return reply.status(409).send({ error: 'User ist bereits Department Lead' });
+      if (existing) return reply.status(409).send({ error: 'User is already department lead' });
 
       await request.server.prisma.departmentLead.create({
         data: { departmentId, userId: body.userId },
@@ -338,13 +337,13 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
 
       const allowed = await canManageDepartmentLeads(request.server.prisma, userId, departmentId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
       const existing = await request.server.prisma.departmentLead.findUnique({
         where: { departmentId_userId: { departmentId, userId: targetUserId } },
       });
       if (!existing)
-        return reply.status(404).send({ error: 'Department-Lead-Zuordnung nicht gefunden' });
+        return reply.status(404).send({ error: 'Department lead assignment not found' });
 
       await request.server.prisma.departmentLead.delete({
         where: { departmentId_userId: { departmentId, userId: targetUserId } },

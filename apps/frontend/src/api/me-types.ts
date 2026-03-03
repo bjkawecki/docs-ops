@@ -7,7 +7,7 @@ export type MeIdentityTeam = {
   role: 'member' | 'leader';
 };
 
-/** Response GET /api/v1/me. Bei Impersonation enthält die Antwort zusätzlich impersonation. */
+/** Response GET /api/v1/me. When impersonating, the response additionally contains impersonation. */
 export type MeResponse = {
   user: {
     id: string;

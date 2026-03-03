@@ -14,18 +14,21 @@ export interface RecentItem {
   name?: string;
 }
 
-/** Scope für „Zuletzt angesehene“ – eine Organisationseinheit. */
+/** Scope for "recently viewed" – organisational unit or user-related. */
 export type RecentScope =
   | { type: 'company'; id: string }
   | { type: 'department'; id: string }
-  | { type: 'team'; id: string };
+  | { type: 'team'; id: string }
+  | { type: 'personal' }
+  | { type: 'shared' };
 
 export function scopeToKey(scope: RecentScope): string {
+  if (scope.type === 'personal' || scope.type === 'shared') return scope.type;
   return `${scope.type}:${scope.id}`;
 }
 
 export interface RecentItemsContextValue {
-  /** Liste für den übergebenen Scope; addRecent(item, scope) schreibt in diesen Scope. */
+  /** List for the given scope; addRecent(item, scope) writes to this scope. */
   addRecent: (item: RecentItem, scope: RecentScope) => void;
   isPending: boolean;
 }
@@ -33,7 +36,7 @@ export interface RecentItemsContextValue {
 const RecentItemsContext = createContext<RecentItemsContextValue | null>(null);
 
 /**
- * Normalisiert API-Einträge zu RecentItem (name optional vom Backend).
+ * Normalises API entries to RecentItem (name optional from backend).
  */
 function fromPreferences(
   raw: { type: string; id: string; name?: string }[] | undefined
@@ -49,7 +52,7 @@ function fromPreferences(
 }
 
 /**
- * Provider für zuletzt angesehene Kontexte/Dokumente pro Scope.
+ * Provider for recently viewed contexts/documents per scope.
  * Liest aus GET /me (preferences.recentItemsByScope), schreibt per PATCH /me/preferences.
  */
 export function RecentItemsProvider({ children }: { children: ReactNode }) {
@@ -95,7 +98,7 @@ export function RecentItemsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Rückgabe von useRecentItems(scope): Liste für diesen Scope + addRecent gebunden an Scope. */
+/** Return type of useRecentItems(scope): list for this scope + addRecent bound to scope. */
 export interface UseRecentItemsReturn {
   items: RecentItem[];
   addRecent: (item: RecentItem) => void;
@@ -103,8 +106,8 @@ export interface UseRecentItemsReturn {
 }
 
 /**
- * Zuletzt angesehene Einträge für einen Scope (company/department/team).
- * Lesen aus me.preferences.recentItemsByScope[scopeKey], Hinzufügen per addRecent(item) schreibt in diesen Scope.
+ * Recently viewed entries for a scope (company/department/team).
+ * Read from me.preferences.recentItemsByScope[scopeKey]; adding via addRecent(item) writes to this scope.
  */
 export function useRecentItems(scope: RecentScope | null): UseRecentItemsReturn {
   const ctx = useContext(RecentItemsContext);
@@ -131,7 +134,7 @@ export function useRecentItems(scope: RecentScope | null): UseRecentItemsReturn 
   };
 }
 
-/** Kontext-Aktionen (z. B. addRecent mit dynamischem Scope aus API-Owner). */
+/** Context actions (e.g. addRecent with dynamic scope from API owner). */
 export function useRecentItemsActions(): RecentItemsContextValue | null {
   return useContext(RecentItemsContext);
 }

@@ -1,6 +1,6 @@
 import { useMantineColorScheme } from '@mantine/core';
 
-/** Logo-Farben: Light = Original, Dark = aufgehellt für dunklen Hintergrund */
+/** Logo colours: Light = original, Dark = brightened for dark background */
 const LOGO_COLORS = {
   light: { primary: '#2D4CF3', secondary: '#140A2E' },
   dark: { primary: '#7C9AFF', secondary: '#E2E2E2' },
@@ -9,13 +9,13 @@ const LOGO_COLORS = {
 interface DocopsLogoProps {
   width?: number;
   height?: number;
-  /** Optional: Überschreibe Größe via style/className */
+  /** Optional: override size via style/className */
   style?: React.CSSProperties;
   className?: string;
 }
 
 /**
- * DocsOps-Logo als Inline-SVG mit Dark-Mode-Unterstützung.
+ * DocsOps logo as inline SVG with dark mode support.
  * Farben wechseln automatisch je nach Theme.
  */
 export function DocopsLogo({ width = 40, height = 40, style, className }: DocopsLogoProps) {

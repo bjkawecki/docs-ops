@@ -52,7 +52,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     queryKey: [type, id],
     queryFn: async () => {
       const res = await apiFetch(`${endpoint}/${id}`);
-      if (!res.ok) throw new Error('Kontext nicht gefunden');
+      if (!res.ok) throw new Error('Context not found');
       return res.json() as Promise<ProcessResponse | ProjectResponse>;
     },
     enabled: !!id,
@@ -83,8 +83,8 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     if (data) setEditName(data.name);
     void queryClient.invalidateQueries({ queryKey: [type, id] });
     notifications.show({
-      title: 'Gespeichert',
-      message: 'Name wurde aktualisiert.',
+      title: 'Saved',
+      message: 'Name was updated.',
       color: 'green',
     });
   };
@@ -98,14 +98,14 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         closeDelete();
         void navigate('/company', { replace: true });
         notifications.show({
-          title: 'Gelöscht',
-          message: 'Kontext wurde gelöscht.',
+          title: 'Deleted',
+          message: 'Context was deleted.',
           color: 'green',
         });
       } else {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
-          title: 'Fehler',
+          title: 'Error',
           message: body?.error ?? res.statusText,
           color: 'red',
         });
@@ -118,17 +118,17 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
   if (isPending)
     return (
       <Text size="sm" c="dimmed">
-        Wird geladen…
+        Loading…
       </Text>
     );
   if (isError || !data)
     return (
       <Text size="sm" c="red">
-        Kontext nicht gefunden.
+        Context not found.
       </Text>
     );
 
-  const typeLabel = type === 'process' ? 'Prozess' : 'Projekt';
+  const typeLabel = type === 'process' ? 'Process' : 'Project';
 
   return (
     <>
@@ -139,10 +139,10 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           canManage ? (
             <Group gap="xs">
               <Button variant="light" size="sm" onClick={handleEditClick}>
-                Bearbeiten
+                Edit
               </Button>
               <Button variant="light" size="sm" color="red" onClick={openDelete}>
-                Löschen
+                Delete
               </Button>
             </Group>
           ) : null
@@ -152,7 +152,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
       <Stack gap="md">
         <Card withBorder padding="md">
           <Text size="sm" c="dimmed">
-            Dokumentenliste folgt in §12.
+            Document list to follow.
           </Text>
         </Card>
       </Stack>
@@ -166,13 +166,13 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         onSuccess={handleEditSuccess}
       />
 
-      <Modal opened={deleteOpened} onClose={closeDelete} title="Kontext löschen" centered>
+      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete context" centered>
         <Text size="sm" c="dimmed" mb="md">
-          Dieser Kontext und zugehörige Daten werden unwiderruflich gelöscht. Fortfahren?
+          This context and related data will be permanently deleted. Continue?
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={closeDelete}>
-            Abbrechen
+            Cancel
           </Button>
           <Button
             color="red"
@@ -181,7 +181,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
               void handleDeleteConfirm();
             }}
           >
-            Löschen
+            Delete
           </Button>
         </Group>
       </Modal>

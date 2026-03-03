@@ -65,7 +65,7 @@ export function DepartmentContextPage() {
       const params = new URLSearchParams({ limit: '50', offset: '0' });
       if (departmentId) params.set('departmentId', departmentId);
       const res = await apiFetch(`/api/v1/processes?${params}`);
-      if (!res.ok) throw new Error('Prozesse laden fehlgeschlagen');
+      if (!res.ok) throw new Error('Failed to load processes');
       const data = (await res.json()) as { items: ProcessItem[] };
       return data.items;
     },
@@ -78,7 +78,7 @@ export function DepartmentContextPage() {
       const params = new URLSearchParams({ limit: '50', offset: '0' });
       if (departmentId) params.set('departmentId', departmentId);
       const res = await apiFetch(`/api/v1/projects?${params}`);
-      if (!res.ok) throw new Error('Projekte laden fehlgeschlagen');
+      if (!res.ok) throw new Error('Failed to load projects');
       const data = (await res.json()) as { items: ProjectItem[] };
       return data.items;
     },
@@ -102,8 +102,8 @@ export function DepartmentContextPage() {
     invalidateContexts();
     setEditTarget(null);
     notifications.show({
-      title: 'Gespeichert',
-      message: 'Name wurde aktualisiert.',
+      title: 'Saved',
+      message: 'Name was updated.',
       color: 'green',
     });
   };
@@ -118,14 +118,14 @@ export function DepartmentContextPage() {
         invalidateContexts();
         setDeleteTarget(null);
         notifications.show({
-          title: 'Gelöscht',
-          message: 'Kontext wurde gelöscht.',
+          title: 'Deleted',
+          message: 'Context was deleted.',
           color: 'green',
         });
       } else {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
-          title: 'Fehler',
+          title: 'Error',
           message: body?.error ?? res.statusText,
           color: 'red',
         });
@@ -137,9 +137,9 @@ export function DepartmentContextPage() {
 
   const tabs = [
     { value: 'overview', label: 'Overview' },
-    { value: 'processes', label: 'Prozesse' },
-    { value: 'projects', label: 'Projekte' },
-    { value: 'documents', label: 'Dokumente' },
+    { value: 'processes', label: 'Processes' },
+    { value: 'projects', label: 'Projects' },
+    { value: 'documents', label: 'Documents' },
   ];
 
   const [activeTab, setActiveTab] = useState(tabs[0].value);
@@ -166,7 +166,7 @@ export function DepartmentContextPage() {
     <>
       <PageWithTabs
         title={department.name}
-        description="Kontexte und Inhalte der Abteilung."
+        description="Contexts and content for the department."
         actions={
           departmentId && canManage ? (
             <Button variant="light" size="sm" onClick={openModal}>
@@ -185,11 +185,11 @@ export function DepartmentContextPage() {
             <Card withBorder padding="md">
               <Stack gap="xs">
                 <Text fw={600} size="sm">
-                  Prozesse
+                  Processes
                 </Text>
                 {processesPreview.length === 0 ? (
                   <Text size="sm" c="dimmed">
-                    Noch keine Prozesse.
+                    No processes yet.
                   </Text>
                 ) : (
                   <Stack gap={4}>
@@ -215,11 +215,11 @@ export function DepartmentContextPage() {
             <Card withBorder padding="md">
               <Stack gap="xs">
                 <Text fw={600} size="sm">
-                  Projekte
+                  Projects
                 </Text>
                 {projectsPreview.length === 0 ? (
                   <Text size="sm" c="dimmed">
-                    Noch keine Projekte.
+                    No projects yet.
                   </Text>
                 ) : (
                   <Stack gap={4}>
@@ -245,10 +245,10 @@ export function DepartmentContextPage() {
             <Card withBorder padding="md">
               <Stack gap="xs">
                 <Text fw={600} size="sm">
-                  Dokumente
+                  Documents
                 </Text>
                 <Text size="sm" c="dimmed">
-                  Dokumente – Inhalte folgen in §12.
+                  Documents – content to follow.
                 </Text>
                 <Group justify="flex-end" mt="xs">
                   <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
@@ -262,13 +262,13 @@ export function DepartmentContextPage() {
         {processesPending ? (
           <Card withBorder padding="md">
             <Text size="sm" c="dimmed">
-              Prozesse werden geladen…
+              Loading processes…
             </Text>
           </Card>
         ) : processes.length === 0 ? (
           <Card withBorder padding="md">
             <Text size="sm" c="dimmed">
-              Noch keine Prozesse. Über „Create“ anlegen.
+              No processes yet. Use "Create" to add one.
             </Text>
           </Card>
         ) : (
@@ -289,13 +289,13 @@ export function DepartmentContextPage() {
         {projectsPending ? (
           <Card withBorder padding="md">
             <Text size="sm" c="dimmed">
-              Projekte werden geladen…
+              Loading projects…
             </Text>
           </Card>
         ) : projects.length === 0 ? (
           <Card withBorder padding="md">
             <Text size="sm" c="dimmed">
-              Noch keine Projekte. Über „Create“ anlegen.
+              No projects yet. Use "Create" to add one.
             </Text>
           </Card>
         ) : (
@@ -315,7 +315,7 @@ export function DepartmentContextPage() {
         )}
         <Card withBorder padding="md">
           <Text size="sm" c="dimmed">
-            Dokumente – Inhalte folgen in §12.
+            Documents – content to follow.
           </Text>
         </Card>
       </PageWithTabs>
@@ -343,15 +343,15 @@ export function DepartmentContextPage() {
       <Modal
         opened={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
-        title="Kontext löschen"
+        title="Delete context"
         centered
       >
         <Text size="sm" c="dimmed" mb="md">
-          Dieser Kontext und zugehörige Daten werden unwiderruflich gelöscht. Fortfahren?
+          This context and related data will be permanently deleted. Continue?
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={() => setDeleteTarget(null)}>
-            Abbrechen
+            Cancel
           </Button>
           <Button
             color="red"
@@ -360,7 +360,7 @@ export function DepartmentContextPage() {
               void handleDeleteConfirm();
             }}
           >
-            Löschen
+            Delete
           </Button>
         </Group>
       </Modal>

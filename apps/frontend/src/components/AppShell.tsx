@@ -18,13 +18,11 @@ import {
   Divider,
   useMantineColorScheme,
   useMantineTheme,
-  rem,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import {
   IconChevronDown,
-  IconChevronLeft,
   IconChevronRight,
   IconLogout,
   IconSettings,
@@ -47,7 +45,7 @@ function isActive(path: string, current: string): boolean {
   return current === path || current.startsWith(path + '/');
 }
 
-/** Gemeinsame Styles für Sidebar-NavLinks (Hover/Active). Nutzt Theme-Variablen. */
+/** Shared styles for sidebar nav links (hover/active). Uses theme variables. */
 function getNavLinkStyles(): { root: Record<string, unknown> } {
   return {
     root: {
@@ -171,7 +169,7 @@ export function AppShell() {
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
-        throw new Error(err.error ?? 'Impersonation fehlgeschlagen');
+        throw new Error(err.error ?? 'Impersonation failed');
       }
     },
     onSuccess: () => {
@@ -179,19 +177,19 @@ export function AppShell() {
       void navigate('/', { replace: true });
       notifications.show({
         title: 'Ansicht gewechselt',
-        message: 'Sie sehen die App jetzt als den gewählten Nutzer.',
+        message: 'You are now viewing the app as the selected user.',
         color: 'green',
       });
     },
     onError: (err: Error) => {
-      notifications.show({ title: 'Fehler', message: err.message, color: 'red' });
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
     },
   });
 
   const stopImpersonateMutation = useMutation({
     mutationFn: async () => {
       const res = await apiFetch('/api/v1/admin/impersonate', { method: 'DELETE' });
-      if (!res.ok) throw new Error('Beenden fehlgeschlagen');
+      if (!res.ok) throw new Error('Failed to end impersonation');
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: meQueryKey });
@@ -203,7 +201,7 @@ export function AppShell() {
       });
     },
     onError: (err: Error) => {
-      notifications.show({ title: 'Fehler', message: err.message, color: 'red' });
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
     },
   });
 
@@ -602,70 +600,55 @@ export function AppShell() {
             zIndex: 1000,
           }}
         >
-          <Menu position="bottom-end" shadow="md" width={220}>
+          <Menu position="bottom-end" shadow="md" width={320}>
             <Menu.Target>
-              <ActionIcon variant="light" size="md" aria-label="Debug-Menü" color="grape">
+              <ActionIcon variant="light" size="md" aria-label="Debug menu" color="grape">
                 <IconBug size={18} />
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu trigger="hover" openDelay={100} closeDelay={100} position="left-start">
-                <Menu.Target>
-                  <Menu.Item
-                    leftSection={
-                      <Group gap="xs" wrap="nowrap">
-                        <IconChevronLeft style={{ width: rem(14), height: rem(14) }} />
-                        <IconShield size={14} />
-                      </Group>
-                    }
-                  >
-                    Ansicht als Nutzer
-                  </Menu.Item>
-                </Menu.Target>
-                <Menu.Dropdown style={{ minWidth: 320 }}>
-                  {adminUsersLoading ? (
-                    <Menu.Item disabled>
-                      <Loader size="xs" />
+              <Menu.Label>View as user</Menu.Label>
+              {adminUsersLoading ? (
+                <Menu.Item disabled>
+                  <Loader size="xs" />
+                </Menu.Item>
+              ) : adminUsersError ? (
+                <Menu.Item disabled>
+                  <Text size="sm" c="dimmed">
+                    Failed to load user list.
+                  </Text>
+                </Menu.Item>
+              ) : (adminUsersRes?.items ?? []).length === 0 ? (
+                <Menu.Item disabled>
+                  <Text size="sm" c="dimmed">
+                    No users available.
+                  </Text>
+                </Menu.Item>
+              ) : (
+                <ScrollArea.Autosize mah={320}>
+                  {(adminUsersRes?.items ?? []).map((u) => (
+                    <Menu.Item
+                      key={u.id}
+                      onClick={() => impersonateMutation.mutate(u.id)}
+                      disabled={impersonateMutation.isPending}
+                    >
+                      <Stack gap={2}>
+                        <Text size="sm" fw={500}>
+                          {u.name}
+                        </Text>
+                        {u.email && (
+                          <Text size="xs" c="dimmed">
+                            {u.email}
+                          </Text>
+                        )}
+                        <Badge size="xs" variant="light">
+                          {u.role}
+                        </Badge>
+                      </Stack>
                     </Menu.Item>
-                  ) : adminUsersError ? (
-                    <Menu.Item disabled>
-                      <Text size="sm" c="dimmed">
-                        Nutzerliste konnte nicht geladen werden.
-                      </Text>
-                    </Menu.Item>
-                  ) : (adminUsersRes?.items ?? []).length === 0 ? (
-                    <Menu.Item disabled>
-                      <Text size="sm" c="dimmed">
-                        Keine Nutzer vorhanden.
-                      </Text>
-                    </Menu.Item>
-                  ) : (
-                    <ScrollArea.Autosize mah={320}>
-                      {(adminUsersRes?.items ?? []).map((u) => (
-                        <Menu.Item
-                          key={u.id}
-                          onClick={() => impersonateMutation.mutate(u.id)}
-                          disabled={impersonateMutation.isPending}
-                        >
-                          <Stack gap={2}>
-                            <Text size="sm" fw={500}>
-                              {u.name}
-                            </Text>
-                            {u.email && (
-                              <Text size="xs" c="dimmed">
-                                {u.email}
-                              </Text>
-                            )}
-                            <Badge size="xs" variant="light">
-                              {u.role}
-                            </Badge>
-                          </Stack>
-                        </Menu.Item>
-                      ))}
-                    </ScrollArea.Autosize>
-                  )}
-                </Menu.Dropdown>
-              </Menu>
+                  ))}
+                </ScrollArea.Autosize>
+              )}
             </Menu.Dropdown>
           </Menu>
         </Box>
@@ -849,8 +832,8 @@ export function AppShell() {
           >
             <Group justify="space-between" wrap="nowrap">
               <Text size="sm" c={colorScheme === 'dark' ? 'gray.3' : 'dark.7'}>
-                Ansicht als <strong>{me.user.name}</strong>
-                {me.user.email ? ` (${me.user.email})` : ''}, {getDisplayRole(me)}. Du bist{' '}
+                Viewing as <strong>{me.user.name}</strong>
+                {me.user.email ? ` (${me.user.email})` : ''}, {getDisplayRole(me)}. You are{' '}
                 {me.impersonation.realUser.name}.
               </Text>
               <Button
@@ -860,7 +843,7 @@ export function AppShell() {
                 onClick={() => stopImpersonateMutation.mutate()}
                 disabled={stopImpersonateMutation.isPending}
               >
-                Beenden
+                End
               </Button>
             </Group>
           </Box>

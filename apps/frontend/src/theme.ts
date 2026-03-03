@@ -3,7 +3,7 @@ import { camelToKebabCase } from '@mantine/core';
 
 /**
  * Zentrales App-Theme. Werte unter `other` werden per cssVariablesResolver
- * als --mantine-other-<key> (kebab-case) verfügbar gemacht.
+ * exposed as --mantine-other-<key> (kebab-case).
  */
 export const appTheme = createTheme({
   other: {

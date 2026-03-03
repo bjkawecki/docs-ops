@@ -43,7 +43,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
         },
       });
-      if (!doc) return reply.status(404).send({ error: 'Dokument nicht gefunden' });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
       return reply.send(doc);
     }
   );
@@ -59,7 +59,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const query = paginationQuerySchema.parse(request.query);
 
       const allowed = await canReadContext(prisma, userId, contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diesen Kontext' });
+      if (!allowed) return reply.status(403).send({ error: 'No access to this context' });
 
       const [items, total] = await Promise.all([
         prisma.document.findMany({
@@ -92,13 +92,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       where: { id: body.contextId },
       include: { userSpace: { select: { ownerUserId: true } } },
     });
-    if (!context) return reply.status(404).send({ error: 'Kontext nicht gefunden' });
+    if (!context) return reply.status(404).send({ error: 'Context not found' });
 
     const allowed = await canWriteContext(prisma, userId, body.contextId);
     if (!allowed)
       return reply
         .status(403)
-        .send({ error: 'Keine Berechtigung, Dokument in diesem Kontext anzulegen' });
+        .send({ error: 'Permission denied to create document in this context' });
 
     const doc = await prisma.document.create({
       data: {
@@ -180,7 +180,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const allowed = await canDeleteDocument(prisma, userId, documentId);
       if (!allowed)
-        return reply.status(403).send({ error: 'Keine Berechtigung, dieses Dokument zu löschen' });
+        return reply.status(403).send({ error: 'Permission denied to delete this document' });
       await prisma.document.update({
         where: { id: documentId },
         data: { deletedAt: new Date() },

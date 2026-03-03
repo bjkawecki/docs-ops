@@ -5,15 +5,15 @@ import { Link } from 'react-router-dom';
 import { IconDotsVertical } from '@tabler/icons-react';
 
 export interface ContextCardProps {
-  /** Name des Kontexts */
+  /** Context name */
   title: string;
-  /** Prozess oder Projekt (für Badge) */
+  /** Process or project (for badge) */
   type: 'process' | 'project';
   /** Link zur Detail-Seite */
   href: string;
-  /** Optional: z. B. Dokumentenanzahl, letzte Aktivität */
+  /** Optional: e.g. document count, last activity */
   metadata?: ReactNode;
-  /** Dreipunkt-Menü nur anzeigen wenn berechtigt */
+  /** Only show three-dot menu when permitted */
   canManage?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -28,7 +28,7 @@ export function ContextCard({
   onEdit,
   onDelete,
 }: ContextCardProps) {
-  const typeLabel = type === 'process' ? 'Prozess' : 'Projekt';
+  const typeLabel = type === 'process' ? 'Process' : 'Project';
 
   return (
     <Card withBorder padding="md" h="100%">
@@ -60,17 +60,17 @@ export function ContextCard({
               <ActionIcon
                 variant="subtle"
                 size="md"
-                aria-label="Kontext-Aktionen"
+                aria-label="Context actions"
                 onClick={(e) => e.preventDefault()}
               >
                 <IconDotsVertical size={18} stroke={3} />
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-              {onEdit != null && <Menu.Item onClick={onEdit}>Bearbeiten</Menu.Item>}
+              {onEdit != null && <Menu.Item onClick={onEdit}>Edit</Menu.Item>}
               {onDelete != null && (
                 <Menu.Item color="red" onClick={onDelete}>
-                  Löschen
+                  Delete
                 </Menu.Item>
               )}
             </Menu.Dropdown>

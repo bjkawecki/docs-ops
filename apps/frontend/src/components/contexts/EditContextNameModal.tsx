@@ -9,7 +9,7 @@ export interface EditContextNameModalProps {
   opened: boolean;
   onClose: () => void;
   type: 'process' | 'project';
-  /** Prozess- oder Projekt-ID (für PATCH). */
+  /** Process or project ID (for PATCH). */
   contextId: string;
   currentName: string;
   onSuccess?: () => void;
@@ -47,15 +47,15 @@ export function EditContextNameModal({
       } else {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
-          title: 'Fehler',
+          title: 'Error',
           message: data?.error ?? res.statusText,
           color: 'red',
         });
       }
     } catch (e) {
       notifications.show({
-        title: 'Fehler',
-        message: e instanceof Error ? e.message : 'Netzwerkfehler',
+        title: 'Error',
+        message: e instanceof Error ? e.message : 'Network error',
         color: 'red',
       });
     } finally {
@@ -64,11 +64,11 @@ export function EditContextNameModal({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Name bearbeiten" size="sm">
+    <Modal opened={opened} onClose={onClose} title="Edit name" size="sm">
       <Stack gap="md">
         <TextInput
           label="Name"
-          placeholder="Name des Kontexts"
+          placeholder="Context name"
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           maxLength={NAME_MAX_LENGTH}
@@ -76,7 +76,7 @@ export function EditContextNameModal({
         />
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={onClose}>
-            Abbrechen
+            Cancel
           </Button>
           <Button
             disabled={!canSubmit}
@@ -85,7 +85,7 @@ export function EditContextNameModal({
               void handleSubmit();
             }}
           >
-            Speichern
+            Save
           </Button>
         </Group>
       </Stack>

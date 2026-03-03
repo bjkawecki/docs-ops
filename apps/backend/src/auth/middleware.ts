@@ -33,7 +33,7 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
   }
   const result = await findValidSession(request.server.prisma, sessionId);
   if (!result) {
-    return reply.status(401).send({ error: 'Ungültige oder abgelaufene Session' });
+    return reply.status(401).send({ error: 'Invalid or expired session' });
   }
   const req = request as RequestWithUser;
   req.user = result.user;

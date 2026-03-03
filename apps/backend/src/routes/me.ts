@@ -13,6 +13,7 @@ import {
   patchAccountBodySchema,
   sessionIdParamSchema,
 } from './schemas/me.js';
+import { paginationQuerySchema, type PaginationQuery } from './schemas/organisation.js';
 
 /** Ein Eintrag in „Zuletzt angesehene“ (process/project/document). */
 export type RecentPreferencesItem = {
@@ -160,6 +161,122 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     return reply.send(response);
   });
 
+  /** GET /api/v1/me/personal-documents – Dokumente in den UserSpaces des Nutzers (paginiert). */
+  app.get(
+    '/me/personal-documents',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const query: PaginationQuery = paginationQuerySchema.parse(request.query);
+
+      const userSpaceContextIds = await prisma.userSpace
+        .findMany({
+          where: { ownerUserId: userId },
+          select: { contextId: true },
+        })
+        .then((rows) => rows.map((r) => r.contextId));
+
+      if (userSpaceContextIds.length === 0) {
+        return reply.send({
+          items: [],
+          total: 0,
+          limit: query.limit,
+          offset: query.offset,
+        });
+      }
+
+      const [items, total] = await Promise.all([
+        prisma.document.findMany({
+          where: { contextId: { in: userSpaceContextIds }, deletedAt: null },
+          select: {
+            id: true,
+            title: true,
+            contextId: true,
+            createdAt: true,
+            updatedAt: true,
+            documentTags: { include: { tag: { select: { id: true, name: true } } } },
+          },
+          take: query.limit,
+          skip: query.offset,
+          orderBy: { updatedAt: 'desc' },
+        }),
+        prisma.document.count({
+          where: { contextId: { in: userSpaceContextIds }, deletedAt: null },
+        }),
+      ]);
+      return reply.send({ items, total, limit: query.limit, offset: query.offset });
+    }
+  );
+
+  /** GET /api/v1/me/shared-documents – Dokumente, auf die der Nutzer per Grant Zugriff hat (paginiert). */
+  app.get('/me/shared-documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
+    const query: PaginationQuery = paginationQuerySchema.parse(request.query);
+
+    const [userGrantDocIds, teamGrantDocIds, deptGrantDocIds] = await Promise.all([
+      prisma.documentGrantUser
+        .findMany({ where: { userId }, select: { documentId: true } })
+        .then((rows) => rows.map((r) => r.documentId)),
+      prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }).then((teamIds) =>
+        prisma.documentGrantTeam
+          .findMany({
+            where: { teamId: { in: teamIds.map((t) => t.teamId) } },
+            select: { documentId: true },
+          })
+          .then((rows) => rows.map((r) => r.documentId))
+      ),
+      prisma.teamMember
+        .findMany({
+          where: { userId },
+          include: { team: { select: { departmentId: true } } },
+        })
+        .then((members) => [...new Set(members.map((m) => m.team.departmentId))])
+        .then((departmentIds) =>
+          departmentIds.length === 0
+            ? Promise.resolve([] as string[])
+            : prisma.documentGrantDepartment
+                .findMany({
+                  where: { departmentId: { in: departmentIds } },
+                  select: { documentId: true },
+                })
+                .then((rows) => rows.map((r) => r.documentId))
+        ),
+    ]);
+
+    const documentIds = [...new Set([...userGrantDocIds, ...teamGrantDocIds, ...deptGrantDocIds])];
+    if (documentIds.length === 0) {
+      return reply.send({
+        items: [],
+        total: 0,
+        limit: query.limit,
+        offset: query.offset,
+      });
+    }
+
+    const [items, total] = await Promise.all([
+      prisma.document.findMany({
+        where: { id: { in: documentIds }, deletedAt: null },
+        select: {
+          id: true,
+          title: true,
+          contextId: true,
+          createdAt: true,
+          updatedAt: true,
+          documentTags: { include: { tag: { select: { id: true, name: true } } } },
+        },
+        take: query.limit,
+        skip: query.offset,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.document.count({
+        where: { id: { in: documentIds }, deletedAt: null },
+      }),
+    ]);
+    return reply.send({ items, total, limit: query.limit, offset: query.offset });
+  });
+
   /** PATCH /api/v1/me – eigenes Profil (nur Anzeigename). */
   app.patch('/me', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
@@ -186,7 +303,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (otherAdmins === 0) {
         return reply.status(403).send({
           error:
-            'Der letzte Administrator kann den Account nicht deaktivieren. Bitte einen weiteren Admin anlegen.',
+            'The last administrator cannot deactivate their account. Please create another admin first.',
         });
       }
     }
@@ -267,8 +384,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     });
     if (user.passwordHash == null) {
       return reply.status(400).send({
-        error:
-          'Account wird per SSO verwaltet. E-Mail und Passwort können hier nicht geändert werden.',
+        error: 'Account is managed by SSO. Email and password cannot be changed here.',
       });
     }
 
@@ -281,7 +397,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           select: { id: true },
         });
         if (existing && existing.id !== userId) {
-          return reply.status(409).send({ error: 'Diese E-Mail-Adresse wird bereits verwendet.' });
+          return reply.status(409).send({ error: 'This email address is already in use.' });
         }
       }
       data.email = body.email;
@@ -291,19 +407,17 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!body.currentPassword) {
         return reply
           .status(400)
-          .send({ error: 'Aktuelles Passwort ist erforderlich, um das Passwort zu ändern.' });
+          .send({ error: 'Current password is required to change password.' });
       }
       const valid = await verifyPassword(user.passwordHash, body.currentPassword);
       if (!valid) {
-        return reply.status(401).send({ error: 'Aktuelles Passwort ist falsch.' });
+        return reply.status(401).send({ error: 'Current password is incorrect.' });
       }
       data.passwordHash = await hashPassword(body.newPassword);
     }
 
     if (Object.keys(data).length === 0) {
-      return reply
-        .status(400)
-        .send({ error: 'Nichts zum Aktualisieren angegeben (email oder newPassword).' });
+      return reply.status(400).send({ error: 'Nothing to update (provide email or newPassword).' });
     }
 
     await request.server.prisma.user.update({
@@ -357,7 +471,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { id: sessionId, userId },
       });
       if (!session) {
-        return reply.status(404).send({ error: 'Session nicht gefunden.' });
+        return reply.status(404).send({ error: 'Session not found.' });
       }
       await request.server.prisma.session.delete({ where: { id: sessionId } });
       return reply.status(204).send();

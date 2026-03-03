@@ -11,7 +11,7 @@ export async function fetchMe(): Promise<MeResponse> {
 }
 
 /**
- * Nutzerdaten (GET /api/v1/me). Einheitliche queryKey + queryFn für alle Consumer.
+ * User data (GET /api/v1/me). Shared queryKey and queryFn for all consumers.
  */
 export function useMe(options?: Partial<UseQueryOptions<MeResponse>>) {
   return useQuery({

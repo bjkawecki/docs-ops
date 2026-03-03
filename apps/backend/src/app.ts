@@ -62,7 +62,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       // Zod (Duck-Typing: name oder issues)
       if (err.name === 'ZodError' || Array.isArray(err.issues)) {
         const details = typeof err.flatten === 'function' ? err.flatten().fieldErrors : undefined;
-        return reply.status(400).send({ error: 'Ungültige Eingabe', details });
+        return reply.status(400).send({ error: 'Invalid input', details });
       }
 
       // Prisma P2025 (Record not found)
@@ -73,7 +73,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       // Prisma P2003 (Foreign key constraint failed – Restrict)
       if (err.code === 'P2003') {
         return reply.status(409).send({
-          error: 'Ressource kann nicht gelöscht werden, da Abhängigkeiten existieren.',
+          error: 'Resource cannot be deleted because dependencies exist.',
           code: 'P2003',
         });
       }

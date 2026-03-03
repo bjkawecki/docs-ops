@@ -79,8 +79,8 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
     - **Team-Member:** Einstieg „Team“ bzw. sein Team (z. B. ein Link zum Team-Kontext).
     - **Department-Lead:** Sidebar zeigt **„Department“** (sein eine(s), klickbar), darunter **Zwischenüberschrift „Teams“**, darunter die **klickbaren Team-Namen** (Teams dieser Abteilung). Content-Seite wie bisher (Klick auf Department oder Team → Kontext-Übersicht).
     - **Company-Lead:** **Aufklappbare Struktur:** Zwischenüberschrift **„Departments“**, darunter Abteilungen als **aufklappbare Einträge**; unter jeder Abteilung die zugehörigen **Teams** (klickbar). Hierarchie Company → Department → Team in der Sidebar sichtbar.
-  - **Personal** – Entry-Point für den eigenen UserSpace (ein Nutzer hat genau einen); Card-Grid, eine Card je Kontext (dort typisch eine Karte).
-  - **Shared** – Entry-Point für per Grant geteilte Inhalte; Card-Grid, eine Card je Kontext (Kontexte, in denen mindestens ein Dokument mit mir geteilt wurde). Aktuell nur Document-Grants; **Ausblick:** Kontext-Level-Grants („ganzen Kontext teilen“) als Erweiterung möglich.
+  - **Personal** – Entry-Point für eigene UserSpaces und Dokumente; Struktur analog zu Company/Department/Team (Tabs, Overview mit Recent Items, Karten); siehe §11a.
+  - **Shared** – Entry-Point für per Grant geteilte Inhalte; Struktur analog zu Company/Department/Team (Tabs, Overview mit Recent Items, Karten); siehe §11a.
 - **Sidebar unten:** Account-Dropdown (Trigger: E-Mail oder Name) mit **Admin** (nur bei `isAdmin`), **Settings**, Trennlinie, **Log out**. Kein Admin in der Haupt-Navigation.
 - [x] **Main-Content:** Thematische Karten/Cards, einheitliche Abstände; Loading States (Skeletons/Spinner), Fehlerbehandlung (API-Fehler, 404, Fehlerseite), Toasts/Notifications für Erfolg und Fehler.
 
@@ -182,6 +182,17 @@ Department-Seite (`/department/:departmentId`) und Team-Seite (`/team/:teamId`) 
 - [x] **Department Page:** Route, Tabs, Overview mit Recent-Items-Karte + neueste Prozesse/Projekte/Dokumente (gefiltert nach Owner = diese Abteilung); Prozesse-/Projekte-Tabs mit ContextGrid; „New context“ (Owner = Department); Berechtigung: Department Lead, Company Lead, Admin.
 - [x] **Team Page:** Route, Tabs, Overview analog; Prozesse/Projekte mit Owner = dieses Team; „New context“ (Owner = Team); Berechtigung: Team Lead, Department Lead, Company Lead, Admin.
 - [x] Wiederverwendung der Kontext-Komponenten aus §10 (ContextCard, ContextGrid, NewContextModal); Backend: ggf. Query-Parameter `?departmentId=...` / `?teamId=...` für Prozesse/Projekte, falls noch nicht vorhanden.
+
+---
+
+## 11a. Personal- und Shared-Pages (analog zu Company/Department/Team)
+
+Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur wie Company-, Department- und Team-Pages: Tabs (Overview | …), Overview mit RecentItemsCard und Vorschau-Karten, „View more“ in die Tabs. Scope nutzerbezogen (eigene Spaces/Dokumente bzw. per Grant geteilte Dokumente).
+
+- [x] **Recent-Scope:** `RecentScope` um `personal` und `shared` erweitert; `scopeToKey` und Nutzung in Personal/Shared-Seiten.
+- [x] **Personal Page:** Route `/personal`, Tabs (Overview | Spaces | Documents), Overview mit RecentItemsCard (Scope personal) + Karten „My spaces“ / „Documents“ mit „View more“; Tab Spaces = Grid der UserSpaces (Create space); Tab Documents = Dokumente aus eigenen UserSpaces (GET `/me/personal-documents`); Route `/user-spaces/:userSpaceId` für Space-Detail.
+- [x] **Shared Page:** Route `/shared`, Tabs (Overview | Documents), Overview mit RecentItemsCard (Scope shared) + Vorschau geteilter Dokumente; Backend GET `/me/shared-documents` (Dokumente mit Grant-Zugriff für den Nutzer).
+- [x] **Einheitliche Bausteine:** RecentItemsCard, gleiche Tab-Struktur und leere Zustände wie bei Company/Department/Team.
 
 ---
 

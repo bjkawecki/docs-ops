@@ -7,18 +7,18 @@ export interface RecentItemsCardProps {
 }
 
 /**
- * Karte „Zuletzt angesehene Inhalte“ – gleiche Darstellung auf Company-, Department- und Team-Seite.
+ * Card "Recently viewed items" – same display on company, department and team page.
  */
 export function RecentItemsCard({ items }: RecentItemsCardProps) {
   return (
     <Card withBorder padding="md">
       <Stack gap="xs">
         <Text fw={600} size="sm">
-          Zuletzt angesehene Inhalte
+          Recently viewed items
         </Text>
         {items.length === 0 ? (
           <Text size="sm" c="dimmed">
-            Die Liste füllt sich beim Durchklicken von Kontexten und Dokumenten.
+            The list fills as you browse contexts and documents.
           </Text>
         ) : (
           <Stack gap={4}>

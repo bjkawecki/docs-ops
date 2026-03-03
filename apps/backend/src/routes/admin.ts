@@ -27,7 +27,7 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       select: { id: true },
     });
     if (!target) {
-      return reply.status(404).send({ error: 'User nicht gefunden oder deaktiviert' });
+      return reply.status(404).send({ error: 'User not found or deactivated' });
     }
     reply.setCookie(IMPERSONATE_COOKIE_NAME, target.id, {
       path: '/',

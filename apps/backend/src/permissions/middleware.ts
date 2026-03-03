@@ -39,7 +39,7 @@ export function requireDocumentAccess(
     const allowed =
       mode === 'read' ? await canRead(prisma, userId, doc) : await canWrite(prisma, userId, doc);
     if (!allowed) {
-      return reply.status(403).send({ error: 'Kein Zugriff auf dieses Dokument' });
+      return reply.status(403).send({ error: 'No access to this document' });
     }
   };
 }

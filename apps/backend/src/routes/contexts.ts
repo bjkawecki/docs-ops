@@ -109,7 +109,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       departmentId: body.departmentId ?? undefined,
       teamId: body.teamId ?? undefined,
     });
-    if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung, Prozess anzulegen' });
+    if (!allowed) return reply.status(403).send({ error: 'Permission denied to create process' });
     const owner = await findOrCreateOwner(prisma, {
       companyId: body.companyId ?? undefined,
       departmentId: body.departmentId ?? undefined,
@@ -139,7 +139,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         include: { context: true, owner: true },
       });
       const allowed = await canReadContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
+      if (!allowed) return reply.status(403).send({ error: 'No access' });
       return reply.send(process);
     }
   );
@@ -156,7 +156,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { contextId: true },
       });
       const allowed = await canWriteContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       const body = updateProcessBodySchema.parse(request.body);
       const updated = await prisma.process.update({
         where: { id: processId },
@@ -184,7 +184,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { contextId: true },
       });
       const allowed = await canWriteContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       await prisma.process.delete({ where: { id: processId } });
       return reply.status(204).send();
     }
@@ -228,7 +228,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       departmentId: body.departmentId ?? undefined,
       teamId: body.teamId ?? undefined,
     });
-    if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung, Projekt anzulegen' });
+    if (!allowed) return reply.status(403).send({ error: 'Permission denied to create project' });
     const owner = await findOrCreateOwner(prisma, {
       companyId: body.companyId ?? undefined,
       departmentId: body.departmentId ?? undefined,
@@ -255,7 +255,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       include: { context: true, owner: true, subcontexts: true },
     });
     const allowed = await canReadContext(prisma, userId, project.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
+    if (!allowed) return reply.status(403).send({ error: 'No access' });
     return reply.send(project);
   });
 
@@ -271,7 +271,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { contextId: true },
       });
       const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       const body = updateProjectBodySchema.parse(request.body);
       const updated = await prisma.project.update({
         where: { id: projectId },
@@ -299,7 +299,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { contextId: true },
       });
       const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       await prisma.project.delete({ where: { id: projectId } });
       return reply.status(204).send();
     }
@@ -319,7 +319,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { contextId: true },
       });
       const allowed = await canReadContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
+      if (!allowed) return reply.status(403).send({ error: 'No access' });
       const [items, total] = await Promise.all([
         prisma.subcontext.findMany({
           where: { projectId },
@@ -346,7 +346,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { contextId: true },
       });
       const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       const body = createSubcontextBodySchema.parse(request.body);
       const context = await prisma.context.create({ data: {} });
       const subcontext = await prisma.subcontext.create({
@@ -369,7 +369,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         include: { context: true, project: true },
       });
       const allowed = await canReadContext(prisma, userId, subcontext.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
+      if (!allowed) return reply.status(403).send({ error: 'No access' });
       return reply.send(subcontext);
     }
   );
@@ -386,7 +386,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         include: { project: { select: { contextId: true } } },
       });
       const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       const body = updateSubcontextBodySchema.parse(request.body);
       const updated = await prisma.subcontext.update({
         where: { id: subcontextId },
@@ -409,7 +409,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         include: { project: { select: { contextId: true } } },
       });
       const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       await prisma.subcontext.delete({ where: { id: subcontextId } });
       return reply.status(204).send();
     }
@@ -460,7 +460,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         userSpace.ownerUserId !== userId &&
         !(request as { user?: { isAdmin?: boolean } }).user?.isAdmin
       ) {
-        return reply.status(403).send({ error: 'Nur Owner oder Admin' });
+        return reply.status(403).send({ error: 'Owner or admin only' });
       }
       return reply.send(userSpace);
     }
@@ -477,7 +477,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { id: userSpaceId },
         select: { ownerUserId: true },
       });
-      if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Nur Owner' });
+      if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Owner only' });
       const body = updateUserSpaceBodySchema.parse(request.body);
       const updated = await prisma.userSpace.update({
         where: { id: userSpaceId },
@@ -499,7 +499,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { id: userSpaceId },
         select: { ownerUserId: true },
       });
-      if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Nur Owner' });
+      if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Owner only' });
       await prisma.userSpace.delete({ where: { id: userSpaceId } });
       return reply.status(204).send();
     }
