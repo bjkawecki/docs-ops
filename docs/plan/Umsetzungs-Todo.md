@@ -205,9 +205,13 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 ## 13. Dashboard / Home
 
-- [ ] **Startseite:** Überblick (z. B. letzte Änderungen, „meine“ Dokumente)
-- [ ] **Quick Links:** Repositories, Teams, Prozesse, Firma, ggf. Vorlagen (vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
-- [ ] Optional: Platzhalter für Benachrichtigungen/Updates (später an Async Jobs anbinden)
+Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
+
+- [ ] **Pinned:** Angepinnte Einträge (Dokumente, Prozesse, Projekte). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle. Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell und API (z. B. Pinned-Resource pro Scope) erforderlich.
+- [ ] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
+- [ ] **Latest:** Neueste Dokumente, die der Nutzer lesen darf (z. B. Slice aus Catalog, sortiert nach updatedAt, Limit 10).
+- [ ] **Drafts / Pending review:** Unveröffentlichte Dokumente und offene PRs (Details §15); Block sichtbar sobald Drafts/PR-Feature umgesetzt ist.
+- [ ] Optional: Platzhalter für Benachrichtigungen/Updates (später an Async Jobs anbinden).
 
 ---
 
