@@ -99,7 +99,7 @@ function getOwnerFromContext(ctx: ContextWithOwner): {
 
 /**
  * Prüft, ob der Nutzer einen Prozess/Projekt für den angegebenen Owner (companyId, departmentId oder teamId) anlegen darf.
- * isAdmin, Company Lead der Firma, Department Lead der Abteilung, Team Lead des Teams.
+ * Company: Admin, Company Lead. Department: Admin, Department Lead, Company Lead der Firma. Team: Admin, Team Lead, Department Lead der Abteilung, Company Lead der Firma.
  */
 export async function canCreateProcessOrProjectForOwner(
   prisma: PrismaClient,
@@ -116,10 +116,31 @@ export async function canCreateProcessOrProjectForOwner(
   if (opts.departmentId) {
     const isDeptLead = user.departmentLeads.some((d) => d.departmentId === opts.departmentId);
     if (isDeptLead) return true;
+    const department = await prisma.department.findUnique({
+      where: { id: opts.departmentId },
+      select: { companyId: true },
+    });
+    if (department?.companyId) {
+      const isCompanyLead = user.companyLeads.some((c) => c.companyId === department.companyId);
+      if (isCompanyLead) return true;
+    }
   }
   if (opts.teamId) {
     const isTeamLead = user.leadOfTeams.some((l) => l.teamId === opts.teamId);
     if (isTeamLead) return true;
+    const team = await prisma.team.findUnique({
+      where: { id: opts.teamId },
+      include: { department: { select: { id: true, companyId: true } } },
+    });
+    if (team?.department) {
+      const dept = team.department;
+      const isDeptLead = user.departmentLeads.some((d) => d.departmentId === dept.id);
+      if (isDeptLead) return true;
+      if (dept.companyId) {
+        const isCompanyLead = user.companyLeads.some((c) => c.companyId === dept.companyId);
+        if (isCompanyLead) return true;
+      }
+    }
   }
   return false;
 }

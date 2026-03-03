@@ -226,6 +226,8 @@ describe('Permissions (canRead, canWrite)', () => {
   it('isAdmin → canRead/canWrite true', async () => {
     await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
     expect(await canRead(prisma, adminId, docProcessId)).toBe(true);
+    // Erneut setzen, damit parallele Test-Suites (z. B. admin.test updateMany) den Admin nicht überschreiben
+    await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
     expect(await canWrite(prisma, adminId, docProcessId)).toBe(true);
   });
 

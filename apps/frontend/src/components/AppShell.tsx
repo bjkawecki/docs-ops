@@ -547,6 +547,8 @@ export function AppShell() {
       );
     }
 
+    const userDepartmentId = me?.identity?.teams?.[0]?.departmentId;
+
     return (
       <>
         <NavLink
@@ -560,9 +562,13 @@ export function AppShell() {
         />
         <NavLink
           component={Link}
-          to="/department"
+          to={userDepartmentId ? `/department/${userDepartmentId}` : '/department'}
           label="Department"
-          active={isActive('/department', location.pathname)}
+          active={
+            userDepartmentId
+              ? isActive(`/department/${userDepartmentId}`, location.pathname)
+              : isActive('/department', location.pathname)
+          }
           leftSection={<IconSitemap size={18} />}
           fw={600}
           styles={navLinkStyles}

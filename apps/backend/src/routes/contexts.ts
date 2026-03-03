@@ -79,6 +79,8 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const where = {
       deletedAt: null,
       ...(query.companyId != null && { owner: { companyId: query.companyId } }),
+      ...(query.departmentId != null && { owner: { departmentId: query.departmentId } }),
+      ...(query.teamId != null && { owner: { teamId: query.teamId } }),
     };
 
     const [all, total] = await Promise.all([
@@ -196,6 +198,8 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const where = {
       deletedAt: null,
       ...(query.companyId != null && { owner: { companyId: query.companyId } }),
+      ...(query.departmentId != null && { owner: { departmentId: query.departmentId } }),
+      ...(query.teamId != null && { owner: { teamId: query.teamId } }),
     };
 
     const [all, total] = await Promise.all([
