@@ -11,7 +11,6 @@ import {
   UnstyledButton,
   Group,
   ActionIcon,
-  Modal,
   ScrollArea,
   Loader,
   Button,
@@ -19,11 +18,13 @@ import {
   Divider,
   useMantineColorScheme,
   useMantineTheme,
+  rem,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import {
   IconChevronDown,
+  IconChevronLeft,
   IconChevronRight,
   IconLogout,
   IconSettings,
@@ -89,7 +90,6 @@ export function AppShell() {
   const [expandedDepartmentIds, setExpandedDepartmentIds] = useState<Set<string>>(new Set());
   const [departmentsSectionExpanded, setDepartmentsSectionExpanded] = useState(false);
   const [teamsSectionExpanded, setTeamsSectionExpanded] = useState(false);
-  const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const { colorScheme } = useMantineColorScheme();
   const theme = useMantineTheme();
@@ -159,7 +159,7 @@ export function AppShell() {
       if (!res.ok) throw new Error('Failed to load users');
       return (await res.json()) as { items: AdminUser[]; total: number };
     },
-    enabled: impersonateModalOpen && showDebugMenu,
+    enabled: showDebugMenu,
   });
 
   const impersonateMutation = useMutation({
@@ -175,7 +175,6 @@ export function AppShell() {
       }
     },
     onSuccess: () => {
-      setImpersonateModalOpen(false);
       void queryClient.invalidateQueries({ queryKey: meQueryKey });
       void navigate('/', { replace: true });
       notifications.show({
@@ -599,62 +598,67 @@ export function AppShell() {
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item
-                onClick={() => setImpersonateModalOpen(true)}
-                leftSection={<IconShield size={14} />}
-              >
-                Ansicht als Nutzer
-              </Menu.Item>
+              <Menu trigger="hover" openDelay={100} closeDelay={100} position="left-start">
+                <Menu.Target>
+                  <Menu.Item
+                    leftSection={
+                      <Group gap="xs" wrap="nowrap">
+                        <IconChevronLeft style={{ width: rem(14), height: rem(14) }} />
+                        <IconShield size={14} />
+                      </Group>
+                    }
+                  >
+                    Ansicht als Nutzer
+                  </Menu.Item>
+                </Menu.Target>
+                <Menu.Dropdown style={{ minWidth: 320 }}>
+                  {adminUsersLoading ? (
+                    <Menu.Item disabled>
+                      <Loader size="xs" />
+                    </Menu.Item>
+                  ) : adminUsersError ? (
+                    <Menu.Item disabled>
+                      <Text size="sm" c="dimmed">
+                        Nutzerliste konnte nicht geladen werden.
+                      </Text>
+                    </Menu.Item>
+                  ) : (adminUsersRes?.items ?? []).length === 0 ? (
+                    <Menu.Item disabled>
+                      <Text size="sm" c="dimmed">
+                        Keine Nutzer vorhanden.
+                      </Text>
+                    </Menu.Item>
+                  ) : (
+                    <ScrollArea.Autosize mah={320}>
+                      {(adminUsersRes?.items ?? []).map((u) => (
+                        <Menu.Item
+                          key={u.id}
+                          onClick={() => impersonateMutation.mutate(u.id)}
+                          disabled={impersonateMutation.isPending}
+                        >
+                          <Stack gap={2}>
+                            <Text size="sm" fw={500}>
+                              {u.name}
+                            </Text>
+                            {u.email && (
+                              <Text size="xs" c="dimmed">
+                                {u.email}
+                              </Text>
+                            )}
+                            <Badge size="xs" variant="light">
+                              {u.role}
+                            </Badge>
+                          </Stack>
+                        </Menu.Item>
+                      ))}
+                    </ScrollArea.Autosize>
+                  )}
+                </Menu.Dropdown>
+              </Menu>
             </Menu.Dropdown>
           </Menu>
         </Box>
       )}
-
-      <Modal
-        title="Ansicht als Nutzer"
-        opened={impersonateModalOpen}
-        onClose={() => setImpersonateModalOpen(false)}
-        size="sm"
-      >
-        {adminUsersLoading ? (
-          <Loader size="sm" />
-        ) : adminUsersError ? (
-          <Text size="sm" c="dimmed">
-            Nutzerliste konnte nicht geladen werden.
-          </Text>
-        ) : (
-          <ScrollArea.Autosize mah={320}>
-            <Stack gap={4}>
-              {(adminUsersRes?.items ?? []).length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  Keine Nutzer vorhanden.
-                </Text>
-              ) : (
-                (adminUsersRes?.items ?? []).map((u) => (
-                  <UnstyledButton
-                    key={u.id}
-                    style={{ textAlign: 'left', padding: '6px 8px', borderRadius: 4 }}
-                    onClick={() => impersonateMutation.mutate(u.id)}
-                    disabled={impersonateMutation.isPending}
-                  >
-                    <Text size="sm" fw={500}>
-                      {u.name}
-                    </Text>
-                    {u.email && (
-                      <Text size="xs" c="dimmed">
-                        {u.email}
-                      </Text>
-                    )}
-                    <Badge size="xs" variant="light" mt={4}>
-                      {u.role}
-                    </Badge>
-                  </UnstyledButton>
-                ))
-              )}
-            </Stack>
-          </ScrollArea.Autosize>
-        )}
-      </Modal>
 
       <MantineAppShell.Navbar
         p="md"
