@@ -19,6 +19,8 @@ import { notifications } from '@mantine/notifications';
 type ProcessItem = { id: string; name: string; contextId: string };
 type ProjectItem = { id: string; name: string; contextId: string };
 
+type CompanyRes = { id: string; name: string };
+
 type EditTarget = { id: string; name: string; type: 'process' | 'project' };
 type DeleteTarget = { id: string; type: 'process' | 'project' };
 
@@ -34,16 +36,28 @@ export function FirmaPage() {
 
   const { data: firstCompany } = useQuery({
     queryKey: ['companies', 'first'],
-    queryFn: async () => {
+    queryFn: async (): Promise<CompanyRes | null> => {
       const res = await apiFetch('/api/v1/companies?limit=1');
       if (!res.ok) throw new Error('Failed to load companies');
-      const data = (await res.json()) as { items: { id: string }[] };
+      const data = (await res.json()) as { items: CompanyRes[] };
       return data.items[0] ?? null;
     },
     enabled: isAdmin && !companyIdFromLead,
   });
 
   const effectiveCompanyId = companyIdFromLead ?? firstCompany?.id;
+
+  const { data: company } = useQuery({
+    queryKey: ['company', effectiveCompanyId ?? ''],
+    queryFn: async (): Promise<CompanyRes> => {
+      if (!effectiveCompanyId) throw new Error('Missing company id');
+      const res = await apiFetch(`/api/v1/companies/${effectiveCompanyId}`);
+      if (!res.ok) throw new Error('Failed to load company');
+      return (await res.json()) as CompanyRes;
+    },
+    enabled: effectiveCompanyId != null,
+  });
+
   const canManage = (me?.identity?.companyLeads?.length ?? 0) > 0 || isAdmin;
 
   const { data: processesData, isPending: processesPending } = useQuery({
@@ -135,7 +149,7 @@ export function FirmaPage() {
   return (
     <>
       <PageWithTabs
-        title="Company"
+        title={company?.name ?? 'Company'}
         description="Kontexte und Inhalte der Firma."
         actions={
           effectiveCompanyId && canManage ? (

@@ -548,6 +548,7 @@ export function AppShell() {
     }
 
     const userDepartmentId = me?.identity?.teams?.[0]?.departmentId;
+    const userTeamId = me?.identity?.teams?.[0]?.teamId;
 
     return (
       <>
@@ -575,9 +576,13 @@ export function AppShell() {
         />
         <NavLink
           component={Link}
-          to="/team"
+          to={userTeamId ? `/team/${userTeamId}` : '/team'}
           label="Team"
-          active={isActive('/team', location.pathname)}
+          active={
+            userTeamId
+              ? isActive(`/team/${userTeamId}`, location.pathname)
+              : isActive('/team', location.pathname)
+          }
           leftSection={<IconUsersGroup size={18} />}
           fw={600}
           styles={navLinkStyles}
