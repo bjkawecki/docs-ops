@@ -3,6 +3,24 @@ import { paginationQuerySchema } from './organisation.js';
 
 export { paginationQuerySchema };
 
+function normalizeToCuidArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[];
+  if (v === undefined || v === '') return [];
+  if (typeof v === 'string') return [v];
+  return [];
+}
+const cuidArray = z.preprocess(normalizeToCuidArray, z.array(z.string().cuid()));
+
+/** Query: GET /documents (catalog list) – pagination + filters. */
+export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
+  contextType: z.enum(['process', 'project', 'userSpace']).optional(),
+  companyId: z.string().cuid().optional(),
+  departmentId: z.string().cuid().optional(),
+  teamId: z.string().cuid().optional(),
+  tagIds: cuidArray.optional().default([]),
+  search: z.string().min(1).optional(),
+});
+
 /** Params: contextId. */
 export const contextIdParamSchema = z.object({
   contextId: z.cuid(),

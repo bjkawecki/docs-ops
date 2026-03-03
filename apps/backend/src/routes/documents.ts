@@ -8,8 +8,10 @@ import {
 import { requireDocumentAccess, canDeleteDocument } from '../permissions/index.js';
 import { canReadContext, canWriteContext } from '../permissions/contextPermissions.js';
 import { type GrantRole } from '../../generated/prisma/client.js';
+import { getReadableCatalogScope } from '../permissions/catalogPermissions.js';
 import {
   paginationQuerySchema,
+  catalogDocumentsQuerySchema,
   contextIdParamSchema,
   documentIdParamSchema,
   createDocumentBodySchema,
@@ -20,6 +22,205 @@ import {
 } from './schemas/documents.js';
 
 const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
+  /** GET Catalog: all documents the user can read, with filters and pagination. */
+  app.get('/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
+    const query = catalogDocumentsQuerySchema.parse(request.query);
+
+    const { contextIds, documentIdsFromGrants } = await getReadableCatalogScope(prisma, userId);
+
+    const baseWhere: Record<string, unknown> = {
+      deletedAt: null,
+      OR: [
+        ...(contextIds.length > 0 ? [{ contextId: { in: contextIds } }] : []),
+        ...(documentIdsFromGrants.length > 0 ? [{ id: { in: documentIdsFromGrants } }] : []),
+      ],
+    };
+    if ((baseWhere.OR as unknown[]).length === 0) {
+      return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+    }
+
+    const contextConditions: Record<string, unknown>[] = [];
+    if (query.contextType === 'process') {
+      contextConditions.push({ process: { isNot: null } });
+    } else if (query.contextType === 'project') {
+      contextConditions.push({
+        OR: [{ project: { isNot: null } }, { subcontext: { isNot: null } }],
+      });
+    } else if (query.contextType === 'userSpace') {
+      contextConditions.push({ userSpace: { isNot: null } });
+    }
+    if (query.companyId) {
+      contextConditions.push({
+        OR: [
+          { process: { owner: { companyId: query.companyId } } },
+          { project: { owner: { companyId: query.companyId } } },
+          { subcontext: { project: { owner: { companyId: query.companyId } } } },
+        ],
+      });
+    } else if (query.departmentId) {
+      contextConditions.push({
+        OR: [
+          { process: { owner: { departmentId: query.departmentId } } },
+          { project: { owner: { departmentId: query.departmentId } } },
+          { subcontext: { project: { owner: { departmentId: query.departmentId } } } },
+        ],
+      });
+    } else if (query.teamId) {
+      contextConditions.push({
+        OR: [
+          { process: { owner: { teamId: query.teamId } } },
+          { project: { owner: { teamId: query.teamId } } },
+          { subcontext: { project: { owner: { teamId: query.teamId } } } },
+        ],
+      });
+    }
+    if (contextConditions.length > 0) {
+      baseWhere.context =
+        contextConditions.length === 1 ? contextConditions[0] : { AND: contextConditions };
+    }
+
+    if (query.tagIds.length > 0) {
+      baseWhere.documentTags = { some: { tagId: { in: query.tagIds } } };
+    }
+    if (query.search?.trim()) {
+      baseWhere.title = { contains: query.search.trim(), mode: 'insensitive' };
+    }
+
+    const select = {
+      id: true,
+      title: true,
+      contextId: true,
+      createdAt: true,
+      updatedAt: true,
+      documentTags: { include: { tag: { select: { id: true, name: true } } } },
+      context: {
+        select: {
+          id: true,
+          process: {
+            select: {
+              id: true,
+              name: true,
+              owner: {
+                select: {
+                  company: { select: { name: true } },
+                  department: { select: { name: true } },
+                  team: { select: { name: true } },
+                },
+              },
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              owner: {
+                select: {
+                  company: { select: { name: true } },
+                  department: { select: { name: true } },
+                  team: { select: { name: true } },
+                },
+              },
+            },
+          },
+          subcontext: {
+            select: {
+              id: true,
+              name: true,
+              project: {
+                select: {
+                  id: true,
+                  name: true,
+                  owner: {
+                    select: {
+                      company: { select: { name: true } },
+                      department: { select: { name: true } },
+                      team: { select: { name: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          userSpace: {
+            select: {
+              id: true,
+              name: true,
+              owner: { select: { name: true } },
+            },
+          },
+        },
+      },
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.document.findMany({
+        where: baseWhere,
+        select,
+        orderBy: { updatedAt: 'desc' },
+        take: query.limit,
+        skip: query.offset,
+      }),
+      prisma.document.count({ where: baseWhere }),
+    ]);
+
+    const mapped = items.map((doc) => {
+      const ctx = doc.context;
+      let contextType: 'process' | 'project' | 'userSpace' = 'process';
+      let contextName = '';
+      let ownerDisplay = 'Personal';
+      let contextProcessId: string | null = null;
+      let contextProjectId: string | null = null;
+      let contextUserSpaceId: string | null = null;
+      if (ctx.process) {
+        contextType = 'process';
+        contextName = ctx.process.name;
+        contextProcessId = ctx.process.id;
+        const o = ctx.process.owner;
+        ownerDisplay = o.company?.name ?? o.department?.name ?? o.team?.name ?? ownerDisplay;
+      } else if (ctx.project) {
+        contextType = 'project';
+        contextName = ctx.project.name;
+        contextProjectId = ctx.project.id;
+        const o = ctx.project.owner;
+        ownerDisplay = o.company?.name ?? o.department?.name ?? o.team?.name ?? ownerDisplay;
+      } else if (ctx.subcontext) {
+        contextType = 'project';
+        contextName = ctx.subcontext.name;
+        contextProjectId = ctx.subcontext.project.id;
+        const o = ctx.subcontext.project.owner;
+        ownerDisplay = o.company?.name ?? o.department?.name ?? o.team?.name ?? ownerDisplay;
+      } else if (ctx.userSpace) {
+        contextType = 'userSpace';
+        contextName = ctx.userSpace.name;
+        contextUserSpaceId = ctx.userSpace.id;
+        ownerDisplay = ctx.userSpace.owner?.name ?? 'Personal';
+      }
+      return {
+        id: doc.id,
+        title: doc.title,
+        contextId: doc.contextId,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        documentTags: doc.documentTags,
+        contextType,
+        contextName,
+        ownerDisplay,
+        contextProcessId,
+        contextProjectId,
+        contextUserSpaceId,
+      };
+    });
+
+    return reply.send({
+      items: mapped,
+      total,
+      limit: query.limit,
+      offset: query.offset,
+    });
+  });
+
   /** GET Einzeldokument – nur wenn deletedAt null (Middleware liefert 404 bei gelöscht). */
   app.get<{
     Params: { documentId: string };

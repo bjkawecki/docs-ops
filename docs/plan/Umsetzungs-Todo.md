@@ -204,9 +204,16 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 ---
 
+## Catalog (Dokumenten-Tabelle)
+
+- [x] **Backend:** `GET /api/v1/documents` (Catalog-Liste) mit Pagination und Filtern (contextType, owner, tagIds, search); nur Dokumente zurückgeben, die der Nutzer lesen darf (canRead: Kontext + Grants); Response inkl. Kontext-Typ, Kontext-Name, Owner-Anzeige, Tags.
+- [x] **Frontend:** Catalog-Seite mit Filter-Panel (Context type, Owner, Tags), Titelsuche, Tabelle (Title, Context, Context type, Owner, Tags, Updated, Actions), Pagination; Filter in URL-Query; alle Texte auf Englisch.
+
+---
+
 ## 13. Dokumente in der UI
 
-- [ ] Listen/Filter nach Kontext, Team, Tags
+- [x] **Catalog:** Listen/Filter nach Kontext, Kontexttyp, Owner, Tags (umgesetzt in Abschnitt „Catalog“).
 - [ ] **Tag-Verwaltung:** Tags anzeigen, Dokumenten zuweisen, nach Tags filtern
 - [ ] Markdown-Editor + Vorschau (z. B. TipTap oder Textarea + Preview)
 - [ ] Anzeige mit Rechte-Checks (Lesen/Schreiben nur wenn berechtigt)
