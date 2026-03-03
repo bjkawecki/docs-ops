@@ -102,10 +102,10 @@ export function FirmaPage() {
           color: 'green',
         });
       } else {
-        const body = await res.json().catch(() => ({}));
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
           title: 'Fehler',
-          message: (body as { error?: string })?.error ?? res.statusText,
+          message: body?.error ?? res.statusText,
           color: 'red',
         });
       }

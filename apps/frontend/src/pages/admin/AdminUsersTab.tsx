@@ -129,7 +129,7 @@ export function AdminUsersTab() {
     queryFn: async (): Promise<CompaniesRes> => {
       const res = await apiFetch('/api/v1/companies?limit=1');
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as CompaniesRes;
     },
   });
   const companyId = companiesData?.items?.[0]?.id ?? null;
@@ -138,7 +138,7 @@ export function AdminUsersTab() {
     queryFn: async (): Promise<DepartmentsRes> => {
       const res = await apiFetch(`/api/v1/companies/${companyId}/departments?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as DepartmentsRes;
     },
     enabled: !!companyId,
   });
@@ -150,10 +150,10 @@ export function AdminUsersTab() {
     queryFn: async (): Promise<ListUsersRes> => {
       const res = await apiFetch(queryUrl);
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
-      return res.json();
+      return (await res.json()) as ListUsersRes;
     },
   });
 
@@ -180,8 +180,8 @@ export function AdminUsersTab() {
         body: JSON.stringify(userBody),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
       const user = (await res.json()) as { id: string };
       const userId = user.id;
@@ -192,8 +192,8 @@ export function AdminUsersTab() {
           body: JSON.stringify({ userId }),
         });
         if (!memberRes.ok) {
-          const err = await memberRes.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error ?? 'Failed to add team member');
+          const memberErr = (await memberRes.json().catch(() => ({}))) as { error?: string };
+          throw new Error(memberErr.error ?? 'Failed to add team member');
         }
         if (teamRole === 'leader') {
           const leaderRes = await apiFetch(`/api/v1/teams/${teamId}/team-leads`, {
@@ -202,8 +202,8 @@ export function AdminUsersTab() {
             body: JSON.stringify({ userId }),
           });
           if (!leaderRes.ok) {
-            const err = await leaderRes.json().catch(() => ({}));
-            throw new Error((err as { error?: string }).error ?? 'Failed to add team lead');
+            const leaderErr = (await leaderRes.json().catch(() => ({}))) as { error?: string };
+            throw new Error(leaderErr.error ?? 'Failed to add team lead');
           }
         }
       }
@@ -214,8 +214,8 @@ export function AdminUsersTab() {
           body: JSON.stringify({ userId }),
         });
         if (!supRes.ok) {
-          const err = await supRes.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error ?? 'Failed to add department lead');
+          const supErr = (await supRes.json().catch(() => ({}))) as { error?: string };
+          throw new Error(supErr.error ?? 'Failed to add department lead');
         }
       }
       return user;
@@ -248,10 +248,10 @@ export function AdminUsersTab() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
-      return res.json();
+      return (await res.json()) as UserRow;
     },
     onSuccess: () => {
       invalidateUsers();
@@ -276,8 +276,8 @@ export function AdminUsersTab() {
         body: JSON.stringify({ newPassword }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {

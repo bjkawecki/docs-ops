@@ -68,10 +68,10 @@ export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContex
         onSuccess?.();
         handleClose();
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
           title: 'Fehler',
-          message: (data as { error?: string })?.error ?? res.statusText,
+          message: data?.error ?? res.statusText,
           color: 'red',
         });
       }

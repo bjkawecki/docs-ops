@@ -48,7 +48,7 @@ export function AdminTeamsTab() {
     queryFn: async (): Promise<CompaniesRes> => {
       const res = await apiFetch('/api/v1/companies?limit=100');
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as CompaniesRes;
     },
   });
 
@@ -59,12 +59,12 @@ export function AdminTeamsTab() {
     queryFn: async (): Promise<DepartmentsRes> => {
       const res = await apiFetch(`/api/v1/companies/${companyId}/departments?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as DepartmentsRes;
     },
     enabled: !!companyId,
   });
 
-  const departments = departmentsData?.items ?? [];
+  const departments = useMemo(() => departmentsData?.items ?? [], [departmentsData?.items]);
   const teams = useMemo(() => {
     if (!departmentId || !departments.length) return [];
     const dept = departments.find((d) => d.id === departmentId);
@@ -78,7 +78,7 @@ export function AdminTeamsTab() {
     queryFn: async (): Promise<AssignmentListRes> => {
       const res = await apiFetch(`/api/v1/teams/${teamId}/members?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as AssignmentListRes;
     },
     enabled: !!teamId,
   });
@@ -88,7 +88,7 @@ export function AdminTeamsTab() {
     queryFn: async (): Promise<AssignmentListRes> => {
       const res = await apiFetch(`/api/v1/teams/${teamId}/team-leads?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as AssignmentListRes;
     },
     enabled: !!teamId,
   });
@@ -110,10 +110,10 @@ export function AdminTeamsTab() {
         body: JSON.stringify({ name }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
-      return res.json();
+      return (await res.json()) as Team;
     },
     onSuccess: () => {
       invalidateDepartments();
@@ -144,10 +144,10 @@ export function AdminTeamsTab() {
         body: JSON.stringify({ name, departmentId: did }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
-      return res.json();
+      return (await res.json()) as Team;
     },
     onSuccess: () => {
       invalidateDepartments();
@@ -167,8 +167,8 @@ export function AdminTeamsTab() {
     mutationFn: async (tid: string) => {
       const res = await apiFetch(`/api/v1/teams/${tid}`, { method: 'DELETE' });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {
@@ -192,8 +192,8 @@ export function AdminTeamsTab() {
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {
@@ -213,8 +213,8 @@ export function AdminTeamsTab() {
     mutationFn: async (userId: string) => {
       const res = await apiFetch(`/api/v1/teams/${teamId}/members/${userId}`, { method: 'DELETE' });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {
@@ -237,8 +237,8 @@ export function AdminTeamsTab() {
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {
@@ -260,8 +260,8 @@ export function AdminTeamsTab() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {
@@ -610,7 +610,7 @@ function UserPickerModal({
       if (search.trim()) params.set('search', search.trim());
       const res = await apiFetch(`/api/v1/admin/users?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load');
-      return res.json();
+      return (await res.json()) as AdminUsersRes;
     },
     enabled: opened,
   });

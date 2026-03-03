@@ -51,7 +51,7 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       payload: { email: TEST_EMAIL, password: 'wrong' },
     });
     expect(res.statusCode).toBe(401);
-    const body = res.json();
+    const body = res.json() as { error: string };
     expect(body.error).toBe('Anmeldung fehlgeschlagen');
   });
 
@@ -92,7 +92,7 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       headers: { cookie: cookieHeader },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as { items: unknown[]; total: number; limit: number; offset: number };
     expect(Array.isArray(body.items)).toBe(true);
     expect(typeof body.total).toBe('number');
     expect(body.limit).toBeDefined();
@@ -115,7 +115,7 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       headers: { cookie: cookieHeader },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as { id: string; email: string; name: string };
     expect(body.id).toBe(testUserId);
     expect(body.email).toBe(TEST_EMAIL);
     expect(body.name).toBe('Auth Test User');

@@ -49,10 +49,10 @@ export function SettingsGeneralTab() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
-      return res.json();
+      return (await res.json()) as { name: string };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: meQueryKey });
@@ -72,8 +72,8 @@ export function SettingsGeneralTab() {
     mutationFn: async () => {
       const res = await apiFetch('/api/v1/me/deactivate', { method: 'POST' });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: async () => {

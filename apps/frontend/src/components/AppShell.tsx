@@ -157,7 +157,7 @@ export function AppShell() {
     queryFn: async () => {
       const res = await apiFetch('/api/v1/admin/users?limit=100&includeDeactivated=false');
       if (!res.ok) throw new Error('Failed to load users');
-      return res.json();
+      return (await res.json()) as { items: AdminUser[]; total: number };
     },
     enabled: impersonateModalOpen && showDebugMenu,
   });

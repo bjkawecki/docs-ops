@@ -416,7 +416,7 @@ describe('requireDocumentAccess (GET /api/v1/documents/:documentId)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as { id: string; title: string };
     expect(body.id).toBe(documentId);
     expect(body.title).toBe('Test Doc');
   });

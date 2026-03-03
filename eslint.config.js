@@ -64,5 +64,12 @@ module.exports = tseslint.config(
     files: ['apps/frontend/**/*.tsx'],
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.recommended.rules,
+  },
+  // In Tests: res.json() liefert typisch unknown/any; Type-Assertions sind nötig für no-unsafe-*
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx'],
+    rules: {
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+    },
   }
 );

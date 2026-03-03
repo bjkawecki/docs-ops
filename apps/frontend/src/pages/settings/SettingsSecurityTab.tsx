@@ -13,7 +13,7 @@ export function SettingsSecurityTab() {
     queryFn: async (): Promise<{ sessions: SessionItem[] }> => {
       const res = await apiFetch('/api/v1/me/sessions');
       if (!res.ok) throw new Error('Failed to load sessions');
-      return res.json();
+      return (await res.json()) as { sessions: SessionItem[] };
     },
   });
 
@@ -23,8 +23,8 @@ export function SettingsSecurityTab() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: (_, { isCurrent }) => {
@@ -55,8 +55,8 @@ export function SettingsSecurityTab() {
     mutationFn: async () => {
       const res = await apiFetch('/api/v1/me/sessions', { method: 'DELETE' });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? res.statusText);
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
       }
     },
     onSuccess: () => {

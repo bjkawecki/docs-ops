@@ -58,7 +58,11 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as {
+      user: { id: string; name: string; email: string };
+      identity: { teams: unknown[]; departments: unknown[] };
+      preferences: unknown;
+    };
     expect(body.user.id).toBe(testUserId);
     expect(body.user.name).toBe('Me Test User');
     expect(body.user.email).toBe(TEST_EMAIL);
@@ -83,7 +87,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       payload: { name: 'Me Test User Updated' },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as { name: string };
     expect(body.name).toBe('Me Test User Updated');
 
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: testUserId } });
@@ -104,7 +108,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as Record<string, unknown>;
     expect(body).toBeDefined();
   });
 
@@ -123,7 +127,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       payload: { theme: 'dark', sidebarPinned: true },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as { theme: string; sidebarPinned: boolean };
     expect(body.theme).toBe('dark');
     expect(body.sidebarPinned).toBe(true);
 
@@ -157,15 +161,12 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       payload: { recentItemsByScope: { [scopeKey]: items } },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    type RecentItem = { type: string; id: string; name: string };
+    const body = res.json() as { recentItemsByScope?: Record<string, RecentItem[]> };
     expect(body.recentItemsByScope).toBeDefined();
     expect(body.recentItemsByScope?.[scopeKey]).toHaveLength(2);
-    expect(
-      (body.recentItemsByScope?.[scopeKey] as { type: string; id: string; name: string }[])[0].type
-    ).toBe('process');
-    expect(
-      (body.recentItemsByScope?.[scopeKey] as { type: string; id: string; name: string }[])[0].name
-    ).toBe('Prozess A');
+    expect(body.recentItemsByScope?.[scopeKey]?.[0].type).toBe('process');
+    expect(body.recentItemsByScope?.[scopeKey]?.[0].name).toBe('Prozess A');
 
     const getRes = await app.inject({
       method: 'GET',
@@ -173,7 +174,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       headers: { cookie },
     });
     expect(getRes.statusCode).toBe(200);
-    const getBody = getRes.json();
+    const getBody = getRes.json() as { recentItemsByScope?: Record<string, RecentItem[]> };
     expect(getBody.recentItemsByScope?.[scopeKey]).toHaveLength(2);
 
     const user = await prisma.user.findUniqueOrThrow({

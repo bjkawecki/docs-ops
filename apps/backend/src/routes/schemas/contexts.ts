@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { paginationQuerySchema } from './organisation.js';
+import { paginationQuerySchema, type PaginationQuery } from './organisation.js';
 
 export { paginationQuerySchema };
+export type { PaginationQuery };
 
 /** Query: Liste Prozesse (Pagination + optional nach Company filtern). */
 export const processListQuerySchema = paginationQuerySchema.extend({

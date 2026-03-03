@@ -65,7 +65,7 @@ export function RecentItemsProvider({ children }: { children: ReactNode }) {
         }),
       });
       if (!res.ok) throw new Error('Failed to save recent items');
-      return res.json();
+      return (await res.json()) as { recentItemsByScope?: Record<string, RecentItem[]> };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: meQueryKey });

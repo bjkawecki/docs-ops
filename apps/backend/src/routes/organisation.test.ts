@@ -109,7 +109,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
     });
     expect([201, 409]).toContain(res.statusCode);
     if (res.statusCode === 201) {
-      const body = res.json();
+      const body = res.json() as { id: string; name: string };
       expect(body.name).toBe('Kern-API Test AG');
       expect(body.id).toBeDefined();
       companyId = body.id;
@@ -120,7 +120,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
         url: '/api/v1/companies',
         headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
       });
-      const list = listRes.json();
+      const list = listRes.json() as { items: { id: string }[] };
       expect(list.items.length).toBeGreaterThanOrEqual(1);
       companyId = list.items[0].id;
       companyCreatedInTest = false;
@@ -140,7 +140,12 @@ describe('Organisation (Companies, Departments, Teams)', () => {
       headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const body = res.json() as {
+      items: unknown[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
     expect(Array.isArray(body.items)).toBe(true);
     expect(body.total).toBe(1);
     expect(body.items).toHaveLength(1);

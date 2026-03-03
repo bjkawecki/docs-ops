@@ -25,6 +25,8 @@ import {
   projectIdParamSchema,
   subcontextIdParamSchema,
   userSpaceIdParamSchema,
+  paginationQuerySchema,
+  type PaginationQuery,
 } from './schemas/contexts.js';
 
 /** Findet oder erstellt einen Owner für companyId, departmentId oder teamId (genau einer). */
@@ -306,7 +308,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { projectId } = projectIdParamSchema.parse(request.params);
-      const query = paginationQuerySchema.parse(request.query);
+      const query: PaginationQuery = paginationQuerySchema.parse(request.query);
       const userId = getEffectiveUserId(request as RequestWithUser);
       const project = await prisma.project.findUniqueOrThrow({
         where: { id: projectId },
@@ -412,7 +414,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- UserSpaces ---
   app.get('/user-spaces', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const query = paginationQuerySchema.parse(request.query);
+    const query: PaginationQuery = paginationQuerySchema.parse(request.query);
     const userId = getEffectiveUserId(request as RequestWithUser);
     const [items, total] = await Promise.all([
       prisma.userSpace.findMany({

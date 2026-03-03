@@ -7,7 +7,7 @@ export const meQueryKey = ['me'] as const;
 export async function fetchMe(): Promise<MeResponse> {
   const res = await apiFetch('/api/v1/me');
   if (!res.ok) throw new Error(res.status === 401 ? 'Unauthorized' : 'Failed to load me');
-  return res.json();
+  return (await res.json()) as MeResponse;
 }
 
 /**

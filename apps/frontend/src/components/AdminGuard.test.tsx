@@ -8,7 +8,8 @@ import type { MeResponse } from '../api/me-types';
 const mockNavigate = vi.fn();
 
 vi.mock('react-router-dom', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router-dom')>();
+  const mod = await importOriginal();
+  const actual = mod as Record<string, unknown>;
   return {
     ...actual,
     useNavigate: () => mockNavigate,
