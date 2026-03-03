@@ -176,8 +176,8 @@ export function AppShell() {
     },
     onSuccess: () => {
       setImpersonateModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: meQueryKey });
-      navigate('/', { replace: true });
+      void queryClient.invalidateQueries({ queryKey: meQueryKey });
+      void navigate('/', { replace: true });
       notifications.show({
         title: 'Ansicht gewechselt',
         message: 'Sie sehen die App jetzt als den gewählten Nutzer.',
@@ -195,8 +195,8 @@ export function AppShell() {
       if (!res.ok) throw new Error('Beenden fehlgeschlagen');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: meQueryKey });
-      navigate('/', { replace: true });
+      void queryClient.invalidateQueries({ queryKey: meQueryKey });
+      void navigate('/', { replace: true });
       notifications.show({
         title: 'Impersonation beendet',
         message: 'You are now back to your original account.',
@@ -219,7 +219,7 @@ export function AppShell() {
         message: 'You have been logged out.',
         color: 'green',
       });
-      navigate('/login', { replace: true });
+      void navigate('/login', { replace: true });
     },
     onError: (err) => {
       notifications.show({ title: 'Logout failed', message: err.message, color: 'red' });
@@ -587,7 +587,7 @@ export function AppShell() {
         <Box
           style={{
             position: 'fixed',
-            top: 16,
+            bottom: 16,
             right: 16,
             zIndex: 1000,
           }}

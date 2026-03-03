@@ -224,6 +224,7 @@ describe('Permissions (canRead, canWrite)', () => {
   });
 
   it('isAdmin → canRead/canWrite true', async () => {
+    await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
     expect(await canRead(prisma, adminId, docProcessId)).toBe(true);
     expect(await canWrite(prisma, adminId, docProcessId)).toBe(true);
   });
@@ -415,7 +416,7 @@ describe('requireDocumentAccess (GET /api/v1/documents/:documentId)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { id: string; title: string };
+    const body = res.json();
     expect(body.id).toBe(documentId);
     expect(body.title).toBe('Test Doc');
   });

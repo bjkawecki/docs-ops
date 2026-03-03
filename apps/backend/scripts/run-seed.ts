@@ -6,15 +6,15 @@ import './load-env.js';
 import { prisma } from '../src/db.js';
 import { runSeedIfNeeded } from '../src/seed.js';
 
-runSeedIfNeeded(prisma)
+void runSeedIfNeeded(prisma)
   .then(() => {
     console.log('Seed finished (data created only if no company existed).');
     process.exit(0);
   })
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error(e);
     process.exit(1);
   })
   .finally(() => {
-    prisma.$disconnect();
+    void prisma.$disconnect();
   });

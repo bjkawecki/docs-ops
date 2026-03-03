@@ -107,13 +107,15 @@ export function AdminOrganisationTab() {
   });
   const companyLeads = companyLeadsData?.items ?? [];
 
-  const invalidateCompanies = () => queryClient.invalidateQueries({ queryKey: ['companies'] });
+  const invalidateCompanies = () => void queryClient.invalidateQueries({ queryKey: ['companies'] });
   const invalidateDepartments = () =>
-    queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'departments'] });
+    void queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'departments'] });
   const invalidateCompanyLeads = () =>
-    queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'company-leads'] });
+    void queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'company-leads'] });
   const invalidateSupervisors = (departmentId: string) => {
-    queryClient.invalidateQueries({ queryKey: ['departments', departmentId, 'department-leads'] });
+    void queryClient.invalidateQueries({
+      queryKey: ['departments', departmentId, 'department-leads'],
+    });
   };
 
   const createCompany = useMutation({
@@ -448,12 +450,12 @@ export function AdminOrganisationTab() {
             <>
               <Group justify="space-between" align="center" mb="md">
                 <Group gap="xs">
-                  <Title order={4}>{company!.name}</Title>
+                  <Title order={4}>{company.name}</Title>
                   <ActionIcon
                     size="sm"
                     variant="subtle"
                     onClick={() => {
-                      setEditingCompany(company!);
+                      setEditingCompany(company);
                       openCompanyModal();
                     }}
                   >

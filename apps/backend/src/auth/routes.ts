@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { loginBodySchema } from './schemas.js';
 import { verifyPassword } from './password.js';
 import { createSession, deleteSession } from './session.js';
-import { requireAuth, SESSION_COOKIE_NAME } from './middleware.js';
+import { requireAuthPreHandler, SESSION_COOKIE_NAME } from './middleware.js';
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -11,7 +11,7 @@ const COOKIE_OPTIONS = {
   path: '/',
 };
 
-const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+const authRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   /** POST /api/v1/auth/login – Body: { email, password }; bei Erfolg Set-Cookie, 204. */
   app.post('/auth/login', async (request, reply) => {
     const parseResult = loginBodySchema.safeParse(request.body);
@@ -56,7 +56,7 @@ const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** GET /api/v1/auth/me – aktueller User (geschützt). */
-  app.get('/auth/me', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/auth/me', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const user = request.user!;
     return reply.send({
       id: user.id,
@@ -65,6 +65,7 @@ const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       isAdmin: user.isAdmin,
     });
   });
+  return Promise.resolve();
 };
 
 export { authRoutes };

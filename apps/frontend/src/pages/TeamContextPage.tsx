@@ -1,14 +1,18 @@
-import { Card, Text } from '@mantine/core';
+import { Card, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
+import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
+import { RecentItemsCard } from '../components/contexts';
 
 /**
  * Team context view: card grid for processes/projects with this team as owner. Placeholder.
  */
 export function TeamContextPage() {
   const { teamId } = useParams<{ teamId: string }>();
+  const teamScope = teamId != null ? { type: 'team' as const, id: teamId } : null;
+  const { items: recentItems } = useRecentItems(teamScope);
   const {
     data: team,
     isPending,
@@ -43,11 +47,16 @@ export function TeamContextPage() {
       title={team.name}
       description="Team context – processes and projects. Card grid to follow."
     >
-      <Card withBorder padding="md">
-        <Text size="sm" c="dimmed">
-          Card grid for this team's contexts will be populated from API.
-        </Text>
-      </Card>
+      <Stack gap="md">
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <RecentItemsCard items={recentItems} />
+          <Card withBorder padding="md">
+            <Text size="sm" c="dimmed">
+              Card grid for this team's contexts will be populated from API.
+            </Text>
+          </Card>
+        </SimpleGrid>
+      </Stack>
     </PageWithTabs>
   );
 }

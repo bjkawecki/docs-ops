@@ -21,7 +21,7 @@ export function LoginPage() {
       if (res.status === 401) throw new Error('Invalid credentials');
       if (!res.ok) throw new Error('Login failed');
     },
-    onSuccess: () => navigate(from, { replace: true }),
+    onSuccess: () => void navigate(from, { replace: true }),
     onError: (err) => {
       notifications.show({ title: 'Login failed', message: err.message, color: 'red' });
     },

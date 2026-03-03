@@ -54,7 +54,7 @@ export function SettingsAccountTab() {
       }
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: meQueryKey });
+      void queryClient.invalidateQueries({ queryKey: meQueryKey });
       if (variables.newPassword !== undefined) {
         notifications.show({
           title: 'Password updated',

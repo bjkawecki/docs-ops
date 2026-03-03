@@ -1,0 +1,10 @@
+---
+description: Nach jeder Codeänderung Lint ausführen
+alwaysApply: true
+---
+
+# Lint nach Codeänderung
+
+- **Nach jeder Änderung am Code** (TypeScript/JavaScript/TSX, Configs, die ESLint/Prettier betreffen) **Lint ausführen**: `pnpm run lint`.
+- Lint **vor dem Abschluss einer Aufgabe** laufen lassen, damit keine neuen Fehler eingeführt werden.
+- Bei neuen Lint-Fehlern: Fehler beheben oder (nur in begründeten Ausnahmen) mit dem Nutzer absprechen, bevor die Änderung als erledigt gilt.

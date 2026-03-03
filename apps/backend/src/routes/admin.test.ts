@@ -12,7 +12,9 @@ const PASSWORD = 'testpass123';
 
 function getCookieHeader(res: { headers: Record<string, unknown> }): string {
   const setCookie = res.headers['set-cookie'];
-  return Array.isArray(setCookie) ? setCookie.join('; ') : String(setCookie ?? '');
+  if (Array.isArray(setCookie)) return setCookie.join('; ');
+  if (typeof setCookie === 'string') return setCookie;
+  return '';
 }
 
 describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
@@ -81,7 +83,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(403);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toContain('Administrator');
   });
 
@@ -93,7 +95,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { items: unknown[]; total: number; limit: number; offset: number };
+    const body = res.json();
     expect(Array.isArray(body.items)).toBe(true);
     expect(typeof body.total).toBe('number');
     expect(body.limit).toBeDefined();
@@ -113,7 +115,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { items: { id: string; deletedAt: string | null }[] };
+    const body = res.json();
     const normal = body.items.find((u) => u.id === normalUserId);
     expect(normal).toBeDefined();
     expect(normal!.deletedAt).not.toBeNull();
@@ -133,13 +135,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { name: 'New User', email: newEmail, password: 'password8', isAdmin: false },
     });
     expect(res.statusCode).toBe(201);
-    const body = res.json() as {
-      id: string;
-      name: string;
-      email: string;
-      isAdmin: boolean;
-      deletedAt: null;
-    };
+    const body = res.json();
     expect(body.name).toBe('New User');
     expect(body.email).toBe(newEmail);
     expect(body.isAdmin).toBe(false);
@@ -156,7 +152,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { name: 'Duplicate', email: ADMIN_EMAIL, password: 'password8', isAdmin: false },
     });
     expect(res.statusCode).toBe(409);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toContain('email');
   });
 
@@ -169,7 +165,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { name: 'Normal User Updated' },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { name: string };
+    const body = res.json();
     expect(body.name).toBe('Normal User Updated');
     await prisma.user.update({ where: { id: normalUserId }, data: { name: 'Normal User' } });
   });
@@ -183,7 +179,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { isAdmin: false },
     });
     expect(res.statusCode).toBe(403);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toContain('last');
   });
 
@@ -196,7 +192,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { deletedAt: new Date().toISOString() },
     });
     expect(res.statusCode).toBe(403);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toContain('last');
   });
 
@@ -209,7 +205,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { email: ADMIN_EMAIL },
     });
     expect(res.statusCode).toBe(409);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toContain('email');
   });
 
@@ -243,7 +239,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { newPassword: 'newpass123' },
     });
     expect(res.statusCode).toBe(400);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toContain('SSO');
   });
 
@@ -305,10 +301,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
         headers: { cookie: meCookie },
       });
       expect(meRes.statusCode).toBe(200);
-      const meBody = meRes.json() as {
-        user: { id: string; name: string; email: string | null };
-        impersonation?: { active: true; realUser: { id: string; name: string } };
-      };
+      const meBody = meRes.json();
       expect(meBody.user.id).toBe(normalUserId);
       expect(meBody.user.name).toBe('Normal User');
       expect(meBody.impersonation).toBeDefined();
@@ -338,7 +331,7 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
         headers: { cookie: sessionCookie },
       });
       expect(meRes.statusCode).toBe(200);
-      const meBody = meRes.json() as { user: { id: string }; impersonation?: unknown };
+      const meBody = meRes.json();
       expect(meBody.user.id).toBe(adminId);
       expect(meBody.impersonation).toBeUndefined();
     });

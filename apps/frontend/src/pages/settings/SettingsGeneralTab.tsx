@@ -55,7 +55,7 @@ export function SettingsGeneralTab() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: meQueryKey });
+      void queryClient.invalidateQueries({ queryKey: meQueryKey });
       notifications.show({
         title: 'Profile updated',
         message: 'Your profile has been saved.',
@@ -101,8 +101,8 @@ export function SettingsGeneralTab() {
       return res.json() as Promise<UserPreferences>;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['me', 'preferences'] });
-      queryClient.invalidateQueries({ queryKey: meQueryKey });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'preferences'] });
+      void queryClient.invalidateQueries({ queryKey: meQueryKey });
       if (variables.theme !== undefined) {
         setColorScheme(variables.theme);
         notifications.show({

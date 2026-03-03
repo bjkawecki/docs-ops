@@ -15,6 +15,10 @@ export interface PageWithTabsProps {
   tabs?: TabItem[];
   /** Tab content: single node for single tab, or array in same order as tabs for multiple panels. */
   children: ReactNode | ReactNode[];
+  /** Controlled tab: current value. */
+  activeTab?: string;
+  /** Called when user switches tab (enables "View more" to change tab from Overview). */
+  onTabChange?: (value: string) => void;
 }
 
 const defaultTabs: TabItem[] = [{ value: 'overview', label: 'Overview' }];
@@ -25,6 +29,8 @@ export function PageWithTabs({
   actions,
   tabs = defaultTabs,
   children,
+  activeTab,
+  onTabChange,
 }: PageWithTabsProps) {
   const tabList = tabs.length > 0 ? tabs : defaultTabs;
   const childArray = Array.isArray(children) ? children : [children];
@@ -34,11 +40,16 @@ export function PageWithTabs({
     </Tabs.Panel>
   ));
 
+  const defaultVal = tabList[0]?.value ?? 'overview';
+  const isControlled = activeTab != null && onTabChange != null;
+
   return (
     <>
       <PageHeader title={title} description={description} actions={actions} />
       <Tabs
-        defaultValue={tabList[0]?.value ?? 'overview'}
+        {...(isControlled
+          ? { value: activeTab, onChange: (v) => onTabChange(v ?? defaultVal) }
+          : { defaultValue: defaultVal })}
         variant="default"
         styles={{
           list: { borderBottom: '1px solid var(--mantine-color-default-border)' },

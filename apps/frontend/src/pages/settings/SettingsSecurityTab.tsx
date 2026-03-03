@@ -28,14 +28,14 @@ export function SettingsSecurityTab() {
       }
     },
     onSuccess: (_, { isCurrent }) => {
-      queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
       if (isCurrent) {
         notifications.show({
           title: 'Session ended',
           message: 'You have been logged out.',
           color: 'green',
         });
-        apiFetch('/api/v1/auth/logout', { method: 'POST' }).then(() => {
+        void apiFetch('/api/v1/auth/logout', { method: 'POST' }).then(() => {
           window.location.href = '/login';
         });
       } else {
@@ -60,7 +60,7 @@ export function SettingsSecurityTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'sessions'] });
       notifications.show({
         title: 'Sessions ended',
         message: 'All other sessions have been revoked.',

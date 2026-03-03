@@ -7,8 +7,15 @@ const ADMIN_EMAIL = `org-admin-${Date.now()}@example.com`;
 const USER_EMAIL = `org-user-${Date.now()}@example.com`;
 const PASSWORD = 'testpass';
 
+/** Für Cookie-Request-Header: nur name=value (ohne Path/HttpOnly etc.). */
 function getCookieHeader(setCookie: string | string[] | undefined): string {
-  return Array.isArray(setCookie) ? setCookie.join('; ') : String(setCookie ?? '');
+  if (Array.isArray(setCookie))
+    return setCookie
+      .map((s) => (typeof s === 'string' ? s.split(';')[0].trim() : ''))
+      .filter(Boolean)
+      .join('; ');
+  if (typeof setCookie === 'string') return setCookie.split(';')[0].trim();
+  return '';
 }
 
 describe('Organisation (Companies, Departments, Teams)', () => {
@@ -102,7 +109,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
     });
     expect([201, 409]).toContain(res.statusCode);
     if (res.statusCode === 201) {
-      const body = res.json() as { id: string; name: string };
+      const body = res.json();
       expect(body.name).toBe('Kern-API Test AG');
       expect(body.id).toBeDefined();
       companyId = body.id;
@@ -113,7 +120,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
         url: '/api/v1/companies',
         headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
       });
-      const list = listRes.json() as { items: { id: string }[] };
+      const list = listRes.json();
       expect(list.items.length).toBeGreaterThanOrEqual(1);
       companyId = list.items[0].id;
       companyCreatedInTest = false;
@@ -133,7 +140,7 @@ describe('Organisation (Companies, Departments, Teams)', () => {
       headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { items: unknown[]; total: number; limit: number; offset: number };
+    const body = res.json();
     expect(Array.isArray(body.items)).toBe(true);
     expect(body.total).toBe(1);
     expect(body.items).toHaveLength(1);

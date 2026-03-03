@@ -1,8 +1,13 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth, getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
+import {
+  requireAuthPreHandler,
+  preHandlerWrap,
+  getEffectiveUserId,
+  type RequestWithUser,
+} from '../auth/middleware.js';
 import { requireDocumentAccess, canDeleteDocument } from '../permissions/index.js';
 import { canReadContext, canWriteContext } from '../permissions/contextPermissions.js';
-import { GrantRole } from '../../generated/prisma/client.js';
+import { type GrantRole } from '../../generated/prisma/client.js';
 import {
   paginationQuerySchema,
   contextIdParamSchema,
@@ -14,14 +19,14 @@ import {
   putGrantsDepartmentsBodySchema,
 } from './schemas/documents.js';
 
-const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   /** GET Einzeldokument – nur wenn deletedAt null (Middleware liefert 404 bei gelöscht). */
   app.get<{
     Params: { documentId: string };
   }>(
     '/documents/:documentId',
     {
-      preHandler: [requireAuth, requireDocumentAccess('read')],
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
@@ -44,37 +49,41 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   /** GET Dokumente eines Kontexts – canReadContext, paginiert, ohne gelöschte. */
-  app.get('/contexts/:contextId/documents', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const { contextId } = contextIdParamSchema.parse(request.params);
-    const query = paginationQuerySchema.parse(request.query);
+  app.get(
+    '/contexts/:contextId/documents',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { contextId } = contextIdParamSchema.parse(request.params);
+      const query = paginationQuerySchema.parse(request.query);
 
-    const allowed = await canReadContext(prisma, userId, contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diesen Kontext' });
+      const allowed = await canReadContext(prisma, userId, contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf diesen Kontext' });
 
-    const [items, total] = await Promise.all([
-      prisma.document.findMany({
-        where: { contextId, deletedAt: null },
-        select: {
-          id: true,
-          title: true,
-          contextId: true,
-          createdAt: true,
-          updatedAt: true,
-          documentTags: { include: { tag: { select: { id: true, name: true } } } },
-        },
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.document.count({ where: { contextId, deletedAt: null } }),
-    ]);
-    return reply.send({ items, total, limit: query.limit, offset: query.offset });
-  });
+      const [items, total] = await Promise.all([
+        prisma.document.findMany({
+          where: { contextId, deletedAt: null },
+          select: {
+            id: true,
+            title: true,
+            contextId: true,
+            createdAt: true,
+            updatedAt: true,
+            documentTags: { include: { tag: { select: { id: true, name: true } } } },
+          },
+          take: query.limit,
+          skip: query.offset,
+          orderBy: { updatedAt: 'desc' },
+        }),
+        prisma.document.count({ where: { contextId, deletedAt: null } }),
+      ]);
+      return reply.send({ items, total, limit: query.limit, offset: query.offset });
+    }
+  );
 
   /** POST Dokument anlegen – canWriteContext(contextId), Tags optional. */
-  app.post('/documents', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createDocumentBodySchema.parse(request.body);
@@ -123,7 +132,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** PATCH Dokument – requireDocumentAccess('write'), optional title, content, tagIds. */
   app.patch(
     '/documents/:documentId',
-    { preHandler: [requireAuth, requireDocumentAccess('write')] },
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { documentId } = documentIdParamSchema.parse(request.params);
@@ -162,24 +171,28 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   /** DELETE Dokument – Soft-Delete (deletedAt setzen). Nur Scope-Lead (canDeleteDocument). */
-  app.delete('/documents/:documentId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const { documentId } = documentIdParamSchema.parse(request.params);
-    const allowed = await canDeleteDocument(prisma, userId, documentId);
-    if (!allowed)
-      return reply.status(403).send({ error: 'Keine Berechtigung, dieses Dokument zu löschen' });
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { deletedAt: new Date() },
-    });
-    return reply.status(204).send();
-  });
+  app.delete(
+    '/documents/:documentId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const allowed = await canDeleteDocument(prisma, userId, documentId);
+      if (!allowed)
+        return reply.status(403).send({ error: 'Keine Berechtigung, dieses Dokument zu löschen' });
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { deletedAt: new Date() },
+      });
+      return reply.status(204).send();
+    }
+  );
 
   /** GET Grants (User, Team, Department) – requireDocumentAccess('read'). */
   app.get(
     '/documents/:documentId/grants',
-    { preHandler: [requireAuth, requireDocumentAccess('read')] },
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))] },
     async (request, reply) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const [grantUser, grantTeam, grantDepartment] = await Promise.all([
@@ -207,7 +220,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** PUT User-Grants ersetzen – requireDocumentAccess('write'). */
   app.put(
     '/documents/:documentId/grants/users',
-    { preHandler: [requireAuth, requireDocumentAccess('write')] },
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { documentId } = documentIdParamSchema.parse(request.params);
@@ -234,7 +247,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** PUT Team-Grants ersetzen – requireDocumentAccess('write'). */
   app.put(
     '/documents/:documentId/grants/teams',
-    { preHandler: [requireAuth, requireDocumentAccess('write')] },
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { documentId } = documentIdParamSchema.parse(request.params);
@@ -261,7 +274,7 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** PUT Department-Grants ersetzen – requireDocumentAccess('write'). */
   app.put(
     '/documents/:documentId/grants/departments',
-    { preHandler: [requireAuth, requireDocumentAccess('write')] },
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { documentId } = documentIdParamSchema.parse(request.params);
@@ -286,13 +299,15 @@ const documentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   /** GET Tags (Autocomplete) – requireAuth. */
-  app.get('/tags', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/tags', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const tags = await request.server.prisma.tag.findMany({
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     });
     return reply.send(tags);
   });
+
+  return Promise.resolve();
 };
 
 export { documentsRoutes };

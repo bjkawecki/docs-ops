@@ -10,6 +10,8 @@ import { DepartmentContextPage } from './pages/DepartmentContextPage';
 import { PersonalPage } from './pages/PersonalPage';
 import { SharedPage } from './pages/SharedPage';
 import { TeamContextPage } from './pages/TeamContextPage';
+import { ProcessContextPage } from './pages/ProcessContextPage';
+import { ProjectContextPage } from './pages/ProjectContextPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AuthGuard } from './components/AuthGuard';
@@ -48,7 +50,14 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="teams" element={<Navigate to="/team" replace />} />
           <Route path="repositories" element={<Navigate to="/catalog" replace />} />
-          <Route path="processes" element={<Navigate to="/catalog" replace />} />
+          <Route path="processes">
+            <Route index element={<Navigate to="/catalog" replace />} />
+            <Route path=":processId" element={<ProcessContextPage />} />
+          </Route>
+          <Route path="projects">
+            <Route index element={<Navigate to="/catalog" replace />} />
+            <Route path=":projectId" element={<ProjectContextPage />} />
+          </Route>
           <Route path="templates" element={<Navigate to="/" replace />} />
           <Route
             path="admin"

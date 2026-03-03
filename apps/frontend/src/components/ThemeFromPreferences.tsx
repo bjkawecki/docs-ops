@@ -3,11 +3,16 @@ import { MantineProvider } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
 import { appTheme, appCssVariablesResolver } from '../theme';
+import { RecentItemsProvider } from '../hooks/useRecentItems';
 
 export type UserPreferences = {
   theme?: 'light' | 'dark' | 'auto';
   sidebarPinned?: boolean;
   locale?: 'en' | 'de';
+  recentItemsByScope?: Record<
+    string,
+    { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
+  >;
 };
 
 export function ThemeFromPreferences({ children }: { children: ReactNode }) {
@@ -31,7 +36,7 @@ export function ThemeFromPreferences({ children }: { children: ReactNode }) {
       cssVariablesResolver={appCssVariablesResolver}
       defaultColorScheme={colorScheme}
     >
-      {children}
+      <RecentItemsProvider>{children}</RecentItemsProvider>
     </MantineProvider>
   );
 }

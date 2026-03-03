@@ -158,7 +158,7 @@ export function AdminUsersTab() {
   });
 
   const invalidateUsers = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
   }, [queryClient]);
 
   type CreateUserPayload = {
@@ -255,7 +255,7 @@ export function AdminUsersTab() {
     },
     onSuccess: () => {
       invalidateUsers();
-      queryClient.invalidateQueries({ queryKey: meQueryKey });
+      void queryClient.invalidateQueries({ queryKey: meQueryKey });
       notifications.show({
         title: 'User updated',
         message: 'The user has been updated.',

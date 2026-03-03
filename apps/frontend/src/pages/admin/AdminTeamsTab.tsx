@@ -94,12 +94,12 @@ export function AdminTeamsTab() {
   });
 
   const invalidateAssignments = () => {
-    if (teamId) queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'members'] });
-    if (teamId) queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'team-leads'] });
+    if (teamId) void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'members'] });
+    if (teamId) void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'team-leads'] });
   };
   const invalidateDepartments = () => {
     if (companyId)
-      queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'departments'] });
+      void queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'departments'] });
   };
 
   const createTeam = useMutation({

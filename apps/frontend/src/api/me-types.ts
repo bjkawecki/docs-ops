@@ -27,6 +27,10 @@ export type MeResponse = {
     theme?: 'light' | 'dark' | 'auto';
     sidebarPinned?: boolean;
     locale?: 'en' | 'de';
+    recentItemsByScope?: Record<
+      string,
+      { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
+    >;
   };
   /** Nur gesetzt, wenn Admin gerade als anderer Nutzer agiert. */
   impersonation?: { active: true; realUser: { id: string; name: string } };

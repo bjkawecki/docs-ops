@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth, getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
+import {
+  requireAuthPreHandler,
+  getEffectiveUserId,
+  type RequestWithUser,
+} from '../auth/middleware.js';
 import {
   canManageTeamMembers,
   canManageTeamLeaders,
@@ -20,11 +24,11 @@ import {
   addAssignmentBodySchema,
 } from './schemas/assignments.js';
 
-const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- Company Lead ---
   app.get(
     '/companies/:companyId/company-leads',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const query = assignmentListQuerySchema.parse(request.query);
@@ -50,7 +54,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post(
     '/companies/:companyId/company-leads',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const body = addAssignmentBodySchema.parse(request.body);
@@ -83,7 +87,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.delete(
     '/companies/:companyId/company-leads/:userId',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { companyId, userId: targetUserId } = companyIdUserIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
@@ -105,58 +109,66 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   // --- Team-Mitglieder ---
-  app.get('/teams/:teamId/members', { preHandler: requireAuth }, async (request, reply) => {
-    const { teamId } = teamIdParamSchema.parse(request.params);
-    const query = assignmentListQuerySchema.parse(request.query);
-    const userId = getEffectiveUserId(request as RequestWithUser);
+  app.get(
+    '/teams/:teamId/members',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const { teamId } = teamIdParamSchema.parse(request.params);
+      const query = assignmentListQuerySchema.parse(request.query);
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
-    const allowed = await canViewTeam(request.server.prisma, userId, teamId);
-    if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
+      const allowed = await canViewTeam(request.server.prisma, userId, teamId);
+      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
 
-    const [items, total] = await Promise.all([
-      request.server.prisma.teamMember.findMany({
-        where: { teamId },
-        include: { user: { select: { id: true, name: true } } },
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { userId: 'asc' },
-      }),
-      request.server.prisma.teamMember.count({ where: { teamId } }),
-    ]);
-    const list = items.map((m) => ({ id: m.user.id, name: m.user.name }));
-    return reply.send({ items: list, total, limit: query.limit, offset: query.offset });
-  });
+      const [items, total] = await Promise.all([
+        request.server.prisma.teamMember.findMany({
+          where: { teamId },
+          include: { user: { select: { id: true, name: true } } },
+          take: query.limit,
+          skip: query.offset,
+          orderBy: { userId: 'asc' },
+        }),
+        request.server.prisma.teamMember.count({ where: { teamId } }),
+      ]);
+      const list = items.map((m) => ({ id: m.user.id, name: m.user.name }));
+      return reply.send({ items: list, total, limit: query.limit, offset: query.offset });
+    }
+  );
 
-  app.post('/teams/:teamId/members', { preHandler: requireAuth }, async (request, reply) => {
-    const { teamId } = teamIdParamSchema.parse(request.params);
-    const body = addAssignmentBodySchema.parse(request.body);
-    const userId = getEffectiveUserId(request as RequestWithUser);
+  app.post(
+    '/teams/:teamId/members',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const { teamId } = teamIdParamSchema.parse(request.params);
+      const body = addAssignmentBodySchema.parse(request.body);
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
-    const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
 
-    const team = await request.server.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) return reply.status(404).send({ error: 'Team nicht gefunden' });
-    const user = await request.server.prisma.user.findUnique({
-      where: { id: body.userId },
-      select: { id: true, deletedAt: true },
-    });
-    if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
+      const team = await request.server.prisma.team.findUnique({ where: { id: teamId } });
+      if (!team) return reply.status(404).send({ error: 'Team nicht gefunden' });
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: body.userId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
 
-    const existing = await request.server.prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId, userId: body.userId } },
-    });
-    if (existing) return reply.status(409).send({ error: 'User ist bereits Mitglied' });
+      const existing = await request.server.prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId, userId: body.userId } },
+      });
+      if (existing) return reply.status(409).send({ error: 'User ist bereits Mitglied' });
 
-    await request.server.prisma.teamMember.create({
-      data: { teamId, userId: body.userId },
-    });
-    return reply.status(201).send({ teamId, userId: body.userId });
-  });
+      await request.server.prisma.teamMember.create({
+        data: { teamId, userId: body.userId },
+      });
+      return reply.status(201).send({ teamId, userId: body.userId });
+    }
+  );
 
   app.delete(
     '/teams/:teamId/members/:userId',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { teamId, userId: targetUserId } = teamIdUserIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
@@ -177,58 +189,66 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   // --- Team Lead ---
-  app.get('/teams/:teamId/team-leads', { preHandler: requireAuth }, async (request, reply) => {
-    const { teamId } = teamIdParamSchema.parse(request.params);
-    const query = assignmentListQuerySchema.parse(request.query);
-    const userId = getEffectiveUserId(request as RequestWithUser);
+  app.get(
+    '/teams/:teamId/team-leads',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const { teamId } = teamIdParamSchema.parse(request.params);
+      const query = assignmentListQuerySchema.parse(request.query);
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
-    const allowed = await canViewTeam(request.server.prisma, userId, teamId);
-    if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
+      const allowed = await canViewTeam(request.server.prisma, userId, teamId);
+      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff auf dieses Team' });
 
-    const [items, total] = await Promise.all([
-      request.server.prisma.teamLead.findMany({
-        where: { teamId },
-        include: { user: { select: { id: true, name: true } } },
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { userId: 'asc' },
-      }),
-      request.server.prisma.teamLead.count({ where: { teamId } }),
-    ]);
-    const list = items.map((l) => ({ id: l.user.id, name: l.user.name }));
-    return reply.send({ items: list, total, limit: query.limit, offset: query.offset });
-  });
+      const [items, total] = await Promise.all([
+        request.server.prisma.teamLead.findMany({
+          where: { teamId },
+          include: { user: { select: { id: true, name: true } } },
+          take: query.limit,
+          skip: query.offset,
+          orderBy: { userId: 'asc' },
+        }),
+        request.server.prisma.teamLead.count({ where: { teamId } }),
+      ]);
+      const list = items.map((l) => ({ id: l.user.id, name: l.user.name }));
+      return reply.send({ items: list, total, limit: query.limit, offset: query.offset });
+    }
+  );
 
-  app.post('/teams/:teamId/team-leads', { preHandler: requireAuth }, async (request, reply) => {
-    const { teamId } = teamIdParamSchema.parse(request.params);
-    const body = addAssignmentBodySchema.parse(request.body);
-    const userId = getEffectiveUserId(request as RequestWithUser);
+  app.post(
+    '/teams/:teamId/team-leads',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const { teamId } = teamIdParamSchema.parse(request.params);
+      const body = addAssignmentBodySchema.parse(request.body);
+      const userId = getEffectiveUserId(request as RequestWithUser);
 
-    const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
+      const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Berechtigung' });
 
-    const team = await request.server.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) return reply.status(404).send({ error: 'Team nicht gefunden' });
-    const user = await request.server.prisma.user.findUnique({
-      where: { id: body.userId },
-      select: { id: true, deletedAt: true },
-    });
-    if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
+      const team = await request.server.prisma.team.findUnique({ where: { id: teamId } });
+      if (!team) return reply.status(404).send({ error: 'Team nicht gefunden' });
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: body.userId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!user || user.deletedAt) return reply.status(404).send({ error: 'User nicht gefunden' });
 
-    const existing = await request.server.prisma.teamLead.findUnique({
-      where: { teamId_userId: { teamId, userId: body.userId } },
-    });
-    if (existing) return reply.status(409).send({ error: 'User ist bereits Team Lead' });
+      const existing = await request.server.prisma.teamLead.findUnique({
+        where: { teamId_userId: { teamId, userId: body.userId } },
+      });
+      if (existing) return reply.status(409).send({ error: 'User ist bereits Team Lead' });
 
-    await request.server.prisma.teamLead.create({
-      data: { teamId, userId: body.userId },
-    });
-    return reply.status(201).send({ teamId, userId: body.userId });
-  });
+      await request.server.prisma.teamLead.create({
+        data: { teamId, userId: body.userId },
+      });
+      return reply.status(201).send({ teamId, userId: body.userId });
+    }
+  );
 
   app.delete(
     '/teams/:teamId/team-leads/:userId',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { teamId, userId: targetUserId } = teamIdUserIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
@@ -251,7 +271,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // --- Department Lead ---
   app.get(
     '/departments/:departmentId/department-leads',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const query = assignmentListQuerySchema.parse(request.query);
@@ -277,7 +297,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post(
     '/departments/:departmentId/department-leads',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const body = addAssignmentBodySchema.parse(request.body);
@@ -310,7 +330,7 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.delete(
     '/departments/:departmentId/department-leads/:userId',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { departmentId, userId: targetUserId } = departmentIdUserIdParamSchema.parse(
         request.params
@@ -332,6 +352,8 @@ const assignmentsRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.status(204).send();
     }
   );
+
+  return Promise.resolve();
 };
 
 export default assignmentsRoutes;

@@ -2,7 +2,7 @@
 
 Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. Siehe [Technologie-Stack](Technologie-Stack.md), [Infrastruktur & Deployment](Infrastruktur-und-Deployment.md) und [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md).
 
-**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–11 (Kern-API, Frontend, Layout, Settings, Admin-UI, Dashboard, Dokumente-UI). **Phase 2** (später): Abschnitte 12–17 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen).
+**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–13 (Kern-API, Frontend, Layout, Settings, Admin-UI, Kontexte-Verwaltung, Company Page, Department/Team Pages, Dashboard, Dokumente-UI). **Phase 2** (später): Abschnitte 14–19 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen).
 
 ---
 
@@ -96,7 +96,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 - [x] **Backend: Me & Preferences**
   - GET `/api/v1/me` – erweiterte Nutzerdaten inkl. Zugehörigkeiten (Teams mit Rolle Mitglied/Team Lead, Abteilung(en), Department Lead, ggf. eigene Nutzerspaces) für DocsOps-Identity; nur eigener User (Session); inkl. `hasLocalLogin` (Account-Card nur bei lokalem Login).
   - PATCH `/api/v1/me` – eigenes Profil bearbeiten (**nur Anzeigename**); nur eigener User; Validierung (Zod). E-Mail/Passwort über Account (PATCH `/api/v1/me/account`).
-  - GET/PATCH `/api/v1/me/preferences` – User-Preferences (z. B. `theme: 'light'|'dark'|'auto'`, `sidebarPinned: boolean`, `locale: 'en'|'de'`). Persistenz im Backend (User-Preferences-Feld); eine Quelle der Wahrheit für alle Clients.
+  - GET/PATCH `/api/v1/me/preferences` – User-Preferences (z. B. `theme: 'light'|'dark'|'auto'`, `sidebarPinned: boolean`, `locale: 'en'|'de'`, `recentItemsByScope?: Record<string, RecentItem[]>` pro Organisationseinheit). Persistenz im Backend (User-Preferences-Feld); eine Quelle der Wahrheit für alle Clients.
   - POST `/api/v1/me/deactivate` – Self-Deactivate (setzt `deletedAt`); nur für Nicht-Admins (letzter Admin darf nicht); alle Sessions des Users löschen.
   - PATCH `/api/v1/me/account` – E-Mail und/oder Passwort ändern (nur bei lokalem Login, d. h. `passwordHash` gesetzt); Zod: `email?`, `currentPassword?`, `newPassword?` (Mindestlänge 8); E-Mail-Uniqueness, Verifizierung aktuelles Passwort.
   - GET `/api/v1/me/sessions` – Liste der Sessions (id, createdAt, expiresAt, isCurrent aus Session-Cookie); DELETE `/api/v1/me/sessions/:sessionId` (nur eigene Session); optional DELETE `/api/v1/me/sessions` = alle anderen Sessions beenden.
@@ -104,7 +104,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
   - **Profile-Card:** Anzeige User (Name, E-Mail read-only, isAdmin). **Dreipunkt-Menü** (Mantine Menu): „Edit“ → Modal nur **Anzeigename**, PATCH `/api/v1/me`; „Deactivate“ (rot, nur wenn `!user.isAdmin`) → Bestätigungs-Modal, POST `/me/deactivate`, dann Logout + Redirect zu Login, Toast.
   - **Account-Card:** Nur bei lokalem Login (hasLocalLogin): E-Mail read-only, Buttons „Change email“ / „Change password“ mit Modals; PATCH `/api/v1/me/account`. Bei SSO: Hinweis „Login managed by SSO“, keine Bearbeitung.
   - **Appearance-Card:** Theme **Light / Dark / Auto**, „Pin Sidebar“; Persistenz über PATCH `/api/v1/me/preferences`; Theme app-weit (ThemeFromPreferences).
-  - **Notifications-Card:** Platzhalter („Notification preferences will be available here …“); konkrete Optionen später (vgl. §14, §17).
+  - **Notifications-Card:** Platzhalter („Notification preferences will be available here …“); konkrete Optionen später (vgl. §16, §19).
   - **Language-Card:** Select English/Deutsch (`locale: 'en'|'de'`), PATCH `/api/v1/me/preferences` mit `locale`; gespeicherte Preference für spätere i18n-Nutzung.
   - **Security-Card (Sessions):** Liste der Sessions (Created, Expires, „Current session“-Badge), Revoke pro Zeile (außer aktueller Session), optional „Revoke all other sessions“.
   - **DocsOps-Identity-Card:** User-Entity und Ownership-/Zugehörigkeits-Entitäten (Teams inkl. Rolle, Abteilung(en), Department Lead, eigene Nutzerspaces). Daten aus GET `/api/v1/me`.
@@ -140,7 +140,52 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 10. Dashboard / Home
+## 10. Kontexte-Verwaltung (Company Page)
+
+Kontexte (Projekt, Prozess, Nutzerspace, Unterkontext) in der UI verwalten; Backend-CRUD existiert (Abschnitt 5). Einstieg auf der **Company-Seite** (`/company`). Company-Lead und Admin können Kontexte erstellen, aktualisieren und löschen.
+
+### 1. Einheitliche Context-Komponenten
+
+- [x] **Wiederverwendbare Bausteine** für alle Kontext-Seiten (Company, später Department, Team): **ContextCard** (eine Karte pro Kontext: Titel, Typ-Badge, optional Metadaten, Link zur Detail-Seite, bei Berechtigung Actions-Menü), **ContextGrid** (SimpleGrid/Flex aus ContextCards), **NewContextModal** (Modal zum Anlegen; Inhalt/Scope pro Seite).
+- [x] Gleiche Komponenten auf Company-, Department- und Team-Seiten nutzen; nur Scope (companyId/departmentId/teamId) und Berechtigungen unterscheiden sich.
+
+### 2. Modal „New Context“
+
+- [x] **Button „New context“** (bzw. „Kontext anlegen“) in den Page-Actions; nur für Company-Lead und Admin.
+- [x] **Modal-Aufbau:** (1) **Typ wählen:** zwei Optionen – **Prozess** oder **Projekt** (mit kurzem Hinweis zur Bedeutung). (2) **Name:** Pflichtfeld (max. 255 Zeichen). Owner auf Company Page fest = aktuelle Company (`effectiveCompanyId`); kein Auswahlfeld. Actions: Cancel / Create (POST `/processes` oder POST `/projects` mit `companyId`).
+
+### 3. Darstellung der Kontexte: Card-Grid
+
+- [x] **Card-Grid** pro Tab (Prozesse, Projekte): eine **ContextCard** pro Kontext mit Titel, **Typ-Badge** („Prozess“ / „Projekt“), optional Dokumentenanzahl/letzte Aktivität; Klick auf Karte → Kontext-Detail (später Dokumentenliste). Bei Berechtigung: **Dreipunkt-Menü** (Name bearbeiten, Löschen mit Bestätigung; PATCH/DELETE an bestehende Routen).
+
+### 4. Company Page: Tabs und Overview-Cards
+
+- [x] **Tabs:** **Overview** (Standard) | **Prozesse** | **Projekte** | **Dokumente**. Overview = Einstieg; die anderen Tabs je ein volles Card-Grid (bzw. Dokumente-Tab: Liste/Tabelle, Ausbau in Abschnitt 13).
+- [x] **Overview-Tab – vier Karten:**
+  - **Erste Karte: „Zuletzt angesehene Inhalte“** – gemischt Kontexte und Dokumente (z. B. 5–8 Einträge), klickbar → Detail-Seite. Leerer Zustand: Hinweis, dass sich die Liste beim Durchklicken füllt. Persistenz: Backend in User-Preferences als `recentItemsByScope` (eine Liste pro Company/Department/Team); die Karte erscheint in jeder Organisationseinheit (Company-, Department-, Team-Seite) mit der jeweiligen Scope-Liste.
+  - **Zweite Karte: Prozesse** – Liste der fünf neuesten Prozesse (klickbar → Kontext-Detail); unten rechts Button **„View more“** → wechselt in Tab **Prozesse**.
+  - **Dritte Karte: Projekte** – Liste der fünf neuesten Projekte (klickbar → Kontext-Detail); **„View more“** → Tab **Projekte**.
+  - **Vierte Karte: Dokumente** – fünf neueste Dokumente (in Company-Kontexten), klickbar; **„View more“** → Tab **Dokumente**. Vollständiger Dokumente-Tab kann in §13 ausgebaut werden.
+- [x] Leere Zustände in den Karten berücksichtigen („Noch keine Prozesse“ etc.; ggf. CTA oder „View more“ führt in den Tab mit „New context“).
+
+### 5. Backend-Hinweis
+
+- [x] **Filter Company-Kontexte:** Aktuell liefern `GET /processes` und `GET /projects` alle lesbaren Kontexte. Für Company Page: entweder **clientseitig** nach `owner.companyId === companyId` filtern (einfach, bei wenig Daten ausreichend) oder **serverseitig** erweitern (z. B. Query-Parameter `?companyId=...`), um nur Company-Kontexte zu laden und Pagination sinnvoll zu machen.
+- [x] **„Zuletzt angesehene Inhalte“:** Dafür Backend-Persistenz vorsehen (z. B. in User-Preferences oder eigener Endpoint), damit die Liste geräteübergreifend und sessionübergreifend funktioniert.
+
+---
+
+## 11. Department- und Team-Pages (analog zu Company Page)
+
+Department-Seite (`/department/:departmentId`) und Team-Seite (`/team/:teamId`) mit derselben Struktur und denselben Bausteinen wie die Company Page (§10): Tabs (Overview | Prozesse | Projekte | Dokumente), Card-Grids, „Zuletzt angesehene“, New-Context-Modal (Owner = Department bzw. Team), Kontext-Karten mit Bearbeiten/Löschen bei Berechtigung. Nur Scope und API-Filter (departmentId/teamId) sowie Berechtigungen (Department Lead / Team Lead) unterscheiden sich.
+
+- [ ] **Department Page:** Route, Tabs, Overview mit Recent-Items-Karte + neueste Prozesse/Projekte/Dokumente (gefiltert nach Owner = diese Abteilung); Prozesse-/Projekte-Tabs mit ContextGrid; „New context“ (Owner = Department); Berechtigung: Department Lead, Company Lead, Admin.
+- [ ] **Team Page:** Route, Tabs, Overview analog; Prozesse/Projekte mit Owner = dieses Team; „New context“ (Owner = Team); Berechtigung: Team Lead, Department Lead, Company Lead, Admin.
+- [ ] Wiederverwendung der Kontext-Komponenten aus §10 (ContextCard, ContextGrid, NewContextModal); Backend: ggf. Query-Parameter `?departmentId=...` / `?teamId=...` für Prozesse/Projekte, falls noch nicht vorhanden.
+
+---
+
+## 12. Dashboard / Home
 
 - [ ] **Startseite:** Überblick (z. B. letzte Änderungen, „meine“ Dokumente)
 - [ ] **Quick Links:** Repositories, Teams, Prozesse, Firma, ggf. Vorlagen (vgl. [Intranet-Dashboard](../platform/ui-architektur/Intranet-Dashboard.md))
@@ -148,7 +193,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 11. Dokumente in der UI
+## 13. Dokumente in der UI
 
 - [ ] Listen/Filter nach Kontext, Team, Tags
 - [ ] **Tag-Verwaltung:** Tags anzeigen, Dokumenten zuweisen, nach Tags filtern
@@ -158,7 +203,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 12. Versionierung & PR-Workflow
+## 14. Versionierung & PR-Workflow
 
 - [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs
 - [ ] Deltas/Deduplizierung (diff-match-patch, Blob-Referenzen)
@@ -167,7 +212,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 13. Objekt-Speicher (MinIO)
+## 15. Objekt-Speicher (MinIO)
 
 - [ ] S3-Client (MinIO) im Backend anbinden
 - [ ] Upload/Download für Anhänge und Bilder (Dokumente)
@@ -176,7 +221,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 14. Async Jobs
+## 16. Async Jobs
 
 - [ ] pg-boss einbinden (Queue, Worker)
 - [ ] Worker-Prozess oder -Container für Jobs
@@ -185,7 +230,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 15. Volltextsuche
+## 17. Volltextsuche
 
 - [ ] PostgreSQL Full-Text-Search oder externe Engine (Meilisearch/Typesense)
 - [ ] Such-API (Query, Filter nach Kontext/Team)
@@ -193,7 +238,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 16. Deployment & Doku
+## 18. Deployment & Doku
 
 - [ ] `install.sh` und ggf. `scripts/update.sh` finalisieren
 - [ ] CI-Job für Install-Skript-Test (bereits in Abschnitt 1 angelegt; hier finalisieren)
@@ -204,12 +249,12 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 ---
 
-## 17. Layout- & UX-Ergänzungen (Phase 2)
+## 19. Layout- & UX-Ergänzungen (Phase 2)
 
-- [ ] **Suchfeld in der Sidebar:** Anbindung an Volltextsuche (vgl. Abschnitt 15).
+- [ ] **Suchfeld in der Sidebar:** Anbindung an Volltextsuche (vgl. Abschnitt 17).
 - [ ] **Breadcrumbs:** Pfad/Kontext anzeigen (z. B. Company → Abteilung → Team → Dokument).
 - [ ] **Pin Sidebar:** Sidebar ein-/ausklappbar, Option in Settings („Pin“).
 - [ ] **Theme-UI:** Umschaltung Hell/Dunkel/Auto in Settings (Abschnitt 8), persistiert im Backend; technische Vorbereitung dort umgesetzt.
-- [ ] **Notifications-UI in Settings:** Notifications-Card in Settings mit konkreten Optionen (E-Mail bei Dokument-Änderungen, PRs, Erinnerungen), Anbindung an Async Jobs / Preferences (vgl. §14).
+- [ ] **Notifications-UI in Settings:** Notifications-Card in Settings mit konkreten Optionen (E-Mail bei Dokument-Änderungen, PRs, Erinnerungen), Anbindung an Async Jobs / Preferences (vgl. §16).
 - [ ] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) definieren und umsetzen.
 - [ ] **Icons & A11y:** Einheitliche Icon-Bibliothek; Tastatur/Screenreader für Sidebar und Tabs.

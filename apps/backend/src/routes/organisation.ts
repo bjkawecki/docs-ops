@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth } from '../auth/middleware.js';
-import { requireAdmin } from '../auth/middleware.js';
+import { requireAuthPreHandler, requireAdminPreHandler } from '../auth/middleware.js';
 import {
   paginationQuerySchema,
   createCompanyBodySchema,
@@ -14,9 +13,9 @@ import {
   teamIdParamSchema,
 } from './schemas/organisation.js';
 
-const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- Companies ---
-  app.get('/companies', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/companies', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const query = paginationQuerySchema.parse(request.query);
     const [companies, total] = await Promise.all([
       request.server.prisma.company.findMany({
@@ -30,30 +29,38 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send({ items: companies, total, limit: query.limit, offset: query.offset });
   });
 
-  app.post('/companies', { preHandler: [requireAuth, requireAdmin] }, async (request, reply) => {
-    const count = await request.server.prisma.company.count();
-    if (count > 0) {
-      return reply.status(409).send({ error: 'Es kann nur eine Firma angelegt werden.' });
+  app.post(
+    '/companies',
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
+    async (request, reply) => {
+      const count = await request.server.prisma.company.count();
+      if (count > 0) {
+        return reply.status(409).send({ error: 'Es kann nur eine Firma angelegt werden.' });
+      }
+      const body = createCompanyBodySchema.parse(request.body);
+      const company = await request.server.prisma.company.create({
+        data: { name: body.name },
+      });
+      return reply.status(201).send(company);
     }
-    const body = createCompanyBodySchema.parse(request.body);
-    const company = await request.server.prisma.company.create({
-      data: { name: body.name },
-    });
-    return reply.status(201).send(company);
-  });
+  );
 
-  app.get('/companies/:companyId', { preHandler: requireAuth }, async (request, reply) => {
-    const { companyId } = companyIdParamSchema.parse(request.params);
-    const company = await request.server.prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      include: { departments: true },
-    });
-    return reply.send(company);
-  });
+  app.get(
+    '/companies/:companyId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const { companyId } = companyIdParamSchema.parse(request.params);
+      const company = await request.server.prisma.company.findUniqueOrThrow({
+        where: { id: companyId },
+        include: { departments: true },
+      });
+      return reply.send(company);
+    }
+  );
 
   app.patch(
     '/companies/:companyId',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const body = updateCompanyBodySchema.parse(request.body);
@@ -67,7 +74,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.delete(
     '/companies/:companyId',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       try {
@@ -87,7 +94,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.get(
     '/companies/:companyId/departments',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
@@ -107,7 +114,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post(
     '/companies/:companyId/departments',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       const body = createDepartmentBodySchema.parse(request.body);
@@ -119,18 +126,22 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   // --- Departments (top-level by id) ---
-  app.get('/departments/:departmentId', { preHandler: requireAuth }, async (request, reply) => {
-    const { departmentId } = departmentIdParamSchema.parse(request.params);
-    const department = await request.server.prisma.department.findUniqueOrThrow({
-      where: { id: departmentId },
-      include: { company: true, teams: true },
-    });
-    return reply.send(department);
-  });
+  app.get(
+    '/departments/:departmentId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const { departmentId } = departmentIdParamSchema.parse(request.params);
+      const department = await request.server.prisma.department.findUniqueOrThrow({
+        where: { id: departmentId },
+        include: { company: true, teams: true },
+      });
+      return reply.send(department);
+    }
+  );
 
   app.patch(
     '/departments/:departmentId',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const body = updateDepartmentBodySchema.parse(request.body);
@@ -144,7 +155,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.delete(
     '/departments/:departmentId',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       try {
@@ -165,7 +176,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.get(
     '/departments/:departmentId/teams',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
@@ -185,7 +196,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post(
     '/departments/:departmentId/teams',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       const body = createTeamBodySchema.parse(request.body);
@@ -197,7 +208,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   // --- Teams (top-level by id) ---
-  app.get('/teams/:teamId', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/teams/:teamId', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const { teamId } = teamIdParamSchema.parse(request.params);
     const team = await request.server.prisma.team.findUniqueOrThrow({
       where: { id: teamId },
@@ -208,7 +219,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.patch(
     '/teams/:teamId',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { teamId } = teamIdParamSchema.parse(request.params);
       const body = updateTeamBodySchema.parse(request.body);
@@ -222,7 +233,7 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.delete(
     '/teams/:teamId',
-    { preHandler: [requireAuth, requireAdmin] },
+    { preHandler: [requireAuthPreHandler, requireAdminPreHandler] },
     async (request, reply) => {
       const { teamId } = teamIdParamSchema.parse(request.params);
       try {
@@ -240,6 +251,8 @@ const organisationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.status(204).send();
     }
   );
+
+  return Promise.resolve();
 };
 
 export { organisationRoutes };

@@ -33,7 +33,8 @@ export async function loadUser(
   return user as UserForPermission | null;
 }
 
-async function loadDocument(
+/** Lädt Document per ID (exportiert für canWrite). */
+export async function loadDocument(
   prisma: PrismaClient,
   documentId: string
 ): Promise<DocumentForPermission | null> {
@@ -84,12 +85,13 @@ export async function canRead(
   userId: string,
   documentOrId: string | DocumentForPermission
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
-
-  const doc =
+  // Bei ID zuerst Dokument laden: nicht vorhanden → false (auch für Admin)
+  const doc: DocumentForPermission | null =
     typeof documentOrId === 'string' ? await loadDocument(prisma, documentOrId) : documentOrId;
   if (!doc) return false;
+
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return false;
 
   // 1. isAdmin
   if (user.isAdmin) return true;

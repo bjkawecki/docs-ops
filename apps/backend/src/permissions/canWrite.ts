@@ -1,19 +1,7 @@
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { GrantRole } from '../../generated/prisma/client.js';
-import { DOCUMENT_FOR_PERMISSION_INCLUDE, type DocumentForPermission } from './documentLoad.js';
-import { loadUser } from './canRead.js';
-
-/** Lädt Document per ID (für Aufruf mit documentId). */
-async function loadDocument(
-  prisma: PrismaClient,
-  documentId: string
-): Promise<DocumentForPermission | null> {
-  const doc = await prisma.document.findUnique({
-    where: { id: documentId },
-    include: DOCUMENT_FOR_PERMISSION_INCLUDE,
-  });
-  return doc as DocumentForPermission | null;
-}
+import type { DocumentForPermission } from './documentLoad.js';
+import { loadUser, loadDocument } from './canRead.js';
 
 /**
  * Prüft, ob der Nutzer das Dokument schreiben darf (vgl. Rechtesystem).
@@ -24,12 +12,13 @@ export async function canWrite(
   userId: string,
   documentOrId: string | DocumentForPermission
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
-
+  // Bei ID zuerst Dokument laden: nicht vorhanden → false (auch für Admin)
   const doc =
     typeof documentOrId === 'string' ? await loadDocument(prisma, documentOrId) : documentOrId;
   if (!doc) return false;
+
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return false;
 
   // 1. isAdmin
   if (user.isAdmin) return true;

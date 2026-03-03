@@ -8,7 +8,9 @@ const TEST_PASSWORD = 'testpass';
 
 function getCookieHeader(res: { headers: Record<string, unknown> }): string {
   const setCookie = res.headers['set-cookie'];
-  return Array.isArray(setCookie) ? setCookie.join('; ') : String(setCookie ?? '');
+  if (Array.isArray(setCookie)) return setCookie.join('; ');
+  if (typeof setCookie === 'string') return setCookie;
+  return '';
 }
 
 describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
@@ -56,17 +58,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      user: { id: string; name: string; email: string | null; isAdmin: boolean };
-      identity: {
-        teams: unknown[];
-        departments: unknown[];
-        departmentLeads: unknown[];
-        companyLeads: unknown[];
-        userSpaces: unknown[];
-      };
-      preferences: Record<string, unknown>;
-    };
+    const body = res.json();
     expect(body.user.id).toBe(testUserId);
     expect(body.user.name).toBe('Me Test User');
     expect(body.user.email).toBe(TEST_EMAIL);
@@ -91,7 +83,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       payload: { name: 'Me Test User Updated' },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { name: string };
+    const body = res.json();
     expect(body.name).toBe('Me Test User Updated');
 
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: testUserId } });
@@ -112,7 +104,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as Record<string, unknown>;
+    const body = res.json();
     expect(body).toBeDefined();
   });
 
@@ -131,7 +123,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       payload: { theme: 'dark', sidebarPinned: true },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { theme?: string; sidebarPinned?: boolean };
+    const body = res.json();
     expect(body.theme).toBe('dark');
     expect(body.sidebarPinned).toBe(true);
 
@@ -142,5 +134,53 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     const prefs = user.preferences as { theme?: string; sidebarPinned?: boolean } | null;
     expect(prefs?.theme).toBe('dark');
     expect(prefs?.sidebarPinned).toBe(true);
+  });
+
+  it('PATCH /api/v1/me/preferences → recentItemsByScope gespeichert und per GET geliefert', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: TEST_EMAIL, password: TEST_PASSWORD },
+    });
+    const cookie = getCookieHeader(loginRes);
+
+    const scopeKey = 'company:clh3test000008l008eazy0001';
+    const items = [
+      { type: 'process' as const, id: 'clh3test000008l008eazy0002', name: 'Prozess A' },
+      { type: 'project' as const, id: 'clh3test000008l008eazy0003', name: 'Projekt B' },
+    ];
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/preferences',
+      headers: { cookie },
+      payload: { recentItemsByScope: { [scopeKey]: items } },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.recentItemsByScope).toBeDefined();
+    expect(body.recentItemsByScope?.[scopeKey]).toHaveLength(2);
+    expect(
+      (body.recentItemsByScope?.[scopeKey] as { type: string; id: string; name: string }[])[0].type
+    ).toBe('process');
+    expect(
+      (body.recentItemsByScope?.[scopeKey] as { type: string; id: string; name: string }[])[0].name
+    ).toBe('Prozess A');
+
+    const getRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me/preferences',
+      headers: { cookie },
+    });
+    expect(getRes.statusCode).toBe(200);
+    const getBody = getRes.json();
+    expect(getBody.recentItemsByScope?.[scopeKey]).toHaveLength(2);
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: testUserId },
+      select: { preferences: true },
+    });
+    const prefs = user.preferences as { recentItemsByScope?: Record<string, unknown[]> } | null;
+    expect(prefs?.recentItemsByScope?.[scopeKey]).toHaveLength(2);
   });
 });

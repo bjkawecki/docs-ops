@@ -13,7 +13,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isPending || !me) return;
     if (!me.user.isAdmin) {
-      navigate('/', { replace: true });
+      void navigate('/', { replace: true });
     }
   }, [isPending, me, navigate]);
 

@@ -1,14 +1,19 @@
-import { Card, Text } from '@mantine/core';
+import { Card, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
+import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
+import { RecentItemsCard } from '../components/contexts';
 
 /**
  * Department context view: card grid for processes/projects with this department as owner. Placeholder.
  */
 export function DepartmentContextPage() {
   const { departmentId } = useParams<{ departmentId: string }>();
+  const departmentScope =
+    departmentId != null ? { type: 'department' as const, id: departmentId } : null;
+  const { items: recentItems } = useRecentItems(departmentScope);
   const {
     data: department,
     isPending,
@@ -43,11 +48,16 @@ export function DepartmentContextPage() {
       title={department.name}
       description="Department context – processes and projects. Card grid to follow."
     >
-      <Card withBorder padding="md">
-        <Text size="sm" c="dimmed">
-          Card grid for this department's contexts will be populated from API.
-        </Text>
-      </Card>
+      <Stack gap="md">
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <RecentItemsCard items={recentItems} />
+          <Card withBorder padding="md">
+            <Text size="sm" c="dimmed">
+              Card grid for this department's contexts will be populated from API.
+            </Text>
+          </Card>
+        </SimpleGrid>
+      </Stack>
     </PageWithTabs>
   );
 }

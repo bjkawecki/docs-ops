@@ -51,7 +51,7 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       payload: { email: TEST_EMAIL, password: 'wrong' },
     });
     expect(res.statusCode).toBe(401);
-    const body = res.json() as { error?: string };
+    const body = res.json();
     expect(body.error).toBe('Anmeldung fehlgeschlagen');
   });
 
@@ -80,7 +80,11 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
     });
     expect(loginRes.statusCode).toBe(204);
     const setCookie = loginRes.headers['set-cookie'];
-    const cookieHeader = Array.isArray(setCookie) ? setCookie.join('; ') : String(setCookie ?? '');
+    const cookieHeader = Array.isArray(setCookie)
+      ? setCookie.join('; ')
+      : typeof setCookie === 'string'
+        ? setCookie
+        : '';
 
     const res = await app.inject({
       method: 'GET',
@@ -88,7 +92,7 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       headers: { cookie: cookieHeader },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { items: unknown[]; total: number; limit: number; offset: number };
+    const body = res.json();
     expect(Array.isArray(body.items)).toBe(true);
     expect(typeof body.total).toBe('number');
     expect(body.limit).toBeDefined();
@@ -111,7 +115,7 @@ describe('Auth (Login, Session, geschützte Routen)', () => {
       headers: { cookie: cookieHeader },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { id: string; name: string; email: string | null; isAdmin: boolean };
+    const body = res.json();
     expect(body.id).toBe(testUserId);
     expect(body.email).toBe(TEST_EMAIL);
     expect(body.name).toBe('Auth Test User');

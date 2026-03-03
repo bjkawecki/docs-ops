@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import {
-  requireAuth,
+  requireAuthPreHandler,
   getEffectiveUserId,
   SESSION_COOKIE_NAME,
   type RequestWithUser,
@@ -14,11 +14,20 @@ import {
   sessionIdParamSchema,
 } from './schemas/me.js';
 
-/** User-Preferences: theme, sidebarPinned, locale. Defaults in App, nicht in DB. */
+/** Ein Eintrag in „Zuletzt angesehene“ (process/project/document). */
+export type RecentPreferencesItem = {
+  type: 'process' | 'project' | 'document';
+  id: string;
+  name?: string;
+};
+
+/** User-Preferences: theme, sidebarPinned, locale, recentItemsByScope. Defaults in App, nicht in DB. */
 export type UserPreferences = {
   theme?: 'light' | 'dark' | 'auto';
   sidebarPinned?: boolean;
   locale?: 'en' | 'de';
+  /** Pro Scope (company/department/team) eine Liste; Key z. B. "company:cid", "department:did", "team:tid". */
+  recentItemsByScope?: Record<string, RecentPreferencesItem[]>;
 };
 
 /** Ein Team-Eintrag in der Identity (mit Rolle). */
@@ -51,9 +60,9 @@ export type MeResponse = {
   impersonation?: { active: true; realUser: { id: string; name: string } };
 };
 
-const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   /** GET /api/v1/me – erweiterte Nutzerdaten inkl. Identity und Preferences (effektiver User bei Impersonation). */
-  app.get('/me', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/me', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
 
     const user = await request.server.prisma.user.findUniqueOrThrow({
@@ -152,7 +161,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** PATCH /api/v1/me – eigenes Profil (nur Anzeigename). */
-  app.patch('/me', { preHandler: requireAuth }, async (request, reply) => {
+  app.patch('/me', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
     const body = patchMeBodySchema.parse(request.body);
     const updated = await request.server.prisma.user.update({
@@ -164,7 +173,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** POST /api/v1/me/deactivate – Self-Deactivate (setzt deletedAt). Letzter Admin darf nicht. */
-  app.post('/me/deactivate', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/me/deactivate', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
     const user = await request.server.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -190,7 +199,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** GET /api/v1/me/preferences – nur Preferences (effektiver User bei Impersonation). */
-  app.get('/me/preferences', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/me/preferences', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const user = await request.server.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -204,7 +213,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** PATCH /api/v1/me/preferences – Theme, sidebarPinned (partielles Merge). */
-  app.patch('/me/preferences', { preHandler: requireAuth }, async (request, reply) => {
+  app.patch('/me/preferences', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
     const body = patchPreferencesBodySchema.parse(request.body);
 
@@ -216,11 +225,28 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       current.preferences != null && typeof current.preferences === 'object'
         ? (current.preferences as UserPreferences)
         : {};
+    let recentItemsByScope = currentPrefs.recentItemsByScope ?? {};
+    if (body.recentItemsByScope !== undefined) {
+      recentItemsByScope = { ...recentItemsByScope };
+      for (const [scopeKey, list] of Object.entries(body.recentItemsByScope)) {
+        const seen = new Set<string>();
+        const deduped = list
+          .filter((item) => {
+            const key = `${item.type}:${item.id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .slice(0, 8);
+        recentItemsByScope[scopeKey] = deduped;
+      }
+    }
     const merged: UserPreferences = {
       ...currentPrefs,
       ...(body.theme !== undefined && { theme: body.theme }),
       ...(body.sidebarPinned !== undefined && { sidebarPinned: body.sidebarPinned }),
       ...(body.locale !== undefined && { locale: body.locale }),
+      ...(body.recentItemsByScope !== undefined && { recentItemsByScope }),
     };
 
     await request.server.prisma.user.update({
@@ -231,7 +257,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** PATCH /api/v1/me/account – E-Mail und/oder Passwort (nur bei lokalem Login). */
-  app.patch('/me/account', { preHandler: requireAuth }, async (request, reply) => {
+  app.patch('/me/account', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
     const body = patchAccountBodySchema.parse(request.body);
 
@@ -288,7 +314,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** GET /api/v1/me/sessions – Liste der Sessions mit isCurrent. */
-  app.get('/me/sessions', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/me/sessions', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
     const currentSessionId = request.cookies[SESSION_COOKIE_NAME] ?? null;
 
@@ -308,7 +334,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   });
 
   /** DELETE /api/v1/me/sessions – alle anderen Sessions beenden (außer aktueller). */
-  app.delete('/me/sessions', { preHandler: requireAuth }, async (request, reply) => {
+  app.delete('/me/sessions', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = (request as { user: RequestUser }).user.id;
     const currentSessionId = request.cookies[SESSION_COOKIE_NAME];
     if (currentSessionId) {
@@ -322,7 +348,7 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   /** DELETE /api/v1/me/sessions/:sessionId – einzelne Session widerrufen. */
   app.delete<{ Params: { sessionId: string } }>(
     '/me/sessions/:sessionId',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const userId = (request as { user: RequestUser }).user.id;
       const { sessionId } = sessionIdParamSchema.parse(request.params);
@@ -337,6 +363,8 @@ const meRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.status(204).send();
     }
   );
+
+  return Promise.resolve();
 };
 
 export default meRoutes;

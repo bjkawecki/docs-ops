@@ -7,11 +7,18 @@ export const patchMeBodySchema = z.object({
 
 export type PatchMeBody = z.infer<typeof patchMeBodySchema>;
 
-/** Body: PATCH /me/preferences – Theme, Sidebar-Pin, Locale. */
+/** Body: PATCH /me/preferences – Theme, Sidebar-Pin, Locale, Zuletzt angesehene pro Scope. */
+const recentItemSchema = z.object({
+  type: z.enum(['process', 'project', 'document']),
+  id: z.string().cuid(),
+  name: z.string().max(255).optional(),
+});
+
 export const patchPreferencesBodySchema = z.object({
   theme: z.enum(['light', 'dark', 'auto']).optional(),
   sidebarPinned: z.boolean().optional(),
   locale: z.enum(['en', 'de']).optional(),
+  recentItemsByScope: z.record(z.string(), z.array(recentItemSchema).max(8)).optional(),
 });
 
 export type PatchPreferencesBody = z.infer<typeof patchPreferencesBodySchema>;

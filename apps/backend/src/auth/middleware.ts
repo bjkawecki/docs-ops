@@ -65,3 +65,23 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
     return reply.status(403).send({ error: 'Administrators only' });
   }
 }
+
+/**
+ * Für preHandler-Option: Fastify awaited PreHandler-Promises; manche Typen erwarten void.
+ * Verwendung: preHandler: requireAuthPreHandler bzw. requireAdminPreHandler.
+ */
+export const requireAuthPreHandler = requireAuth as (
+  req: FastifyRequest,
+  reply: FastifyReply
+) => void;
+export const requireAdminPreHandler = requireAdmin as (
+  req: FastifyRequest,
+  reply: FastifyReply
+) => void;
+
+/** Einen async PreHandler für die Option preHandler typ-kompatibel machen. */
+export function preHandlerWrap(
+  fn: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
+): (req: FastifyRequest, reply: FastifyReply) => void {
+  return fn as (req: FastifyRequest, reply: FastifyReply) => void;
+}

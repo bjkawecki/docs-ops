@@ -92,12 +92,12 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  app.get('/', async () => ({
+  app.get('/', () => ({
     name: pkg.name,
     version: pkg.version,
     _links: { health: '/health', ready: '/ready' },
   }));
-  app.get('/health', async () => ({ status: 'ok' }));
+  app.get('/health', () => ({ status: 'ok' }));
   app.get('/ready', async (request, reply) => {
     try {
       await request.server.prisma.$queryRaw`SELECT 1`;

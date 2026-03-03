@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuth, requireAdmin, IMPERSONATE_COOKIE_NAME } from '../auth/middleware.js';
+import {
+  requireAuthPreHandler,
+  requireAdminPreHandler,
+  IMPERSONATE_COOKIE_NAME,
+} from '../auth/middleware.js';
 import { hashPassword } from '../auth/password.js';
 import {
   listUsersQuerySchema,
@@ -12,8 +16,8 @@ import {
 
 const IMPERSONATE_COOKIE_MAX_AGE = 86400; // 1 Tag
 
-const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
-  const preAdmin = [requireAuth, requireAdmin];
+const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
+  const preAdmin = [requireAuthPreHandler, requireAdminPreHandler];
 
   /** POST /api/v1/admin/impersonate – Ansicht als Nutzer X (setzt Cookie, nur Admin). */
   app.post('/admin/impersonate', { preHandler: preAdmin }, async (request, reply) => {
@@ -119,12 +123,12 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     for (const r of teamMemberRows) {
       if (!r.team?.department) continue;
       const list = teamsByUser.get(r.userId) ?? [];
-      if (!list.some((t) => t.id === r.team!.id)) {
+      if (!list.some((t) => t.id === r.team.id)) {
         list.push({ id: r.team.id, name: r.team.name, departmentName: r.team.department.name });
       }
       teamsByUser.set(r.userId, list);
       const deptList = departmentsByUser.get(r.userId) ?? [];
-      if (!deptList.some((d) => d.id === r.team!.department!.id)) {
+      if (!deptList.some((d) => d.id === r.team.department.id)) {
         deptList.push({ id: r.team.department.id, name: r.team.department.name });
       }
       departmentsByUser.set(r.userId, deptList);
@@ -132,12 +136,12 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     for (const r of teamLeadRows) {
       if (!r.team?.department) continue;
       const list = teamsByUser.get(r.userId) ?? [];
-      if (!list.some((t) => t.id === r.team!.id)) {
+      if (!list.some((t) => t.id === r.team.id)) {
         list.push({ id: r.team.id, name: r.team.name, departmentName: r.team.department.name });
       }
       teamsByUser.set(r.userId, list);
       const deptList = departmentsByUser.get(r.userId) ?? [];
-      if (!deptList.some((d) => d.id === r.team!.department!.id)) {
+      if (!deptList.some((d) => d.id === r.team.department.id)) {
         deptList.push({ id: r.team.department.id, name: r.team.department.name });
       }
       departmentsByUser.set(r.userId, deptList);
@@ -292,6 +296,8 @@ const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.status(204).send();
     }
   );
+
+  return Promise.resolve();
 };
 
 export default adminRoutes;

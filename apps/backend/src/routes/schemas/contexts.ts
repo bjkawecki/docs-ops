@@ -3,6 +3,16 @@ import { paginationQuerySchema } from './organisation.js';
 
 export { paginationQuerySchema };
 
+/** Query: Liste Prozesse (Pagination + optional nach Company filtern). */
+export const processListQuerySchema = paginationQuerySchema.extend({
+  companyId: z.string().cuid().optional(),
+});
+
+/** Query: Liste Projekte (Pagination + optional nach Company filtern). */
+export const projectListQuerySchema = paginationQuerySchema.extend({
+  companyId: z.string().cuid().optional(),
+});
+
 /** Body: Process anlegen (genau einer: companyId, departmentId oder teamId). */
 export const createProcessBodySchema = z
   .object({

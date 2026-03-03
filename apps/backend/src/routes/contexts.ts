@@ -1,13 +1,18 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { PrismaClient } from '../../generated/prisma/client.js';
-import { requireAuth, getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
+import {
+  requireAuthPreHandler,
+  getEffectiveUserId,
+  type RequestWithUser,
+} from '../auth/middleware.js';
 import {
   canReadContext,
   canWriteContext,
   canCreateProcessOrProjectForOwner,
 } from '../permissions/contextPermissions.js';
 import {
-  paginationQuerySchema,
+  processListQuerySchema,
+  projectListQuerySchema,
   createProcessBodySchema,
   updateProcessBodySchema,
   createProjectBodySchema,
@@ -63,22 +68,26 @@ async function findOrCreateOwner(
   throw new Error('companyId, departmentId oder teamId erforderlich');
 }
 
-const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- Processes ---
-  app.get('/processes', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/processes', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const query = paginationQuerySchema.parse(request.query);
+    const query = processListQuerySchema.parse(request.query);
     const userId = getEffectiveUserId(request as RequestWithUser);
+    const where = {
+      deletedAt: null,
+      ...(query.companyId != null && { owner: { companyId: query.companyId } }),
+    };
 
     const [all, total] = await Promise.all([
       prisma.process.findMany({
-        where: { deletedAt: null },
+        where,
         include: { context: true, owner: true },
         take: query.limit,
         skip: query.offset,
         orderBy: { name: 'asc' },
       }),
-      prisma.process.count({ where: { deletedAt: null } }),
+      prisma.process.count({ where }),
     ]);
     const allowed = await Promise.all(
       all.map(async (p) => ((await canReadContext(prisma, userId, p.contextId)) ? p : null))
@@ -87,7 +96,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 
-  app.post('/processes', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/processes', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createProcessBodySchema.parse(request.body);
@@ -114,71 +123,88 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.status(201).send(process);
   });
 
-  app.get('/processes/:processId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { processId } = processIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const process = await prisma.process.findUniqueOrThrow({
-      where: { id: processId },
-      include: { context: true, owner: true },
-    });
-    const allowed = await canReadContext(prisma, userId, process.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
-    return reply.send(process);
-  });
+  app.get(
+    '/processes/:processId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { processId } = processIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const process = await prisma.process.findUniqueOrThrow({
+        where: { id: processId },
+        include: { context: true, owner: true },
+      });
+      const allowed = await canReadContext(prisma, userId, process.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
+      return reply.send(process);
+    }
+  );
 
-  app.patch('/processes/:processId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { processId } = processIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const process = await prisma.process.findUniqueOrThrow({
-      where: { id: processId },
-      select: { contextId: true },
-    });
-    const allowed = await canWriteContext(prisma, userId, process.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
-    const body = updateProcessBodySchema.parse(request.body);
-    const updated = await prisma.process.update({
-      where: { id: processId },
-      data: {
-        ...(body.name != null && { name: body.name }),
-        ...(body.deletedAt !== undefined && {
-          deletedAt: body.deletedAt ? new Date(body.deletedAt) : null,
-        }),
-      },
-      include: { context: true, owner: true },
-    });
-    return reply.send(updated);
-  });
+  app.patch(
+    '/processes/:processId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { processId } = processIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const process = await prisma.process.findUniqueOrThrow({
+        where: { id: processId },
+        select: { contextId: true },
+      });
+      const allowed = await canWriteContext(prisma, userId, process.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      const body = updateProcessBodySchema.parse(request.body);
+      const updated = await prisma.process.update({
+        where: { id: processId },
+        data: {
+          ...(body.name != null && { name: body.name }),
+          ...(body.deletedAt !== undefined && {
+            deletedAt: body.deletedAt ? new Date(body.deletedAt) : null,
+          }),
+        },
+        include: { context: true, owner: true },
+      });
+      return reply.send(updated);
+    }
+  );
 
-  app.delete('/processes/:processId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { processId } = processIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const process = await prisma.process.findUniqueOrThrow({
-      where: { id: processId },
-      select: { contextId: true },
-    });
-    const allowed = await canWriteContext(prisma, userId, process.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
-    await prisma.process.delete({ where: { id: processId } });
-    return reply.status(204).send();
-  });
+  app.delete(
+    '/processes/:processId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { processId } = processIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const process = await prisma.process.findUniqueOrThrow({
+        where: { id: processId },
+        select: { contextId: true },
+      });
+      const allowed = await canWriteContext(prisma, userId, process.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      await prisma.process.delete({ where: { id: processId } });
+      return reply.status(204).send();
+    }
+  );
 
   // --- Projects ---
-  app.get('/projects', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/projects', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
-    const query = paginationQuerySchema.parse(request.query);
+    const query = projectListQuerySchema.parse(request.query);
     const userId = getEffectiveUserId(request as RequestWithUser);
+    const where = {
+      deletedAt: null,
+      ...(query.companyId != null && { owner: { companyId: query.companyId } }),
+    };
+
     const [all, total] = await Promise.all([
       prisma.project.findMany({
-        where: { deletedAt: null },
+        where,
         include: { context: true, owner: true, subcontexts: true },
         take: query.limit,
         skip: query.offset,
         orderBy: { name: 'asc' },
       }),
-      prisma.project.count({ where: { deletedAt: null } }),
+      prisma.project.count({ where }),
     ]);
     const allowed = await Promise.all(
       all.map(async (p) => ((await canReadContext(prisma, userId, p.contextId)) ? p : null))
@@ -187,7 +213,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 
-  app.post('/projects', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/projects', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createProjectBodySchema.parse(request.body);
@@ -214,7 +240,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.status(201).send(project);
   });
 
-  app.get('/projects/:projectId', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/projects/:projectId', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const { projectId } = projectIdParamSchema.parse(request.params);
     const userId = getEffectiveUserId(request as RequestWithUser);
@@ -227,48 +253,56 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send(project);
   });
 
-  app.patch('/projects/:projectId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { projectId } = projectIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const project = await prisma.project.findUniqueOrThrow({
-      where: { id: projectId },
-      select: { contextId: true },
-    });
-    const allowed = await canWriteContext(prisma, userId, project.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
-    const body = updateProjectBodySchema.parse(request.body);
-    const updated = await prisma.project.update({
-      where: { id: projectId },
-      data: {
-        ...(body.name != null && { name: body.name }),
-        ...(body.deletedAt !== undefined && {
-          deletedAt: body.deletedAt ? new Date(body.deletedAt) : null,
-        }),
-      },
-      include: { context: true, owner: true, subcontexts: true },
-    });
-    return reply.send(updated);
-  });
+  app.patch(
+    '/projects/:projectId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { projectId } = projectIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { contextId: true },
+      });
+      const allowed = await canWriteContext(prisma, userId, project.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      const body = updateProjectBodySchema.parse(request.body);
+      const updated = await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          ...(body.name != null && { name: body.name }),
+          ...(body.deletedAt !== undefined && {
+            deletedAt: body.deletedAt ? new Date(body.deletedAt) : null,
+          }),
+        },
+        include: { context: true, owner: true, subcontexts: true },
+      });
+      return reply.send(updated);
+    }
+  );
 
-  app.delete('/projects/:projectId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { projectId } = projectIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const project = await prisma.project.findUniqueOrThrow({
-      where: { id: projectId },
-      select: { contextId: true },
-    });
-    const allowed = await canWriteContext(prisma, userId, project.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
-    await prisma.project.delete({ where: { id: projectId } });
-    return reply.status(204).send();
-  });
+  app.delete(
+    '/projects/:projectId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { projectId } = projectIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { contextId: true },
+      });
+      const allowed = await canWriteContext(prisma, userId, project.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      await prisma.project.delete({ where: { id: projectId } });
+      return reply.status(204).send();
+    }
+  );
 
   // --- Subcontexts ---
   app.get(
     '/projects/:projectId/subcontexts',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { projectId } = projectIdParamSchema.parse(request.params);
@@ -296,7 +330,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.post(
     '/projects/:projectId/subcontexts',
-    { preHandler: requireAuth },
+    { preHandler: requireAuthPreHandler },
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { projectId } = projectIdParamSchema.parse(request.params);
@@ -317,54 +351,66 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
   );
 
-  app.get('/subcontexts/:subcontextId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { subcontextId } = subcontextIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const subcontext = await prisma.subcontext.findUniqueOrThrow({
-      where: { id: subcontextId },
-      include: { context: true, project: true },
-    });
-    const allowed = await canReadContext(prisma, userId, subcontext.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
-    return reply.send(subcontext);
-  });
+  app.get(
+    '/subcontexts/:subcontextId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { subcontextId } = subcontextIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const subcontext = await prisma.subcontext.findUniqueOrThrow({
+        where: { id: subcontextId },
+        include: { context: true, project: true },
+      });
+      const allowed = await canReadContext(prisma, userId, subcontext.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Kein Zugriff' });
+      return reply.send(subcontext);
+    }
+  );
 
-  app.patch('/subcontexts/:subcontextId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { subcontextId } = subcontextIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const subcontext = await prisma.subcontext.findUniqueOrThrow({
-      where: { id: subcontextId },
-      include: { project: { select: { contextId: true } } },
-    });
-    const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
-    const body = updateSubcontextBodySchema.parse(request.body);
-    const updated = await prisma.subcontext.update({
-      where: { id: subcontextId },
-      data: body,
-      include: { context: true, project: true },
-    });
-    return reply.send(updated);
-  });
+  app.patch(
+    '/subcontexts/:subcontextId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { subcontextId } = subcontextIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const subcontext = await prisma.subcontext.findUniqueOrThrow({
+        where: { id: subcontextId },
+        include: { project: { select: { contextId: true } } },
+      });
+      const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      const body = updateSubcontextBodySchema.parse(request.body);
+      const updated = await prisma.subcontext.update({
+        where: { id: subcontextId },
+        data: body,
+        include: { context: true, project: true },
+      });
+      return reply.send(updated);
+    }
+  );
 
-  app.delete('/subcontexts/:subcontextId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { subcontextId } = subcontextIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const subcontext = await prisma.subcontext.findUniqueOrThrow({
-      where: { id: subcontextId },
-      include: { project: { select: { contextId: true } } },
-    });
-    const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
-    await prisma.subcontext.delete({ where: { id: subcontextId } });
-    return reply.status(204).send();
-  });
+  app.delete(
+    '/subcontexts/:subcontextId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { subcontextId } = subcontextIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const subcontext = await prisma.subcontext.findUniqueOrThrow({
+        where: { id: subcontextId },
+        include: { project: { select: { contextId: true } } },
+      });
+      const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'Keine Schreibberechtigung' });
+      await prisma.subcontext.delete({ where: { id: subcontextId } });
+      return reply.status(204).send();
+    }
+  );
 
   // --- UserSpaces ---
-  app.get('/user-spaces', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/user-spaces', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const query = paginationQuerySchema.parse(request.query);
     const userId = getEffectiveUserId(request as RequestWithUser);
@@ -381,7 +427,7 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 
-  app.post('/user-spaces', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/user-spaces', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createUserSpaceBodySchema.parse(request.body);
@@ -393,53 +439,67 @@ const contextRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.status(201).send(userSpace);
   });
 
-  app.get('/user-spaces/:userSpaceId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const userSpace = await prisma.userSpace.findUniqueOrThrow({
-      where: { id: userSpaceId },
-      include: { context: true, owner: true },
-    });
-    if (
-      userSpace.ownerUserId !== userId &&
-      !(request as { user?: { isAdmin?: boolean } }).user?.isAdmin
-    ) {
-      return reply.status(403).send({ error: 'Nur Owner oder Admin' });
+  app.get(
+    '/user-spaces/:userSpaceId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const userSpace = await prisma.userSpace.findUniqueOrThrow({
+        where: { id: userSpaceId },
+        include: { context: true, owner: true },
+      });
+      if (
+        userSpace.ownerUserId !== userId &&
+        !(request as { user?: { isAdmin?: boolean } }).user?.isAdmin
+      ) {
+        return reply.status(403).send({ error: 'Nur Owner oder Admin' });
+      }
+      return reply.send(userSpace);
     }
-    return reply.send(userSpace);
-  });
+  );
 
-  app.patch('/user-spaces/:userSpaceId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const userSpace = await prisma.userSpace.findUniqueOrThrow({
-      where: { id: userSpaceId },
-      select: { ownerUserId: true },
-    });
-    if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Nur Owner' });
-    const body = updateUserSpaceBodySchema.parse(request.body);
-    const updated = await prisma.userSpace.update({
-      where: { id: userSpaceId },
-      data: body,
-      include: { context: true, owner: true },
-    });
-    return reply.send(updated);
-  });
+  app.patch(
+    '/user-spaces/:userSpaceId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const userSpace = await prisma.userSpace.findUniqueOrThrow({
+        where: { id: userSpaceId },
+        select: { ownerUserId: true },
+      });
+      if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Nur Owner' });
+      const body = updateUserSpaceBodySchema.parse(request.body);
+      const updated = await prisma.userSpace.update({
+        where: { id: userSpaceId },
+        data: body,
+        include: { context: true, owner: true },
+      });
+      return reply.send(updated);
+    }
+  );
 
-  app.delete('/user-spaces/:userSpaceId', { preHandler: requireAuth }, async (request, reply) => {
-    const prisma = request.server.prisma;
-    const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
-    const userId = getEffectiveUserId(request as RequestWithUser);
-    const userSpace = await prisma.userSpace.findUniqueOrThrow({
-      where: { id: userSpaceId },
-      select: { ownerUserId: true },
-    });
-    if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Nur Owner' });
-    await prisma.userSpace.delete({ where: { id: userSpaceId } });
-    return reply.status(204).send();
-  });
+  app.delete(
+    '/user-spaces/:userSpaceId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { userSpaceId } = userSpaceIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const userSpace = await prisma.userSpace.findUniqueOrThrow({
+        where: { id: userSpaceId },
+        select: { ownerUserId: true },
+      });
+      if (userSpace.ownerUserId !== userId) return reply.status(403).send({ error: 'Nur Owner' });
+      await prisma.userSpace.delete({ where: { id: userSpaceId } });
+      return reply.status(204).send();
+    }
+  );
+
+  return Promise.resolve();
 };
 
 export { contextRoutes };

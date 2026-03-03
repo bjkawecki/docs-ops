@@ -1,6 +1,7 @@
 const eslint = require('@eslint/js');
 const tseslint = require('typescript-eslint');
 const prettier = require('eslint-config-prettier');
+const reactHooks = require('eslint-plugin-react-hooks');
 
 module.exports = tseslint.config(
   {
@@ -16,7 +17,23 @@ module.exports = tseslint.config(
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  // Type-checked Regeln nur für TS/TSX (benötigen parserOptions.project)
+  ...tseslint.configs.recommendedTypeChecked.map((cfg) => ({
+    ...cfg,
+    files: ['**/*.ts', '**/*.tsx'],
+  })),
   prettier,
+  {
+    files: ['**/*.ts', '**/*.tsx'],
+    rules: {
+      // no-unsafe-* vorerst nur Warnung, bis API-Response-Typen etc. ergänzt sind
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+    },
+  },
   {
     files: ['**/*.js'],
     languageOptions: {
@@ -39,5 +56,13 @@ module.exports = tseslint.config(
         tsconfigRootDir: __dirname,
       },
     },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': ['warn', { fixStyle: 'inline-type-imports' }],
+    },
+  },
+  {
+    files: ['apps/frontend/**/*.tsx'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules,
   }
 );
