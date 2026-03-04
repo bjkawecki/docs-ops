@@ -127,6 +127,7 @@ describe('Permissions (canRead, canWrite)', () => {
         data: { userId: supervisorId, departmentId },
       }),
       prisma.teamMember.create({ data: { teamId, userId: teamMemberId } }),
+      prisma.teamMember.create({ data: { teamId, userId: teamLeaderId } }),
       prisma.teamLead.create({ data: { teamId, userId: teamLeaderId } }),
     ]);
 

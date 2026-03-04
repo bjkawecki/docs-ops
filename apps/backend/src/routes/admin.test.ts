@@ -182,6 +182,10 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
   });
 
   it('PATCH letzter Admin isAdmin: false → 403', async () => {
+    await prisma.user.updateMany({
+      where: { id: { not: adminId } },
+      data: { isAdmin: false },
+    });
     const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
     const res = await app.inject({
       method: 'PATCH',
@@ -195,6 +199,10 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
   });
 
   it('PATCH letzter Admin deaktivieren (deletedAt) → 403', async () => {
+    await prisma.user.updateMany({
+      where: { id: { not: adminId } },
+      data: { isAdmin: false },
+    });
     const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
     const res = await app.inject({
       method: 'PATCH',

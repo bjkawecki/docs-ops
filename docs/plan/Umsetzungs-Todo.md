@@ -208,7 +208,7 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
 
-- [ ] **Pinned:** Angepinnte Einträge (Dokumente, Prozesse, Projekte). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle. Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell siehe [Prisma-Schema-Entwurf §7 (Pinned)](Prisma-Schema-Entwurf.md#7-pinned-geplant); danach API und Dashboard-Block.
+- [x] **Pinned:** Nur **Dokumente** (Flag am Document: „in Liste von Scopes gepinnt“). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle (es gibt nur eine Company). Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell: DocumentPinnedInScope (documentId, scopeType, scopeId, order, pinnedById); siehe [Prisma-Schema-Entwurf §7 (Pinned)](Prisma-Schema-Entwurf.md#7-pinned-geplant); danach API und Dashboard-Block.
 - [x] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
 - [x] **Latest:** Neueste Dokumente, die der Nutzer lesen darf (z. B. Slice aus Catalog, sortiert nach updatedAt, Limit 10).
 - [ ] **Drafts / Pending review:** Unveröffentlichte Dokumente und offene PRs (Details §15); Block sichtbar sobald Drafts/PR-Feature umgesetzt ist.

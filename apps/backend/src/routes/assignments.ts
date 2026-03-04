@@ -180,9 +180,14 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       });
       if (!existing) return reply.status(404).send({ error: 'Membership not found' });
 
-      await request.server.prisma.teamMember.delete({
-        where: { teamId_userId: { teamId, userId: targetUserId } },
-      });
+      await request.server.prisma.$transaction([
+        request.server.prisma.teamLead.deleteMany({
+          where: { teamId, userId: targetUserId },
+        }),
+        request.server.prisma.teamMember.delete({
+          where: { teamId_userId: { teamId, userId: targetUserId } },
+        }),
+      ]);
       return reply.status(204).send();
     }
   );
@@ -237,6 +242,15 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { teamId_userId: { teamId, userId: body.userId } },
       });
       if (existing) return reply.status(409).send({ error: 'User is already team lead' });
+
+      const isMember = await request.server.prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId, userId: body.userId } },
+      });
+      if (!isMember) {
+        return reply.status(409).send({
+          error: 'User must be a team member before being assigned as team lead.',
+        });
+      }
 
       await request.server.prisma.teamLead.create({
         data: { teamId, userId: body.userId },

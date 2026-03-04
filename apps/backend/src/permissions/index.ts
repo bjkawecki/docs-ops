@@ -17,3 +17,8 @@ export {
 } from './assignmentPermissions.js';
 export { requireDocumentAccess, DOCUMENT_ID_PARAM } from './middleware.js';
 export { DOCUMENT_FOR_PERMISSION_INCLUDE, type DocumentForPermission } from './documentLoad.js';
+export {
+  canPinForScope,
+  getVisiblePinnedScopeIds,
+  type VisiblePinnedScopes,
+} from './pinnedPermissions.js';

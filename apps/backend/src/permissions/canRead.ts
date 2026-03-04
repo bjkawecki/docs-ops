@@ -25,7 +25,9 @@ export async function loadUser(
       isAdmin: true,
       deletedAt: true,
       teamMemberships: { include: { team: { select: { id: true, departmentId: true } } } },
-      leadOfTeams: { include: { team: { select: { departmentId: true } } } },
+      leadOfTeams: {
+        include: { team: { select: { departmentId: true } } },
+      },
       departmentLeads: { select: { departmentId: true } },
       companyLeads: { select: { companyId: true } },
     },
@@ -118,8 +120,11 @@ export async function canRead(
     if (isDeptLead) return true;
   }
 
-  // 5. Explicit grants
-  const userTeamIds = new Set(user.teamMemberships.map((m) => m.team.id));
+  // 5. Explicit grants (Team Lead sieht Team-Grants wie Mitglieder)
+  const userTeamIds = new Set([
+    ...user.teamMemberships.map((m) => m.team.id),
+    ...user.leadOfTeams.map((l) => l.teamId),
+  ]);
   const userDepartmentIds = new Set([
     ...user.teamMemberships.map((m) => m.team.departmentId),
     ...user.leadOfTeams.map((l) => l.team.departmentId),

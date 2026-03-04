@@ -78,6 +78,9 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const { companyId } = companyIdParamSchema.parse(request.params);
       try {
+        await request.server.prisma.documentPinnedInScope.deleteMany({
+          where: { scopeType: 'company', scopeId: companyId },
+        });
         await request.server.prisma.company.delete({ where: { id: companyId } });
       } catch (err: unknown) {
         const e = err as { code?: string };
@@ -159,6 +162,9 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const { departmentId } = departmentIdParamSchema.parse(request.params);
       try {
+        await request.server.prisma.documentPinnedInScope.deleteMany({
+          where: { scopeType: 'department', scopeId: departmentId },
+        });
         await request.server.prisma.department.delete({ where: { id: departmentId } });
       } catch (err: unknown) {
         const e = err as { code?: string };
@@ -236,6 +242,9 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const { teamId } = teamIdParamSchema.parse(request.params);
       try {
+        await request.server.prisma.documentPinnedInScope.deleteMany({
+          where: { scopeType: 'team', scopeId: teamId },
+        });
         await request.server.prisma.team.delete({ where: { id: teamId } });
       } catch (err: unknown) {
         const e = err as { code?: string };

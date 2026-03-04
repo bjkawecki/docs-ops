@@ -84,6 +84,7 @@ model User {
   companyLeads          CompanyLead[]
   ownedContexts         Owner[]      @relation("OwnerUser")
   documentGrantUser     DocumentGrantUser[]
+  pinnedDocumentScopes  DocumentPinnedInScope[]
   sessions              Session[]
 }
 
@@ -186,6 +187,30 @@ model Subcontext {
   updatedAt  DateTime  @updatedAt
 }
 
+// --- Pinned (Dokumente pro Scope angepinnt; nur Dokumente) ---
+
+enum PinnedScopeType {
+  team
+  department
+  company
+}
+
+/// Document ist in diesem Scope (Team/Department/Company) gepinnt. Pin/Unpin-Berechtigung = Scope-Lead (Rolle), nicht User.
+model DocumentPinnedInScope {
+  id         String         @id @default(cuid())
+  documentId String
+  document   Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  scopeType  PinnedScopeType
+  scopeId    String         // teamId, departmentId oder companyId (keine FK; bei Unit-Löschung in App bereinigen)
+  order      Int            @default(0)
+  pinnedById String?        // optional; User löschen → SetNull, Pins bleiben
+  pinnedBy   User?          @relation(fields: [pinnedById], references: [id], onDelete: SetNull)
+  createdAt  DateTime       @default(now())
+
+  @@unique([scopeType, scopeId, documentId])
+  @@index([scopeType, scopeId])
+}
+
 // --- Dokumente und Tags ---
 
 /// Einzelne inhaltliche Einheit (Markdown). Gehört genau einem Kontext (contextId, Schema).
@@ -202,6 +227,7 @@ model Document {
   grantUser      DocumentGrantUser[]
   grantTeam      DocumentGrantTeam[]
   grantDepartment DocumentGrantDepartment[]
+  pinnedInScopes DocumentPinnedInScope[]
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
 }

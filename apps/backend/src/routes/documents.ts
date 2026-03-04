@@ -390,6 +390,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const allowed = await canDeleteDocument(prisma, userId, documentId);
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to delete this document' });
+      await prisma.documentPinnedInScope.deleteMany({ where: { documentId } });
       await prisma.document.update({
         where: { id: documentId },
         data: { deletedAt: new Date() },

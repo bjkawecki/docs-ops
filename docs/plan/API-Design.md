@@ -48,10 +48,12 @@ Zuordnungen zwischen Nutzern und Teams bzw. Abteilungen werden über eigene Endp
   `POST /api/v1/teams/:teamId/members` – Body `{ userId }` – User als Mitglied hinzufügen.  
   `DELETE /api/v1/teams/:teamId/members/:userId` – Mitgliedschaft entfernen.
 
-- **Team Lead:**  
-  `GET /api/v1/teams/:teamId/team-leads` – Liste (id, name), paginiert.  
-  `POST /api/v1/teams/:teamId/team-leads` – Body `{ userId }` – User als Team Lead hinzufügen.  
+- **Team Lead:**
+  `GET /api/v1/teams/:teamId/team-leads` – Liste (id, name), paginiert.
+  `POST /api/v1/teams/:teamId/team-leads` – Body `{ userId }` – User als Team Lead hinzufügen.
   `DELETE /api/v1/teams/:teamId/team-leads/:userId` – Team-Lead-Zuordnung entfernen.
+
+  **Invariante: Team Lead ⇒ Team-Mitglied.** Beim Setzen eines Team Leads ist zu prüfen, ob die Person bereits **TeamMember** in diesem Team ist; wenn nicht, entweder zuerst TeamMember anlegen oder die API mit **409** und Fehlermeldung „muss zuerst Mitglied sein“ (bzw. „User must be a team member before being assigned as team lead.“) ablehnen. Beim Entfernen aus dem Team: Wenn **TeamMember(teamId, userId)** gelöscht wird, muss auch **TeamLead(teamId, userId)** gelöscht werden (per Cascade im Schema oder im gleichen Handler/Transaktion).
 
 - **Department Lead (Abteilung):**  
   `GET /api/v1/departments/:departmentId/department-leads` – Liste (id, name), paginiert.  

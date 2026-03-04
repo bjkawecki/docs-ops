@@ -2,7 +2,7 @@
 
 Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Datenmodell](../platform/datenmodell/Pseudocode%20Datenmodell.md) und [Rechtesystem](../platform/datenmodell/Rechtesystem.md). Namenskonvention: Englisch; Implementierung nutzt `canRead`/`canWrite` (vgl. [projekt-kontext.mdc](../../.cursor/rules/projekt-kontext.mdc)).
 
-**Umsetzungsstand (aktuell in `apps/backend/prisma/schema.prisma`):** Getrennte Kontext-Tabellen (Process, Project, Subcontext) mit **Context**-Abstraktion für Document; **Owner**-Abstraktion für Process/Project (genau einer: Company, Department, Team oder User via ownerUserId); Zugriffsrechte in drei Tabellen (DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment) mit genau einem Grantee pro Zeile; Tags normalisiert (Tag + DocumentTag n:m); User mit email, externalId, isAdmin, deletedAt; Rollenbezeichnungen: **Company Lead**, **Department Lead**, **Team Lead**; Soft Delete (Document, Process, Project, User); Document mit optionalem pdfUrl.
+**Umsetzungsstand (aktuell in `apps/backend/prisma/schema.prisma`):** Getrennte Kontext-Tabellen (Process, Project, Subcontext) mit **Context**-Abstraktion für Document; **Owner**-Abstraktion für Process/Project (genau einer: Company, Department, Team oder User via ownerUserId); Zugriffsrechte in drei Tabellen (DocumentGrantUser, DocumentGrantTeam, DocumentGrantDepartment) mit genau einem Grantee pro Zeile; Tags normalisiert (Tag + DocumentTag n:m); User mit email, externalId, isAdmin, deletedAt; Rollenbezeichnungen: **Company Lead**, **Department Lead**, **Team Lead**; Soft Delete (Document, Process, Project, User); Document mit optionalem pdfUrl. **Pinned:** DocumentPinnedInScope (nur Dokumente, pro Scope ein Pin pro Dokument; siehe §7).
 
 ---
 
@@ -68,7 +68,8 @@ Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId
 - **Context** (Abstraktion) mit 1:1 zu Process | Project | Subcontext. **Document** hat contextId (Pflicht).
 - **Document:** title, content, pdfUrl?, contextId, deletedAt?; Tags über **Tag** + **DocumentTag** (n:m).
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
-- **Geplant (noch nicht umgesetzt):** Pinned (§7), Document-Status draft/published (§3), Versionierung & PR (§8).
+- **Umgesetzt:** Pinned (§7) – DocumentPinnedInScope, nur Dokumente.
+- **Geplant (noch nicht umgesetzt):** Document-Status draft/published (§3), Versionierung & PR (§8).
 
 Schema liegt in `apps/backend/prisma/schema.prisma`; Migrationen unter `apps/backend/prisma/migrations/`.
 
@@ -97,30 +98,31 @@ Das Schema nutzt **Restrict** für die Organisations- und Owner-Hierarchie, dami
 
 ---
 
-## 7. Pinned (geplant)
+## 7. Pinned (umgesetzt)
 
-Angepinnte Einträge pro Scope (Team, Department, Company) für Dashboard und Scope-Seiten. Noch nicht in `schema.prisma` umgesetzt.
+Angepinnte **Dokumente** pro Scope (Team, Department, Company) für Dashboard und Scope-Seiten. Modell: „Document ist in Liste von Scopes gepinnt“ (Relation am Document). **Nur Dokumente** – keine Prozesse oder Projekte. Implementierung in `schema.prisma`: **DocumentPinnedInScope**, Enum **PinnedScopeType**.
 
-**Scope:** Pins gelten pro Scope (Team, Department, Company). Ein Pin bezieht sich auf ein Ziel: Document, Process oder Project.
+**Modell DocumentPinnedInScope:**
 
-**Vorschlag Tabelle PinnedItem:**
+| Spalte     | Typ      | Bedeutung                                                                |
+| ---------- | -------- | ------------------------------------------------------------------------ |
+| id         | String   | PK (cuid)                                                                |
+| documentId | String   | FK → Document, onDelete: Cascade                                         |
+| scopeType  | Enum     | PinnedScopeType: team \| department \| company                           |
+| scopeId    | String   | teamId, departmentId oder companyId (keine FK; eine Company im System)   |
+| order      | Int      | Sortierung (default 0)                                                   |
+| pinnedById | String?  | userId (optional; Berechtigung hängt an Rolle Scope-Lead, nicht am User) |
+| createdAt  | DateTime | Zeitpunkt des Anpinnens                                                  |
 
-| Spalte     | Typ      | Bedeutung                                                  |
-| ---------- | -------- | ---------------------------------------------------------- |
-| id         | String   | PK (cuid)                                                  |
-| scopeType  | Enum     | team \| department \| company                              |
-| scopeId    | String   | teamId, departmentId oder companyId (FK je nach scopeType) |
-| targetType | Enum     | document \| process \| project                             |
-| targetId   | String   | id des Documents, Process oder Project                     |
-| order      | Int      | Sortierung (z. B. für Reihenfolge im Dashboard)            |
-| pinnedById | String   | userId (wer gepinnt hat) → User                            |
-| createdAt  | DateTime | Zeitpunkt des Anpinnens                                    |
+- **Eindeutigkeit:** `@@unique([scopeType, scopeId, documentId])` – pro Scope und Dokument höchstens ein Pin.
+- **Relationen:** document → Document; pinnedBy → User? (optional). Document hat `pinnedInScopes DocumentPinnedInScope[]`, User hat `pinnedDocumentScopes DocumentPinnedInScope[]`.
+- **Rechte:** An- und Abpinnen nur **Scope-Lead** (und Admin); Lesen: alle, die den Scope sehen. Details siehe [Rechtesystem – Pinned](../platform/datenmodell/Rechtesystem.md#pinned).
 
-- **Eindeutigkeit:** Pro Scope und Ziel höchstens ein Pin: `@@unique([scopeType, scopeId, targetType, targetId])`.
-- **Relationen:** pinnedById → User; optional separate FKs zu Team/Department/Company (scopeId je nach scopeType) oder polymorphe Abfragen in der App.
-- **Rechte:** An- und Abpinnen dürfen nur **Scope-Lead** (Team Lead für Team, Department Lead für Department, Company Lead für Company) und Admin. Lesen: alle, die den Scope sehen (z. B. Team-Mitglieder sehen Team-Pins). Details siehe [Rechtesystem – Pinned](../platform/datenmodell/Rechtesystem.md#pinned).
+**Cascade und API-Verhalten:**
 
-**Cascade:** Beim Löschen eines Users PinnedItems mit pinnedById (Cascade oder SetNull). Beim Löschen eines Documents/Process/Project die zugehörigen PinnedItems entfernen (Cascade).
+- **User löschen** → `pinnedById` auf **SetNull** (Pins bleiben; Zuordnung zum Scope, nicht zum User).
+- **Document löschen** (physisch oder Soft-Delete) → DocumentPinnedInScope-Einträge für dieses Dokument in der API vorher per `deleteMany` entfernen (bei Soft-Delete: vor dem Setzen von `deletedAt`). Keine Pins auf soft-deleted Docs.
+- **Scope-Unit löschen** (Team/Department/Company): In den DELETE-Handlern `DocumentPinnedInScope.deleteMany({ where: { scopeType, scopeId } })` ausführen – Pins für diesen Scope entfallen.
 
 ---
 
@@ -131,8 +133,7 @@ Snapshots pro Änderung und Pull-Request-Workflow für Dokumente. Noch nicht in 
 **Vorschlag Tabellen (konzeptionell):**
 
 - **DocumentVersion (Snapshot):** id, documentId (→ Document), contentHash oder Content-Referenz, createdAt, createdBy (userId), optional parentVersionId (→ DocumentVersion) für Versionenkette. Jede Änderung erzeugt einen Snapshot; Speicheroptimierung über Deltas/Deduplizierung optional später.
-
-- **DraftRequest (Pull Request):** Repräsentiert einen offenen PR – z. B. id, documentId, sourceVersionId (→ DocumentVersion), targetVersionId (→ DocumentVersion), status (open \| merged \| rejected), submittedById (userId), submittedAt, mergedAt?, mergedById?, optional comment. Merge nur durch Scope-Lead (Implementierung: canMergeDraftRequest analog zu Rechtesystem 6b).
+- **DraftRequest (Pull Request):** Repräsentiert einen offenen PR – z. B. id, documentId, sourceVersionId (→ DocumentVersion), targetVersionId (→ DocumentVersion), status (open merged rejected), submittedById (userId), submittedAt, mergedAt?, mergedById?, optional comment. Merge nur durch Scope-Lead (Implementierung: canMergeDraftRequest analog zu Rechtesystem 6b).
 
 Branches können als Pointer auf eine Version oder Versionenkette modelliert werden (z. B. „main“ = aktuelle veröffentlichte Version; Draft = offene PR-Version), ohne vollständiges Git-Modell.
 

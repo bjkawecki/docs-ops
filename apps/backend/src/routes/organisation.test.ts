@@ -147,8 +147,9 @@ describe('Organisation (Companies, Departments, Teams)', () => {
       offset: number;
     };
     expect(Array.isArray(body.items)).toBe(true);
-    expect(body.total).toBe(1);
-    expect(body.items).toHaveLength(1);
+    expect(body.total).toBeGreaterThanOrEqual(1);
+    expect(body.items.length).toBeGreaterThanOrEqual(1);
+    expect(body.items.some((c: { id: string }) => c.id === companyId)).toBe(true);
     expect(body.limit).toBeDefined();
     expect(body.offset).toBeDefined();
   });

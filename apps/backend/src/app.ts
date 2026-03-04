@@ -8,6 +8,7 @@ import { contextRoutes } from './routes/contexts.js';
 import { documentsRoutes } from './routes/documents.js';
 import assignmentsRoutes from './routes/assignments.js';
 import meRoutes from './routes/me.js';
+import pinnedRoutes from './routes/pinned.js';
 import adminRoutes from './routes/admin.js';
 
 const require = createRequire(import.meta.url);
@@ -117,6 +118,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(documentsRoutes, { prefix: '/api/v1' });
   app.register(assignmentsRoutes, { prefix: '/api/v1' });
   app.register(meRoutes, { prefix: '/api/v1' });
+  app.register(pinnedRoutes, { prefix: '/api/v1' });
   app.register(adminRoutes, { prefix: '/api/v1' });
   return app;
 }

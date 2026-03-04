@@ -1,4 +1,4 @@
-import { Box, Button, Group, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
+import { Badge, Box, Button, Group, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -9,6 +9,19 @@ import { getAggregatedRecentItems } from '../hooks/useRecentItems';
 import { apiFetch } from '../api/client';
 
 const LATEST_LIMIT = 10;
+
+type PinnedItem = {
+  id: string;
+  scopeType: 'team' | 'department' | 'company';
+  scopeId: string;
+  documentId: string;
+  documentTitle: string;
+  documentHref: string;
+  order: number;
+  pinnedAt: string;
+  canUnpin: boolean;
+};
+type PinnedResponse = { items: PinnedItem[] };
 
 type CatalogDocument = {
   id: string;
@@ -21,6 +34,10 @@ type CatalogResponse = {
   limit: number;
   offset: number;
 };
+
+function scopeTypeLabel(scopeType: string): string {
+  return scopeType.charAt(0).toUpperCase() + scopeType.slice(1);
+}
 
 function formatDate(iso: string): string {
   try {
@@ -39,6 +56,20 @@ export function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: me } = useMe();
   const recentItems = getAggregatedRecentItems(me?.preferences?.recentItemsByScope, 10);
+
+  const {
+    data: pinnedData,
+    isPending: pinnedPending,
+    isError: pinnedError,
+  } = useQuery({
+    queryKey: ['pinned', 'dashboard'],
+    queryFn: async (): Promise<PinnedResponse> => {
+      const res = await apiFetch('/api/v1/pinned');
+      if (!res.ok) throw new Error('Failed to load pinned documents');
+      return (await res.json()) as PinnedResponse;
+    },
+  });
+  const pinnedItems = pinnedData?.items ?? [];
 
   const {
     data: latestData,
@@ -104,6 +135,39 @@ export function HomePage() {
       </Stack>
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <SectionCard title="Pinned">
+          {pinnedPending ? (
+            <Text size="sm" c="dimmed">
+              Loading…
+            </Text>
+          ) : pinnedError ? (
+            <Text size="sm" c="red">
+              Failed to load pinned documents.
+            </Text>
+          ) : pinnedItems.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              Scope leads can pin documents for their team, department or company. Pinned documents
+              will appear here.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {pinnedItems.map((item) => (
+                <Group key={item.id} gap="xs" wrap="nowrap">
+                  <Badge size="sm" variant="light">
+                    {scopeTypeLabel(item.scopeType)}
+                  </Badge>
+                  <Link
+                    to={item.documentHref}
+                    style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
+                  >
+                    {item.documentTitle}
+                  </Link>
+                </Group>
+              ))}
+            </Stack>
+          )}
+        </SectionCard>
+
         <RecentItemsCard items={recentItems} />
 
         <SectionCard title="Latest documents" viewMoreHref="/catalog">
