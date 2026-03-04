@@ -99,7 +99,7 @@ export function HomePage() {
   };
 
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <Stack align="center" mb="md" gap="md" py="xl" pt="3rem" pb="2rem">
         <Group gap="lg" justify="center">
           <DocopsLogo width={112} height={112} />
@@ -203,7 +203,7 @@ export function HomePage() {
           )}
         </SectionCard>
       </SimpleGrid>
-    </>
+    </Box>
   );
 }
 

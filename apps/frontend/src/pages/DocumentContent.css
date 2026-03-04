@@ -1,0 +1,33 @@
+/* Readable line length and spacing for document body */
+.document-content p {
+  margin-bottom: 1.25em;
+  line-height: 1.65;
+}
+.document-content p:last-child {
+  margin-bottom: 0;
+}
+.document-content h1,
+.document-content h2,
+.document-content h3,
+.document-content h4,
+.document-content h5,
+.document-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+}
+.document-content h1:first-child,
+.document-content h2:first-child,
+.document-content h3:first-child,
+.document-content h4:first-child,
+.document-content h5:first-child,
+.document-content h6:first-child {
+  margin-top: 0;
+}
+.document-content ul,
+.document-content ol {
+  margin-bottom: 1.25em;
+}
+.document-content pre,
+.document-content blockquote {
+  margin: 1.25em 0;
+}

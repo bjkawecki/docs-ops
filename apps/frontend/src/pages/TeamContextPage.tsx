@@ -1,4 +1,4 @@
-import { Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -176,7 +176,7 @@ export function TeamContextPage() {
     );
 
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <PageWithTabs
         title={team.name}
         description="Contexts and content for the team."
@@ -413,6 +413,6 @@ export function TeamContextPage() {
           </Button>
         </Group>
       </Modal>
-    </>
+    </Box>
   );
 }

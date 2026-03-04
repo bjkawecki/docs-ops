@@ -1,4 +1,4 @@
-import { Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -104,14 +104,16 @@ export function SharedPage() {
   );
 
   return (
-    <PageWithTabs
-      title="Shared"
-      description="Contexts and documents shared with you."
-      tabs={tabs}
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
-    >
-      {[overviewPanel, documentsPanel]}
-    </PageWithTabs>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <PageWithTabs
+        title="Shared"
+        description="Contexts and documents shared with you."
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
+        {[overviewPanel, documentsPanel]}
+      </PageWithTabs>
+    </Box>
   );
 }

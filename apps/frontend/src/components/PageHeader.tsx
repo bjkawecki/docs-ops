@@ -19,7 +19,7 @@ export function PageHeader({
   breadcrumbs,
 }: PageHeaderProps) {
   return (
-    <Stack gap="xs" mb="md">
+    <Stack gap="md" mb="xl">
       {breadcrumbs != null && breadcrumbs}
       <Group justify="space-between" align="flex-start">
         <Title order={2}>{title}</Title>

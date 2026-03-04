@@ -813,7 +813,7 @@ export function AppShell() {
         <Box
           py={{ base: 'md', md: 'lg', xl: 'xl' }}
           px={{ base: 'md', md: 'lg', xl: 'xl' }}
-          style={{ minHeight: '100%' }}
+          style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}
         >
           {me?.impersonation?.active && (
             <Box
@@ -856,7 +856,17 @@ export function AppShell() {
               </Group>
             </Box>
           )}
-          <Outlet />
+          <Box
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Outlet />
+          </Box>
         </Box>
       </MantineAppShell.Main>
     </MantineAppShell>

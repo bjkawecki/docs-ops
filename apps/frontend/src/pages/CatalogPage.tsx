@@ -150,7 +150,7 @@ export function CatalogPage() {
   );
 
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <PageHeader
         title="Catalog"
         description="All documents you can access. Filter, search, and sort."
@@ -307,6 +307,6 @@ export function CatalogPage() {
           </Stack>
         </Box>
       </Box>
-    </>
+    </Box>
   );
 }

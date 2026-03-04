@@ -1,5 +1,6 @@
 import {
   Anchor,
+  Box,
   Button,
   Card,
   Group,
@@ -321,7 +322,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     );
 
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <PageHeader
         title={data.name}
         metadata={metadata}
@@ -507,6 +508,6 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           </Button>
         </Group>
       </Modal>
-    </>
+    </Box>
   );
 }

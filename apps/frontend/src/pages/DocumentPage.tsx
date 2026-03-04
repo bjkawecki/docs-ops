@@ -1,8 +1,12 @@
 import {
   Badge,
+  Box,
   Button,
   Card,
   Group,
+  NavLink,
+  SimpleGrid,
+  Skeleton,
   Stack,
   Text,
   Tabs,
@@ -11,22 +15,25 @@ import {
   MultiSelect,
   Modal,
   ActionIcon,
+  Typography,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import './DocumentContent.css';
 import { apiFetch } from '../api/client';
 import { PageHeader } from '../components/PageHeader';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import type { RecentScope } from '../hooks/useRecentItems';
 import { useRecentItemsActions } from '../hooks/useRecentItems';
 import { useDisclosure } from '@mantine/hooks';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { notifications } from '@mantine/notifications';
 import {
   IconBuildingSkyscraper,
   IconListCheck,
+  IconPencil,
   IconSitemap,
   IconSubtask,
   IconTarget,
@@ -34,6 +41,49 @@ import {
   IconUser,
   IconUsersGroup,
 } from '@tabler/icons-react';
+
+/** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
+function slugify(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\u00C0-\u024F-]/g, '');
+}
+
+/** Extrahiert Überschriften aus Markdown (Zeilen die mit # beginnen). */
+function getHeadingsFromMarkdown(md: string): { level: number; text: string; id: string }[] {
+  const lines = md.split('\n');
+  const slugs = new Map<string, number>();
+  const result: { level: number; text: string; id: string }[] = [];
+  const match = /^(#{1,6})\s+(.+)$/;
+  for (const line of lines) {
+    const m = line.match(match);
+    if (!m) continue;
+    const level = m[1].length;
+    const text = m[2].trim();
+    const base = slugify(text) || 'heading';
+    const n = (slugs.get(base) ?? 0) + 1;
+    slugs.set(base, n);
+    const id = n === 1 ? base : `${base}-${n}`;
+    result.push({ level, text, id });
+  }
+  return result;
+}
+
+/** Text aus React-Kindern für Slug-Erzeugung. */
+function getTextFromChildren(children: ReactNode): string {
+  if (typeof children === 'string') return children;
+  if (Array.isArray(children)) return children.map(getTextFromChildren).join('');
+  if (
+    children != null &&
+    typeof children === 'object' &&
+    'props' in children &&
+    (children as { props?: { children?: ReactNode } }).props?.children != null
+  )
+    return getTextFromChildren((children as { props: { children: ReactNode } }).props.children);
+  return '';
+}
 
 type DocumentScope =
   | { type: 'personal' }
@@ -91,6 +141,8 @@ export function DocumentPage() {
   const [manageTagsOpened, { open: openManageTags, close: closeManageTags }] = useDisclosure(false);
   const [newTagName, setNewTagName] = useState('');
   const [createTagLoading, setCreateTagLoading] = useState(false);
+  const editContentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const slugCountsRef = useRef<Record<string, number>>({});
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['document', documentId],
@@ -129,6 +181,24 @@ export function DocumentPage() {
   }, [data]);
 
   useEffect(() => {
+    if (data?.title) {
+      document.title = `${data.title} – DocsOps`;
+    }
+    return () => {
+      document.title = 'DocsOps – Internal Documentation';
+    };
+  }, [data?.title]);
+
+  useEffect(() => {
+    if (mode === 'edit') {
+      const t = setTimeout(() => {
+        editContentTextareaRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [mode]);
+
+  useEffect(() => {
     if (data && recentActions && data.scope) {
       const scope =
         data.scope.type === 'personal'
@@ -141,6 +211,31 @@ export function DocumentPage() {
       recentActions.addRecent({ type: 'document', id: data.id, name: data.title }, scope);
     }
   }, [data, recentActions]);
+
+  const headings = useMemo(() => (data ? getHeadingsFromMarkdown(data.content ?? '') : []), [data]);
+  const markdownHeadingComponents = useMemo(() => {
+    const makeH = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
+      function HeadingWithId({ children, ...rest }: { children?: ReactNode }) {
+        const text = getTextFromChildren(children ?? '');
+        const base = slugify(text) || 'heading';
+        const n = (slugCountsRef.current[base] ?? 0) + 1;
+        slugCountsRef.current[base] = n;
+        const id = n === 1 ? base : `${base}-${n}`;
+        return (
+          <Tag id={id} {...rest}>
+            {children}
+          </Tag>
+        );
+      };
+    return {
+      h1: makeH('h1'),
+      h2: makeH('h2'),
+      h3: makeH('h3'),
+      h4: makeH('h4'),
+      h5: makeH('h5'),
+      h6: makeH('h6'),
+    };
+  }, []);
 
   const handleDeleteConfirm = async () => {
     if (!documentId) return;
@@ -263,17 +358,31 @@ export function DocumentPage() {
 
   if (isPending) {
     return (
-      <Text size="sm" c="dimmed">
-        Loading…
-      </Text>
+      <Stack gap="md">
+        <Skeleton height={32} width="60%" />
+        <Skeleton height={16} width="40%" />
+        <Skeleton height={120} />
+        <Skeleton height={16} width="90%" />
+        <Skeleton height={16} width="80%" />
+      </Stack>
     );
   }
 
   if (isError || !data) {
     return (
-      <Text size="sm" c="red">
-        Document not found or access denied.
-      </Text>
+      <Stack gap="md">
+        <Text size="sm" c="red">
+          Document not found or access denied.
+        </Text>
+        <Group gap="xs">
+          <Button variant="light" size="sm" component={Link} to="/catalog">
+            Back to Catalog
+          </Button>
+          <Button variant="subtle" size="sm" component={Link} to="/">
+            Dashboard
+          </Button>
+        </Group>
+      </Stack>
     );
   }
 
@@ -282,20 +391,20 @@ export function DocumentPage() {
   const contextMeta =
     data.contextProcessId != null
       ? {
-          typeLabel: 'Prozess',
-          name: data.contextName ?? 'Prozess',
+          typeLabel: 'Process',
+          name: data.contextName ?? 'Process',
           to: `/processes/${data.contextProcessId}`,
         }
       : data.subcontextId != null
         ? {
-            typeLabel: 'Unterkontext',
-            name: data.subcontextName ?? data.contextName ?? 'Unterkontext',
+            typeLabel: 'Subcontext',
+            name: data.subcontextName ?? data.contextName ?? 'Subcontext',
             to: `/subcontexts/${data.subcontextId}`,
           }
         : data.contextProjectId != null
           ? {
-              typeLabel: 'Projekt',
-              name: data.contextProjectName ?? data.contextName ?? 'Projekt',
+              typeLabel: 'Project',
+              name: data.contextProjectName ?? data.contextName ?? 'Project',
               to: `/projects/${data.contextProjectId}`,
             }
           : null;
@@ -338,9 +447,9 @@ export function DocumentPage() {
   }
   if (contextMeta) {
     const ContextIcon =
-      contextMeta.typeLabel === 'Prozess'
+      contextMeta.typeLabel === 'Process'
         ? IconListCheck
-        : contextMeta.typeLabel === 'Projekt'
+        : contextMeta.typeLabel === 'Project'
           ? IconTarget
           : IconSubtask;
     metadataItems.push(
@@ -365,10 +474,10 @@ export function DocumentPage() {
     metadataItems.push(
       <Group key="pub" gap="xs" align="center">
         <Text size="sm" c="dimmed" span>
-          Veröffentlicht:{' '}
+          Published:{' '}
         </Text>
         <Badge size="sm" variant="light">
-          {new Date(data.publishedAt).toLocaleDateString('de-DE')}
+          {new Date(data.publishedAt).toLocaleDateString(undefined)}
         </Badge>
       </Group>
     );
@@ -377,7 +486,7 @@ export function DocumentPage() {
     metadataItems.push(
       <Group key="author" gap="xs" align="center">
         <Text size="sm" c="dimmed" span>
-          Erstellt von:{' '}
+          Created by:{' '}
         </Text>
         <Badge size="sm" variant="light">
           {data.createdByName}
@@ -389,7 +498,7 @@ export function DocumentPage() {
     metadataItems.push(
       <Group key="writers" gap="xs" align="center">
         <Text size="sm" c="dimmed" span>
-          Schreiber:{' '}
+          Writers:{' '}
         </Text>
         <Badge size="sm" variant="light">
           {writerNames.join(', ')}
@@ -412,103 +521,257 @@ export function DocumentPage() {
 
   return (
     <>
-      <PageHeader
-        title={docTitle}
-        description={mode === 'view' && data.description ? data.description : undefined}
-        metadata={
-          metadataItems.length > 0 ? (
-            <Group gap="md" align="center">
-              {metadataItems}
+      <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <PageHeader
+          title={docTitle}
+          description={mode === 'view' && data.description ? data.description : undefined}
+          metadata={
+            metadataItems.length > 0 ? (
+              <Group gap="sm" wrap="wrap" align="center">
+                {metadataItems}
+              </Group>
+            ) : undefined
+          }
+          actions={
+            <Group gap="xs">
+              {mode === 'edit' && (
+                <>
+                  <Button variant="default" size="sm" onClick={() => setMode('view')}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
+                    Save
+                  </Button>
+                </>
+              )}
+              {data.canWrite && mode === 'view' && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconPencil size={14} />}
+                  onClick={() => setMode('edit')}
+                >
+                  Edit
+                </Button>
+              )}
+              {data.canDelete && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={openDelete}
+                >
+                  Delete
+                </Button>
+              )}
             </Group>
-          ) : undefined
-        }
-        actions={
-          <Group gap="xs">
-            {mode === 'edit' && (
-              <>
-                <Button variant="default" size="sm" onClick={() => setMode('view')}>
-                  Cancel
-                </Button>
-                <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
-                  Save
-                </Button>
-              </>
-            )}
-            {data.canWrite && mode === 'view' && (
-              <Button variant="light" size="sm" onClick={() => setMode('edit')}>
-                Edit
-              </Button>
-            )}
-            {data.canDelete && (
-              <Button variant="light" size="sm" color="red" onClick={openDelete}>
-                Delete
-              </Button>
-            )}
-          </Group>
-        }
-      />
+          }
+        />
 
-      <Stack gap="md">
-        {mode === 'view' ? (
-          <Card withBorder padding="md">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.content || ''}</ReactMarkdown>
-          </Card>
-        ) : (
-          <Card withBorder padding="md">
-            <Tabs defaultValue="edit">
-              <Tabs.List>
-                <Tabs.Tab value="edit">Edit</Tabs.Tab>
-                <Tabs.Tab value="preview">Preview</Tabs.Tab>
-              </Tabs.List>
-              <Tabs.Panel value="edit" pt="md">
-                <Stack gap="md">
-                  <TextInput
-                    label="Title"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.currentTarget.value)}
-                    maxLength={500}
-                  />
-                  <TextInput
-                    label="Beschreibung"
-                    placeholder="Kurzbeschreibung (optional)"
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.currentTarget.value)}
-                    maxLength={500}
-                  />
-                  <Group align="flex-end" gap="xs">
-                    <MultiSelect
-                      label="Tags"
-                      placeholder="Select or add tags"
-                      data={tagOptions}
-                      value={editTagIds}
-                      onChange={setEditTagIds}
-                      searchable
-                      clearable
-                      style={{ flex: 1 }}
+        <Stack gap="lg">
+          {mode === 'view' ? (
+            <Box
+              style={{
+                display: 'flex',
+                gap: 0,
+                alignItems: 'flex-start',
+                flexWrap: 'nowrap',
+              }}
+            >
+              <Box style={{ flex: 1, minWidth: 0 }} />
+              <Box style={{ width: 'var(--mantine-spacing-md)', flexShrink: 0 }} />
+              <Card
+                variant="subtle"
+                withBorder
+                padding="xl"
+                style={{
+                  maxWidth: 'min(720px, 90vw)',
+                  flexShrink: 0,
+                }}
+              >
+                <Box
+                  className="document-content"
+                  style={{
+                    maxWidth: '65ch',
+                    margin: '0 auto',
+                    padding: 'var(--mantine-spacing-xl)',
+                  }}
+                >
+                  {(() => {
+                    slugCountsRef.current = {};
+                    return null;
+                  })()}
+                  <Typography>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={markdownHeadingComponents}
+                    >
+                      {data.content || ''}
+                    </ReactMarkdown>
+                  </Typography>
+                </Box>
+              </Card>
+              <Box style={{ width: 'var(--mantine-spacing-md)', flexShrink: 0 }} />
+              {headings.length > 0 ? (
+                <Box
+                  px="lg"
+                  py="lg"
+                  pos="sticky"
+                  top={0}
+                  style={{
+                    width: 260,
+                    zIndex: 1000,
+                  }}
+                >
+                  <Text
+                    size="sm"
+                    fw={600}
+                    c="dimmed"
+                    mb="sm"
+                    style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
+                  >
+                    Table of Contents
+                  </Text>
+                  <Stack component="nav" gap={2}>
+                    {headings.map((h) => (
+                      <NavLink
+                        key={h.id}
+                        href={`#${h.id}`}
+                        label={h.text}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        style={{
+                          paddingLeft: `calc(var(--mantine-spacing-xs) + ${(h.level - 1) * 10}px)`,
+                          paddingTop: 'var(--mantine-spacing-xs)',
+                          paddingBottom: 'var(--mantine-spacing-xs)',
+                          paddingRight: 'var(--mantine-spacing-xs)',
+                          fontSize: h.level >= 4 ? 'var(--mantine-font-size-xs)' : undefined,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              ) : null}
+              <Box style={{ flex: 1, minWidth: 0 }} />
+            </Box>
+          ) : (
+            <Card withBorder padding="lg">
+              <Tabs defaultValue="content">
+                <Tabs.List>
+                  <Tabs.Tab value="content">Content</Tabs.Tab>
+                  <Tabs.Tab value="settings">Settings</Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="content" pt="lg">
+                  <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
+                    <SimpleGrid
+                      cols={{ base: 1, md: 2 }}
+                      spacing="xl"
+                      style={{ alignItems: 'stretch' }}
+                    >
+                      <Box
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          height: 'max(400px, calc(100vh - 360px))',
+                        }}
+                      >
+                        <Textarea
+                          ref={editContentTextareaRef}
+                          label="Markdown"
+                          placeholder="Content (Markdown)"
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.currentTarget.value)}
+                          styles={{
+                            root: {
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              minHeight: 0,
+                            },
+                            input: {
+                              fontFamily: 'monospace',
+                              height: '100%',
+                              minHeight: 200,
+                              boxSizing: 'border-box',
+                            },
+                            wrapper: {
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              minHeight: 0,
+                            },
+                          }}
+                        />
+                      </Box>
+                      <Box
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          height: 'max(400px, calc(100vh - 360px))',
+                        }}
+                      >
+                        <Text size="sm" c="dimmed" fw={500} mb="sm">
+                          Preview
+                        </Text>
+                        <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                          <Box style={{ maxWidth: '65ch', padding: 'var(--mantine-spacing-md)' }}>
+                            <Typography>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {editContent || ''}
+                              </ReactMarkdown>
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                    </SimpleGrid>
+                  </Box>
+                </Tabs.Panel>
+                <Tabs.Panel value="settings" pt="lg">
+                  <Stack gap="md">
+                    <TextInput
+                      label="Title"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.currentTarget.value)}
+                      maxLength={500}
                     />
-                    <Button variant="light" size="sm" onClick={openCreateTag}>
-                      Create tag
-                    </Button>
-                    <Button variant="subtle" size="sm" onClick={openManageTags}>
-                      Manage tags
-                    </Button>
-                  </Group>
-                  <Textarea
-                    label="Content (Markdown)"
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.currentTarget.value)}
-                    minRows={12}
-                    styles={{ input: { fontFamily: 'monospace' } }}
-                  />
-                </Stack>
-              </Tabs.Panel>
-              <Tabs.Panel value="preview" pt="md">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{editContent || ''}</ReactMarkdown>
-              </Tabs.Panel>
-            </Tabs>
-          </Card>
-        )}
-      </Stack>
+                    <TextInput
+                      label="Description"
+                      placeholder="Short description (optional)"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.currentTarget.value)}
+                      maxLength={500}
+                    />
+                    <Group align="flex-end" gap="xs">
+                      <MultiSelect
+                        label="Tags"
+                        placeholder="Select or add tags"
+                        data={tagOptions}
+                        value={editTagIds}
+                        onChange={setEditTagIds}
+                        searchable
+                        clearable
+                        style={{ flex: 1 }}
+                      />
+                      <Button variant="light" size="sm" onClick={openCreateTag}>
+                        Create tag
+                      </Button>
+                      <Button variant="subtle" size="sm" onClick={openManageTags}>
+                        Manage tags
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Tabs.Panel>
+              </Tabs>
+            </Card>
+          )}
+        </Stack>
+      </Box>
 
       <Modal opened={deleteOpened} onClose={closeDelete} title="Delete document" centered>
         <Text size="sm" c="dimmed" mb="md">

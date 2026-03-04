@@ -1,4 +1,4 @@
-import { Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -155,7 +155,7 @@ export function FirmaPage() {
   const projectsPreview = projects.slice(0, 5);
 
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <PageWithTabs
         title={company?.name ?? 'Company'}
         description="Contexts and content for the company."
@@ -412,6 +412,6 @@ export function FirmaPage() {
           </Button>
         </Group>
       </Modal>
-    </>
+    </Box>
   );
 }

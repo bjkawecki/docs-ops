@@ -1,4 +1,4 @@
-import { Tabs } from '@mantine/core';
+import { Box, Tabs } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 import { SettingsGeneralTab } from './settings/SettingsGeneralTab';
 import { SettingsAccountTab } from './settings/SettingsAccountTab';
@@ -7,7 +7,7 @@ import { SettingsNotificationsTab } from './settings/SettingsNotificationsTab';
 
 export function SettingsPage() {
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <PageHeader title="Settings" description="Profile and appearance." />
       <Tabs
         defaultValue="general"
@@ -40,6 +40,6 @@ export function SettingsPage() {
           <SettingsNotificationsTab />
         </Tabs.Panel>
       </Tabs>
-    </>
+    </Box>
   );
 }

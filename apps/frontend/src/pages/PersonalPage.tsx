@@ -1,4 +1,4 @@
-import { Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -331,7 +331,7 @@ export function PersonalPage() {
   );
 
   return (
-    <>
+    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <PageWithTabs
         title="Personal"
         description="Your personal processes, projects and documents."
@@ -428,6 +428,6 @@ export function PersonalPage() {
           </Button>
         </Group>
       </Modal>
-    </>
+    </Box>
   );
 }
