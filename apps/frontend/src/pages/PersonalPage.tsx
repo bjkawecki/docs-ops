@@ -1,5 +1,6 @@
-import { Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
@@ -12,6 +13,7 @@ import {
   ContextGrid,
   EditContextNameModal,
   NewContextModal,
+  NewDocumentModal,
   RecentItemsCard,
 } from '../components/contexts';
 import { notifications } from '@mantine/notifications';
@@ -30,7 +32,13 @@ const PERSONAL_SCOPE = { type: 'personal' as const };
 
 export function PersonalPage() {
   const queryClient = useQueryClient();
-  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [contextModalOpened, { open: openContextModal, close: closeContextModal }] =
+    useDisclosure(false);
+  const [documentModalOpened, { open: openDocumentModal, close: closeDocumentModal }] =
+    useDisclosure(false);
+  const [contextInitialType, setContextInitialType] = useState<'process' | 'project' | undefined>(
+    undefined
+  );
   const [editTarget, setEditTarget] = useState<{
     id: string;
     name: string;
@@ -328,9 +336,36 @@ export function PersonalPage() {
         title="Personal"
         description="Your personal processes, projects and documents."
         actions={
-          <Button variant="light" size="sm" onClick={openModal}>
-            Create
-          </Button>
+          <Menu position="bottom-end" shadow="md">
+            <Menu.Target>
+              <Button variant="light" size="sm" leftSection={<IconPlus size={16} />}>
+                Create
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<IconFolder size={16} />}
+                onClick={() => {
+                  setContextInitialType('process');
+                  openContextModal();
+                }}
+              >
+                Process
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconFolder size={16} />}
+                onClick={() => {
+                  setContextInitialType('project');
+                  openContextModal();
+                }}
+              >
+                Project
+              </Menu.Item>
+              <Menu.Item leftSection={<IconFileText size={16} />} onClick={openDocumentModal}>
+                Document
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         }
         tabs={tabs}
         activeTab={activeTab}
@@ -345,8 +380,15 @@ export function PersonalPage() {
       </PageWithTabs>
 
       <NewContextModal
-        opened={modalOpened}
-        onClose={closeModal}
+        opened={contextModalOpened}
+        onClose={closeContextModal}
+        scope={PERSONAL_SCOPE}
+        onSuccess={invalidateContexts}
+        initialType={contextInitialType}
+      />
+      <NewDocumentModal
+        opened={documentModalOpened}
+        onClose={closeDocumentModal}
         scope={PERSONAL_SCOPE}
         onSuccess={invalidateContexts}
       />

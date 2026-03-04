@@ -5,6 +5,9 @@ export {
   canReadContext,
   canWriteContext,
   canCreateProcessOrProjectForOwner,
+  getContextOwnerId,
+  canReadScopeForOwner,
+  canCreateTagForOwner,
 } from './contextPermissions.js';
 export {
   canManageTeamMembers,

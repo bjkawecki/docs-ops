@@ -38,8 +38,16 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 
 ---
 
-## 4. Ausblick (frühere Konzeptideen, noch nicht umgesetzt)
+## 4. Detailseiten (Kontext, Subcontext, Dokument)
+
+- **Breadcrumbs:** Auf den Detailseiten (Process/Project, Subcontext, Dokument) wird der Pfad als Breadcrumb angezeigt (Scope → Kontext → ggf. Subcontext → Dokument), mit klickbaren Links für jede Ebene.
+- **Kontext-Detailseiten** (Process/Project) sind bei Bedarf um Tabs erweiterbar (z. B. Documents | Subcontexts | Settings | History), sobald weitere Bereiche wie Mitglieder, Einstellungen oder Nutzung/History hinzukommen.
+
+---
+
+## 5. Ausblick (frühere Konzeptideen, noch nicht umgesetzt)
 
 - Eigenständige Bereiche wie **Knowledge Hub** (`/knowledge`), **Archiv** (`/archiv`), **Ressourcen** (`/ressourcen`) sind derzeit nicht als eigene Routen umgesetzt; Inhalte können über Catalog, Tags und Kontexte abgebildet werden.
+- **Drafts-Card im Overview:** Auf den Overview-Seiten (Personal, Company, Department, Team) eine Card „Drafts“ bzw. „Neueste Dokumente“ mit den neuesten Dokumenten des Scopes; nach Anlegen eines Dokuments (Create → Document) kein Redirect, das neue Dokument erscheint in dieser Card. Nach §15 (draft/published) nur echte Drafts. Vgl. [Umsetzungs-Todo §14](../../plan/Umsetzungs-Todo.md#14-dokumente-in-der-ui).
 - **Drafts-Tab** auf den Scope-Seiten (Personal, Company, Department, Team, ggf. Shared): Ein Tab „Drafts“ mit (1) noch nicht veröffentlichten Dokumenten und (2) offenen PRs, die auf Prüfung/Merge warten. Details in [Umsetzungs-Todo §15](../../plan/Umsetzungs-Todo.md#15-versionierung--pr-workflow). Datenmodell für Drafts/Status siehe [Prisma-Schema-Entwurf](../../plan/Prisma-Schema-Entwurf.md) (§3, §8) und §15.
 - **Volltextsuche** und erweiterte Tag-Filter sind in der Planung (Umsetzungs-Todo §15, §17).

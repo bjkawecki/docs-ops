@@ -37,6 +37,8 @@ export const createDocumentBodySchema = z.object({
   content: z.string(),
   contextId: z.cuid(),
   tagIds: z.array(z.cuid()).optional().default([]),
+  description: z.string().max(500).trim().optional(),
+  publishedAt: z.coerce.date().optional(),
 });
 
 /** Body: Dokument aktualisieren. */
@@ -44,6 +46,8 @@ export const updateDocumentBodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
   content: z.string().optional(),
   tagIds: z.array(z.cuid()).optional(),
+  description: z.string().max(500).trim().optional().nullable(),
+  publishedAt: z.coerce.date().optional().nullable(),
 });
 
 /** Grant-Rolle (API: String). */
@@ -84,11 +88,23 @@ export const tagIdParamSchema = z.object({
   tagId: z.string().cuid(),
 });
 
-/** Body: Tag anlegen. */
-export const createTagBodySchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(100)
-    .transform((s) => s.trim()),
+/** Query: GET /tags – Scope via ownerId oder contextId (mindestens einer nötig). */
+export const getTagsQuerySchema = z.object({
+  ownerId: z.string().cuid().optional(),
+  contextId: z.string().cuid().optional(),
 });
+
+/** Body: Tag anlegen (scope-gebunden). ownerId oder contextId (wird auf ownerId aufgelöst). */
+export const createTagBodySchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .max(100)
+      .transform((s) => s.trim()),
+    ownerId: z.string().cuid().optional(),
+    contextId: z.string().cuid().optional(),
+  })
+  .refine((data) => data.ownerId != null || data.contextId != null, {
+    message: 'ownerId or contextId is required',
+  });

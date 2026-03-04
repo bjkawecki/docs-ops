@@ -107,13 +107,17 @@ export function CatalogPage() {
     [setSearchParams]
   );
 
+  // Tag-Filter nur bei gewähltem Scope (companyId/departmentId/teamId); Catalog hat aktuell keinen Scope-Filter → keine Tags geladen
+  const scopeForTags = null as string | null;
   const { data: tagsData } = useQuery({
-    queryKey: ['tags'],
+    queryKey: ['tags', 'catalog', scopeForTags],
     queryFn: async () => {
-      const res = await apiFetch('/api/v1/tags');
+      if (!scopeForTags) return [];
+      const res = await apiFetch(`/api/v1/tags?ownerId=${scopeForTags}`);
       if (!res.ok) throw new Error('Failed to load tags');
       return (await res.json()) as TagItem[];
     },
+    enabled: !!scopeForTags,
   });
 
   const limit = PAGE_SIZE;

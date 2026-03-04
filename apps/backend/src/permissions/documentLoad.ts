@@ -12,6 +12,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
         include: {
           owner: {
             select: {
+              id: true,
               companyId: true,
               departmentId: true,
               teamId: true,
@@ -25,6 +26,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
         include: {
           owner: {
             select: {
+              id: true,
               companyId: true,
               departmentId: true,
               teamId: true,
@@ -40,6 +42,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
             include: {
               owner: {
                 select: {
+                  id: true,
                   companyId: true,
                   departmentId: true,
                   teamId: true,

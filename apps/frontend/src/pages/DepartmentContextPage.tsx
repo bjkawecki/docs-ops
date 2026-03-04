@@ -1,5 +1,6 @@
-import { Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -12,6 +13,7 @@ import {
   ContextGrid,
   EditContextNameModal,
   NewContextModal,
+  NewDocumentModal,
   RecentItemsCard,
 } from '../components/contexts';
 import { notifications } from '@mantine/notifications';
@@ -27,7 +29,13 @@ type DeleteTarget = { id: string; type: 'process' | 'project' };
 export function DepartmentContextPage() {
   const { departmentId } = useParams<{ departmentId: string }>();
   const queryClient = useQueryClient();
-  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [contextModalOpened, { open: openContextModal, close: closeContextModal }] =
+    useDisclosure(false);
+  const [documentModalOpened, { open: openDocumentModal, close: closeDocumentModal }] =
+    useDisclosure(false);
+  const [contextInitialType, setContextInitialType] = useState<'process' | 'project' | undefined>(
+    undefined
+  );
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -169,9 +177,36 @@ export function DepartmentContextPage() {
         description="Contexts and content for the department."
         actions={
           departmentId && canManage ? (
-            <Button variant="light" size="sm" onClick={openModal}>
-              Create
-            </Button>
+            <Menu position="bottom-end" shadow="md">
+              <Menu.Target>
+                <Button variant="light" size="sm" leftSection={<IconPlus size={16} />}>
+                  Create
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconFolder size={16} />}
+                  onClick={() => {
+                    setContextInitialType('process');
+                    openContextModal();
+                  }}
+                >
+                  Process
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconFolder size={16} />}
+                  onClick={() => {
+                    setContextInitialType('project');
+                    openContextModal();
+                  }}
+                >
+                  Project
+                </Menu.Item>
+                <Menu.Item leftSection={<IconFileText size={16} />} onClick={openDocumentModal}>
+                  Document
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           ) : null
         }
         tabs={tabs}
@@ -321,12 +356,21 @@ export function DepartmentContextPage() {
       </PageWithTabs>
 
       {departmentId != null && (
-        <NewContextModal
-          opened={modalOpened}
-          onClose={closeModal}
-          scope={{ type: 'department', departmentId }}
-          onSuccess={invalidateContexts}
-        />
+        <>
+          <NewContextModal
+            opened={contextModalOpened}
+            onClose={closeContextModal}
+            scope={{ type: 'department', departmentId }}
+            onSuccess={invalidateContexts}
+            initialType={contextInitialType}
+          />
+          <NewDocumentModal
+            opened={documentModalOpened}
+            onClose={closeDocumentModal}
+            scope={{ type: 'department', departmentId }}
+            onSuccess={invalidateContexts}
+          />
+        </>
       )}
 
       {editTarget != null && (

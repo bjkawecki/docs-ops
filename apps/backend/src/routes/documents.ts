@@ -11,7 +11,13 @@ import {
   canWrite,
   DOCUMENT_FOR_PERMISSION_INCLUDE,
 } from '../permissions/index.js';
-import { canReadContext, canWriteContext } from '../permissions/contextPermissions.js';
+import {
+  canReadContext,
+  canWriteContext,
+  getContextOwnerId,
+  canReadScopeForOwner,
+  canCreateTagForOwner,
+} from '../permissions/contextPermissions.js';
 import { type GrantRole } from '../../generated/prisma/client.js';
 import { getReadableCatalogScope } from '../permissions/catalogPermissions.js';
 import {
@@ -26,6 +32,7 @@ import {
   putGrantsDepartmentsBodySchema,
   tagIdParamSchema,
   createTagBodySchema,
+  getTagsQuerySchema,
 } from './schemas/documents.js';
 
 const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
@@ -247,6 +254,10 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         include: {
           ...DOCUMENT_FOR_PERMISSION_INCLUDE,
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
+          createdBy: { select: { name: true } },
+          grantUser: { include: { user: { select: { name: true } } } },
+          grantTeam: { include: { team: { select: { name: true } } } },
+          grantDepartment: { include: { department: { select: { name: true } } } },
         },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
@@ -259,6 +270,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         doc.context.project?.owner ??
         doc.context.subcontext?.project?.owner ??
         null;
+      const contextOwnerId = owner?.id ?? null;
       const scope =
         owner?.ownerUserId != null
           ? { type: 'personal' as const }
@@ -269,6 +281,50 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
               : owner?.teamId != null
                 ? { type: 'team' as const, id: owner.teamId }
                 : null;
+
+      const ctx = doc.context;
+      let contextType: 'process' | 'project' = 'process';
+      let contextName = '';
+      let contextProcessId: string | null = null;
+      let contextProjectId: string | null = null;
+      let contextProjectName: string | null = null;
+      let subcontextId: string | null = null;
+      let subcontextName: string | null = null;
+      if (ctx.process) {
+        contextType = 'process';
+        contextName = ctx.process.name;
+        contextProcessId = ctx.process.id;
+      } else if (ctx.project) {
+        contextType = 'project';
+        contextName = ctx.project.name;
+        contextProjectId = ctx.project.id;
+      } else if (ctx.subcontext) {
+        contextType = 'project';
+        contextName = ctx.subcontext.name;
+        contextProjectId = ctx.subcontext.project.id;
+        contextProjectName = ctx.subcontext.project.name;
+        subcontextId = ctx.subcontext.id;
+        subcontextName = ctx.subcontext.name;
+      }
+
+      const writers = {
+        users: (doc.grantUser as { userId: string; role: string; user: { name: string } }[])
+          .filter((g) => g.role === 'Write')
+          .map((g) => ({ userId: g.userId, name: g.user.name })),
+        teams: (doc.grantTeam as { teamId: string; role: string; team: { name: string } }[])
+          .filter((g) => g.role === 'Write')
+          .map((g) => ({ teamId: g.teamId, name: g.team.name })),
+        departments: (
+          doc.grantDepartment as {
+            departmentId: string;
+            role: string;
+            department: { name: string };
+          }[]
+        )
+          .filter((g) => g.role === 'Write')
+          .map((g) => ({ departmentId: g.departmentId, name: g.department.name })),
+      };
+
       return reply.send({
         id: doc.id,
         title: doc.title,
@@ -277,10 +333,23 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextId: doc.contextId,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
+        publishedAt: doc.publishedAt,
+        description: doc.description,
+        createdById: doc.createdById,
+        createdByName: doc.createdBy?.name ?? null,
+        writers,
         documentTags: doc.documentTags,
         canWrite: writeAllowed,
         canDelete: deleteAllowed,
         scope,
+        contextOwnerId,
+        contextType,
+        contextName,
+        contextProcessId,
+        contextProjectId,
+        contextProjectName,
+        subcontextId,
+        subcontextName,
       });
     }
   );
@@ -343,11 +412,32 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         .status(403)
         .send({ error: 'Permission denied to create document in this context' });
 
+    const contextOwnerId = await getContextOwnerId(prisma, body.contextId);
+    if (body.tagIds.length > 0) {
+      if (!contextOwnerId)
+        return reply
+          .status(400)
+          .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
+      const tags = await prisma.tag.findMany({
+        where: { id: { in: body.tagIds } },
+        select: { id: true, ownerId: true },
+      });
+      const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
+      if (invalid || tags.length !== body.tagIds.length) {
+        return reply.status(400).send({
+          error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.',
+        });
+      }
+    }
+
     const doc = await prisma.document.create({
       data: {
         title: body.title,
         content: body.content,
         contextId: body.contextId,
+        description: body.description ?? null,
+        publishedAt: body.publishedAt ?? null,
+        createdById: userId,
       },
     });
     if (body.tagIds.length > 0) {
@@ -366,10 +456,18 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextId: true,
         createdAt: true,
         updatedAt: true,
+        publishedAt: true,
+        description: true,
+        createdById: true,
+        createdBy: { select: { name: true } },
         documentTags: { include: { tag: { select: { id: true, name: true } } } },
       },
     });
-    return reply.status(201).send(created);
+    return reply.status(201).send({
+      ...created,
+      createdByName: created.createdBy?.name ?? null,
+      writers: { users: [], teams: [], departments: [] },
+    });
   });
 
   /** PATCH Dokument – requireDocumentAccess('write'), optional title, content, tagIds. */
@@ -381,11 +479,40 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const body = updateDocumentBodySchema.parse(request.body);
 
-      const updateData: { title?: string; content?: string } = {};
+      const updateData: {
+        title?: string;
+        content?: string;
+        description?: string | null;
+        publishedAt?: Date | null;
+      } = {};
       if (body.title != null) updateData.title = body.title;
       if (body.content != null) updateData.content = body.content;
+      if (body.description !== undefined) updateData.description = body.description;
+      if (body.publishedAt !== undefined) updateData.publishedAt = body.publishedAt;
 
       if (body.tagIds !== undefined) {
+        if (body.tagIds.length > 0) {
+          const doc = await prisma.document.findUnique({
+            where: { id: documentId },
+            select: { contextId: true },
+          });
+          if (!doc) return reply.status(404).send({ error: 'Document not found' });
+          const contextOwnerId = await getContextOwnerId(prisma, doc.contextId);
+          if (!contextOwnerId)
+            return reply
+              .status(400)
+              .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
+          const tags = await prisma.tag.findMany({
+            where: { id: { in: body.tagIds } },
+            select: { id: true, ownerId: true },
+          });
+          const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
+          if (invalid || tags.length !== body.tagIds.length) {
+            return reply.status(400).send({
+              error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.',
+            });
+          }
+        }
         await prisma.documentTag.deleteMany({ where: { documentId } });
         if (body.tagIds.length > 0) {
           await prisma.documentTag.createMany({
@@ -406,10 +533,18 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           contextId: true,
           createdAt: true,
           updatedAt: true,
+          publishedAt: true,
+          description: true,
+          createdById: true,
+          createdBy: { select: { name: true } },
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
         },
       });
-      return reply.send(doc);
+      return reply.send({
+        ...doc,
+        createdByName: doc.createdBy?.name ?? null,
+        writers: { users: [], teams: [], departments: [] },
+      });
     }
   );
 
@@ -542,21 +677,48 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** GET Tags (Autocomplete) – requireAuth. */
+  /** GET Tags (scope-aware) – ownerId oder contextId erforderlich, canReadScopeForOwner. */
   app.get('/tags', { preHandler: requireAuthPreHandler }, async (request, reply) => {
-    const tags = await request.server.prisma.tag.findMany({
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
+    const query = getTagsQuerySchema.parse(request.query);
+    let ownerId: string | null = query.ownerId ?? null;
+    if (!ownerId && query.contextId) {
+      ownerId = await getContextOwnerId(prisma, query.contextId);
+    }
+    if (!ownerId) {
+      return reply.status(400).send({
+        error: 'ownerId or contextId is required',
+      });
+    }
+    const canRead = await canReadScopeForOwner(prisma, userId, ownerId);
+    if (!canRead) return reply.status(403).send({ error: 'No access to this scope' });
+    const tags = await prisma.tag.findMany({
+      where: { ownerId },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     });
     return reply.send(tags);
   });
 
-  /** POST Tag anlegen – requireAuth. Bei doppeltem Namen 409. */
+  /** POST Tag anlegen – ownerId oder contextId im Body, canCreateTagForOwner. Bei doppeltem Namen im Scope 409. */
   app.post('/tags', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createTagBodySchema.parse(request.body);
+    let ownerId: string | null | undefined = body.ownerId;
+    if (ownerId == null && body.contextId != null) {
+      ownerId = await getContextOwnerId(prisma, body.contextId);
+      if (ownerId == null) return reply.status(400).send({ error: 'Context has no owner' });
+    }
+    if (ownerId == null)
+      return reply.status(400).send({ error: 'ownerId or contextId is required' });
+    const canCreate = await canCreateTagForOwner(prisma, userId, ownerId);
+    if (!canCreate)
+      return reply.status(403).send({ error: 'No permission to create tags in this scope' });
     try {
-      const tag = await request.server.prisma.tag.create({
-        data: { name: body.name },
+      const tag = await prisma.tag.create({
+        data: { name: body.name, ownerId },
         select: { id: true, name: true },
       });
       return reply.status(201).send(tag);
@@ -564,26 +726,27 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const prismaErr = err as { code?: string };
       if (prismaErr.code === 'P2002') {
         return reply.status(409).send({
-          error: 'Tag mit diesem Namen existiert bereits.',
+          error: 'Tag mit diesem Namen existiert bereits in diesem Scope.',
         });
       }
       throw err;
     }
   });
 
-  /** DELETE Tag – requireAuth. DocumentTag wird per Cascade entfernt. */
+  /** DELETE Tag – canCreateTagForOwner(tag.ownerId). DocumentTag wird per Cascade entfernt. */
   app.delete('/tags/:tagId', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const { tagId } = tagIdParamSchema.parse(request.params);
-    try {
-      await request.server.prisma.tag.delete({ where: { id: tagId } });
-      return reply.status(204).send();
-    } catch (err: unknown) {
-      const prismaErr = err as { code?: string };
-      if (prismaErr.code === 'P2025') {
-        return reply.status(404).send({ error: 'Tag not found' });
-      }
-      throw err;
-    }
+    const tag = await prisma.tag.findUnique({
+      where: { id: tagId },
+      select: { ownerId: true },
+    });
+    if (!tag) return reply.status(404).send({ error: 'Tag not found' });
+    const canDelete = await canCreateTagForOwner(prisma, userId, tag.ownerId);
+    if (!canDelete) return reply.status(403).send({ error: 'No permission to delete this tag' });
+    await prisma.tag.delete({ where: { id: tagId } });
+    return reply.status(204).send();
   });
 
   return Promise.resolve();

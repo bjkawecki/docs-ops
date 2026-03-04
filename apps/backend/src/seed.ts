@@ -145,4 +145,201 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       update: {},
     });
   }
+
+  // --- Owners (ein Owner pro Scope für Kontexte/Tags) ---
+  const ownerByCompany = new Map<string, string>();
+  const ownerByDepartment = new Map<string, string>();
+  const ownerByTeam = new Map<string, string>();
+  const ownerByUser = new Map<string, string>();
+
+  for (const row of companies) {
+    const companyId = companyById.get(row.name);
+    if (!companyId) continue;
+    let owner = await prisma.owner.findFirst({
+      where: { companyId, departmentId: null, teamId: null, ownerUserId: null },
+    });
+    if (!owner) owner = await prisma.owner.create({ data: { companyId } });
+    ownerByCompany.set(row.name, owner.id);
+  }
+  for (const row of departments) {
+    const departmentId = departmentById.get(row.name);
+    if (!departmentId) continue;
+    let owner = await prisma.owner.findFirst({
+      where: { departmentId, companyId: null, teamId: null, ownerUserId: null },
+    });
+    if (!owner) owner = await prisma.owner.create({ data: { departmentId } });
+    ownerByDepartment.set(row.name, owner.id);
+  }
+  for (const row of teams) {
+    const teamId = teamById.get(row.name);
+    if (!teamId) continue;
+    let owner = await prisma.owner.findFirst({
+      where: { teamId, companyId: null, departmentId: null, ownerUserId: null },
+    });
+    if (!owner) owner = await prisma.owner.create({ data: { teamId } });
+    ownerByTeam.set(row.name, owner.id);
+  }
+  const firstUserEmail = users[0]?.email;
+  if (firstUserEmail) {
+    const userId = userById.get(firstUserEmail);
+    if (userId) {
+      let owner = await prisma.owner.findFirst({
+        where: { ownerUserId: userId, companyId: null, departmentId: null, teamId: null },
+      });
+      if (!owner) owner = await prisma.owner.create({ data: { ownerUserId: userId } });
+      ownerByUser.set(firstUserEmail, owner.id);
+    }
+  }
+
+  // --- Kontexte: je 1 Process + 1 Project pro Scope (Company, Department, Team, Personal) ---
+  const processByScope = new Map<string, string>(); // key z. B. "company:Seed Company"
+  const projectByScope = new Map<string, string>();
+
+  const companyName = companies[0]?.name ?? 'Seed Company';
+  const companyOwnerId = ownerByCompany.get(companyName);
+  if (companyOwnerId) {
+    const ctx = await prisma.context.create({ data: {} });
+    const process = await prisma.process.create({
+      data: { name: 'Company-Prozess', contextId: ctx.id, ownerId: companyOwnerId },
+    });
+    processByScope.set(`company:${companyName}`, process.id);
+    const ctx2 = await prisma.context.create({ data: {} });
+    const project = await prisma.project.create({
+      data: { name: 'Company-Projekt', contextId: ctx2.id, ownerId: companyOwnerId },
+    });
+    projectByScope.set(`company:${companyName}`, project.id);
+  }
+
+  for (const row of departments) {
+    const ownerId = ownerByDepartment.get(row.name);
+    if (!ownerId) continue;
+    const ctx = await prisma.context.create({ data: {} });
+    const process = await prisma.process.create({
+      data: { name: `${row.name}-Prozess`, contextId: ctx.id, ownerId },
+    });
+    processByScope.set(`department:${row.name}`, process.id);
+    const ctx2 = await prisma.context.create({ data: {} });
+    const project = await prisma.project.create({
+      data: { name: `${row.name}-Projekt`, contextId: ctx2.id, ownerId },
+    });
+    projectByScope.set(`department:${row.name}`, project.id);
+  }
+
+  for (const row of teams) {
+    const ownerId = ownerByTeam.get(row.name);
+    if (!ownerId) continue;
+    const ctx = await prisma.context.create({ data: {} });
+    const process = await prisma.process.create({
+      data: { name: `${row.name}-Prozess`, contextId: ctx.id, ownerId },
+    });
+    processByScope.set(`team:${row.name}`, process.id);
+    const ctx2 = await prisma.context.create({ data: {} });
+    const project = await prisma.project.create({
+      data: { name: `${row.name}-Projekt`, contextId: ctx2.id, ownerId },
+    });
+    projectByScope.set(`team:${row.name}`, project.id);
+  }
+
+  if (firstUserEmail && ownerByUser.has(firstUserEmail)) {
+    const ownerId = ownerByUser.get(firstUserEmail)!;
+    const ctx = await prisma.context.create({ data: {} });
+    const process = await prisma.process.create({
+      data: { name: 'Mein Prozess', contextId: ctx.id, ownerId },
+    });
+    processByScope.set('personal:', process.id);
+    const ctx2 = await prisma.context.create({ data: {} });
+    const project = await prisma.project.create({
+      data: { name: 'Mein Projekt', contextId: ctx2.id, ownerId },
+    });
+    projectByScope.set('personal:', project.id);
+  }
+
+  // --- Subcontexts unter dem ersten Projekt (Company-Projekt) ---
+  const companyProjectId = companyName ? projectByScope.get(`company:${companyName}`) : null;
+  if (companyProjectId) {
+    const ctx1 = await prisma.context.create({ data: {} });
+    await prisma.subcontext.create({
+      data: { name: 'Protokolle', contextId: ctx1.id, projectId: companyProjectId },
+    });
+    const ctx2 = await prisma.context.create({ data: {} });
+    await prisma.subcontext.create({
+      data: { name: 'Meilensteine', contextId: ctx2.id, projectId: companyProjectId },
+    });
+  }
+
+  // --- Tags pro Scope (Company, erstes Team, Personal) ---
+  const tagByNameAndOwner = new Map<string, string>(); // key "ownerId:name" -> tagId
+  if (companyOwnerId) {
+    for (const name of ['Release', 'Wichtig', 'Draft']) {
+      const tag = await prisma.tag.create({ data: { name, ownerId: companyOwnerId } });
+      tagByNameAndOwner.set(`${companyOwnerId}:${name}`, tag.id);
+    }
+  }
+  const firstTeam = teams[0];
+  if (firstTeam) {
+    const teamOwnerId = ownerByTeam.get(firstTeam.name);
+    if (teamOwnerId) {
+      for (const name of ['Sprint', 'Bugfix']) {
+        const tag = await prisma.tag.create({ data: { name, ownerId: teamOwnerId } });
+        tagByNameAndOwner.set(`${teamOwnerId}:${name}`, tag.id);
+      }
+    }
+  }
+  if (firstUserEmail && ownerByUser.has(firstUserEmail)) {
+    const personalOwnerId = ownerByUser.get(firstUserEmail)!;
+    for (const name of ['Privat', 'Ideen']) {
+      const tag = await prisma.tag.create({ data: { name, ownerId: personalOwnerId } });
+      tagByNameAndOwner.set(`${personalOwnerId}:${name}`, tag.id);
+    }
+  }
+
+  // --- Dokumente: je 1–2 pro Kontext (Process/Project), optional mit Tags ---
+  const docContent = '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n';
+  for (const [scopeKey, processId] of processByScope) {
+    const process = await prisma.process.findUniqueOrThrow({
+      where: { id: processId },
+      select: { contextId: true, ownerId: true },
+    });
+    const doc = await prisma.document.create({
+      data: {
+        title: `Dokument in ${scopeKey}`,
+        content: docContent,
+        contextId: process.contextId,
+      },
+    });
+    if (process.ownerId && scopeKey.startsWith('company:')) {
+      const tagId = tagByNameAndOwner.get(`${process.ownerId}:Release`);
+      if (tagId) {
+        await prisma.documentTag.create({ data: { documentId: doc.id, tagId } });
+      }
+    }
+  }
+  for (const [scopeKey, projectId] of projectByScope) {
+    const project = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      select: { contextId: true, ownerId: true },
+    });
+    await prisma.document.create({
+      data: {
+        title: `Projekt-Dokument ${scopeKey}`,
+        content: docContent,
+        contextId: project.contextId,
+      },
+    });
+  }
+  if (companyProjectId) {
+    const subcontexts = await prisma.subcontext.findMany({
+      where: { projectId: companyProjectId },
+      select: { name: true, contextId: true },
+    });
+    for (const sub of subcontexts) {
+      await prisma.document.create({
+        data: {
+          title: `Dokument: ${sub.name}`,
+          content: docContent,
+          contextId: sub.contextId,
+        },
+      });
+    }
+  }
 }

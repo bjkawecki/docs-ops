@@ -1,5 +1,5 @@
 import { Button, Group, Modal, Radio, Stack, Text, TextInput } from '@mantine/core';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 
@@ -14,14 +14,28 @@ export interface NewContextModalProps {
   onClose: () => void;
   scope: NewContextScope;
   onSuccess?: () => void;
+  /** Preselect type when opening (e.g. from Create menu). */
+  initialType?: 'process' | 'project';
 }
 
 const NAME_MAX_LENGTH = 255;
 
-export function NewContextModal({ opened, onClose, scope, onSuccess }: NewContextModalProps) {
-  const [selectedType, setSelectedType] = useState<'process' | 'project' | null>(null);
+export function NewContextModal({
+  opened,
+  onClose,
+  scope,
+  onSuccess,
+  initialType,
+}: NewContextModalProps) {
+  const [selectedType, setSelectedType] = useState<'process' | 'project' | null>(
+    initialType ?? null
+  );
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (opened) setSelectedType(initialType ?? null);
+  }, [opened, initialType]);
 
   const reset = () => {
     setSelectedType(null);

@@ -4,6 +4,8 @@ export { ContextGrid } from './ContextGrid';
 export type { ContextGridProps } from './ContextGrid';
 export { NewContextModal } from './NewContextModal';
 export type { NewContextModalProps, NewContextScope } from './NewContextModal';
+export { NewDocumentModal } from './NewDocumentModal';
+export type { NewDocumentModalProps } from './NewDocumentModal';
 export { EditContextNameModal } from './EditContextNameModal';
 export type { EditContextNameModalProps } from './EditContextNameModal';
 export { RecentItemsCard } from './RecentItemsCard';

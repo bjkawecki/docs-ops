@@ -26,7 +26,7 @@ createRoot(document.getElementById('root')!).render(
         cssVariablesResolver={appCssVariablesResolver}
         defaultColorScheme="light"
       >
-        <Notifications position="top-right" />
+        <Notifications position="bottom-right" />
         <BrowserRouter>
           <App />
         </BrowserRouter>

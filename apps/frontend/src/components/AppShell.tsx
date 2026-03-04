@@ -102,7 +102,10 @@ export function AppShell() {
   }, [sidebarOther]);
   const { data: me } = useMe();
   const isAdmin = me?.user?.isAdmin === true;
-  const showDebugMenu = isAdmin || me?.impersonation?.active === true;
+  const isImpersonating =
+    me?.impersonation?.active === true ||
+    (me?.impersonation != null && 'realUser' in me.impersonation);
+  const showDebugMenu = isAdmin || isImpersonating;
   const isCompanyLead = (me?.identity?.companyLeads?.length ?? 0) > 0;
   const isDepartmentLead = (me?.identity?.departmentLeads?.length ?? 0) > 0;
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;

@@ -386,11 +386,12 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
       const subcontext = await prisma.subcontext.findUniqueOrThrow({
         where: { id: subcontextId },
-        include: { context: true, project: true },
+        include: { context: true, project: { include: { owner: true } } },
       });
       const allowed = await canReadContext(prisma, userId, subcontext.contextId);
       if (!allowed) return reply.status(403).send({ error: 'No access' });
-      return reply.send(subcontext);
+      const writeAllowed = await canWriteContext(prisma, userId, subcontext.contextId);
+      return reply.send({ ...subcontext, canWriteContext: writeAllowed });
     }
   );
 

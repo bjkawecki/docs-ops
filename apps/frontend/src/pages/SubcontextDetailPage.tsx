@@ -8,45 +8,34 @@ import {
   TextInput,
   Textarea,
   MultiSelect,
+  Modal,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
-import { useMe } from '../hooks/useMe';
 import { useRecentItemsActions, type RecentScope } from '../hooks/useRecentItems';
 import { PageHeader } from '../components/PageHeader';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
-import { EditContextNameModal } from '../components/contexts/EditContextNameModal';
 import { useDisclosure } from '@mantine/hooks';
-import { useEffect, useState } from 'react';
-import { Modal } from '@mantine/core';
+import { useEffect, useState, type ReactNode } from 'react';
 import { notifications } from '@mantine/notifications';
 
-type ContextType = 'process' | 'project';
-
-type OwnerResponse = {
-  companyId: string | null;
-  departmentId: string | null;
-  teamId: string | null;
-  ownerUserId?: string | null;
-};
-type ProcessResponse = {
+type SubcontextResponse = {
   id: string;
   name: string;
   contextId: string;
-  ownerId?: string;
-  owner: OwnerResponse;
+  projectId: string;
+  project: {
+    id: string;
+    name: string;
+    owner?: {
+      companyId?: string;
+      departmentId?: string;
+      teamId?: string;
+      ownerUserId?: string | null;
+    };
+  };
   canWriteContext?: boolean;
-};
-type SubcontextItem = { id: string; name: string; contextId: string };
-type ProjectResponse = {
-  id: string;
-  name: string;
-  contextId: string;
-  ownerId?: string;
-  owner: OwnerResponse;
-  canWriteContext?: boolean;
-  subcontexts?: SubcontextItem[];
 };
 
 type ContextDocument = {
@@ -58,33 +47,32 @@ type ContextDocument = {
   documentTags: { tag: { id: string; name: string } }[];
 };
 
-function ownerToScope(owner: OwnerResponse): RecentScope | null {
-  if (owner.companyId) return { type: 'company', id: owner.companyId };
-  if (owner.departmentId) return { type: 'department', id: owner.departmentId };
-  if (owner.teamId) return { type: 'team', id: owner.teamId };
+function projectOwnerToScope(project: {
+  owner?: {
+    companyId?: string;
+    departmentId?: string;
+    teamId?: string;
+    ownerUserId?: string | null;
+  };
+}): RecentScope | null {
+  const o = project?.owner;
+  if (!o) return null;
+  if (o.ownerUserId != null) return { type: 'personal' };
+  if (o.companyId) return { type: 'company', id: o.companyId };
+  if (o.departmentId) return { type: 'department', id: o.departmentId };
+  if (o.teamId) return { type: 'team', id: o.teamId };
   return null;
 }
 
-/** Scope für Metadaten-Link (inkl. Personal). */
-function ownerToScopeForBreadcrumb(owner: OwnerResponse): RecentScope | null {
-  if (owner.ownerUserId) return { type: 'personal' };
-  return ownerToScope(owner);
-}
-
-export interface ContextDetailPageProps {
-  type: ContextType;
-  id: string;
-}
-
-export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
+export function SubcontextDetailPage() {
+  const { subcontextId } = useParams<{ subcontextId: string }>();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { data: me } = useMe();
   const recentActions = useRecentItemsActions();
-  const canManage = (me?.identity?.companyLeads?.length ?? 0) > 0 || me?.user?.isAdmin === true;
 
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
   const [editName, setEditName] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [newDocOpened, { open: openNewDoc, close: closeNewDoc }] = useDisclosure(false);
@@ -92,22 +80,15 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
   const [newDocContent, setNewDocContent] = useState('');
   const [newDocTagIds, setNewDocTagIds] = useState<string[]>([]);
   const [newDocLoading, setNewDocLoading] = useState(false);
-  const [newSubcontextOpened, { open: openNewSubcontext, close: closeNewSubcontext }] =
-    useDisclosure(false);
-  const [newSubcontextName, setNewSubcontextName] = useState('');
-  const [newSubcontextLoading, setNewSubcontextLoading] = useState(false);
-
-  const endpoint = type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
-  const queryKey = type === 'process' ? ['processes'] : ['projects'];
 
   const { data, isPending, isError } = useQuery({
-    queryKey: [type, id],
+    queryKey: ['subcontext', subcontextId],
     queryFn: async () => {
-      const res = await apiFetch(`${endpoint}/${id}`);
-      if (!res.ok) throw new Error('Context not found');
-      return res.json() as Promise<ProcessResponse | ProjectResponse>;
+      const res = await apiFetch(`/api/v1/subcontexts/${subcontextId}`);
+      if (!res.ok) throw new Error('Subcontext not found');
+      return res.json() as Promise<SubcontextResponse>;
     },
-    enabled: !!id,
+    enabled: !!subcontextId,
   });
 
   const contextId = data?.contextId;
@@ -126,16 +107,14 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     enabled: !!contextId,
   });
 
-  const contextOwnerId = data && 'ownerId' in data ? data.ownerId : undefined;
-
   const { data: tagsData } = useQuery({
-    queryKey: ['tags', contextOwnerId],
+    queryKey: ['tags', contextId],
     queryFn: async () => {
-      const res = await apiFetch(`/api/v1/tags?ownerId=${contextOwnerId}`);
+      const res = await apiFetch(`/api/v1/tags?contextId=${contextId}`);
       if (!res.ok) throw new Error('Failed to load tags');
       return res.json() as Promise<{ id: string; name: string }[]>;
     },
-    enabled: !!contextOwnerId,
+    enabled: !!contextId,
   });
 
   const documents = documentsData?.items ?? [];
@@ -143,16 +122,16 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
 
   useEffect(() => {
     if (data && recentActions) {
-      const scope = ownerToScope(data.owner);
-      if (scope) recentActions.addRecent({ type, id: data.id, name: data.name }, scope);
+      const scope = projectOwnerToScope(
+        data.project as { owner?: { companyId?: string; departmentId?: string; teamId?: string } }
+      );
+      if (scope)
+        recentActions.addRecent(
+          { type: 'project', id: data.project.id, name: data.project.name },
+          scope
+        );
     }
-  }, [data, type, id, recentActions]);
-
-  const invalidateAndClose = () => {
-    void queryClient.invalidateQueries({ queryKey });
-    closeEdit();
-    closeDelete();
-  };
+  }, [data, recentActions]);
 
   const handleEditClick = () => {
     if (data) {
@@ -161,28 +140,44 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     }
   };
 
-  const handleEditSuccess = () => {
-    invalidateAndClose();
-    if (data) setEditName(data.name);
-    void queryClient.invalidateQueries({ queryKey: [type, id] });
-    notifications.show({
-      title: 'Saved',
-      message: 'Name was updated.',
-      color: 'green',
-    });
+  const handleEditSuccess = async () => {
+    if (!subcontextId || !editName.trim()) return;
+    setEditLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/subcontexts/${subcontextId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName.trim() }),
+      });
+      if (res.ok) {
+        void queryClient.invalidateQueries({ queryKey: ['subcontext', subcontextId] });
+        closeEdit();
+        notifications.show({ title: 'Saved', message: 'Name was updated.', color: 'green' });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleDeleteConfirm = async () => {
+    if (!subcontextId || !data?.project?.id) return;
     setDeleteLoading(true);
     try {
-      const res = await apiFetch(`${endpoint}/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/v1/subcontexts/${subcontextId}`, { method: 'DELETE' });
       if (res.status === 204) {
-        void queryClient.invalidateQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey: ['project', data.project.id] });
         closeDelete();
-        void navigate('/company', { replace: true });
+        void navigate(`/projects/${data.project.id}`, { replace: true });
         notifications.show({
           title: 'Deleted',
-          message: 'Context was deleted.',
+          message: 'Subcontext was deleted.',
           color: 'green',
         });
       } else {
@@ -248,46 +243,6 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     }
   };
 
-  const handleCreateSubcontext = async () => {
-    if (type !== 'project' || !id) return;
-    const name = newSubcontextName.trim();
-    if (!name) {
-      notifications.show({
-        title: 'Name required',
-        message: 'Please enter a name for the subcontext.',
-        color: 'yellow',
-      });
-      return;
-    }
-    setNewSubcontextLoading(true);
-    try {
-      const res = await apiFetch(`/api/v1/projects/${id}/subcontexts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      if (res.status === 201) {
-        void queryClient.invalidateQueries({ queryKey: [type, id] });
-        closeNewSubcontext();
-        setNewSubcontextName('');
-        notifications.show({
-          title: 'Subcontext created',
-          message: 'The subcontext was added.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setNewSubcontextLoading(false);
-    }
-  };
-
   if (isPending)
     return (
       <Text size="sm" c="dimmed">
@@ -297,28 +252,36 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
   if (isError || !data)
     return (
       <Text size="sm" c="red">
-        Context not found.
+        Subcontext not found.
       </Text>
     );
 
-  const typeLabel = type === 'process' ? 'Process' : 'Project';
-  const scope = ownerToScopeForBreadcrumb(data.owner);
-  const metadata =
-    scope != null ? (
-      <Group gap={4}>
-        <Anchor component={Link} to={scopeToUrl(scope)} size="sm" c="dimmed">
-          {scopeToLabel(scope)}
-        </Anchor>
-        <Text size="sm" c="dimmed" span>
-          {' · '}
-          {typeLabel}
-        </Text>
-      </Group>
-    ) : (
-      <Text size="sm" c="dimmed">
-        {typeLabel}
-      </Text>
+  const scope = data.project ? projectOwnerToScope(data.project) : null;
+  const projectId = data.project?.id;
+  const projectName = data.project?.name ?? 'Project';
+  const metadataParts: ReactNode[] = [];
+  if (scope) {
+    metadataParts.push(
+      <Anchor key="scope" component={Link} to={scopeToUrl(scope)} size="sm" c="dimmed">
+        {scopeToLabel(scope)}
+      </Anchor>
     );
+  }
+  if (projectId) {
+    metadataParts.push(
+      metadataParts.length > 0 ? ' · ' : null,
+      <Anchor key="project" component={Link} to={`/projects/${projectId}`} size="sm" c="dimmed">
+        Projekt: {projectName}
+      </Anchor>
+    );
+  }
+  metadataParts.push(
+    metadataParts.length > 0 ? ' · ' : null,
+    <Text key="type" size="sm" c="dimmed" span>
+      Subcontext
+    </Text>
+  );
+  const metadata = <Group gap={4}>{metadataParts.filter(Boolean)}</Group>;
 
   return (
     <>
@@ -332,7 +295,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
                 New document
               </Button>
             )}
-            {canManage && (
+            {data.canWriteContext && (
               <>
                 <Button variant="light" size="sm" onClick={handleEditClick}>
                   Edit
@@ -382,66 +345,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
             )}
           </Stack>
         </Card>
-
-        {type === 'project' && (
-          <Card withBorder padding="md">
-            <Stack gap="xs">
-              <Group justify="space-between" wrap="nowrap">
-                <Text fw={600} size="sm">
-                  Unterkontexte
-                </Text>
-                {data.canWriteContext && (
-                  <Button variant="light" size="xs" onClick={openNewSubcontext}>
-                    Unterkontext anlegen
-                  </Button>
-                )}
-              </Group>
-              {((data as ProjectResponse).subcontexts?.length ?? 0) === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No subcontexts yet.
-                </Text>
-              ) : (
-                <Stack gap={4}>
-                  {((data as ProjectResponse).subcontexts ?? []).map((sub) => (
-                    <Link
-                      key={sub.id}
-                      to={`/subcontexts/${sub.id}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)', textDecoration: 'none' }}
-                    >
-                      {sub.name}
-                    </Link>
-                  ))}
-                </Stack>
-              )}
-            </Stack>
-          </Card>
-        )}
       </Stack>
-
-      <Modal
-        opened={newSubcontextOpened}
-        onClose={closeNewSubcontext}
-        title="Unterkontext anlegen"
-        size="sm"
-      >
-        <Stack gap="md">
-          <TextInput
-            label="Name"
-            value={newSubcontextName}
-            onChange={(e) => setNewSubcontextName(e.currentTarget.value)}
-            placeholder="z. B. Protokolle, Meilensteine"
-            required
-          />
-          <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={closeNewSubcontext}>
-              Cancel
-            </Button>
-            <Button loading={newSubcontextLoading} onClick={() => void handleCreateSubcontext()}>
-              Create
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
 
       <Modal opened={newDocOpened} onClose={closeNewDoc} title="New document" centered>
         <Stack gap="md">
@@ -479,30 +383,35 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         </Stack>
       </Modal>
 
-      <EditContextNameModal
-        opened={editOpened}
-        onClose={closeEdit}
-        type={type}
-        contextId={id}
-        currentName={editName}
-        onSuccess={handleEditSuccess}
-      />
+      <Modal opened={editOpened} onClose={closeEdit} title="Edit subcontext name" size="sm">
+        <Stack gap="md">
+          <TextInput
+            label="Name"
+            value={editName}
+            onChange={(e) => setEditName(e.currentTarget.value)}
+            placeholder="Subcontext name"
+            required
+          />
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeEdit}>
+              Cancel
+            </Button>
+            <Button loading={editLoading} onClick={() => void handleEditSuccess()}>
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
-      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete context" centered>
+      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete subcontext" centered>
         <Text size="sm" c="dimmed" mb="md">
-          This context and related data will be permanently deleted. Continue?
+          This subcontext and its documents will be permanently deleted. Continue?
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={closeDelete}>
             Cancel
           </Button>
-          <Button
-            color="red"
-            loading={deleteLoading}
-            onClick={() => {
-              void handleDeleteConfirm();
-            }}
-          >
+          <Button color="red" loading={deleteLoading} onClick={() => void handleDeleteConfirm()}>
             Delete
           </Button>
         </Group>

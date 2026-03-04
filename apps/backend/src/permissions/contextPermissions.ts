@@ -221,3 +221,92 @@ export async function canReadContext(
   }
   return false;
 }
+
+/**
+ * Liefert die ownerId des Kontexts (Process, Project oder Subcontext → Projekt-Owner).
+ * Für Tag-Scope und Dokument-Tag-Validierung.
+ */
+export async function getContextOwnerId(
+  prisma: PrismaClient,
+  contextId: string
+): Promise<string | null> {
+  const ctx = await prisma.context.findUnique({
+    where: { id: contextId },
+    select: {
+      process: { select: { ownerId: true } },
+      project: { select: { ownerId: true } },
+      subcontext: { select: { project: { select: { ownerId: true } } } },
+    },
+  });
+  if (!ctx) return null;
+  return ctx.process?.ownerId ?? ctx.project?.ownerId ?? ctx.subcontext?.project?.ownerId ?? null;
+}
+
+/**
+ * Prüft, ob der Nutzer Tags im Scope dieses Owners lesen darf (Tags auflisten).
+ * Admin; Personal-Owner selbst; Company/Department/Team: Mitglied oder Lead der Unit bzw. übergeordnet.
+ */
+export async function canReadScopeForOwner(
+  prisma: PrismaClient,
+  userId: string,
+  ownerId: string
+): Promise<boolean> {
+  const owner = await prisma.owner.findUnique({
+    where: { id: ownerId },
+    select: {
+      companyId: true,
+      departmentId: true,
+      teamId: true,
+      ownerUserId: true,
+      team: { select: { departmentId: true } },
+    },
+  });
+  if (!owner) return false;
+  const opts = {
+    companyId: owner.companyId ?? undefined,
+    departmentId: owner.departmentId ?? owner.team?.departmentId ?? undefined,
+    teamId: owner.teamId ?? undefined,
+    ownerUserId: owner.ownerUserId ?? undefined,
+  };
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return false;
+  if (user.isAdmin) return true;
+  if (opts.ownerUserId === userId) return true;
+  if (opts.companyId) {
+    if (user.companyLeads.some((c) => c.companyId === opts.companyId)) return true;
+  }
+  if (opts.departmentId) {
+    if (user.departmentLeads.some((d) => d.departmentId === opts.departmentId)) return true;
+  }
+  if (opts.teamId) {
+    if (user.teamMemberships.some((m) => m.team.id === opts.teamId)) return true;
+  }
+  return false;
+}
+
+/**
+ * Prüft, ob der Nutzer in diesem Scope Tags anlegen/löschen darf (Scope-Lead oder Admin; Personal = Nutzer selbst).
+ */
+export async function canCreateTagForOwner(
+  prisma: PrismaClient,
+  userId: string,
+  ownerId: string
+): Promise<boolean> {
+  const owner = await prisma.owner.findUnique({
+    where: { id: ownerId },
+    select: {
+      companyId: true,
+      departmentId: true,
+      teamId: true,
+      ownerUserId: true,
+      team: { select: { departmentId: true } },
+    },
+  });
+  if (!owner) return false;
+  return canCreateProcessOrProjectForOwner(prisma, userId, {
+    companyId: owner.companyId ?? undefined,
+    departmentId: owner.departmentId ?? owner.team?.departmentId ?? undefined,
+    teamId: owner.teamId ?? undefined,
+    ownerUserId: owner.ownerUserId ?? undefined,
+  });
+}

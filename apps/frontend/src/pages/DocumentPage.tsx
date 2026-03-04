@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Card,
   Group,
@@ -12,22 +13,39 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiFetch } from '../api/client';
 import { PageHeader } from '../components/PageHeader';
+import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
+import type { RecentScope } from '../hooks/useRecentItems';
 import { useRecentItemsActions } from '../hooks/useRecentItems';
 import { useDisclosure } from '@mantine/hooks';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { notifications } from '@mantine/notifications';
-import { IconTrash } from '@tabler/icons-react';
+import {
+  IconBuildingSkyscraper,
+  IconListCheck,
+  IconSitemap,
+  IconSubtask,
+  IconTarget,
+  IconTrash,
+  IconUser,
+  IconUsersGroup,
+} from '@tabler/icons-react';
 
 type DocumentScope =
   | { type: 'personal' }
   | { type: 'company'; id: string }
   | { type: 'department'; id: string }
   | { type: 'team'; id: string };
+
+type WritersResponse = {
+  users: { userId: string; name: string }[];
+  teams: { teamId: string; name: string }[];
+  departments: { departmentId: string; name: string }[];
+};
 
 type DocumentResponse = {
   id: string;
@@ -37,10 +55,23 @@ type DocumentResponse = {
   contextId: string;
   createdAt: string;
   updatedAt: string;
+  publishedAt: string | null;
+  description: string | null;
+  createdById: string | null;
+  createdByName: string | null;
+  writers?: WritersResponse;
   documentTags: { tag: { id: string; name: string } }[];
   canWrite: boolean;
   canDelete: boolean;
   scope: DocumentScope | null;
+  contextOwnerId?: string | null;
+  contextType?: 'process' | 'project';
+  contextName?: string;
+  contextProcessId?: string | null;
+  contextProjectId?: string | null;
+  contextProjectName?: string | null;
+  subcontextId?: string | null;
+  subcontextName?: string | null;
 };
 
 export function DocumentPage() {
@@ -53,6 +84,7 @@ export function DocumentPage() {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [saveLoading, setSaveLoading] = useState(false);
   const [createTagOpened, { open: openCreateTag, close: closeCreateTag }] = useDisclosure(false);
@@ -72,13 +104,16 @@ export function DocumentPage() {
     enabled: !!documentId,
   });
 
+  const contextOwnerId = data?.contextOwnerId ?? null;
+
   const { data: tagsData } = useQuery({
-    queryKey: ['tags'],
+    queryKey: ['tags', contextOwnerId],
     queryFn: async () => {
-      const res = await apiFetch('/api/v1/tags');
+      const res = await apiFetch(`/api/v1/tags?ownerId=${contextOwnerId}`);
       if (!res.ok) throw new Error('Failed to load tags');
       return res.json() as Promise<{ id: string; name: string }[]>;
     },
+    enabled: !!contextOwnerId,
   });
 
   const tags = tagsData ?? [];
@@ -88,6 +123,7 @@ export function DocumentPage() {
     if (data) {
       setEditTitle(data.title);
       setEditContent(data.content);
+      setEditDescription(data.description ?? '');
       setEditTagIds(data.documentTags.map((dt) => dt.tag.id));
     }
   }, [data]);
@@ -145,6 +181,9 @@ export function DocumentPage() {
         body: JSON.stringify({
           title: editTitle.trim() || data!.title,
           content: editContent,
+          ...(editDescription.trim()
+            ? { description: editDescription.trim() }
+            : { description: null }),
           tagIds: editTagIds,
         }),
       });
@@ -173,17 +212,17 @@ export function DocumentPage() {
 
   const handleCreateTag = async () => {
     const name = newTagName.trim();
-    if (!name) return;
+    if (!name || !contextOwnerId) return;
     setCreateTagLoading(true);
     try {
       const res = await apiFetch('/api/v1/tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ownerId: contextOwnerId }),
       });
       if (res.status === 201) {
         const tag = (await res.json()) as { id: string; name: string };
-        void queryClient.invalidateQueries({ queryKey: ['tags'] });
+        void queryClient.invalidateQueries({ queryKey: ['tags', contextOwnerId] });
         setEditTagIds((prev) => [...prev, tag.id]);
         setNewTagName('');
         closeCreateTag();
@@ -215,7 +254,8 @@ export function DocumentPage() {
   const handleDeleteTag = async (tagId: string) => {
     const res = await apiFetch(`/api/v1/tags/${tagId}`, { method: 'DELETE' });
     if (res.status === 204) {
-      void queryClient.invalidateQueries({ queryKey: ['tags'] });
+      if (contextOwnerId)
+        void queryClient.invalidateQueries({ queryKey: ['tags', contextOwnerId] });
       setEditTagIds((prev) => prev.filter((id) => id !== tagId));
       notifications.show({ title: 'Tag deleted', message: 'Tag was removed.', color: 'green' });
     }
@@ -237,14 +277,150 @@ export function DocumentPage() {
     );
   }
 
+  const docTitle = mode === 'edit' ? editTitle || 'Untitled' : data.title;
+  const scope = data.scope as RecentScope | null;
+  const contextMeta =
+    data.contextProcessId != null
+      ? {
+          typeLabel: 'Prozess',
+          name: data.contextName ?? 'Prozess',
+          to: `/processes/${data.contextProcessId}`,
+        }
+      : data.subcontextId != null
+        ? {
+            typeLabel: 'Unterkontext',
+            name: data.subcontextName ?? data.contextName ?? 'Unterkontext',
+            to: `/subcontexts/${data.subcontextId}`,
+          }
+        : data.contextProjectId != null
+          ? {
+              typeLabel: 'Projekt',
+              name: data.contextProjectName ?? data.contextName ?? 'Projekt',
+              to: `/projects/${data.contextProjectId}`,
+            }
+          : null;
+  const writerNames = [
+    ...(data.writers?.users?.map((u) => u.name) ?? []),
+    ...(data.writers?.teams?.map((t) => t.name) ?? []),
+    ...(data.writers?.departments?.map((d) => d.name) ?? []),
+  ].filter(Boolean);
+  const scopeIcon =
+    scope?.type === 'personal'
+      ? IconUser
+      : scope?.type === 'company'
+        ? IconBuildingSkyscraper
+        : scope?.type === 'department'
+          ? IconSitemap
+          : scope?.type === 'team'
+            ? IconUsersGroup
+            : null;
+  const ScopeIcon = scopeIcon ?? IconUser;
+
+  const metadataItems: ReactNode[] = [];
+  if (scope) {
+    metadataItems.push(
+      <Group key="owner" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          Owner:{' '}
+        </Text>
+        <Badge
+          size="sm"
+          variant="light"
+          component={Link}
+          to={scopeToUrl(scope)}
+          style={{ textDecoration: 'none', fontWeight: 500 }}
+          leftSection={scopeIcon ? <ScopeIcon size={12} /> : undefined}
+        >
+          {scopeToLabel(scope)}
+        </Badge>
+      </Group>
+    );
+  }
+  if (contextMeta) {
+    const ContextIcon =
+      contextMeta.typeLabel === 'Prozess'
+        ? IconListCheck
+        : contextMeta.typeLabel === 'Projekt'
+          ? IconTarget
+          : IconSubtask;
+    metadataItems.push(
+      <Group key="context" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          {contextMeta.typeLabel}:{' '}
+        </Text>
+        <Badge
+          size="sm"
+          variant="light"
+          component={Link}
+          to={contextMeta.to}
+          style={{ textDecoration: 'none', fontWeight: 500 }}
+          leftSection={<ContextIcon size={12} />}
+        >
+          {contextMeta.name}
+        </Badge>
+      </Group>
+    );
+  }
+  if (data.publishedAt) {
+    metadataItems.push(
+      <Group key="pub" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          Veröffentlicht:{' '}
+        </Text>
+        <Badge size="sm" variant="light">
+          {new Date(data.publishedAt).toLocaleDateString('de-DE')}
+        </Badge>
+      </Group>
+    );
+  }
+  if (data.createdByName) {
+    metadataItems.push(
+      <Group key="author" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          Erstellt von:{' '}
+        </Text>
+        <Badge size="sm" variant="light">
+          {data.createdByName}
+        </Badge>
+      </Group>
+    );
+  }
+  if (writerNames.length > 0) {
+    metadataItems.push(
+      <Group key="writers" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          Schreiber:{' '}
+        </Text>
+        <Badge size="sm" variant="light">
+          {writerNames.join(', ')}
+        </Badge>
+      </Group>
+    );
+  }
+  if (data.documentTags.length > 0) {
+    metadataItems.push(
+      <Group key="tags" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          Tags:{' '}
+        </Text>
+        <Badge size="sm" variant="light">
+          {data.documentTags.map((dt) => dt.tag.name).join(', ')}
+        </Badge>
+      </Group>
+    );
+  }
+
   return (
     <>
       <PageHeader
-        title={mode === 'edit' ? editTitle || 'Untitled' : data.title}
-        description={
-          data.documentTags.length > 0
-            ? `Tags: ${data.documentTags.map((dt) => dt.tag.name).join(', ')}`
-            : undefined
+        title={docTitle}
+        description={mode === 'view' && data.description ? data.description : undefined}
+        metadata={
+          metadataItems.length > 0 ? (
+            <Group gap="md" align="center">
+              {metadataItems}
+            </Group>
+          ) : undefined
         }
         actions={
           <Group gap="xs">
@@ -273,15 +449,6 @@ export function DocumentPage() {
       />
 
       <Stack gap="md">
-        {data.documentTags.length > 0 && (
-          <Group gap="xs">
-            {data.documentTags.map((dt) => (
-              <Text key={dt.tag.id} size="xs" c="dimmed" span>
-                {dt.tag.name}
-              </Text>
-            ))}
-          </Group>
-        )}
         {mode === 'view' ? (
           <Card withBorder padding="md">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.content || ''}</ReactMarkdown>
@@ -299,6 +466,13 @@ export function DocumentPage() {
                     label="Title"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.currentTarget.value)}
+                    maxLength={500}
+                  />
+                  <TextInput
+                    label="Beschreibung"
+                    placeholder="Kurzbeschreibung (optional)"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.currentTarget.value)}
                     maxLength={500}
                   />
                   <Group align="flex-end" gap="xs">

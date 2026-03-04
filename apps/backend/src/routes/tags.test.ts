@@ -16,9 +16,10 @@ function getCookieHeader(setCookie: string | string[] | undefined): string {
   return '';
 }
 
-describe('Tags-API (POST/DELETE /tags)', () => {
+describe('Tags-API (GET/POST/DELETE /tags) scope-aware', () => {
   let app: Awaited<ReturnType<typeof buildApp>>;
   let userId: string;
+  let ownerId: string;
   let tagForDeleteId: string;
   const tag409Name = `Tag-409-${TS}`;
 
@@ -33,12 +34,16 @@ describe('Tags-API (POST/DELETE /tags)', () => {
       },
     });
     userId = user.id;
+    const owner = await prisma.owner.create({
+      data: { ownerUserId: userId },
+    });
+    ownerId = owner.id;
     const tagForDelete = await prisma.tag.create({
-      data: { name: `Tag-To-Delete-${TS}` },
+      data: { name: `Tag-To-Delete-${TS}`, ownerId },
     });
     tagForDeleteId = tagForDelete.id;
     await prisma.tag.create({
-      data: { name: tag409Name },
+      data: { name: tag409Name, ownerId },
     });
   });
 
@@ -50,6 +55,7 @@ describe('Tags-API (POST/DELETE /tags)', () => {
         },
       },
     });
+    if (ownerId) await prisma.owner.deleteMany({ where: { id: ownerId } });
     if (userId) {
       await prisma.session.deleteMany({ where: { userId } });
       await prisma.user.deleteMany({ where: { id: userId } });
@@ -57,12 +63,50 @@ describe('Tags-API (POST/DELETE /tags)', () => {
     await app.close();
   });
 
+  it('GET /api/v1/tags ohne ownerId/contextId → 400', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: `tags-user-${TS}@example.com`, password: PASSWORD },
+    });
+    expect(loginRes.statusCode).toBe(204);
+    const cookie = getCookieHeader(loginRes.headers['set-cookie']);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/tags',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { error?: string };
+    expect(body.error).toMatch(/ownerId|contextId|required/i);
+  });
+
+  it('GET /api/v1/tags?ownerId=... mit Auth → 200, nur Tags dieses Owners', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: `tags-user-${TS}@example.com`, password: PASSWORD },
+    });
+    expect(loginRes.statusCode).toBe(204);
+    const cookie = getCookieHeader(loginRes.headers['set-cookie']);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/tags?ownerId=${ownerId}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { id: string; name: string }[];
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThanOrEqual(2);
+    expect(body.every((t) => t.id && t.name)).toBe(true);
+  });
+
   it('POST /api/v1/tags ohne Auth → 401', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/tags',
       headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ name: 'SomeTag' }),
+      payload: JSON.stringify({ name: 'SomeTag', ownerId }),
     });
     expect(res.statusCode).toBe(401);
   });
@@ -75,7 +119,7 @@ describe('Tags-API (POST/DELETE /tags)', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('POST /api/v1/tags mit Auth und gültigem Body → 201 + Tag', async () => {
+  it('POST /api/v1/tags mit Auth und name+ownerId → 201 + Tag', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -91,7 +135,7 @@ describe('Tags-API (POST/DELETE /tags)', () => {
         'content-type': 'application/json',
         cookie,
       },
-      payload: JSON.stringify({ name }),
+      payload: JSON.stringify({ name, ownerId }),
     });
     expect(res.statusCode).toBe(201);
     const body = res.json() as { id: string; name: string };
@@ -99,7 +143,7 @@ describe('Tags-API (POST/DELETE /tags)', () => {
     expect(body.name).toBe(name);
   });
 
-  it('POST /api/v1/tags mit doppeltem Namen → 409', async () => {
+  it('POST /api/v1/tags mit doppeltem Namen im gleichen Scope → 409', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -114,11 +158,11 @@ describe('Tags-API (POST/DELETE /tags)', () => {
         'content-type': 'application/json',
         cookie,
       },
-      payload: JSON.stringify({ name: tag409Name }),
+      payload: JSON.stringify({ name: tag409Name, ownerId }),
     });
     expect(res.statusCode).toBe(409);
     const body = res.json() as { error?: string };
-    expect(body.error).toContain('existiert bereits');
+    expect(body.error).toMatch(/existiert bereits|Scope/i);
   });
 
   it('DELETE /api/v1/tags/:tagId mit Auth und existierendem Tag → 204', async () => {

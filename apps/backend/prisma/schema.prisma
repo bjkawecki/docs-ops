@@ -85,6 +85,7 @@ model User {
   ownedContexts         Owner[]      @relation("OwnerUser")
   documentGrantUser     DocumentGrantUser[]
   pinnedDocumentScopes  DocumentPinnedInScope[]
+  createdDocuments      Document[]         @relation("DocumentCreatedBy")
   sessions              Session[]
 }
 
@@ -131,6 +132,7 @@ model Owner {
   ownerUser      User?      @relation("OwnerUser", fields: [ownerUserId], references: [id], onDelete: Cascade)
   processes      Process[]
   projects       Project[]
+  tags           Tag[]
 }
 
 // --- Kontexte (Projekt, Prozess, Unterkontext; vgl. Konzept §3) ---
@@ -228,15 +230,23 @@ model Document {
   grantTeam      DocumentGrantTeam[]
   grantDepartment DocumentGrantDepartment[]
   pinnedInScopes DocumentPinnedInScope[]
+  publishedAt    DateTime?                // optional; Anzeige „Veröffentlicht: [Datum]“
+  description    String?                  @db.Text // optional, Kurzbeschreibung (API: max 500 Zeichen)
+  createdById    String?                  // optional; „Erstellt von“ / Autor
+  createdBy      User?                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
 }
 
-/// Tag: global, für Kategorisierung und Filterung (z. B. „beliebteste Tags“ auf Startseite). Normalisiert, n:m zu Dokumenten.
+/// Tag: scope-gebunden (ownerId → Owner), für Kategorisierung und Filterung. Eindeutigkeit pro Scope: (ownerId, name).
 model Tag {
   id           String        @id @default(cuid())
-  name         String        @unique
+  name         String
+  ownerId      String
+  owner        Owner         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   documentTags DocumentTag[]
+
+  @@unique([ownerId, name])
 }
 
 /// n:m Dokument ↔ Tag.

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Tag" ADD COLUMN "ownerId" TEXT;
+
+-- AddForeignKey
+ALTER TABLE "Tag" ADD CONSTRAINT "Tag_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "Owner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
