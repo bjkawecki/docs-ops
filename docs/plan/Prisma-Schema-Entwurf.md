@@ -40,7 +40,7 @@ Owner von Process/Project ist über **Owner** (companyId, departmentId, teamId o
 | **Document** | id, title, content (Text), pdfUrl?, contextId, deletedAt?, createdAt, updatedAt | → context (n:1), documentTags, grantUser, grantTeam, grantDepartment |
 
 - **pdfUrl:** Optional; URL zur PDF-Version (z. B. nach Export in MinIO/S3).
-- **Geplante Erweiterung (noch nicht in `schema.prisma`):** Dokument-Status **draft** vs. **published** – z. B. Feld **status** (Enum `Draft | Published`) oder **publishedAt** (DateTime?, null = Draft). Draft-Dokumente sind nur für Autor und Nutzer mit Schreibrecht sichtbar; nach „Veröffentlichen“ für alle mit Leserecht. Umsetzung in einer späteren Migration (vgl. Umsetzungs-Todo §15, [Versionierung](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
+- **Geplante Erweiterung (noch nicht in `schema.prisma`):** Dokument-Status **draft** vs. **published**. **Empfehlung:** Feld **status** (Enum `Draft | Published`) oder **publishedAt** (DateTime?, null = Draft) – eine der beiden Varianten festlegen. **Sichtbarkeit:** Draft nur für Nutzer mit Schreibrecht auf das Dokument sowie Scope-Lead des Kontexts; Published für alle mit Leserecht. **Veröffentlichen:** Nur Scope-Lead (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin) darf den Status auf „published“ setzen (bzw. publishedAt setzen). Umsetzung in einer späteren Migration (vgl. Umsetzungs-Todo §15, [Versionierung](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
 - **Tag:** id, name (unique). Global, n:m zu Document über **DocumentTag** (documentId, tagId), @@id([documentId, tagId]).
 
 ---
@@ -68,6 +68,7 @@ Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId
 - **Context** (Abstraktion) mit 1:1 zu Process | Project | Subcontext. **Document** hat contextId (Pflicht).
 - **Document:** title, content, pdfUrl?, contextId, deletedAt?; Tags über **Tag** + **DocumentTag** (n:m).
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
+- **Geplant (noch nicht umgesetzt):** Pinned (§7), Document-Status draft/published (§3), Versionierung & PR (§8).
 
 Schema liegt in `apps/backend/prisma/schema.prisma`; Migrationen unter `apps/backend/prisma/migrations/`.
 
@@ -93,3 +94,46 @@ Das Schema nutzt **Restrict** für die Organisations- und Owner-Hierarchie, dami
 - **Owner** → Process/Project (Cascade); Process/Project → Context → Documents (Cascade).
 - **User löschen** (physisch) → Sessions, TeamMember, TeamLeader, Supervisor (Department Lead), Owner mit ownerUserId (ownedContexts), DocumentGrants (Cascade). Soft-Delete (`deletedAt`) entzieht Zugriff in der App, ohne Datensätze zu entfernen.
 - **Context löschen** → Process/Project/Subcontext (je nach Kontexttyp) und alle Documents dieses Kontexts (Cascade).
+
+---
+
+## 7. Pinned (geplant)
+
+Angepinnte Einträge pro Scope (Team, Department, Company) für Dashboard und Scope-Seiten. Noch nicht in `schema.prisma` umgesetzt.
+
+**Scope:** Pins gelten pro Scope (Team, Department, Company). Ein Pin bezieht sich auf ein Ziel: Document, Process oder Project.
+
+**Vorschlag Tabelle PinnedItem:**
+
+| Spalte     | Typ      | Bedeutung                                                  |
+| ---------- | -------- | ---------------------------------------------------------- |
+| id         | String   | PK (cuid)                                                  |
+| scopeType  | Enum     | team \| department \| company                              |
+| scopeId    | String   | teamId, departmentId oder companyId (FK je nach scopeType) |
+| targetType | Enum     | document \| process \| project                             |
+| targetId   | String   | id des Documents, Process oder Project                     |
+| order      | Int      | Sortierung (z. B. für Reihenfolge im Dashboard)            |
+| pinnedById | String   | userId (wer gepinnt hat) → User                            |
+| createdAt  | DateTime | Zeitpunkt des Anpinnens                                    |
+
+- **Eindeutigkeit:** Pro Scope und Ziel höchstens ein Pin: `@@unique([scopeType, scopeId, targetType, targetId])`.
+- **Relationen:** pinnedById → User; optional separate FKs zu Team/Department/Company (scopeId je nach scopeType) oder polymorphe Abfragen in der App.
+- **Rechte:** An- und Abpinnen dürfen nur **Scope-Lead** (Team Lead für Team, Department Lead für Department, Company Lead für Company) und Admin. Lesen: alle, die den Scope sehen (z. B. Team-Mitglieder sehen Team-Pins). Details siehe [Rechtesystem – Pinned](../platform/datenmodell/Rechtesystem.md#pinned).
+
+**Cascade:** Beim Löschen eines Users PinnedItems mit pinnedById (Cascade oder SetNull). Beim Löschen eines Documents/Process/Project die zugehörigen PinnedItems entfernen (Cascade).
+
+---
+
+## 8. Versionierung & PR (geplant)
+
+Snapshots pro Änderung und Pull-Request-Workflow für Dokumente. Noch nicht in `schema.prisma` umgesetzt. Konzept siehe [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md) und [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md#6b-merge-pr-genehmigen).
+
+**Vorschlag Tabellen (konzeptionell):**
+
+- **DocumentVersion (Snapshot):** id, documentId (→ Document), contentHash oder Content-Referenz, createdAt, createdBy (userId), optional parentVersionId (→ DocumentVersion) für Versionenkette. Jede Änderung erzeugt einen Snapshot; Speicheroptimierung über Deltas/Deduplizierung optional später.
+
+- **DraftRequest (Pull Request):** Repräsentiert einen offenen PR – z. B. id, documentId, sourceVersionId (→ DocumentVersion), targetVersionId (→ DocumentVersion), status (open \| merged \| rejected), submittedById (userId), submittedAt, mergedAt?, mergedById?, optional comment. Merge nur durch Scope-Lead (Implementierung: canMergeDraftRequest analog zu Rechtesystem 6b).
+
+Branches können als Pointer auf eine Version oder Versionenkette modelliert werden (z. B. „main“ = aktuelle veröffentlichte Version; Draft = offene PR-Version), ohne vollständiges Git-Modell.
+
+**Cascade:** Document löschen → DocumentVersion und DraftRequest (Cascade). User löschen → createdBy/submittedById auf null setzen oder Cascade je nach Anforderung.

@@ -52,6 +52,29 @@ function fromPreferences(
 }
 
 /**
+ * Aggregate recent items from all scopes (for dashboard). Deduplicates by type+id, keeps order, limits count.
+ */
+export function getAggregatedRecentItems(
+  recentItemsByScope: Record<string, { type: string; id: string; name?: string }[]> | undefined,
+  limit = 10
+): RecentItem[] {
+  if (!recentItemsByScope || typeof recentItemsByScope !== 'object') return [];
+  const seen = new Set<string>();
+  const result: RecentItem[] = [];
+  for (const list of Object.values(recentItemsByScope)) {
+    const items = fromPreferences(list);
+    for (const item of items) {
+      const key = `${item.type}:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(item);
+      if (result.length >= limit) return result;
+    }
+  }
+  return result;
+}
+
+/**
  * Provider for recently viewed contexts/documents per scope.
  * Liest aus GET /me (preferences.recentItemsByScope), schreibt per PATCH /me/preferences.
  */

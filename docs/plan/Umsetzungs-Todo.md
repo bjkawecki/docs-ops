@@ -96,7 +96,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 - [x] **Backend: Me & Preferences**
   - GET `/api/v1/me` – erweiterte Nutzerdaten inkl. Zugehörigkeiten (Teams mit Rolle Mitglied/Team Lead, Abteilung(en), Department Lead) für DocsOps-Identity; nur eigener User (Session); inkl. `hasLocalLogin` (Account-Card nur bei lokalem Login).
   - PATCH `/api/v1/me` – eigenes Profil bearbeiten (**nur Anzeigename**); nur eigener User; Validierung (Zod). E-Mail/Passwort über Account (PATCH `/api/v1/me/account`).
-  - GET/PATCH `/api/v1/me/preferences` – User-Preferences (z. B. `theme: 'light'|'dark'|'auto'`, `sidebarPinned: boolean`, `locale: 'en'|'de'`, `recentItemsByScope?: Record<string, RecentItem[]>` pro Organisationseinheit). Persistenz im Backend (User-Preferences-Feld); eine Quelle der Wahrheit für alle Clients.
+  - GET/PATCH `/api/v1/me/preferences` – User-Preferences (z. B. `theme: 'light'|'dark'|'auto'`, `sidebarPinned: boolean`, `locale: 'en'|'de'`, `recentItemsByScope?: Record<string, RecentItem[]>` pro Organisationseinheit, optional `hideGuideInScope?: Record<string, boolean>` zum Ausblenden der Anleitungs-Doku pro Scope). Persistenz im Backend (User-Preferences-Feld); eine Quelle der Wahrheit für alle Clients.
   - POST `/api/v1/me/deactivate` – Self-Deactivate (setzt `deletedAt`); nur für Nicht-Admins (letzter Admin darf nicht); alle Sessions des Users löschen.
   - PATCH `/api/v1/me/account` – E-Mail und/oder Passwort ändern (nur bei lokalem Login, d. h. `passwordHash` gesetzt); Zod: `email?`, `currentPassword?`, `newPassword?` (Mindestlänge 8); E-Mail-Uniqueness, Verifizierung aktuelles Passwort.
   - GET `/api/v1/me/sessions` – Liste der Sessions (id, createdAt, expiresAt, isCurrent aus Session-Cookie); DELETE `/api/v1/me/sessions/:sessionId` (nur eigene Session); optional DELETE `/api/v1/me/sessions` = alle anderen Sessions beenden.
@@ -108,6 +108,7 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
   - **Language-Card:** Select English/Deutsch (`locale: 'en'|'de'`), PATCH `/api/v1/me/preferences` mit `locale`; gespeicherte Preference für spätere i18n-Nutzung.
   - **Security-Card (Sessions):** Liste der Sessions (Created, Expires, „Current session“-Badge), Revoke pro Zeile (außer aktueller Session), optional „Revoke all other sessions“.
   - **DocsOps-Identity-Card:** User-Entity und Ownership-/Zugehörigkeits-Entitäten (Teams inkl. Rolle, Abteilung(en), Department Lead). Daten aus GET `/api/v1/me`.
+  - **Anleitungs-Doku ausblenden (optional):** Einstellung, ob die automatisch hinzugefügte DocsOps-Anleitung pro Scope (Personal, Team, Department, Company) in der UI ausgeblendet wird; Persistenz über PATCH `/api/v1/me/preferences` (z. B. `hideGuideInScope`). Vgl. §14 (DocsOps-Anleitung pro Rolle/Scope).
 
 ---
 
@@ -207,9 +208,9 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
 
-- [ ] **Pinned:** Angepinnte Einträge (Dokumente, Prozesse, Projekte). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle. Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell und API (z. B. Pinned-Resource pro Scope) erforderlich.
-- [ ] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
-- [ ] **Latest:** Neueste Dokumente, die der Nutzer lesen darf (z. B. Slice aus Catalog, sortiert nach updatedAt, Limit 10).
+- [ ] **Pinned:** Angepinnte Einträge (Dokumente, Prozesse, Projekte). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle. Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell siehe [Prisma-Schema-Entwurf §7 (Pinned)](Prisma-Schema-Entwurf.md#7-pinned-geplant); danach API und Dashboard-Block.
+- [x] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
+- [x] **Latest:** Neueste Dokumente, die der Nutzer lesen darf (z. B. Slice aus Catalog, sortiert nach updatedAt, Limit 10).
 - [ ] **Drafts / Pending review:** Unveröffentlichte Dokumente und offene PRs (Details §15); Block sichtbar sobald Drafts/PR-Feature umgesetzt ist.
 - [ ] Optional: Platzhalter für Benachrichtigungen/Updates (später an Async Jobs anbinden).
 
@@ -222,15 +223,18 @@ Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
 - [ ] Markdown-Editor + Vorschau (z. B. TipTap oder Textarea + Preview)
 - [ ] Anzeige mit Rechte-Checks (Lesen/Schreiben nur wenn berechtigt)
 - [ ] Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten
-- [ ] **Drafts-Tab** auf den Kontext-Seiten (Overview, Processes, Projects, Documents, **Drafts**) für unveröffentlichte Dokumente und PR-Übersicht (Details in §15).
+- [ ] **Drafts-Tab** auf den Kontext-Seiten (Overview, Processes, Projects, Documents, **Drafts**) für unveröffentlichte Dokumente und PR-Übersicht (Details in §15; Datenmodell für Drafts/PR siehe §15 und [Prisma-Schema-Entwurf](Prisma-Schema-Entwurf.md) §3, §8).
+- [ ] **DocsOps-Anleitung als erstes Dokument im Personal:** Im persönlichen Bereich (in einem Prozess) soll automatisch ein erstes Dokument „Anleitung für DocsOps“ erstellt werden (z. B. bei erstem Aufruf von /personal oder via Seed/Setup). **Pro Scope/Rolle:** Die Anleitung ist rollen- bzw. scope-spezifisch (z. B. Team Lead erhält eine Team-Lead-Anleitung, einfacher Nutzer eine Nutzer-Anleitung, Department Lead eine Department-Lead-Anleitung usw.). **Settings:** In den Einstellungen soll die Anleitungs-Doku pro Scope ausgeblendet werden können (Persistenz in User-Preferences, z. B. `hideGuideInScope?: Record<string, boolean>` oder Liste der ausgeblendeten Scopes).
 
 ---
 
 ## 15. Versionierung & PR-Workflow
 
-- [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs
+Datenmodell für Document-Status und PR/Versionen siehe [Prisma-Schema-Entwurf](Prisma-Schema-Entwurf.md) (§3 Document-Status, §8 Versionierung & PR) und [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md); Umsetzung erst nach Doku-Stand.
+
+- [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs (Schema: [Prisma-Schema-Entwurf §8](Prisma-Schema-Entwurf.md#8-versionierung--pr-geplant))
 - [ ] Deltas/Deduplizierung (diff-match-patch, Blob-Referenzen)
-- [ ] **Dokument-Status draft/published:** Dokumente mit Status „draft“ (oder `publishedAt == null`); nur für Autor/Schreiber sichtbar; Veröffentlichung durch Scope-Lead (oder Autor, je nach Festlegung).
+- [ ] **Dokument-Status draft/published:** Dokumente mit Status „draft“ (oder `publishedAt == null`); nur für Autor/Schreiber sichtbar; Veröffentlichung durch Scope-Lead (Schema und Sichtbarkeit: [Prisma-Schema-Entwurf §3](Prisma-Schema-Entwurf.md#3-dokumente)).
 - [ ] **Drafts (zwei Arten):** (1) Noch nicht veröffentlichte Dokumente, (2) PRs (eingereichte Änderungen) die auf Merge warten. Leser/Writer reichen PRs ein; **Merge nur Scope-Lead** (Writer-Grant berechtigt nicht zum Mergen; vgl. [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md)).
 - [ ] Merge in Hauptversion; Garbage Collection für alte Drafts (vgl. [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
 - [ ] **Drafts-Tab in der UI:** Auf Scope-Pages (Personal, Company, Department, Team, ggf. Shared) Tab „Drafts“ mit (1) unveröffentlichten Dokumenten, (2) offenen PRs (auf Merge warten); Filter/Unterteilung optional.
@@ -271,6 +275,7 @@ Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
 - [ ] Caddy-Config im Repo, Doku zu VPN (WireGuard o. Ä.) und Reverse Proxy
 - [ ] Backup-Konzept (DB, MinIO), Hinweis in App vor Update
 - [ ] README: Voraussetzungen, Installation, Update
+- [ ] **DocsOps-Demo online:** Demo-Instanz online stellen, sobald die Plattform nutzbar ist.
 
 ---
 

@@ -64,8 +64,17 @@ class Dokument:
 - titel
 - kontext: Kontext # genau ein Kontext
 - inhalt: Markdown
+- status: 'draft' | 'published' # geplant; Draft nur für Schreiber/Scope-Lead sichtbar (vgl. Prisma-Schema-Entwurf §3)
 - zugriffsrechte: List[Zugriffsrecht]
 - tags: List[Tag]
+
+---
+
+## 3a. Pinned (geplant)
+
+Angepinnte Einträge pro Scope (Team, Abteilung, Firma) für Dashboard und Scope-Seiten. Konkrete Tabelle siehe [Prisma-Schema-Entwurf §7](../../plan/Prisma-Schema-Entwurf.md#7-pinned-geplant).
+
+- PinnedItem: scopeType (team | department | company), scopeId, targetType (document | process | project), targetId, order, pinnedBy (Nutzer)
 
 ---
 

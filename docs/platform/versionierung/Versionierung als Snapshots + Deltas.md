@@ -21,6 +21,8 @@ Unter „Drafts“ werden zwei Dinge verstanden: (1) **Dokument-Status „draft�
 - Scope-Lead prüfen Drafts, kommentieren, genehmigen oder lehnen ab. Genehmigte PRs werden in den Hauptbranch / Hauptkontext gemergt.
 - Abgelehnte PRs bleiben als historische Drafts erhalten oder werden gelöscht (Garbage Collection).
 
+**Konkrete Tabellen (Schema-Entwurf):** Die Entitäten **DocumentVersion** (Snapshot pro Änderung) und **DraftRequest** (offener PR mit Quell-/Ziel-Version, Status, eingereicht von) sind im [Prisma-Schema-Entwurf §8 (Versionierung & PR)](../../plan/Prisma-Schema-Entwurf.md#8-versionierung--pr-geplant) beschrieben. Document-Status (draft/published) siehe dort §3.
+
 ## 3. Speicheroptimierung
 
 - Delta-Speicherung

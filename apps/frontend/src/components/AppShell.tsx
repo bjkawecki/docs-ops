@@ -590,7 +590,7 @@ export function AppShell() {
   }
 
   return (
-    <MantineAppShell navbar={{ width: 260, breakpoint: 'sm' }} padding="md" header={{ height: 0 }}>
+    <MantineAppShell navbar={{ width: 260, breakpoint: 'sm' }} padding={0} header={{ height: 0 }}>
       {showDebugMenu && (
         <Box
           style={{
@@ -807,48 +807,54 @@ export function AppShell() {
         </Stack>
       </MantineAppShell.Navbar>
       <MantineAppShell.Main>
-        {me?.impersonation?.active && (
-          <Box
-            py="xs"
-            px="md"
-            style={{
-              position: 'fixed',
-              bottom: 16,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 900,
-              maxWidth: 650,
-              borderRadius: 'var(--mantine-radius-sm)',
-              boxShadow: 'var(--mantine-shadow-md)',
-              background:
-                colorScheme === 'dark'
-                  ? 'var(--mantine-color-dark-6)'
-                  : 'var(--mantine-color-yellow-2)',
-              border:
-                colorScheme === 'dark'
-                  ? '1px solid var(--mantine-color-dark-5)'
-                  : '1px solid var(--mantine-color-yellow-4)',
-            }}
-          >
-            <Group justify="space-between" wrap="nowrap">
-              <Text size="sm" c={colorScheme === 'dark' ? 'gray.3' : 'dark.7'}>
-                Viewing as <strong>{me.user.name}</strong>
-                {me.user.email ? ` (${me.user.email})` : ''}, {getDisplayRole(me)}. You are{' '}
-                {me.impersonation.realUser.name}.
-              </Text>
-              <Button
-                variant="filled"
-                size="xs"
-                color="grape"
-                onClick={() => stopImpersonateMutation.mutate()}
-                disabled={stopImpersonateMutation.isPending}
-              >
-                End
-              </Button>
-            </Group>
-          </Box>
-        )}
-        <Outlet />
+        <Box
+          py={{ base: 'md', md: 'lg', xl: 'xl' }}
+          px={{ base: 'md', md: 'lg', xl: 'xl' }}
+          style={{ minHeight: '100%' }}
+        >
+          {me?.impersonation?.active && (
+            <Box
+              py="xs"
+              px="md"
+              style={{
+                position: 'fixed',
+                bottom: 16,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 900,
+                maxWidth: 650,
+                borderRadius: 'var(--mantine-radius-sm)',
+                boxShadow: 'var(--mantine-shadow-md)',
+                background:
+                  colorScheme === 'dark'
+                    ? 'var(--mantine-color-dark-6)'
+                    : 'var(--mantine-color-yellow-2)',
+                border:
+                  colorScheme === 'dark'
+                    ? '1px solid var(--mantine-color-dark-5)'
+                    : '1px solid var(--mantine-color-yellow-4)',
+              }}
+            >
+              <Group justify="space-between" wrap="nowrap">
+                <Text size="sm" c={colorScheme === 'dark' ? 'gray.3' : 'dark.7'}>
+                  Viewing as <strong>{me.user.name}</strong>
+                  {me.user.email ? ` (${me.user.email})` : ''}, {getDisplayRole(me)}. You are{' '}
+                  {me.impersonation.realUser.name}.
+                </Text>
+                <Button
+                  variant="filled"
+                  size="xs"
+                  color="grape"
+                  onClick={() => stopImpersonateMutation.mutate()}
+                  disabled={stopImpersonateMutation.isPending}
+                >
+                  End
+                </Button>
+              </Group>
+            </Box>
+          )}
+          <Outlet />
+        </Box>
       </MantineAppShell.Main>
     </MantineAppShell>
   );

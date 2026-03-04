@@ -201,6 +201,10 @@ Zusätzlich zu canRead/canWrite gelten **hierarchische Rechte** für Kontexte un
 
 - **Unterkontexte:** Wer ein Projekt lesen/schreiben darf (Company Lead, Department Lead oder Team Lead je nach Owner), darf dessen Unterkontexte anlegen, bearbeiten und löschen.
 
+### Pinned
+
+An- und Abpinnen von Einträgen (Dokumente, Prozesse, Projekte) pro Scope (Team, Department, Company) dürfen nur **Scope-Lead** (Team Lead für Team-Scope, Department Lead für Department-Scope, Company Lead für Company-Scope) und Admin. Pins lesen (z. B. im Dashboard anzeigen) dürfen alle, die den jeweiligen Scope sehen (Team-Mitglieder sehen Team-Pins, Department-Mitglieder Department-Pins, usw.). Schema siehe [Prisma-Schema-Entwurf §7 (Pinned)](../../plan/Prisma-Schema-Entwurf.md#7-pinned-geplant).
+
 Dokument-Erstellung (POST) prüft `canWriteContext` (nur Scope-Lead). Dokument-Löschen (DELETE) prüft `canDeleteDocument` (ebenfalls nur Scope-Lead, nicht Writer-Grant).
 
 Die Implementierung liegt unter `apps/backend/src/permissions/` (canRead, canWrite, canDeleteDocument, canReadContext, canWriteContext, requireDocumentAccess). Dokument-Routen nutzen die Middleware `requireDocumentAccess('read'|'write')` bzw. für DELETE die Prüfung `canDeleteDocument`; Kontext-Routen prüfen canReadContext/canWriteContext (Kern-API Abschnitt 5).

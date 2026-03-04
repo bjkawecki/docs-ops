@@ -8,4 +8,6 @@ export { EditContextNameModal } from './EditContextNameModal';
 export type { EditContextNameModalProps } from './EditContextNameModal';
 export { RecentItemsCard } from './RecentItemsCard';
 export type { RecentItemsCardProps } from './RecentItemsCard';
+export { SectionCard } from './SectionCard';
+export type { SectionCardProps } from './SectionCard';
 export type { ContextCardItem } from './types';

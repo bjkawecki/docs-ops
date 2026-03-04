@@ -1,8 +1,9 @@
-import { Badge, Card, Group, Menu, Stack, Text } from '@mantine/core';
+import { Badge, Group, Menu, Stack, Text } from '@mantine/core';
 import { ActionIcon } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { IconDotsVertical } from '@tabler/icons-react';
+import { ContentCardWrapper } from './cardShared';
 
 export interface ContextCardProps {
   /** Context name */
@@ -31,7 +32,7 @@ export function ContextCard({
   const typeLabel = type === 'process' ? 'Process' : 'Project';
 
   return (
-    <Card withBorder padding="md" h="100%">
+    <ContentCardWrapper>
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
         <Link
           to={href}
@@ -77,6 +78,6 @@ export function ContextCard({
           </Menu>
         )}
       </Group>
-    </Card>
+    </ContentCardWrapper>
   );
 }
