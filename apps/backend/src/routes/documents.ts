@@ -5,7 +5,12 @@ import {
   getEffectiveUserId,
   type RequestWithUser,
 } from '../auth/middleware.js';
-import { requireDocumentAccess, canDeleteDocument } from '../permissions/index.js';
+import {
+  requireDocumentAccess,
+  canDeleteDocument,
+  canWrite,
+  DOCUMENT_FOR_PERMISSION_INCLUDE,
+} from '../permissions/index.js';
 import { canReadContext, canWriteContext } from '../permissions/contextPermissions.js';
 import { type GrantRole } from '../../generated/prisma/client.js';
 import { getReadableCatalogScope } from '../permissions/catalogPermissions.js';
@@ -19,6 +24,8 @@ import {
   putGrantsUsersBodySchema,
   putGrantsTeamsBodySchema,
   putGrantsDepartmentsBodySchema,
+  tagIdParamSchema,
+  createTagBodySchema,
 } from './schemas/documents.js';
 
 const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
@@ -223,7 +230,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     });
   });
 
-  /** GET Einzeldokument – nur wenn deletedAt null (Middleware liefert 404 bei gelöscht). */
+  /** GET Einzeldokument – nur wenn deletedAt null. Liefert canWrite/canDelete für UI. */
   app.get<{
     Params: { documentId: string };
   }>(
@@ -232,22 +239,49 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
-      const doc = await request.server.prisma.document.findFirst({
+      const doc = await prisma.document.findFirst({
         where: { id: documentId, deletedAt: null },
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          pdfUrl: true,
-          contextId: true,
-          createdAt: true,
-          updatedAt: true,
+        include: {
+          ...DOCUMENT_FOR_PERMISSION_INCLUDE,
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
         },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      return reply.send(doc);
+      const [writeAllowed, deleteAllowed] = await Promise.all([
+        canWrite(prisma, userId, doc),
+        canDeleteDocument(prisma, userId, documentId),
+      ]);
+      const owner =
+        doc.context.process?.owner ??
+        doc.context.project?.owner ??
+        doc.context.subcontext?.project?.owner ??
+        null;
+      const scope =
+        owner?.ownerUserId != null
+          ? { type: 'personal' as const }
+          : owner?.companyId != null
+            ? { type: 'company' as const, id: owner.companyId }
+            : owner?.departmentId != null
+              ? { type: 'department' as const, id: owner.departmentId }
+              : owner?.teamId != null
+                ? { type: 'team' as const, id: owner.teamId }
+                : null;
+      return reply.send({
+        id: doc.id,
+        title: doc.title,
+        content: doc.content,
+        pdfUrl: doc.pdfUrl,
+        contextId: doc.contextId,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        documentTags: doc.documentTags,
+        canWrite: writeAllowed,
+        canDelete: deleteAllowed,
+        scope,
+      });
     }
   );
 
@@ -515,6 +549,41 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       select: { id: true, name: true },
     });
     return reply.send(tags);
+  });
+
+  /** POST Tag anlegen – requireAuth. Bei doppeltem Namen 409. */
+  app.post('/tags', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const body = createTagBodySchema.parse(request.body);
+    try {
+      const tag = await request.server.prisma.tag.create({
+        data: { name: body.name },
+        select: { id: true, name: true },
+      });
+      return reply.status(201).send(tag);
+    } catch (err: unknown) {
+      const prismaErr = err as { code?: string };
+      if (prismaErr.code === 'P2002') {
+        return reply.status(409).send({
+          error: 'Tag mit diesem Namen existiert bereits.',
+        });
+      }
+      throw err;
+    }
+  });
+
+  /** DELETE Tag – requireAuth. DocumentTag wird per Cascade entfernt. */
+  app.delete('/tags/:tagId', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const { tagId } = tagIdParamSchema.parse(request.params);
+    try {
+      await request.server.prisma.tag.delete({ where: { id: tagId } });
+      return reply.status(204).send();
+    } catch (err: unknown) {
+      const prismaErr = err as { code?: string };
+      if (prismaErr.code === 'P2025') {
+        return reply.status(404).send({ error: 'Tag not found' });
+      }
+      throw err;
+    }
   });
 
   return Promise.resolve();

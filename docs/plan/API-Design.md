@@ -70,3 +70,11 @@ Zuordnungen zwischen Nutzern und Teams bzw. Abteilungen werden über eigene Endp
 GET-Listen setzen voraus, dass das Team bzw. die Abteilung für den Nutzer sichtbar ist (Mitglied oder Team Lead des Teams, Department Lead der Abteilung oder Admin); sonst 403. Bei Duplikat (gleicher teamId/userId bzw. departmentId/userId) liefert POST 409 Conflict. **Company Lead** ist derzeit nicht implementiert (geplant für firmenweite Prozesse/Projekte).
 
 **Löschungen und Abhängigkeiten:** Welche Ressourcen durch Löschen von Company, Department, Team, User oder Context betroffen sind (Restrict-Regeln und Cascades) und wann die API mit 409 antwortet, ist in [Prisma-Schema-Entwurf §6](Prisma-Schema-Entwurf.md#6-löschverhalten-cascades-und-restrict) beschrieben.
+
+---
+
+## Dokumente und Tags (§14)
+
+- **Dokumente:** CRUD über `GET/POST/PATCH/DELETE /api/v1/documents` bzw. `GET /api/v1/contexts/:contextId/documents`; GET Document liefert Rechte-Flags `canWrite`, `canDelete`, `scope`. Prozess-/Projekt-GET liefert `canWriteContext`.
+- **Tags:** `POST /api/v1/tags` (Body: name), `DELETE /api/v1/tags/:tagId`; 409 bei doppeltem Namen, 404 bei unbekanntem Tag. Dokumente erhalten Tag-Zuordnung über PATCH mit `tagIds`.
+- Umsetzungsstand: [Umsetzungs-Todo §14](Umsetzungs-Todo.md#14-dokumente-in-der-ui) (Tag-Verwaltung, Markdown-Editor, Rechte-Checks, CRUD in Kontexten umgesetzt; Drafts-Tab und DocsOps-Anleitung offen).

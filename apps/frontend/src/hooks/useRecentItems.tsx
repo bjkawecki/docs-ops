@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext } from 'react';
+import { createContext, useCallback, useContext, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
@@ -98,24 +98,29 @@ export function RecentItemsProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const preferencesRef = useRef(me?.preferences?.recentItemsByScope);
+  preferencesRef.current = me?.preferences?.recentItemsByScope;
+
   const addRecent = useCallback(
     (item: RecentItem, scope: RecentScope) => {
       const scopeKey = scopeToKey(scope);
-      const current = fromPreferences(me?.preferences?.recentItemsByScope?.[scopeKey]);
+      const current = fromPreferences(preferencesRef.current?.[scopeKey]);
       const filtered = current.filter((x) => !(x.type === item.type && x.id === item.id));
       const next = [{ ...item }, ...filtered].slice(0, MAX_ITEMS);
       patchPreferences.mutate({ scopeKey, list: next });
     },
-    [me?.preferences?.recentItemsByScope, patchPreferences]
+    [patchPreferences]
   );
 
+  const contextValueRef = useRef<RecentItemsContextValue>({
+    addRecent,
+    isPending: false,
+  });
+  contextValueRef.current.addRecent = addRecent;
+  contextValueRef.current.isPending = patchPreferences.isPending;
+
   return (
-    <RecentItemsContext.Provider
-      value={{
-        addRecent,
-        isPending: patchPreferences.isPending,
-      }}
-    >
+    <RecentItemsContext.Provider value={contextValueRef.current}>
       {children}
     </RecentItemsContext.Provider>
   );

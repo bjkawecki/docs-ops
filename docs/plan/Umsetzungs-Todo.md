@@ -219,10 +219,10 @@ Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
 ## 14. Dokumente in der UI
 
 - [x] **Catalog:** Listen/Filter nach Kontext, Kontexttyp, Owner, Tags (umgesetzt in §13).
-- [ ] **Tag-Verwaltung:** Tags anzeigen, Dokumenten zuweisen, nach Tags filtern
-- [ ] Markdown-Editor + Vorschau (z. B. TipTap oder Textarea + Preview)
-- [ ] Anzeige mit Rechte-Checks (Lesen/Schreiben nur wenn berechtigt)
-- [ ] Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten
+- [x] **Tag-Verwaltung:** Tags anzeigen, Tags anlegen (POST `/api/v1/tags`), Tags löschen (DELETE `/api/v1/tags/:tagId`), Dokumenten zuweisen, nach Tags filtern (Backend + Frontend: Multi-Select, „Create tag“, „Manage tags“).
+- [x] **Markdown-Editor + Vorschau:** Markdown-Quelltext (Textarea), Vorschau per react-markdown (Tab „Preview“); Darstellung konsistent mit Lese-Ansicht.
+- [x] **Anzeige mit Rechte-Checks:** GET `/documents/:id` liefert `canWrite`/`canDelete`; GET Process/Project liefert `canWriteContext`; UI zeigt Edit/Delete bzw. „New document“ nur bei Berechtigung.
+- [x] **Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten:** Dokumentenliste auf Kontext-Detail-Seite (Process/Project), „New document“-Modal, DocumentPage mit Lese-/Bearbeiten-Modus, PATCH/DELETE; Recent Items beim Öffnen eines Dokuments.
 - [ ] **Drafts-Tab** auf den Kontext-Seiten (Overview, Processes, Projects, Documents, **Drafts**) für unveröffentlichte Dokumente und PR-Übersicht (Details in §15; Datenmodell für Drafts/PR siehe §15 und [Prisma-Schema-Entwurf](Prisma-Schema-Entwurf.md) §3, §8).
 - [ ] **DocsOps-Anleitung als erstes Dokument im Personal:** Im persönlichen Bereich (in einem Prozess) soll automatisch ein erstes Dokument „Anleitung für DocsOps“ erstellt werden (z. B. bei erstem Aufruf von /personal oder via Seed/Setup). **Pro Scope/Rolle:** Die Anleitung ist rollen- bzw. scope-spezifisch (z. B. Team Lead erhält eine Team-Lead-Anleitung, einfacher Nutzer eine Nutzer-Anleitung, Department Lead eine Department-Lead-Anleitung usw.). **Settings:** In den Einstellungen soll die Anleitungs-Doku pro Scope ausgeblendet werden können (Persistenz in User-Preferences, z. B. `hideGuideInScope?: Record<string, boolean>` oder Liste der ausgeblendeten Scopes).
 

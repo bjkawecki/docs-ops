@@ -12,6 +12,7 @@ import { SharedPage } from './pages/SharedPage';
 import { TeamContextPage } from './pages/TeamContextPage';
 import { ProcessContextPage } from './pages/ProcessContextPage';
 import { ProjectContextPage } from './pages/ProjectContextPage';
+import { DocumentPage } from './pages/DocumentPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AuthGuard } from './components/AuthGuard';
@@ -58,6 +59,7 @@ function App() {
             <Route index element={<Navigate to="/catalog" replace />} />
             <Route path=":projectId" element={<ProjectContextPage />} />
           </Route>
+          <Route path="documents/:documentId" element={<DocumentPage />} />
           <Route path="templates" element={<Navigate to="/" replace />} />
           <Route
             path="admin"

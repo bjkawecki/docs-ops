@@ -149,9 +149,12 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { id: processId },
         include: { context: true, owner: true },
       });
-      const allowed = await canReadContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No access' });
-      return reply.send(process);
+      const [readAllowed, writeAllowed] = await Promise.all([
+        canReadContext(prisma, userId, process.contextId),
+        canWriteContext(prisma, userId, process.contextId),
+      ]);
+      if (!readAllowed) return reply.status(403).send({ error: 'No access' });
+      return reply.send({ ...process, canWriteContext: writeAllowed });
     }
   );
 
@@ -268,9 +271,12 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       where: { id: projectId },
       include: { context: true, owner: true, subcontexts: true },
     });
-    const allowed = await canReadContext(prisma, userId, project.contextId);
-    if (!allowed) return reply.status(403).send({ error: 'No access' });
-    return reply.send(project);
+    const [readAllowed, writeAllowed] = await Promise.all([
+      canReadContext(prisma, userId, project.contextId),
+      canWriteContext(prisma, userId, project.contextId),
+    ]);
+    if (!readAllowed) return reply.status(403).send({ error: 'No access' });
+    return reply.send({ ...project, canWriteContext: writeAllowed });
   });
 
   app.patch(

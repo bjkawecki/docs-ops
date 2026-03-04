@@ -78,3 +78,17 @@ export const grantDepartmentEntrySchema = z.object({
 export const putGrantsDepartmentsBodySchema = z.object({
   grants: z.array(grantDepartmentEntrySchema),
 });
+
+/** Params: tagId. */
+export const tagIdParamSchema = z.object({
+  tagId: z.string().cuid(),
+});
+
+/** Body: Tag anlegen. */
+export const createTagBodySchema = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(100)
+    .transform((s) => s.trim()),
+});

@@ -1,7 +1,7 @@
 import { Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
@@ -336,7 +336,12 @@ export function PersonalPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >
-        {[overviewPanel, processesPanel, projectsPanel, documentsPanel]}
+        {[
+          <Fragment key="overview">{overviewPanel}</Fragment>,
+          <Fragment key="processes">{processesPanel}</Fragment>,
+          <Fragment key="projects">{projectsPanel}</Fragment>,
+          <Fragment key="documents">{documentsPanel}</Fragment>,
+        ]}
       </PageWithTabs>
 
       <NewContextModal
