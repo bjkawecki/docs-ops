@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { DocopsLogo } from '../components/DocopsLogo';
 import { RecentItemsCard, SectionCard } from '../components/contexts';
 import { useMe } from '../hooks/useMe';
+import { useMeDrafts } from '../hooks/useMeDrafts';
 import { getAggregatedRecentItems } from '../hooks/useRecentItems';
 import { apiFetch } from '../api/client';
 
@@ -87,6 +88,11 @@ export function HomePage() {
   });
 
   const latestItems = latestData?.items ?? [];
+
+  const { data: draftsData, isPending: draftsPending } = useMeDrafts({}, { limit: 10, offset: 0 });
+  const draftDocuments = draftsData?.draftDocuments ?? [];
+  const openDraftRequests = draftsData?.openDraftRequests ?? [];
+  const hasDrafts = draftDocuments.length > 0 || openDraftRequests.length > 0;
 
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -198,6 +204,43 @@ export function HomePage() {
                     </Text>
                   )}
                 </Link>
+              ))}
+            </Stack>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Drafts / Pending review" viewMoreHref="/personal">
+          {draftsPending ? (
+            <Text size="sm" c="dimmed">
+              Loading…
+            </Text>
+          ) : !hasDrafts ? (
+            <Text size="sm" c="dimmed">
+              No drafts or pending review.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {draftDocuments.map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/documents/${d.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                >
+                  {d.title || d.id}
+                </Link>
+              ))}
+              {openDraftRequests.map((dr) => (
+                <Group key={dr.id} gap="xs" wrap="nowrap">
+                  <Badge size="sm" variant="light">
+                    Pending review
+                  </Badge>
+                  <Link
+                    to={`/documents/${dr.documentId}`}
+                    style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
+                  >
+                    {dr.documentTitle || dr.documentId}
+                  </Link>
+                </Group>
               ))}
             </Stack>
           )}

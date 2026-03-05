@@ -1,8 +1,10 @@
-import { Box, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
+import { DraftsCard } from '../components/DraftsCard';
+import { DraftsTabContent } from '../components/DraftsTabContent';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
 import { RecentItemsCard } from '../components/contexts';
@@ -36,6 +38,7 @@ export function SharedPage() {
   const tabs = [
     { value: 'overview', label: 'Overview' },
     { value: 'documents', label: 'Documents' },
+    { value: 'drafts', label: 'Drafts' },
   ];
 
   const overviewPanel = (
@@ -71,6 +74,11 @@ export function SharedPage() {
             </Group>
           </Stack>
         </Card>
+        <DraftsCard
+          scopeParams={{ scope: 'shared' }}
+          limit={5}
+          onViewMore={() => setActiveTab('drafts')}
+        />
       </SimpleGrid>
     </Stack>
   );
@@ -112,7 +120,13 @@ export function SharedPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >
-        {[overviewPanel, documentsPanel]}
+        {[
+          <Fragment key="overview">{overviewPanel}</Fragment>,
+          <Fragment key="documents">{documentsPanel}</Fragment>,
+          <Fragment key="drafts">
+            <DraftsTabContent scopeParams={{ scope: 'shared' }} />
+          </Fragment>,
+        ]}
       </PageWithTabs>
     </Box>
   );

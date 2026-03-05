@@ -60,7 +60,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 - **Markdown:** remark oder markdown-it, gray-matter für Frontmatter/Tags.
 - **Validierung:** **Zod** (verbindlich). Request-Bodies und Parameter mit Zod-Schemas validieren; Schemas und abgeleitete Typen mit Frontend teilbar.
 - **S3/MinIO:** @aws-sdk/client-s3 oder minio (npm).
-- **Frontend:** Mantine, TanStack Query, React Router; Backend Deltas/Versionierung: diff-match-patch.
+- **Frontend:** Mantine, TanStack Query, React Router. **Versionierung:** Full-Version pro Snapshot; diff-match-patch für Versionsvergleich (Diff-Anzeige rot/grün) in der UI.
 - **Logging:** Pino mit konfigurierbarem Level (`LOG_LEVEL`); in Dev optional Pretty-Format (pino-pretty), in Prod JSON. Siehe [Env-und-Config](Env-und-Config.md). Health-Check-Route für Deploy/Monitoring.
 - **Zentraler Error-Handler:** Fastify `setErrorHandler` für einheitliche Fehlerantworten (Zod → 400, Prisma P2025 → 404, sonst 500).
 - **Optional (später):** Swagger/OpenAPI, Vitest + Supertest, Pandoc im Container für PDF-Worker.

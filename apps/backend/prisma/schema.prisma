@@ -86,6 +86,10 @@ model User {
   documentGrantUser     DocumentGrantUser[]
   pinnedDocumentScopes  DocumentPinnedInScope[]
   createdDocuments      Document[]         @relation("DocumentCreatedBy")
+  documentVersionsCreated  DocumentVersion[]
+  draftRequestsSubmitted  DraftRequest[]   @relation("DraftRequestsSubmitted")
+  draftRequestsMerged     DraftRequest[]   @relation("DraftRequestsMerged")
+  documentDrafts          DocumentDraft[]
   sessions              Session[]
 }
 
@@ -218,24 +222,29 @@ model DocumentPinnedInScope {
 /// Einzelne inhaltliche Einheit (Markdown). Gehört genau einem Kontext (contextId, Schema).
 /// Optional: PDF-Version (pdfUrl, z. B. Export-URL aus MinIO). Zugriff über Grants; Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
 model Document {
-  id             String                   @id @default(cuid())
-  title          String
-  content        String                   @db.Text
-  pdfUrl         String?                  // URL zur PDF-Version (z. B. MinIO/S3 nach Export)
-  contextId      String
-  context        Context                  @relation(fields: [contextId], references: [id], onDelete: Cascade)
-  deletedAt      DateTime?                // Soft delete: aus Listen ausblenden, ggf. wiederherstellbar
-  documentTags   DocumentTag[]
-  grantUser      DocumentGrantUser[]
-  grantTeam      DocumentGrantTeam[]
-  grantDepartment DocumentGrantDepartment[]
-  pinnedInScopes DocumentPinnedInScope[]
-  publishedAt    DateTime?                // optional; Anzeige „Veröffentlicht: [Datum]“
-  description    String?                  @db.Text // optional, Kurzbeschreibung (API: max 500 Zeichen)
-  createdById    String?                  // optional; „Erstellt von“ / Autor
-  createdBy      User?                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+  id                        String                   @id @default(cuid())
+  title                     String
+  content                   String                   @db.Text
+  pdfUrl                    String?                  // URL zur PDF-Version (z. B. MinIO/S3 nach Export)
+  contextId                 String
+  context                   Context                  @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  deletedAt                 DateTime?                // Soft delete: aus Listen ausblenden, ggf. wiederherstellbar
+  documentTags              DocumentTag[]
+  grantUser                 DocumentGrantUser[]
+  grantTeam                 DocumentGrantTeam[]
+  grantDepartment           DocumentGrantDepartment[]
+  pinnedInScopes            DocumentPinnedInScope[]
+  publishedAt               DateTime?                // null = Draft; nur für canWrite sichtbar
+  description               String?                 @db.Text // optional, Kurzbeschreibung (API: max 500 Zeichen)
+  createdById               String?                  // optional; „Erstellt von“ / Autor
+  createdBy                 User?                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  currentPublishedVersionId String?                  @unique // FK auf aktuelle veröffentlichte DocumentVersion (1:1)
+  currentPublishedVersion   DocumentVersion?         @relation("CurrentPublishedVersion", fields: [currentPublishedVersionId], references: [id], onDelete: SetNull)
+  versions                  DocumentVersion[]
+  draftRequests             DraftRequest[]
+  documentDrafts            DocumentDraft[]
 }
 
 /// Tag: scope-gebunden (ownerId → Owner), für Kategorisierung und Filterung. Eindeutigkeit pro Scope: (ownerId, name).
@@ -256,6 +265,73 @@ model DocumentTag {
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
   @@id([documentId, tagId])
+}
+
+// --- Versionierung & PR (vgl. docs/plan/Prisma-Schema-Entwurf.md §8) ---
+
+/// Snapshot einer veröffentlichten Version (Full-Version). Nur bei Publish und bei Merge eines PRs.
+model DocumentVersion {
+  id                        String    @id @default(cuid())
+  documentId                String
+  document                  Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  content                   String    @db.Text
+  versionNumber             Int
+  createdAt                 DateTime  @default(now())
+  createdById               String?
+  createdBy                 User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  parentVersionId           String?
+  parentVersion             DocumentVersion?  @relation("VersionChain", fields: [parentVersionId], references: [id], onDelete: SetNull)
+  childVersions             DocumentVersion[] @relation("VersionChain")
+  currentPublishedForDocument Document?        @relation("CurrentPublishedVersion")
+  draftRequestsAsTarget     DraftRequest[]
+  documentDraftsBasedOn     DocumentDraft[]
+
+  @@index([documentId])
+  @@index([documentId, createdAt])
+}
+
+/// Pull Request: eingereichter Änderungsvorschlag (draftContent). Merge nur durch Scope-Lead.
+enum DraftRequestStatus {
+  open
+  merged
+  rejected
+}
+
+model DraftRequest {
+  id             String            @id @default(cuid())
+  documentId     String
+  document       Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  draftContent   String            @db.Text
+  targetVersionId String?          // Version, gegen die der PR geht; null wenn Dokument noch nie veröffentlicht
+  targetVersion  DocumentVersion?  @relation(fields: [targetVersionId], references: [id], onDelete: SetNull)
+  status         DraftRequestStatus
+  submittedById  String
+  submittedBy    User              @relation("DraftRequestsSubmitted", fields: [submittedById], references: [id], onDelete: Cascade)
+  submittedAt    DateTime          @default(now())
+  mergedAt       DateTime?
+  mergedById     String?
+  mergedBy       User?             @relation("DraftRequestsMerged", fields: [mergedById], references: [id], onDelete: SetNull)
+  comment        String?           @db.Text
+
+  @@index([documentId])
+  @@index([status])
+}
+
+/// Pro-User-Arbeitskopie für Bearbeitung an veröffentlichtem Dokument (basedOnVersionId für „Auf neueste Version updaten“).
+model DocumentDraft {
+  id                 String           @id @default(cuid())
+  documentId         String
+  document           Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content            String           @db.Text
+  basedOnVersionId   String?
+  basedOnVersion     DocumentVersion? @relation(fields: [basedOnVersionId], references: [id], onDelete: SetNull)
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([documentId, userId])
+  @@index([documentId])
+  @@index([userId])
 }
 
 // --- Zugriffsrechte (explizit; vgl. Rechteableitung) ---

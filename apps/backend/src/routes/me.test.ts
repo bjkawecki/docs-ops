@@ -184,4 +184,35 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     const prefs = user.preferences as { recentItemsByScope?: Record<string, unknown[]> } | null;
     expect(prefs?.recentItemsByScope?.[scopeKey]).toHaveLength(2);
   });
+
+  it('GET /api/v1/me/drafts ohne Cookie → 401', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/me/drafts' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('GET /api/v1/me/drafts mit Session und scope=personal → 200 + draftDocuments, openDraftRequests', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: TEST_EMAIL, password: TEST_PASSWORD },
+    });
+    const cookie = getCookieHeader(loginRes);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me/drafts?scope=personal&limit=20&offset=0',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      draftDocuments: unknown[];
+      openDraftRequests: unknown[];
+      limit: number;
+      offset: number;
+    };
+    expect(Array.isArray(body.draftDocuments)).toBe(true);
+    expect(Array.isArray(body.openDraftRequests)).toBe(true);
+    expect(body.limit).toBe(20);
+    expect(body.offset).toBe(0);
+  });
 });

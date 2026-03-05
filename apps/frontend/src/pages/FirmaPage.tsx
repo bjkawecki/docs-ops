@@ -2,8 +2,10 @@ import { Box, Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '
 import { useDisclosure } from '@mantine/hooks';
 import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
+import { DraftsCard } from '../components/DraftsCard';
+import { DraftsTabContent } from '../components/DraftsTabContent';
 import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
 import { useRecentItems } from '../hooks/useRecentItems';
@@ -141,6 +143,7 @@ export function FirmaPage() {
     { value: 'processes', label: 'Processes' },
     { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
+    { value: 'drafts', label: 'Drafts' },
   ];
 
   const [activeTab, setActiveTab] = useState(tabs[0].value);
@@ -153,6 +156,186 @@ export function FirmaPage() {
   const projects = projectsData ?? [];
   const processesPreview = processes.slice(0, 5);
   const projectsPreview = projects.slice(0, 5);
+
+  const overviewPanel = (
+    <Stack gap="md">
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+        <RecentItemsCard items={recentItems} />
+        <Card withBorder padding="md">
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Processes
+            </Text>
+            {effectiveCompanyId == null ? (
+              <Text size="sm" c="dimmed">
+                No company selected.
+              </Text>
+            ) : processesPreview.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No processes yet.
+              </Text>
+            ) : (
+              <Stack gap={4}>
+                {processesPreview.map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/processes/${p.id}`}
+                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                  >
+                    {p.name}
+                  </Link>
+                ))}
+              </Stack>
+            )}
+            <Group justify="flex-end" mt="xs">
+              <Button variant="subtle" size="xs" onClick={() => setActiveTab('processes')}>
+                View more
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+        <Card withBorder padding="md">
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Projects
+            </Text>
+            {effectiveCompanyId == null ? (
+              <Text size="sm" c="dimmed">
+                No company selected.
+              </Text>
+            ) : projectsPreview.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No projects yet.
+              </Text>
+            ) : (
+              <Stack gap={4}>
+                {projectsPreview.map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/projects/${p.id}`}
+                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                  >
+                    {p.name}
+                  </Link>
+                ))}
+              </Stack>
+            )}
+            <Group justify="flex-end" mt="xs">
+              <Button variant="subtle" size="xs" onClick={() => setActiveTab('projects')}>
+                View more
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+        <Card withBorder padding="md">
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Documents
+            </Text>
+            <Text size="sm" c="dimmed">
+              Documents – content to follow.
+            </Text>
+            <Group justify="flex-end" mt="xs">
+              <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
+                View more
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+        {effectiveCompanyId != null && (
+          <DraftsCard
+            scopeParams={{ companyId: effectiveCompanyId }}
+            limit={5}
+            onViewMore={() => setActiveTab('drafts')}
+          />
+        )}
+      </SimpleGrid>
+    </Stack>
+  );
+
+  const processesPanel = (
+    <Stack gap="md">
+      {effectiveCompanyId == null ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No company selected. Contexts are loaded per company.
+          </Text>
+        </Card>
+      ) : processesPending ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            Loading processes…
+          </Text>
+        </Card>
+      ) : processes.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No processes yet. Use "Create" to add one.
+          </Text>
+        </Card>
+      ) : (
+        <ContextGrid>
+          {processes.map((p) => (
+            <ContextCard
+              key={p.id}
+              title={p.name}
+              type="process"
+              href={`/processes/${p.id}`}
+              canManage={canManage}
+              onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
+              onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
+            />
+          ))}
+        </ContextGrid>
+      )}
+    </Stack>
+  );
+
+  const projectsPanel = (
+    <Stack gap="md">
+      {effectiveCompanyId == null ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No company selected.
+          </Text>
+        </Card>
+      ) : projectsPending ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            Loading projects…
+          </Text>
+        </Card>
+      ) : projects.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No projects yet. Use "Create" to add one.
+          </Text>
+        </Card>
+      ) : (
+        <ContextGrid>
+          {projects.map((p) => (
+            <ContextCard
+              key={p.id}
+              title={p.name}
+              type="project"
+              href={`/projects/${p.id}`}
+              canManage={canManage}
+              onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
+              onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
+            />
+          ))}
+        </ContextGrid>
+      )}
+    </Stack>
+  );
+
+  const documentsPanel = (
+    <Card withBorder padding="md">
+      <Text size="sm" c="dimmed">
+        Documents – content to follow.
+      </Text>
+    </Card>
+  );
 
   return (
     <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -197,166 +380,18 @@ export function FirmaPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >
-        <Stack gap="md">
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-            <RecentItemsCard items={recentItems} />
-
-            <Card withBorder padding="md">
-              <Stack gap="xs">
-                <Text fw={600} size="sm">
-                  Processes
-                </Text>
-                {effectiveCompanyId == null ? (
-                  <Text size="sm" c="dimmed">
-                    No company selected.
-                  </Text>
-                ) : processesPreview.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No processes yet.
-                  </Text>
-                ) : (
-                  <Stack gap={4}>
-                    {processesPreview.map((p) => (
-                      <Link
-                        key={p.id}
-                        to={`/processes/${p.id}`}
-                        style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                      >
-                        {p.name}
-                      </Link>
-                    ))}
-                  </Stack>
-                )}
-                <Group justify="flex-end" mt="xs">
-                  <Button variant="subtle" size="xs" onClick={() => setActiveTab('processes')}>
-                    View more
-                  </Button>
-                </Group>
-              </Stack>
-            </Card>
-
-            <Card withBorder padding="md">
-              <Stack gap="xs">
-                <Text fw={600} size="sm">
-                  Projects
-                </Text>
-                {effectiveCompanyId == null ? (
-                  <Text size="sm" c="dimmed">
-                    No company selected.
-                  </Text>
-                ) : projectsPreview.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No projects yet.
-                  </Text>
-                ) : (
-                  <Stack gap={4}>
-                    {projectsPreview.map((p) => (
-                      <Link
-                        key={p.id}
-                        to={`/projects/${p.id}`}
-                        style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                      >
-                        {p.name}
-                      </Link>
-                    ))}
-                  </Stack>
-                )}
-                <Group justify="flex-end" mt="xs">
-                  <Button variant="subtle" size="xs" onClick={() => setActiveTab('projects')}>
-                    View more
-                  </Button>
-                </Group>
-              </Stack>
-            </Card>
-
-            <Card withBorder padding="md">
-              <Stack gap="xs">
-                <Text fw={600} size="sm">
-                  Documents
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Documents – content to follow.
-                </Text>
-                <Group justify="flex-end" mt="xs">
-                  <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
-                    View more
-                  </Button>
-                </Group>
-              </Stack>
-            </Card>
-          </SimpleGrid>
-        </Stack>
-        {effectiveCompanyId == null ? (
-          <Card withBorder padding="md">
-            <Text size="sm" c="dimmed">
-              No company selected. Contexts are loaded per company.
-            </Text>
-          </Card>
-        ) : processesPending ? (
-          <Card withBorder padding="md">
-            <Text size="sm" c="dimmed">
-              Loading processes…
-            </Text>
-          </Card>
-        ) : processes.length === 0 ? (
-          <Card withBorder padding="md">
-            <Text size="sm" c="dimmed">
-              No processes yet. Use "Create" to add one.
-            </Text>
-          </Card>
-        ) : (
-          <ContextGrid>
-            {processes.map((p) => (
-              <ContextCard
-                key={p.id}
-                title={p.name}
-                type="process"
-                href={`/processes/${p.id}`}
-                canManage={canManage}
-                onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
-                onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
-              />
-            ))}
-          </ContextGrid>
-        )}
-        {effectiveCompanyId == null ? (
-          <Card withBorder padding="md">
-            <Text size="sm" c="dimmed">
-              No company selected.
-            </Text>
-          </Card>
-        ) : projectsPending ? (
-          <Card withBorder padding="md">
-            <Text size="sm" c="dimmed">
-              Loading projects…
-            </Text>
-          </Card>
-        ) : projects.length === 0 ? (
-          <Card withBorder padding="md">
-            <Text size="sm" c="dimmed">
-              No projects yet. Use "Create" to add one.
-            </Text>
-          </Card>
-        ) : (
-          <ContextGrid>
-            {projects.map((p) => (
-              <ContextCard
-                key={p.id}
-                title={p.name}
-                type="project"
-                href={`/projects/${p.id}`}
-                canManage={canManage}
-                onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
-                onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
-              />
-            ))}
-          </ContextGrid>
-        )}
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            Documents – content to follow.
-          </Text>
-        </Card>
+        {[
+          <Fragment key="overview">{overviewPanel}</Fragment>,
+          <Fragment key="processes">{processesPanel}</Fragment>,
+          <Fragment key="projects">{projectsPanel}</Fragment>,
+          <Fragment key="documents">{documentsPanel}</Fragment>,
+          <Fragment key="drafts">
+            <DraftsTabContent
+              scopeParams={effectiveCompanyId != null ? { companyId: effectiveCompanyId } : {}}
+              enabled={effectiveCompanyId != null}
+            />
+          </Fragment>,
+        ]}
       </PageWithTabs>
 
       {effectiveCompanyId != null && (

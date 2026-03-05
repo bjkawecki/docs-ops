@@ -7,6 +7,8 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
 import { useRecentItems } from '../hooks/useRecentItems';
+import { DraftsCard } from '../components/DraftsCard';
+import { DraftsTabContent } from '../components/DraftsTabContent';
 import { PageWithTabs } from '../components/PageWithTabs';
 import {
   ContextCard,
@@ -140,6 +142,7 @@ export function PersonalPage() {
     { value: 'processes', label: 'Processes' },
     { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
+    { value: 'drafts', label: 'Drafts' },
   ];
   const [activeTab, setActiveTab] = useState(tabs[0].value);
 
@@ -234,6 +237,11 @@ export function PersonalPage() {
             </Group>
           </Stack>
         </Card>
+        <DraftsCard
+          scopeParams={{ scope: 'personal' }}
+          limit={5}
+          onViewMore={() => setActiveTab('drafts')}
+        />
       </SimpleGrid>
     </Stack>
   );
@@ -376,6 +384,9 @@ export function PersonalPage() {
           <Fragment key="processes">{processesPanel}</Fragment>,
           <Fragment key="projects">{projectsPanel}</Fragment>,
           <Fragment key="documents">{documentsPanel}</Fragment>,
+          <Fragment key="drafts">
+            <DraftsTabContent scopeParams={{ scope: 'personal' }} />
+          </Fragment>,
         ]}
       </PageWithTabs>
 

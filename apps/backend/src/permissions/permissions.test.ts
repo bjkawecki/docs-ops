@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GrantRole } from '../../generated/prisma/client.js';
 import { buildApp } from '../app.js';
 import { prisma } from '../db.js';
-import { canRead, canWrite, canDeleteDocument } from './index.js';
+import {
+  canRead,
+  canWrite,
+  canDeleteDocument,
+  canPublishDocument,
+  canMergeDraftRequest,
+} from './index.js';
 import { hashPassword } from '../auth/password.js';
 
 const TS = `perm-${Date.now()}`;
@@ -27,6 +33,7 @@ describe('Permissions (canRead, canWrite)', () => {
   let teamLeaderId: string;
   let otherUserId: string;
   let writerOnlyUserId: string;
+  let draftRequestId: string;
 
   beforeAll(async () => {
     const pw = await hashPassword('test');
@@ -188,9 +195,20 @@ describe('Permissions (canRead, canWrite)', () => {
         data: { documentId: docProcessId, departmentId, role: GrantRole.Read },
       }),
     ]);
+
+    const draftRequest = await prisma.draftRequest.create({
+      data: {
+        documentId: docProcessId,
+        draftContent: 'Draft content',
+        status: 'open',
+        submittedById: writerOnlyUserId,
+      },
+    });
+    draftRequestId = draftRequest.id;
   });
 
   afterAll(async () => {
+    if (draftRequestId) await prisma.draftRequest.deleteMany({ where: { id: draftRequestId } });
     const docIds = [docProcessId, docPersonalId].filter((id): id is string => id != null);
     if (docIds.length > 0) {
       await prisma.documentGrantUser.deleteMany({
@@ -311,6 +329,45 @@ describe('Permissions (canRead, canWrite)', () => {
 
     it('Dokument nicht vorhanden → canDeleteDocument false', async () => {
       expect(await canDeleteDocument(prisma, adminId, 'non-existent-doc-id')).toBe(false);
+    });
+  });
+
+  describe('canPublishDocument', () => {
+    beforeAll(async () => {
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+    });
+    it('isAdmin → canPublishDocument true', async () => {
+      expect(await canPublishDocument(prisma, adminId, docProcessId)).toBe(true);
+    });
+    it('Scope-Lead (Department Lead) → canPublishDocument true', async () => {
+      expect(await canPublishDocument(prisma, supervisorId, docProcessId)).toBe(true);
+    });
+    it('Personal process owner → canPublishDocument true for document in personal context', async () => {
+      expect(await canPublishDocument(prisma, personalOwnerUserId, docPersonalId)).toBe(true);
+    });
+    it('nur Writer-Grant (kein Lead) → canPublishDocument false', async () => {
+      expect(await canPublishDocument(prisma, writerOnlyUserId, docProcessId)).toBe(false);
+    });
+    it('Dokument nicht vorhanden → canPublishDocument false', async () => {
+      expect(await canPublishDocument(prisma, adminId, 'non-existent-doc-id')).toBe(false);
+    });
+  });
+
+  describe('canMergeDraftRequest', () => {
+    beforeAll(async () => {
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+    });
+    it('isAdmin → canMergeDraftRequest true', async () => {
+      expect(await canMergeDraftRequest(prisma, adminId, draftRequestId)).toBe(true);
+    });
+    it('Scope-Lead (Department Lead) → canMergeDraftRequest true', async () => {
+      expect(await canMergeDraftRequest(prisma, supervisorId, draftRequestId)).toBe(true);
+    });
+    it('nur Writer-Grant (kein Lead) → canMergeDraftRequest false', async () => {
+      expect(await canMergeDraftRequest(prisma, writerOnlyUserId, draftRequestId)).toBe(false);
+    });
+    it('DraftRequest nicht vorhanden → canMergeDraftRequest false', async () => {
+      expect(await canMergeDraftRequest(prisma, adminId, 'non-existent-dr-id')).toBe(false);
     });
   });
 });

@@ -9,6 +9,8 @@ import {
   requireDocumentAccess,
   canDeleteDocument,
   canWrite,
+  canPublishDocument,
+  canMergeDraftRequest,
   DOCUMENT_FOR_PERMISSION_INCLUDE,
 } from '../permissions/index.js';
 import {
@@ -19,12 +21,22 @@ import {
   canCreateTagForOwner,
 } from '../permissions/contextPermissions.js';
 import { type GrantRole } from '../../generated/prisma/client.js';
-import { getReadableCatalogScope } from '../permissions/catalogPermissions.js';
+import {
+  getReadableCatalogScope,
+  getWritableCatalogScope,
+} from '../permissions/catalogPermissions.js';
+import { mergeThreeWay } from '../mergeThreeWay.js';
 import {
   paginationQuerySchema,
   catalogDocumentsQuerySchema,
   contextIdParamSchema,
   documentIdParamSchema,
+  versionIdParamSchema,
+  draftRequestIdParamSchema,
+  createDraftRequestBodySchema,
+  putDraftBodySchema,
+  patchDraftRequestBodySchema,
+  draftRequestsQuerySchema,
   createDocumentBodySchema,
   updateDocumentBodySchema,
   putGrantsUsersBodySchema,
@@ -42,18 +54,33 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const query = catalogDocumentsQuerySchema.parse(request.query);
 
-    const { contextIds, documentIdsFromGrants } = await getReadableCatalogScope(prisma, userId);
+    const [readableScope, writableScope] = await Promise.all([
+      getReadableCatalogScope(prisma, userId),
+      getWritableCatalogScope(prisma, userId),
+    ]);
+    const { contextIds, documentIdsFromGrants } = readableScope;
+    const { contextIds: writableContextIds, documentIdsFromGrants: writableDocumentIdsFromGrants } =
+      writableScope;
 
-    const baseWhere: Record<string, unknown> = {
-      deletedAt: null,
-      OR: [
-        ...(contextIds.length > 0 ? [{ contextId: { in: contextIds } }] : []),
-        ...(documentIdsFromGrants.length > 0 ? [{ id: { in: documentIdsFromGrants } }] : []),
-      ],
-    };
-    if ((baseWhere.OR as unknown[]).length === 0) {
+    const readableOr: unknown[] = [
+      ...(contextIds.length > 0 ? [{ contextId: { in: contextIds } }] : []),
+      ...(documentIdsFromGrants.length > 0 ? [{ id: { in: documentIdsFromGrants } }] : []),
+    ];
+    if (readableOr.length === 0) {
       return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
     }
+
+    const draftVisibleOr: unknown[] = [
+      { publishedAt: { not: null } },
+      ...(writableContextIds.length > 0 ? [{ contextId: { in: writableContextIds } }] : []),
+      ...(writableDocumentIdsFromGrants.length > 0
+        ? [{ id: { in: writableDocumentIdsFromGrants } }]
+        : []),
+    ];
+    const baseWhere: Record<string, unknown> = {
+      deletedAt: null,
+      AND: [{ OR: readableOr }, { OR: draftVisibleOr }],
+    };
 
     const contextConditions: Record<string, unknown>[] = [];
     if (query.contextType === 'process') {
@@ -261,9 +288,18 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      const [writeAllowed, deleteAllowed] = await Promise.all([
+      if (doc.publishedAt == null) {
+        const writeAllowedForDraft = await canWrite(prisma, userId, doc);
+        if (!writeAllowedForDraft) {
+          return reply
+            .status(403)
+            .send({ error: 'Draft documents are only visible to users with write access' });
+        }
+      }
+      const [writeAllowed, deleteAllowed, canPublish] = await Promise.all([
         canWrite(prisma, userId, doc),
         canDeleteDocument(prisma, userId, documentId),
+        canPublishDocument(prisma, userId, documentId),
       ]);
       const owner =
         doc.context.process?.owner ??
@@ -334,6 +370,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
         publishedAt: doc.publishedAt,
+        currentPublishedVersionId: doc.currentPublishedVersionId ?? null,
         description: doc.description,
         createdById: doc.createdById,
         createdByName: doc.createdBy?.name ?? null,
@@ -341,6 +378,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         documentTags: doc.documentTags,
         canWrite: writeAllowed,
         canDelete: deleteAllowed,
+        canPublish,
         scope,
         contextOwnerId,
         contextType,
@@ -354,6 +392,461 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
+  /** POST Publish – Draft als Version 1 veröffentlichen. Nur canPublishDocument; nur wenn publishedAt null. */
+  app.post<{ Params: { documentId: string } }>(
+    '/documents/:documentId/publish',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+
+      const allowed = await canPublishDocument(prisma, userId, documentId);
+      if (!allowed)
+        return reply.status(403).send({ error: 'Permission denied to publish this document' });
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId, deletedAt: null },
+        select: { id: true, publishedAt: true, content: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      if (doc.publishedAt != null)
+        return reply.status(409).send({ error: 'Document is already published' });
+
+      await prisma.$transaction(async (tx) => {
+        const v = await tx.documentVersion.create({
+          data: {
+            documentId,
+            content: doc.content,
+            versionNumber: 1,
+            createdById: userId,
+          },
+          select: { id: true },
+        });
+        await tx.document.update({
+          where: { id: documentId },
+          data: { publishedAt: new Date(), currentPublishedVersionId: v.id },
+        });
+      });
+
+      const updated = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: {
+          id: true,
+          publishedAt: true,
+          currentPublishedVersionId: true,
+        },
+      });
+      return reply.send(updated);
+    }
+  );
+
+  /** GET Versionsliste – alle Versionen des Dokuments (canRead). */
+  app.get<{ Params: { documentId: string } }>(
+    '/documents/:documentId/versions',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId } = documentIdParamSchema.parse(request.params);
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+
+      const versions = await prisma.documentVersion.findMany({
+        where: { documentId },
+        orderBy: { versionNumber: 'desc' },
+        select: {
+          id: true,
+          versionNumber: true,
+          createdAt: true,
+          createdById: true,
+          createdBy: { select: { name: true } },
+        },
+      });
+      const items = versions.map((v) => ({
+        id: v.id,
+        versionNumber: v.versionNumber,
+        createdAt: v.createdAt,
+        createdById: v.createdById ?? null,
+        createdByName: v.createdBy?.name ?? null,
+      }));
+      return reply.send({ items });
+    }
+  );
+
+  /** GET Einzelversion – Inhalt einer Version (canRead auf Dokument). */
+  app.get<{ Params: { documentId: string; versionId: string } }>(
+    '/documents/:documentId/versions/:versionId',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId, versionId } = versionIdParamSchema.parse(request.params);
+
+      const version = await prisma.documentVersion.findFirst({
+        where: { id: versionId, documentId },
+        select: {
+          id: true,
+          documentId: true,
+          content: true,
+          versionNumber: true,
+          createdAt: true,
+          createdById: true,
+          createdBy: { select: { name: true } },
+        },
+      });
+      if (!version) return reply.status(404).send({ error: 'Version not found' });
+
+      return reply.send({
+        id: version.id,
+        documentId: version.documentId,
+        content: version.content,
+        versionNumber: version.versionNumber,
+        createdAt: version.createdAt,
+        createdById: version.createdById ?? null,
+        createdByName: version.createdBy?.name ?? null,
+      });
+    }
+  );
+
+  /** POST Update draft to latest published version (3-way merge). canWrite, published document only. */
+  app.post<{ Params: { documentId: string } }>(
+    '/documents/:documentId/draft/update-to-latest',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId, deletedAt: null },
+        select: { id: true, publishedAt: true, content: true, currentPublishedVersionId: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      if (doc.publishedAt == null)
+        return reply
+          .status(400)
+          .send({ error: 'Update to latest is only for published documents' });
+
+      const draft = await prisma.documentDraft.findUnique({
+        where: { documentId_userId: { documentId, userId } },
+        select: { content: true, basedOnVersionId: true },
+      });
+      if (!draft) return reply.status(404).send({ error: 'No draft found for this document' });
+
+      if (draft.basedOnVersionId === doc.currentPublishedVersionId) {
+        return reply.send({ upToDate: true as const });
+      }
+
+      if (doc.currentPublishedVersionId == null || draft.basedOnVersionId == null) {
+        return reply.send({ upToDate: true as const });
+      }
+
+      const baseVersion = await prisma.documentVersion.findUnique({
+        where: { id: draft.basedOnVersionId, documentId },
+        select: { content: true },
+      });
+      if (!baseVersion)
+        return reply.status(400).send({ error: 'Draft base version no longer exists' });
+
+      let mergedContent: string;
+      let hasConflicts: boolean;
+      try {
+        const result = mergeThreeWay(baseVersion.content, draft.content, doc.content);
+        mergedContent = result.mergedContent;
+        hasConflicts = result.hasConflicts;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return reply.status(500).send({
+          error: 'Merge failed',
+          details: message,
+        });
+      }
+      return reply.send({ mergedContent, hasConflicts });
+    }
+  );
+
+  /** GET User's draft for document (canWrite). 404 if no draft. */
+  app.get<{ Params: { documentId: string } }>(
+    '/documents/:documentId/draft',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+
+      const draft = await prisma.documentDraft.findUnique({
+        where: { documentId_userId: { documentId, userId } },
+        select: {
+          id: true,
+          documentId: true,
+          userId: true,
+          content: true,
+          basedOnVersionId: true,
+          updatedAt: true,
+        },
+      });
+      if (!draft) return reply.status(404).send({ error: 'No draft found for this document' });
+      return reply.send(draft);
+    }
+  );
+
+  /** PUT User's draft – upsert (canWrite, published document only). */
+  app.put<{ Params: { documentId: string } }>(
+    '/documents/:documentId/draft',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const body = putDraftBodySchema.parse(request.body);
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId, deletedAt: null },
+        select: { id: true, publishedAt: true, currentPublishedVersionId: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      if (doc.publishedAt == null)
+        return reply.status(400).send({ error: 'Draft is only for published documents' });
+
+      const updateData: { content: string; basedOnVersionId?: string } = { content: body.content };
+      if (
+        body.basedOnVersionId != null &&
+        body.basedOnVersionId === doc.currentPublishedVersionId
+      ) {
+        updateData.basedOnVersionId = body.basedOnVersionId;
+      }
+      const draft = await prisma.documentDraft.upsert({
+        where: { documentId_userId: { documentId, userId } },
+        create: {
+          documentId,
+          userId,
+          content: body.content,
+          basedOnVersionId: doc.currentPublishedVersionId,
+        },
+        update: updateData,
+        select: {
+          id: true,
+          documentId: true,
+          userId: true,
+          content: true,
+          basedOnVersionId: true,
+          updatedAt: true,
+        },
+      });
+      return reply.send(draft);
+    }
+  );
+
+  /** POST Create draft request (PR) – canWrite, published document. */
+  app.post<{ Params: { documentId: string } }>(
+    '/documents/:documentId/draft-requests',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const body = createDraftRequestBodySchema.parse(request.body);
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId, deletedAt: null },
+        select: { id: true, publishedAt: true, currentPublishedVersionId: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      if (doc.publishedAt == null)
+        return reply.status(400).send({ error: 'Draft requests are only for published documents' });
+
+      const targetVersionId = body.targetVersionId ?? doc.currentPublishedVersionId;
+
+      const draftRequest = await prisma.draftRequest.create({
+        data: {
+          documentId,
+          draftContent: body.draftContent,
+          targetVersionId,
+          status: 'open',
+          submittedById: userId,
+        },
+        select: {
+          id: true,
+          documentId: true,
+          draftContent: true,
+          targetVersionId: true,
+          status: true,
+          submittedById: true,
+          submittedAt: true,
+        },
+      });
+      return reply.status(201).send(draftRequest);
+    }
+  );
+
+  /** GET Draft requests for document (canRead). */
+  app.get<{ Params: { documentId: string } }>(
+    '/documents/:documentId/draft-requests',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const query = draftRequestsQuerySchema.parse(request.query ?? {});
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+
+      const where: { documentId: string; status?: 'open' | 'merged' | 'rejected' } = { documentId };
+      if (query.status) where.status = query.status;
+
+      const requests = await prisma.draftRequest.findMany({
+        where,
+        orderBy: { submittedAt: 'desc' },
+        select: {
+          id: true,
+          documentId: true,
+          draftContent: true,
+          targetVersionId: true,
+          status: true,
+          submittedById: true,
+          submittedAt: true,
+          mergedAt: true,
+          mergedById: true,
+          comment: true,
+          submittedBy: { select: { name: true } },
+        },
+      });
+      const items = requests.map((r) => ({
+        id: r.id,
+        documentId: r.documentId,
+        draftContent: r.draftContent,
+        targetVersionId: r.targetVersionId,
+        status: r.status,
+        submittedById: r.submittedById,
+        submittedAt: r.submittedAt,
+        mergedAt: r.mergedAt ?? null,
+        mergedById: r.mergedById ?? null,
+        comment: r.comment ?? null,
+        submittedByName: r.submittedBy.name,
+      }));
+      return reply.send({ items });
+    }
+  );
+
+  /** PATCH Draft request – merge or reject (canMergeDraftRequest). */
+  app.patch<{ Params: { draftRequestId: string } }>(
+    '/draft-requests/:draftRequestId',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { draftRequestId } = draftRequestIdParamSchema.parse(request.params);
+      const body = patchDraftRequestBodySchema.parse(request.body);
+
+      const canMerge = await canMergeDraftRequest(prisma, userId, draftRequestId);
+      if (!canMerge)
+        return reply
+          .status(403)
+          .send({ error: 'Permission denied to merge or reject this request' });
+
+      const draftRequest = await prisma.draftRequest.findUnique({
+        where: { id: draftRequestId },
+        select: {
+          id: true,
+          documentId: true,
+          draftContent: true,
+          status: true,
+        },
+      });
+      if (!draftRequest) return reply.status(404).send({ error: 'Draft request not found' });
+      if (draftRequest.status !== 'open')
+        return reply.status(409).send({ error: 'Draft request is no longer open' });
+
+      if (body.action === 'merge') {
+        await prisma.$transaction(async (tx) => {
+          const doc = await tx.document.findUnique({
+            where: { id: draftRequest.documentId, deletedAt: null },
+            select: { currentPublishedVersionId: true },
+          });
+          if (!doc) throw new Error('Document not found');
+
+          const maxVersion = await tx.documentVersion.aggregate({
+            where: { documentId: draftRequest.documentId },
+            _max: { versionNumber: true },
+          });
+          const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
+
+          const newVersion = await tx.documentVersion.create({
+            data: {
+              documentId: draftRequest.documentId,
+              content: draftRequest.draftContent,
+              versionNumber: nextVersionNumber,
+              parentVersionId: doc.currentPublishedVersionId,
+              createdById: userId,
+            },
+            select: { id: true },
+          });
+
+          await tx.document.update({
+            where: { id: draftRequest.documentId },
+            data: {
+              content: draftRequest.draftContent,
+              currentPublishedVersionId: newVersion.id,
+            },
+          });
+
+          await tx.draftRequest.update({
+            where: { id: draftRequestId },
+            data: {
+              status: 'merged',
+              mergedAt: new Date(),
+              mergedById: userId,
+              comment: body.comment ?? undefined,
+            },
+          });
+        });
+      } else {
+        await prisma.draftRequest.update({
+          where: { id: draftRequestId },
+          data: {
+            status: 'rejected',
+            mergedById: userId,
+            comment: body.comment ?? undefined,
+          },
+        });
+      }
+
+      const updated = await prisma.draftRequest.findUnique({
+        where: { id: draftRequestId },
+        select: {
+          id: true,
+          status: true,
+          mergedAt: true,
+          mergedById: true,
+          comment: true,
+        },
+      });
+      return reply.send(updated);
+    }
+  );
+
   /** GET Dokumente eines Kontexts – canReadContext, paginiert, ohne gelöschte. */
   app.get(
     '/contexts/:contextId/documents',
@@ -364,12 +857,20 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { contextId } = contextIdParamSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
 
-      const allowed = await canReadContext(prisma, userId, contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No access to this context' });
+      const [readAllowed, writeAllowed] = await Promise.all([
+        canReadContext(prisma, userId, contextId),
+        canWriteContext(prisma, userId, contextId),
+      ]);
+      if (!readAllowed) return reply.status(403).send({ error: 'No access to this context' });
 
+      const documentWhere = {
+        contextId,
+        deletedAt: null,
+        ...(writeAllowed ? {} : { publishedAt: { not: null } }),
+      };
       const [items, total] = await Promise.all([
         prisma.document.findMany({
-          where: { contextId, deletedAt: null },
+          where: documentWhere,
           select: {
             id: true,
             title: true,
@@ -382,7 +883,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           skip: query.offset,
           orderBy: { updatedAt: 'desc' },
         }),
-        prisma.document.count({ where: { contextId, deletedAt: null } }),
+        prisma.document.count({ where: documentWhere }),
       ]);
       return reply.send({ items, total, limit: query.limit, offset: query.offset });
     }

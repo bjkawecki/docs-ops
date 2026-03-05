@@ -25,6 +25,7 @@
     "argon2": "^0.44.0",
     "fastify": "^5.1.0",
     "pg": "^8.13.0",
+    "three-way-merge": "^0.1.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

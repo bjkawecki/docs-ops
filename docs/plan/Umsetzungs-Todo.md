@@ -206,13 +206,11 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 ## 13. Dashboard / Home
 
-Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
+Startseite ohne Quick Links (redundant zur Sidebar). Drei Blöcke (weitere Blöcke siehe §15, §17):
 
 - [x] **Pinned:** Nur **Dokumente** (Flag am Document: „in Liste von Scopes gepinnt“). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle (es gibt nur eine Company). Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell: DocumentPinnedInScope (documentId, scopeType, scopeId, order, pinnedById); siehe [Prisma-Schema-Entwurf §7 (Pinned)](Prisma-Schema-Entwurf.md#7-pinned-geplant); danach API und Dashboard-Block.
 - [x] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
 - [x] **Latest:** Neueste Dokumente, die der Nutzer lesen darf (z. B. Slice aus Catalog, sortiert nach updatedAt, Limit 10).
-- [ ] **Drafts / Pending review:** Unveröffentlichte Dokumente und offene PRs (Details §15); Block sichtbar sobald Drafts/PR-Feature umgesetzt ist.
-- [ ] Optional: Platzhalter für Benachrichtigungen/Updates (später an Async Jobs anbinden).
 
 ---
 
@@ -225,22 +223,61 @@ Startseite ohne Quick Links (redundant zur Sidebar). Vier Blöcke:
 - [x] **Anzeige mit Rechte-Checks:** GET `/documents/:id` liefert `canWrite`/`canDelete`; GET Process/Project liefert `canWriteContext`; UI zeigt Edit/Delete bzw. „New document“ nur bei Berechtigung.
 - [x] **Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten:** Dokumentenliste auf Kontext-Detail-Seite (Process/Project), „New document“-Modal, DocumentPage mit Lese-/Bearbeiten-Modus, PATCH/DELETE; Recent Items beim Öffnen eines Dokuments. Create-Button als Menu (Process | Project | Document); bei Document nur Kontext + Titel im Modal, **kein Redirect** nach Anlegen – Nutzer bleibt auf der Seite.
 - [x] **Subcontext-UI (Unterkontexte unter Projekten):** Auf Projekt-Detailseite Block „Unterkontexte“ mit Liste und „Unterkontext anlegen“; Subcontext-Detailseite (`/subcontexts/:subcontextId`) mit Dokumentenliste, „Neues Dokument“, Bearbeiten/Löschen; GET Subcontext liefert `canWriteContext`; Breadcrumb/Link „Unterkontext von [Projektname]“.
-- [ ] **Drafts-Card im Overview:** Auf den Overview-Seiten (Personal, Company, Department, Team) eine Card „Drafts“ bzw. „Neueste Dokumente“, die die neuesten Dokumente des Scopes anzeigt; nach Anlegen eines Dokuments erscheint es dort. Nach Umsetzung von §15 (draft/published) nur echte Drafts anzeigen.
-- [ ] **Drafts-Tab** auf den Kontext-Seiten (Overview, Processes, Projects, Documents, **Drafts**) für unveröffentlichte Dokumente und PR-Übersicht (Details in §15; Datenmodell für Drafts/PR siehe §15 und [Prisma-Schema-Entwurf](Prisma-Schema-Entwurf.md) §3, §8).
-- [ ] **DocsOps-Anleitung als erstes Dokument im Personal:** Im persönlichen Bereich (in einem Prozess) soll automatisch ein erstes Dokument „Anleitung für DocsOps“ erstellt werden (z. B. bei erstem Aufruf von /personal oder via Seed/Setup). **Pro Scope/Rolle:** Die Anleitung ist rollen- bzw. scope-spezifisch (z. B. Team Lead erhält eine Team-Lead-Anleitung, einfacher Nutzer eine Nutzer-Anleitung, Department Lead eine Department-Lead-Anleitung usw.). **Settings:** In den Einstellungen soll die Anleitungs-Doku pro Scope ausgeblendet werden können (Persistenz in User-Preferences, z. B. `hideGuideInScope?: Record<string, boolean>` oder Liste der ausgeblendeten Scopes).
 
 ---
 
 ## 15. Versionierung & PR-Workflow
 
-Datenmodell für Document-Status und PR/Versionen siehe [Prisma-Schema-Entwurf](Prisma-Schema-Entwurf.md) (§3 Document-Status, §8 Versionierung & PR) und [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md); Umsetzung erst nach Doku-Stand.
+**Versionierung nur für veröffentlichte Dokumente.** Snapshots (Versionen) entstehen ausschließlich (a) bei der **ersten Veröffentlichung** eines Dokuments (Draft → Published) und (b) bei **Merge** eines PRs in die veröffentlichte Version. Keine Versionen für reine Draft-Zustände; Speichern eines Drafts erzeugt keine neue Version.
 
-- [ ] Snapshots pro Änderung (Version = Snapshot), Hash-IDs (Schema: [Prisma-Schema-Entwurf §8](Prisma-Schema-Entwurf.md#8-versionierung--pr-geplant))
-- [ ] Deltas/Deduplizierung (diff-match-patch, Blob-Referenzen)
-- [ ] **Dokument-Status draft/published:** Dokumente mit Status „draft“ (oder `publishedAt == null`); nur für Autor/Schreiber sichtbar; Veröffentlichung durch Scope-Lead (Schema und Sichtbarkeit: [Prisma-Schema-Entwurf §3](Prisma-Schema-Entwurf.md#3-dokumente)).
-- [ ] **Drafts (zwei Arten):** (1) Noch nicht veröffentlichte Dokumente, (2) PRs (eingereichte Änderungen) die auf Merge warten. Leser/Writer reichen PRs ein; **Merge nur Scope-Lead** (Writer-Grant berechtigt nicht zum Mergen; vgl. [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md)).
-- [ ] Merge in Hauptversion; Garbage Collection für alte Drafts (vgl. [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
-- [ ] **Drafts-Tab in der UI:** Auf Scope-Pages (Personal, Company, Department, Team, ggf. Shared) Tab „Drafts“ mit (1) unveröffentlichten Dokumenten, (2) offenen PRs (auf Merge warten); Filter/Unterteilung optional.
+**Workflow:** (1) Draft anlegen. (2) Veröffentlichung eines Drafts → erzeugt ersten Snapshot (Version). (3) Weitere Änderungen → Bearbeitung in einem Draft (Speichern ohne neue Version). (4) Antrag stellen → Draft als PR einreichen. (5) Antrag annehmen (Merge) → Draft wird Teil des veröffentlichten Dokuments → neuer Snapshot (neue Version).
+
+Datenmodell: [Prisma-Schema-Entwurf](Prisma-Schema-Entwurf.md) (§3, §8), [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md). Umsetzung in **Phasen 15a–15e**.
+
+### 15a. Datenmodell, Rechte, Sichtbarkeit (Draft/Published)
+
+Detaillierter Plan: [Plan-15a-Datenmodell-Rechte-Sichtbarkeit](Plan-15a-Datenmodell-Rechte-Sichtbarkeit.md).
+
+- [x] **Prisma-Schema:** Document um `currentPublishedVersionId` (→ DocumentVersion) ergänzen; Modelle **DocumentVersion**, **DraftRequest**, **DocumentDraft** (pro User, mit basedOnVersionId) anlegen. Migration ausführen. Schema: [Prisma-Schema-Entwurf §8](Prisma-Schema-Entwurf.md#8-versionierung--pr-geplant).
+- [x] **Rechte:** `canPublishDocument(prisma, userId, documentId)` und `canMergeDraftRequest(prisma, userId, draftRequestId)` (beide über canWriteContext); Export und Tests.
+- [x] **Sichtbarkeit Draft:** Dokumente mit `publishedAt == null` nur für Nutzer mit `canWrite` (oder isAdmin) sichtbar. **Catalog** und **GET `/documents/:id`** sowie **Listen in Kontexten** anpassen: Filter „published ODER canWrite“ über getWritableCatalogScope (o.ä.), keine N×canWrite. Bei GET document (Draft, Nutzer ohne canWrite): **403 Forbidden** (nicht 404). Response GET document um `canPublish` ergänzen.
+- [x] **Dokument-Status:** `publishedAt: DateTime?` (null = Draft) nutzen; Sichtbarkeit wie oben. [Prisma-Schema-Entwurf §3](Prisma-Schema-Entwurf.md#3-dokumente).
+
+**Ergebnis 15a:** Draft-Dokumente sind nur für Schreiber/Scope-Lead sichtbar; Leser sehen nur veröffentlichte; Basis für Publish/PR in 15b/15c.
+
+### 15b. Publish & Versionen (Snapshot, History, Diff)
+
+- [x] **Snapshots/Full-Version:** Version = Snapshot mit vollem Inhalt; nur bei Veröffentlichung und bei Merge (vgl. §8). Optional: Policy „nur letzte N Versionen“.
+- [x] **API:** POST `/documents/:id/publish` (Scope-Lead), GET `/documents/:id/versions`, GET `/documents/:id/versions/:versionId`.
+- [x] **DocumentPage:** Badge Draft/Published, Button **„Publish“** (wenn canPublish), **History** (Versionsliste), **Versionsvergleich** (zwei Versionen, Diff rot/grün, z. B. diff-match-patch).
+
+**Ergebnis 15b:** Erstes Veröffentlichen erzeugt Version 1; Nutzer können Versionen ansehen und zwei Versionen vergleichen.
+
+### 15c. PR-Workflow & DocumentDraft (pro User)
+
+- [x] **Drafts (zwei Arten):** (1) Unveröffentlichte Dokumente, (2) PRs (eingereichte Änderungen). Nur Writer (und Scope-Lead) reichen PRs ein; Merge nur Scope-Lead (vgl. [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md)).
+- [x] **API:** POST/GET `/documents/:id/draft-requests`, PATCH `/draft-requests/:id` (merge/reject, nur Scope-Lead); Merge in Transaction. GET/PUT `/documents/:id/draft` (DocumentDraft pro User, basedOnVersionId).
+- [x] **DocumentPage:** Bearbeitung an veröffentlichtem Dokument im **DocumentDraft**; Button **„Submit for review“** (PR aus Draft-Inhalt); Scope-Lead: Merge/Reject von PRs.
+- [x] Merge in Hauptversion (wie in §8); Garbage Collection für alte Drafts optional später.
+
+**Ergebnis 15c:** Vollständiger PR-Flow; mehrere offene PRs möglich; DocumentDraft mit basedOnVersionId.
+
+### 15d. „Auf neueste Version updaten“ (3-Wege-Merge, Konflikte)
+
+- [x] **API:** POST `/documents/:id/draft/update-to-latest` (Basis/Theirs/Ours → 3-Wege-Merge; bei Konflikten Response mit mergedContent + Konflikt-Info).
+- [x] **DocumentDraft:** basedOnVersionId beim Anlegen/Öffnen setzen; nach Update: Merged-Text speichern, basedOnVersionId = currentPublishedVersionId.
+- [x] **DocumentPage:** Hinweis „Sie arbeiten mit alter Version“, Button **„Auf neueste Version updaten“**; Konflikte anzeigen und lösen lassen; Merged-Text speichern (vgl. [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
+
+**Ergebnis 15d:** Mehrere Bearbeiter können ihren Draft auf den neuesten Stand bringen; Konflikte werden in der UI aufgelöst.
+
+### 15e. Drafts-Listen-UI (Tab, Card, Dashboard)
+
+- [x] **API:** GET `/api/v1/me/drafts` (Query: scope, companyId, departmentId, teamId; optional scope=shared). Response: draftDocuments, openDraftRequests.
+- [x] **Drafts-Tab:** Auf Scope-Pages (Personal, Company, Department, Team, ggf. Shared) Tab „Drafts“ mit unveröffentlichten Dokumenten und offenen PRs des Scopes.
+- [x] **Drafts-Card:** Auf Overview-Seiten (Personal, Company, Department, Team) Card „Drafts“ (z. B. neueste 5).
+- [x] **Dashboard-Block:** Auf der Startseite Block „Drafts / Pending review“ (aggregiert über alle Scopes).
+
+**Ergebnis 15e:** Zentrale Übersicht über Drafts und offene PRs (Tab, Card, Dashboard).
 
 ---
 
@@ -259,6 +296,7 @@ Datenmodell für Document-Status und PR/Versionen siehe [Prisma-Schema-Entwurf](
 - [ ] Worker-Prozess oder -Container für Jobs
 - [ ] Jobs: Volltext-Index aktualisieren; **Markdown-Dokumente per Pandoc exportierbar** (z. B. PDF); Pandoc-Befehl/Formel konfigurierbar (Details in der Umsetzung); ggf. Benachrichtigungen
 - [ ] Job-Status/Ergebnis (z. B. Download-Link für PDF) für Frontend
+- [ ] **Optional: Dashboard-Platzhalter für Benachrichtigungen/Updates** (später an Async Jobs anbinden)
 
 ---
 
@@ -292,3 +330,4 @@ Datenmodell für Document-Status und PR/Versionen siehe [Prisma-Schema-Entwurf](
 - [ ] **Notifications-UI in Settings:** Notifications-Card in Settings mit konkreten Optionen (E-Mail bei Dokument-Änderungen, PRs, Erinnerungen), Anbindung an Async Jobs / Preferences (vgl. §17).
 - [ ] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) definieren und umsetzen.
 - [ ] **Icons & A11y:** Einheitliche Icon-Bibliothek; Tastatur/Screenreader für Sidebar und Tabs.
+- [ ] **DocsOps-Anleitung im Personal:** Im persönlichen Bereich (in einem Prozess) automatisch ein erstes Dokument „Anleitung für DocsOps“ (z. B. bei erstem Aufruf von /personal oder via Seed/Setup). **Pro Scope/Rolle:** Anleitung rollen-/scope-spezifisch (z. B. Team Lead, Nutzer, Department Lead). **Settings:** Anleitungs-Doku pro Scope ausblendbar (Persistenz in User-Preferences, z. B. `hideGuideInScope`). Hängt vom fertigen Produktstand ab.

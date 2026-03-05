@@ -43,3 +43,25 @@ export const sessionIdParamSchema = z.object({
   sessionId: z.string().min(1, 'Session-ID erforderlich'),
 });
 export type SessionIdParam = z.infer<typeof sessionIdParamSchema>;
+
+/** Query: GET /me/drafts – scope filter (exactly one or none for all), optional limit/offset. */
+const draftsScopeSchema = z
+  .object({
+    scope: z.enum(['personal', 'shared']).optional(),
+    companyId: z.string().cuid().optional(),
+    departmentId: z.string().cuid().optional(),
+    teamId: z.string().cuid().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine(
+    (q) => {
+      const count = [q.scope, q.companyId, q.departmentId, q.teamId].filter(
+        (x) => x != null
+      ).length;
+      return count <= 1;
+    },
+    { message: 'At most one of scope, companyId, departmentId, teamId' }
+  );
+export const meDraftsQuerySchema = draftsScopeSchema;
+export type MeDraftsQuery = z.infer<typeof meDraftsQuerySchema>;

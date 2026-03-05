@@ -31,6 +31,50 @@ export const documentIdParamSchema = z.object({
   documentId: z.cuid(),
 });
 
+/** Params: documentId + versionId (for version routes). */
+export const versionIdParamSchema = z.object({
+  documentId: z.cuid(),
+  versionId: z.cuid(),
+});
+
+/** Params: draftRequestId (for PATCH draft-requests). */
+export const draftRequestIdParamSchema = z.object({
+  draftRequestId: z.cuid(),
+});
+
+/** Body: Create draft request (PR). */
+export const createDraftRequestBodySchema = z.object({
+  draftContent: z.string(),
+  targetVersionId: z.string().cuid().optional(),
+});
+
+/** Body: PUT document draft (upsert user's draft). */
+export const putDraftBodySchema = z.object({
+  content: z.string(),
+  /** When set to currentPublishedVersionId, marks draft as based on latest version (e.g. after update-to-latest). */
+  basedOnVersionId: z.string().cuid().optional(),
+});
+
+/** Body: PATCH draft-request (merge or reject). */
+export const patchDraftRequestBodySchema = z.object({
+  action: z.enum(['merge', 'reject']),
+  comment: z.string().max(2000).optional(),
+});
+
+/** Query: GET draft-requests – optional status filter. */
+export const draftRequestsQuerySchema = z.object({
+  status: z.enum(['open', 'merged', 'rejected']).optional(),
+});
+
+/** Response: POST draft/update-to-latest – either upToDate or merge result. */
+export const updateToLatestResponseSchema = z.discriminatedUnion('upToDate', [
+  z.object({ upToDate: z.literal(true) }),
+  z.object({
+    mergedContent: z.string(),
+    hasConflicts: z.boolean(),
+  }),
+]);
+
 /** Body: Dokument anlegen. */
 export const createDocumentBodySchema = z.object({
   title: z.string().min(1).max(500),

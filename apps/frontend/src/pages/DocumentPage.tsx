@@ -1,4 +1,5 @@
 import {
+  Alert,
   Badge,
   Box,
   Button,
@@ -34,12 +35,18 @@ import {
   IconBuildingSkyscraper,
   IconListCheck,
   IconPencil,
+  IconRefresh,
   IconSitemap,
   IconSubtask,
   IconTarget,
   IconTrash,
   IconUser,
   IconUsersGroup,
+  IconCloudUpload,
+  IconHistory,
+  IconSend,
+  IconCheck,
+  IconX,
 } from '@tabler/icons-react';
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
@@ -106,6 +113,7 @@ type DocumentResponse = {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  currentPublishedVersionId: string | null;
   description: string | null;
   createdById: string | null;
   createdByName: string | null;
@@ -113,6 +121,7 @@ type DocumentResponse = {
   documentTags: { tag: { id: string; name: string } }[];
   canWrite: boolean;
   canDelete: boolean;
+  canPublish?: boolean;
   scope: DocumentScope | null;
   contextOwnerId?: string | null;
   contextType?: 'process' | 'project';
@@ -122,6 +131,11 @@ type DocumentResponse = {
   contextProjectName?: string | null;
   subcontextId?: string | null;
   subcontextName?: string | null;
+};
+
+type DraftResponse = {
+  content: string;
+  basedOnVersionId: string | null;
 };
 
 export function DocumentPage() {
@@ -141,6 +155,13 @@ export function DocumentPage() {
   const [manageTagsOpened, { open: openManageTags, close: closeManageTags }] = useDisclosure(false);
   const [newTagName, setNewTagName] = useState('');
   const [createTagLoading, setCreateTagLoading] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
+  const [mergingRequestId, setMergingRequestId] = useState<string | null>(null);
+  /** Set when loading draft in edit mode; used to show "update to latest" banner when behind published version. */
+  const [draftBasedOnVersionId, setDraftBasedOnVersionId] = useState<string | null>(null);
+  const [updateToLatestLoading, setUpdateToLatestLoading] = useState(false);
+  const [hasConflictMarkers, setHasConflictMarkers] = useState(false);
   const editContentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const slugCountsRef = useRef<Record<string, number>>({});
 
@@ -170,6 +191,24 @@ export function DocumentPage() {
 
   const tags = tagsData ?? [];
   const tagOptions = tags.map((t) => ({ value: t.id, label: t.name }));
+
+  const { data: draftRequestsData } = useQuery({
+    queryKey: ['document-draft-requests', documentId, 'open'],
+    queryFn: async () => {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/draft-requests?status=open`);
+      if (!res.ok) throw new Error('Failed to load draft requests');
+      return res.json() as Promise<{
+        items: {
+          id: string;
+          status: string;
+          submittedByName: string;
+          submittedAt: string;
+        }[];
+      }>;
+    },
+    enabled: !!documentId && !!data,
+  });
+  const openDraftRequests = draftRequestsData?.items ?? [];
 
   useEffect(() => {
     if (data) {
@@ -267,29 +306,257 @@ export function DocumentPage() {
   };
 
   const handleSave = async () => {
-    if (!documentId) return;
+    if (!documentId || !data) return;
     setSaveLoading(true);
     try {
-      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+      if (data.publishedAt) {
+        const res = await apiFetch(`/api/v1/documents/${documentId}/draft`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: editContent }),
+        });
+        if (res.ok) {
+          notifications.show({
+            title: 'Saved',
+            message: 'Draft was saved.',
+            color: 'green',
+          });
+        } else {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          notifications.show({
+            title: 'Error',
+            message: body?.error ?? res.statusText,
+            color: 'red',
+          });
+        }
+      } else {
+        const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: editTitle.trim() || data.title,
+            content: editContent,
+            ...(editDescription.trim()
+              ? { description: editDescription.trim() }
+              : { description: null }),
+            tagIds: editTagIds,
+          }),
+        });
+        if (res.ok) {
+          void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+          void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+          void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+          setMode('view');
+          notifications.show({
+            title: 'Saved',
+            message: 'Document was updated.',
+            color: 'green',
+          });
+        } else {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          notifications.show({
+            title: 'Error',
+            message: body?.error ?? res.statusText,
+            color: 'red',
+          });
+        }
+      }
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleEditClick = async () => {
+    if (data?.publishedAt && documentId) {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/draft`);
+      if (res.ok) {
+        const draft = (await res.json()) as DraftResponse;
+        setEditContent(draft.content);
+        setDraftBasedOnVersionId(draft.basedOnVersionId ?? null);
+        setHasConflictMarkers(false);
+      } else {
+        setDraftBasedOnVersionId(null);
+      }
+    }
+    setMode('edit');
+  };
+
+  const handleSubmitForReview = async () => {
+    if (!documentId) return;
+    setSubmitReviewLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/draft-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftContent: editContent }),
+      });
+      if (res.status === 201) {
+        void queryClient.invalidateQueries({ queryKey: ['document-draft-requests', documentId] });
+        notifications.show({
+          title: 'Submitted for review',
+          message: 'Your changes have been submitted for review.',
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setSubmitReviewLoading(false);
+    }
+  };
+
+  const handleMergeReject = async (draftRequestId: string, action: 'merge' | 'reject') => {
+    setMergingRequestId(draftRequestId);
+    try {
+      const res = await apiFetch(`/api/v1/draft-requests/${draftRequestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editTitle.trim() || data!.title,
-          content: editContent,
-          ...(editDescription.trim()
-            ? { description: editDescription.trim() }
-            : { description: null }),
-          tagIds: editTagIds,
-        }),
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        void queryClient.invalidateQueries({ queryKey: ['document-draft-requests', documentId] });
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        notifications.show({
+          title: action === 'merge' ? 'Merged' : 'Rejected',
+          message: `Draft request ${action === 'merge' ? 'merged' : 'rejected'}.`,
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setMergingRequestId(null);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!documentId) return;
+    setPublishLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/publish`, {
+        method: 'POST',
       });
       if (res.ok) {
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
         void queryClient.invalidateQueries({ queryKey: ['contexts'] });
-        setMode('view');
+        notifications.show({
+          title: 'Published',
+          message: 'Document was published.',
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setPublishLoading(false);
+    }
+  };
+
+  const handleUpdateToLatest = async () => {
+    if (!documentId || !data?.currentPublishedVersionId) return;
+    setUpdateToLatestLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/draft/update-to-latest`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+        return;
+      }
+      const body = (await res.json()) as
+        | { upToDate: true }
+        | { mergedContent: string; hasConflicts: boolean };
+      if ('upToDate' in body && body.upToDate) {
+        setDraftBasedOnVersionId(data.currentPublishedVersionId);
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        notifications.show({
+          title: 'Up to date',
+          message: 'Your draft is already based on the latest version.',
+          color: 'blue',
+        });
+        return;
+      }
+      const mergeResult = body as { mergedContent: string; hasConflicts: boolean };
+      setEditContent(mergeResult.mergedContent);
+      setHasConflictMarkers(mergeResult.hasConflicts);
+      const putRes = await apiFetch(`/api/v1/documents/${documentId}/draft`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: mergeResult.mergedContent,
+          basedOnVersionId: data.currentPublishedVersionId,
+        }),
+      });
+      if (putRes.ok) {
+        setDraftBasedOnVersionId(data.currentPublishedVersionId);
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        if (mergeResult.hasConflicts) {
+          notifications.show({
+            title: 'Merge completed with conflicts',
+            message:
+              'Conflict markers were inserted. Resolve them in the editor, then save to mark as up to date.',
+            color: 'yellow',
+          });
+        } else {
+          notifications.show({
+            title: 'Updated',
+            message: 'Draft is now based on the latest published version.',
+            color: 'green',
+          });
+        }
+      } else {
+        const errBody = (await putRes.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: errBody?.error ?? putRes.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setUpdateToLatestLoading(false);
+    }
+  };
+
+  const handleSaveAndMarkUpToDate = async () => {
+    if (!documentId || !data?.currentPublishedVersionId) return;
+    setSaveLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/draft`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: editContent,
+          basedOnVersionId: data.currentPublishedVersionId,
+        }),
+      });
+      if (res.ok) {
+        setDraftBasedOnVersionId(data.currentPublishedVersionId);
+        setHasConflictMarkers(false);
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         notifications.show({
           title: 'Saved',
-          message: 'Document was updated.',
+          message: 'Draft saved and marked as based on latest version.',
           color: 'green',
         });
       } else {
@@ -426,6 +693,26 @@ export function DocumentPage() {
   const ScopeIcon = scopeIcon ?? IconUser;
 
   const metadataItems: ReactNode[] = [];
+  if (data.publishedAt) {
+    metadataItems.push(
+      <Group key="status" gap="xs" align="center">
+        <Badge size="sm" variant="light" color="green">
+          Published
+        </Badge>
+        <Text size="sm" c="dimmed" span>
+          {new Date(data.publishedAt).toLocaleDateString(undefined)}
+        </Text>
+      </Group>
+    );
+  } else {
+    metadataItems.push(
+      <Group key="status" gap="xs" align="center">
+        <Badge size="sm" variant="light" color="gray">
+          Draft
+        </Badge>
+      </Group>
+    );
+  }
   if (scope) {
     metadataItems.push(
       <Group key="owner" gap="xs" align="center">
@@ -466,18 +753,6 @@ export function DocumentPage() {
           leftSection={<ContextIcon size={12} />}
         >
           {contextMeta.name}
-        </Badge>
-      </Group>
-    );
-  }
-  if (data.publishedAt) {
-    metadataItems.push(
-      <Group key="pub" gap="xs" align="center">
-        <Text size="sm" c="dimmed" span>
-          Published:{' '}
-        </Text>
-        <Badge size="sm" variant="light">
-          {new Date(data.publishedAt).toLocaleDateString(undefined)}
         </Badge>
       </Group>
     );
@@ -542,6 +817,17 @@ export function DocumentPage() {
                   <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
                     Save
                   </Button>
+                  {hasConflictMarkers && data?.currentPublishedVersionId && (
+                    <Button
+                      size="sm"
+                      variant="light"
+                      color="green"
+                      loading={saveLoading}
+                      onClick={() => void handleSaveAndMarkUpToDate()}
+                    >
+                      Save and mark as up to date
+                    </Button>
+                  )}
                 </>
               )}
               {data.canWrite && mode === 'view' && (
@@ -549,9 +835,20 @@ export function DocumentPage() {
                   variant="light"
                   size="sm"
                   leftSection={<IconPencil size={14} />}
-                  onClick={() => setMode('edit')}
+                  onClick={() => void handleEditClick()}
                 >
                   Edit
+                </Button>
+              )}
+              {data.canWrite && data.publishedAt && mode === 'edit' && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconSend size={14} />}
+                  loading={submitReviewLoading}
+                  onClick={() => void handleSubmitForReview()}
+                >
+                  Submit for review
                 </Button>
               )}
               {data.canDelete && (
@@ -565,9 +862,98 @@ export function DocumentPage() {
                   Delete
                 </Button>
               )}
+              {data.canPublish && !data.publishedAt && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  color="green"
+                  leftSection={<IconCloudUpload size={14} />}
+                  loading={publishLoading}
+                  onClick={() => void handlePublish()}
+                >
+                  Publish
+                </Button>
+              )}
+              <Button
+                variant="light"
+                size="sm"
+                component={Link}
+                to={`/documents/${documentId}/versions`}
+                leftSection={<IconHistory size={14} />}
+              >
+                History
+              </Button>
             </Group>
           }
         />
+
+        {data?.publishedAt &&
+          mode === 'edit' &&
+          draftBasedOnVersionId != null &&
+          data.currentPublishedVersionId != null &&
+          draftBasedOnVersionId !== data.currentPublishedVersionId && (
+            <Alert
+              variant="light"
+              color="yellow"
+              title="Editing based on older version"
+              style={{ marginBottom: 'var(--mantine-spacing-md)' }}
+            >
+              <Text size="sm" mb="xs">
+                You are editing based on an older version. Update to the latest published version to
+                avoid conflicts.
+              </Text>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconRefresh size={14} />}
+                loading={updateToLatestLoading}
+                onClick={() => void handleUpdateToLatest()}
+              >
+                Update to latest version
+              </Button>
+            </Alert>
+          )}
+
+        {openDraftRequests.length > 0 && (
+          <Card withBorder padding="md" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
+            <Text size="sm" fw={500} mb="xs">
+              Pending review
+            </Text>
+            <Stack gap="xs">
+              {openDraftRequests.map((pr) => (
+                <Group key={pr.id} justify="space-between" wrap="nowrap">
+                  <Text size="sm">
+                    PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
+                  </Text>
+                  {data.canPublish && (
+                    <Group gap="xs">
+                      <Button
+                        variant="light"
+                        size="compact-xs"
+                        color="green"
+                        leftSection={<IconCheck size={12} />}
+                        loading={mergingRequestId === pr.id}
+                        onClick={() => void handleMergeReject(pr.id, 'merge')}
+                      >
+                        Merge
+                      </Button>
+                      <Button
+                        variant="light"
+                        size="compact-xs"
+                        color="red"
+                        leftSection={<IconX size={12} />}
+                        loading={mergingRequestId === pr.id}
+                        onClick={() => void handleMergeReject(pr.id, 'reject')}
+                      >
+                        Reject
+                      </Button>
+                    </Group>
+                  )}
+                </Group>
+              ))}
+            </Stack>
+          </Card>
+        )}
 
         <Stack gap="lg">
           {mode === 'view' ? (
@@ -708,6 +1094,18 @@ export function DocumentPage() {
                             },
                           }}
                         />
+                        {hasConflictMarkers && (
+                          <Alert variant="light" color="yellow" mt="sm" title="Conflict markers">
+                            <Text size="sm">
+                              The text contains conflict markers (
+                              <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>,{' '}
+                              <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot; is your
+                              draft, &quot;Theirs&quot; is the current published version. Resolve by
+                              editing the text (keep one version or combine), then click &quot;Save
+                              and mark as up to date&quot;.
+                            </Text>
+                          </Alert>
+                        )}
                       </Box>
                       <Box
                         style={{

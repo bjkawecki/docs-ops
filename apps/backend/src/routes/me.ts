@@ -12,8 +12,15 @@ import {
   patchPreferencesBodySchema,
   patchAccountBodySchema,
   sessionIdParamSchema,
+  meDraftsQuerySchema,
+  type MeDraftsQuery,
 } from './schemas/me.js';
 import { paginationQuerySchema, type PaginationQuery } from './schemas/organisation.js';
+import {
+  getReadableCatalogScope,
+  getWritableCatalogScope,
+} from '../permissions/catalogPermissions.js';
+import type { PrismaClient } from '../../generated/prisma/client.js';
 
 /** Ein Eintrag in „Zuletzt angesehene“ (process/project/document). */
 export type RecentPreferencesItem = {
@@ -30,6 +37,104 @@ export type UserPreferences = {
   /** Pro Scope (company/department/team) eine Liste; Key z. B. "company:cid", "department:did", "team:tid". */
   recentItemsByScope?: Record<string, RecentPreferencesItem[]>;
 };
+
+/** Scope for GET /me/drafts: context IDs and grant-based document IDs in that scope. */
+async function getDraftsScope(
+  prisma: PrismaClient,
+  userId: string,
+  query: MeDraftsQuery
+): Promise<{ scopeContextIds: string[]; scopeDocumentIds: string[] }> {
+  if (!query.scope && !query.companyId && !query.departmentId && !query.teamId) {
+    const readable = await getReadableCatalogScope(prisma, userId);
+    return {
+      scopeContextIds: readable.contextIds,
+      scopeDocumentIds: readable.documentIdsFromGrants,
+    };
+  }
+  if (query.scope === 'personal') {
+    const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
+      prisma.process.findMany({
+        where: { deletedAt: null, owner: { ownerUserId: userId } },
+        select: { contextId: true },
+      }),
+      prisma.project.findMany({
+        where: { deletedAt: null, owner: { ownerUserId: userId } },
+        select: { contextId: true },
+      }),
+      prisma.subcontext.findMany({
+        where: { project: { owner: { ownerUserId: userId } } },
+        select: { contextId: true },
+      }),
+    ]);
+    const scopeContextIds = [
+      ...processContexts.map((p) => p.contextId),
+      ...projectContexts.map((p) => p.contextId),
+      ...subcontextContexts.map((s) => s.contextId),
+    ];
+    return { scopeContextIds, scopeDocumentIds: [] };
+  }
+  if (query.scope === 'shared') {
+    const [userGrantDocIds, teamGrantDocIds, deptGrantDocIds] = await Promise.all([
+      prisma.documentGrantUser
+        .findMany({ where: { userId }, select: { documentId: true } })
+        .then((rows) => rows.map((r) => r.documentId)),
+      prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }).then((teamIds) =>
+        prisma.documentGrantTeam
+          .findMany({
+            where: { teamId: { in: teamIds.map((t) => t.teamId) } },
+            select: { documentId: true },
+          })
+          .then((rows) => rows.map((r) => r.documentId))
+      ),
+      prisma.teamMember
+        .findMany({
+          where: { userId },
+          include: { team: { select: { departmentId: true } } },
+        })
+        .then((members) => [...new Set(members.map((m) => m.team.departmentId))])
+        .then((departmentIds) =>
+          departmentIds.length === 0
+            ? Promise.resolve([] as string[])
+            : prisma.documentGrantDepartment
+                .findMany({
+                  where: { departmentId: { in: departmentIds } },
+                  select: { documentId: true },
+                })
+                .then((rows) => rows.map((r) => r.documentId))
+        ),
+    ]);
+    const scopeDocumentIds = [
+      ...new Set([...userGrantDocIds, ...teamGrantDocIds, ...deptGrantDocIds]),
+    ];
+    return { scopeContextIds: [], scopeDocumentIds };
+  }
+  const ownerFilter =
+    query.companyId != null
+      ? { companyId: query.companyId }
+      : query.departmentId != null
+        ? { departmentId: query.departmentId }
+        : { teamId: query.teamId! };
+  const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { deletedAt: null, owner: ownerFilter },
+      select: { contextId: true },
+    }),
+    prisma.project.findMany({
+      where: { deletedAt: null, owner: ownerFilter },
+      select: { contextId: true },
+    }),
+    prisma.subcontext.findMany({
+      where: { project: { owner: ownerFilter } },
+      select: { contextId: true },
+    }),
+  ]);
+  const scopeContextIds = [
+    ...processContexts.map((p) => p.contextId),
+    ...projectContexts.map((p) => p.contextId),
+    ...subcontextContexts.map((s) => s.contextId),
+  ];
+  return { scopeContextIds, scopeDocumentIds: [] };
+}
 
 /** Ein Team-Eintrag in der Identity (mit Rolle). */
 export type MeIdentityTeam = {
@@ -285,6 +390,107 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       }),
     ]);
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
+  });
+
+  /** GET /api/v1/me/drafts – Draft documents and open draft requests in scope (or all). */
+  app.get('/me/drafts', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
+    const query = meDraftsQuerySchema.parse(request.query);
+
+    const [scope, writable, readable] = await Promise.all([
+      getDraftsScope(prisma, userId, query),
+      getWritableCatalogScope(prisma, userId),
+      getReadableCatalogScope(prisma, userId),
+    ]);
+
+    const writableCtxSet = new Set(writable.contextIds);
+    const writableDocSet = new Set(writable.documentIdsFromGrants);
+    const readableCtxSet = new Set(readable.contextIds);
+    const readableDocSet = new Set(readable.documentIdsFromGrants);
+
+    const inScopeWritableContextIds = scope.scopeContextIds.filter((c) => writableCtxSet.has(c));
+    const inScopeWritableDocIds = scope.scopeDocumentIds.filter((d) => writableDocSet.has(d));
+    const inScopeReadableContextIds = scope.scopeContextIds.filter((c) => readableCtxSet.has(c));
+    const inScopeReadableDocIdsFromGrants = scope.scopeDocumentIds.filter((d) =>
+      readableDocSet.has(d)
+    );
+
+    const draftDocWhere =
+      inScopeWritableContextIds.length > 0 || inScopeWritableDocIds.length > 0
+        ? {
+            deletedAt: null,
+            publishedAt: null,
+            OR: [
+              ...(inScopeWritableContextIds.length > 0
+                ? [{ contextId: { in: inScopeWritableContextIds } }]
+                : []),
+              ...(inScopeWritableDocIds.length > 0 ? [{ id: { in: inScopeWritableDocIds } }] : []),
+            ] as { contextId?: { in: string[] }; id?: { in: string[] } }[],
+          }
+        : null;
+
+    const draftDocuments = draftDocWhere
+      ? await prisma.document.findMany({
+          where: draftDocWhere,
+          select: {
+            id: true,
+            title: true,
+            contextId: true,
+            updatedAt: true,
+            createdAt: true,
+          },
+          take: query.limit,
+          skip: query.offset,
+          orderBy: { updatedAt: 'desc' },
+        })
+      : [];
+
+    let readableDocIdsInScope: string[] = [...inScopeReadableDocIdsFromGrants];
+    if (inScopeReadableContextIds.length > 0) {
+      const fromContexts = await prisma.document.findMany({
+        where: { contextId: { in: inScopeReadableContextIds }, deletedAt: null },
+        select: { id: true },
+      });
+      readableDocIdsInScope = [
+        ...new Set([...readableDocIdsInScope, ...fromContexts.map((d) => d.id)]),
+      ];
+    }
+    const openDraftRequests =
+      readableDocIdsInScope.length > 0
+        ? await prisma.draftRequest.findMany({
+            where: {
+              status: 'open',
+              documentId: { in: readableDocIdsInScope },
+            },
+            select: {
+              id: true,
+              documentId: true,
+              submittedAt: true,
+              status: true,
+              document: { select: { title: true } },
+              submittedBy: { select: { id: true, name: true } },
+            },
+            orderBy: { submittedAt: 'desc' },
+            take: query.limit,
+            skip: query.offset,
+          })
+        : [];
+
+    return reply.send({
+      draftDocuments,
+      openDraftRequests: openDraftRequests.map((dr) => ({
+        id: dr.id,
+        documentId: dr.documentId,
+        documentTitle: dr.document.title,
+        submittedById: dr.submittedBy.id,
+        submittedByName: dr.submittedBy.name,
+        submittedAt: dr.submittedAt,
+        status: dr.status,
+      })),
+      limit: query.limit,
+      offset: query.offset,
+    });
   });
 
   /** PATCH /api/v1/me – eigenes Profil (nur Anzeigename). */

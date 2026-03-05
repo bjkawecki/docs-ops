@@ -14,6 +14,7 @@ import { ProcessContextPage } from './pages/ProcessContextPage';
 import { ProjectContextPage } from './pages/ProjectContextPage';
 import { SubcontextDetailPage } from './pages/SubcontextDetailPage';
 import { DocumentPage } from './pages/DocumentPage';
+import { DocumentVersionsPage } from './pages/DocumentVersionsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AuthGuard } from './components/AuthGuard';
@@ -62,6 +63,7 @@ function App() {
           </Route>
           <Route path="subcontexts/:subcontextId" element={<SubcontextDetailPage />} />
           <Route path="documents/:documentId" element={<DocumentPage />} />
+          <Route path="documents/:documentId/versions" element={<DocumentVersionsPage />} />
           <Route path="templates" element={<Navigate to="/" replace />} />
           <Route
             path="admin"

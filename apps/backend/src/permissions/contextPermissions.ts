@@ -158,7 +158,7 @@ export async function canCreateProcessOrProjectForOwner(
 
 /**
  * Checks if the user may write the context (create/edit/delete Process/Project/Subcontext).
- * isAdmin; or Owner of personal context (ownerUserId); or Department/Team Lead of owner unit.
+ * isAdmin; or Owner of personal context (ownerUserId); or Company/Department/Team Lead of owner unit.
  */
 export async function canWriteContext(
   prisma: PrismaClient,
@@ -173,9 +173,13 @@ export async function canWriteContext(
 
   if (user.isAdmin) return true;
 
-  const { departmentId, teamId, ownerUserId } = getOwnerFromContext(ctx);
+  const { companyId, departmentId, teamId, ownerUserId } = getOwnerFromContext(ctx);
   if (ownerUserId !== null && ownerUserId === userId) return true;
 
+  if (companyId) {
+    const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
+    if (isCompanyLead) return true;
+  }
   if (departmentId) {
     const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
     if (isDeptLead) return true;
