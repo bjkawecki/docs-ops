@@ -1,5 +1,7 @@
 export { ContextCard } from './ContextCard';
 export type { ContextCardProps } from './ContextCard';
+export { CreateContextMenu } from './CreateContextMenu';
+export type { CreateContextMenuProps } from './CreateContextMenu';
 export { ContextGrid } from './ContextGrid';
 export type { ContextGridProps } from './ContextGrid';
 export { NewContextModal } from './NewContextModal';

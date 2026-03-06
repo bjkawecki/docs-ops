@@ -231,7 +231,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         setNewDocContent('');
         setNewDocTagIds([]);
         notifications.show({
-          title: 'Document created',
+          title: 'Draft created',
           message: 'Redirecting to document.',
           color: 'green',
         });
@@ -330,7 +330,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           <Group gap="xs">
             {data.canWriteContext && (
               <Button variant="light" size="sm" onClick={openNewDoc}>
-                New document
+                New draft
               </Button>
             )}
             {canManage && (
@@ -444,13 +444,13 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         </Stack>
       </Modal>
 
-      <Modal opened={newDocOpened} onClose={closeNewDoc} title="New document" centered>
+      <Modal opened={newDocOpened} onClose={closeNewDoc} title="New draft" centered>
         <Stack gap="md">
           <TextInput
             label="Title"
             value={newDocTitle}
             onChange={(e) => setNewDocTitle(e.currentTarget.value)}
-            placeholder="Document title"
+            placeholder="Draft title"
             required
           />
           <Textarea

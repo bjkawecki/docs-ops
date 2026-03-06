@@ -132,8 +132,8 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
         onSuccess?.();
         handleClose();
         notifications.show({
-          title: 'Document created',
-          message: 'Redirecting to document.',
+          title: 'Draft created',
+          message: 'Redirecting to draft.',
           color: 'green',
         });
         void navigate(`/documents/${doc.id}`);
@@ -151,7 +151,7 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
   };
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="New document" size="sm">
+    <Modal opened={opened} onClose={handleClose} title="New draft" size="sm">
       <Stack gap="md">
         <Select
           label="Context (Process or Project)"
@@ -168,7 +168,7 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
         )}
         <TextInput
           label="Title"
-          placeholder="Document title"
+          placeholder="Draft title"
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
           required

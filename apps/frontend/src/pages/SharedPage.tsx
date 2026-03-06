@@ -1,4 +1,4 @@
-import { Box, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';

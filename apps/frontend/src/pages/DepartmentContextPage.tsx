@@ -1,6 +1,5 @@
-import { Box, Button, Card, Group, Menu, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconFileText, IconFolder, IconPlus } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -13,6 +12,7 @@ import { PageWithTabs } from '../components/PageWithTabs';
 import {
   ContextCard,
   ContextGrid,
+  CreateContextMenu,
   EditContextNameModal,
   NewContextModal,
   NewDocumentModal,
@@ -339,36 +339,17 @@ export function DepartmentContextPage() {
         description="Contexts and content for the department."
         actions={
           departmentId && canManage ? (
-            <Menu position="bottom-end" shadow="md">
-              <Menu.Target>
-                <Button variant="light" size="sm" leftSection={<IconPlus size={16} />}>
-                  Create
-                </Button>
-              </Menu.Target>
-              <Menu.Dropdown>
-                <Menu.Item
-                  leftSection={<IconFolder size={16} />}
-                  onClick={() => {
-                    setContextInitialType('process');
-                    openContextModal();
-                  }}
-                >
-                  Process
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={<IconFolder size={16} />}
-                  onClick={() => {
-                    setContextInitialType('project');
-                    openContextModal();
-                  }}
-                >
-                  Project
-                </Menu.Item>
-                <Menu.Item leftSection={<IconFileText size={16} />} onClick={openDocumentModal}>
-                  Document
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
+            <CreateContextMenu
+              onCreateProcess={() => {
+                setContextInitialType('process');
+                openContextModal();
+              }}
+              onCreateProject={() => {
+                setContextInitialType('project');
+                openContextModal();
+              }}
+              onCreateDraft={openDocumentModal}
+            />
           ) : null
         }
         tabs={tabs}
