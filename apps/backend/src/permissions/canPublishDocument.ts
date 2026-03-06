@@ -15,5 +15,7 @@ export async function canPublishDocument(
     select: { contextId: true },
   });
   if (!doc) return false;
+  // Publish only allowed when document has a context (context-free drafts must assign context first)
+  if (doc.contextId == null) return false;
   return canWriteContext(prisma, userId, doc.contextId);
 }

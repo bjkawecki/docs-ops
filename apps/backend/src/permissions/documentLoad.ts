@@ -73,12 +73,13 @@ type OwnerFragment = {
 /** Document loaded with DOCUMENT_FOR_PERMISSION_INCLUDE (for canRead/canWrite). */
 export type DocumentForPermission = {
   id: string;
-  contextId: string;
+  contextId: string | null;
+  createdById: string | null;
   context: {
     process: { owner: OwnerFragment } | null;
     project: { owner: OwnerFragment } | null;
     subcontext: { project: { owner: OwnerFragment } } | null;
-  };
+  } | null;
   grantUser: { userId: string; role: GrantRole }[];
   grantTeam: { teamId: string; role: GrantRole }[];
   grantDepartment: { departmentId: string; role: GrantRole }[];

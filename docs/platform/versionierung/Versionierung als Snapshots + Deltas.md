@@ -33,6 +33,7 @@ Unter „Drafts“ werden zwei Dinge verstanden: (1) **Dokument-Status „draft�
 
 ## 4. Rechte & Ownership
 
+- **Kontextfreie Drafts:** Veröffentlichung und PR-Workflow setzen einen **zugewiesenen Kontext** voraus. Kontextfreie Drafts (contextId null) müssen zuerst per PATCH contextId einem Kontext zugeordnet werden, bevor sie veröffentlicht oder in den PR-Flow genommen werden können.
 - Ownership: Abteilung, Team oder Nutzer → Verantwortlichkeit, nicht automatisch Zugriff.
 - **PR einreichen:** Nur **Writer** (und Scope-Lead) dürfen Drafts/PRs erstellen. **Merge:** ausschließlich **Scope-Lead** (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin). Writer-Grant berechtigt nicht zum Mergen (vgl. [Rechtesystem 6b](../datenmodell/Rechtesystem.md)).
 - Drafts sind nur für Nutzer sichtbar, die Zugriff auf das Dokument haben.

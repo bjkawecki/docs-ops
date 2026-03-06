@@ -12,7 +12,7 @@ export type MeDraftsScopeParams =
 export type DraftDocumentItem = {
   id: string;
   title: string;
-  contextId: string;
+  contextId: string | null;
   updatedAt: string;
   createdAt?: string;
 };

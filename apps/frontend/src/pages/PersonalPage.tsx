@@ -383,6 +383,7 @@ export function PersonalPage() {
         onClose={closeDocumentModal}
         scope={PERSONAL_SCOPE}
         onSuccess={invalidateContexts}
+        allowNoContext
       />
 
       {editTarget != null && (

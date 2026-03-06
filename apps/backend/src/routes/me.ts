@@ -410,9 +410,14 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const writableDocSet = new Set(writable.documentIdsFromGrants);
     const readableCtxSet = new Set(readable.contextIds);
     const readableDocSet = new Set(readable.documentIdsFromGrants);
-
+    const includeContextFreeDrafts =
+      query.scope === 'personal' ||
+      (!query.scope && !query.companyId && !query.departmentId && !query.teamId);
     const inScopeWritableContextIds = scope.scopeContextIds.filter((c) => writableCtxSet.has(c));
-    const inScopeWritableDocIds = scope.scopeDocumentIds.filter((d) => writableDocSet.has(d));
+    const inScopeWritableDocIds = [
+      ...scope.scopeDocumentIds.filter((d) => writableDocSet.has(d)),
+      ...(includeContextFreeDrafts ? writable.documentIdsFromCreator : []),
+    ];
     const inScopeReadableContextIds = scope.scopeContextIds.filter((c) => readableCtxSet.has(c));
     const inScopeReadableDocIdsFromGrants = scope.scopeDocumentIds.filter((d) =>
       readableDocSet.has(d)
@@ -508,7 +513,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   });
 
   /** GET /api/v1/me/storage – Speicherverbrauch (eigen oder Team/Department/Company für Leads). */
-   
+
   app.get('/me/storage', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
@@ -520,7 +525,8 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!allowed) return reply.status(403).send({ error: 'Not allowed to view team storage' });
     } else if (scope === 'department' && query.departmentId) {
       const allowed = await canPinForScope(prisma, userId, 'department', query.departmentId);
-      if (!allowed) return reply.status(403).send({ error: 'Not allowed to view department storage' });
+      if (!allowed)
+        return reply.status(403).send({ error: 'Not allowed to view department storage' });
     } else if (scope === 'company' && query.companyId) {
       const allowed = await canPinForScope(prisma, userId, 'company', query.companyId);
       if (!allowed) return reply.status(403).send({ error: 'Not allowed to view company storage' });
@@ -602,16 +608,19 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           })
         : [];
     const userMap = new Map(users.map((u) => [u.id, u.name]));
-    const byUser = (byUserRows as { uploadedById: string | null; _sum: { sizeBytes: number | null }; _count: number }[]).map(
-      (r) => ({
-        userId: r.uploadedById!,
-        name: userMap.get(r.uploadedById!) ?? '',
-        usedBytes: r._sum.sizeBytes ?? 0,
-      })
-    );
+    const byUser = (
+      byUserRows as {
+        uploadedById: string | null;
+        _sum: { sizeBytes: number | null };
+        _count: number;
+      }[]
+    ).map((r) => ({
+      userId: r.uploadedById!,
+      name: userMap.get(r.uploadedById!) ?? '',
+      usedBytes: r._sum.sizeBytes ?? 0,
+    }));
     return reply.send({ usedBytes, attachmentCount, byUser });
   });
-   
 
   /** POST /api/v1/me/deactivate – Self-Deactivate (setzt deletedAt). Letzter Admin darf nicht. */
   app.post('/me/deactivate', { preHandler: requireAuthPreHandler }, async (request, reply) => {

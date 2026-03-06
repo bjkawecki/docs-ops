@@ -76,6 +76,8 @@ GET-Listen setzen voraus, dass das Team bzw. die Abteilung für den Nutzer sicht
 ## Dokumente und Tags (§14)
 
 - **Dokumente:** CRUD über `GET/POST/PATCH/DELETE /api/v1/documents` bzw. `GET /api/v1/contexts/:contextId/documents`; GET Document liefert Rechte-Flags `canWrite`, `canDelete`, `scope`. Prozess-/Projekt-GET liefert `canWriteContext`.
-- **Tags:** `POST /api/v1/tags` (Body: name), `DELETE /api/v1/tags/:tagId`; 409 bei doppeltem Namen, 404 bei unbekanntem Tag. Dokumente erhalten Tag-Zuordnung über PATCH mit `tagIds`.
-- **New Document:** Modal nur Kontext (Process/Project) + Titel; nach POST kein Redirect – Nutzer bleibt auf der Seite, neueste Dokumente erscheinen in der Drafts-Card im Overview (vgl. Umsetzungs-Todo §14).
+- **POST /documents:** Body kann **contextId** weglassen – dann wird ein **kontextfreier Draft** erstellt (nur Ersteller sichtbar); Veröffentlichung erst nach Zuweisung eines Kontexts (PATCH contextId). Mit contextId: wie bisher (canWriteContext, Tags optional).
+- **PATCH /documents/:id:** **contextId** setzbar (null → Kontext, z. B. für Veröffentlichung). Veröffentlichen (Publish) nur erlaubt, wenn contextId gesetzt ist.
+- **Tags:** `POST /api/v1/tags` (Body: name), `DELETE /api/v1/tags/:tagId`; 409 bei doppeltem Namen, 404 bei unbekanntem Tag. Dokumente erhalten Tag-Zuordnung über PATCH mit `tagIds` (nur bei Dokumenten mit Kontext, da Tags scope-gebunden sind).
+- **New Document:** Modal nur Kontext (Process/Project) + Titel; nach POST kein Redirect – Nutzer bleibt auf der Seite, neueste Dokumente erscheinen in der Drafts-Card im Overview (vgl. Umsetzungs-Todo §14). Optional: „Draft ohne Kontext“ (nur Titel, kein Kontext).
 - Umsetzungsstand: [Umsetzungs-Todo §14](Umsetzungs-Todo.md#14-dokumente-in-der-ui) (Tag-Verwaltung, Markdown-Editor, Rechte-Checks, CRUD in Kontexten umgesetzt; Drafts-Card im Overview, Drafts-Tab und DocsOps-Anleitung offen).

@@ -3,6 +3,7 @@ import {
   Group,
   Modal,
   MultiSelect,
+  Radio,
   Select,
   Stack,
   Text,
@@ -21,6 +22,8 @@ export interface NewDocumentModalProps {
   onClose: () => void;
   scope: NewContextScope;
   onSuccess?: () => void;
+  /** When true (e.g. on Personal page), allow creating a draft without context (ungrouped). */
+  allowNoContext?: boolean;
 }
 
 type ProcessItem = { id: string; name: string; contextId: string };
@@ -42,9 +45,18 @@ function buildProjectParams(scope: NewContextScope): string {
   return `${base}&teamId=${scope.teamId}`;
 }
 
-export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocumentModalProps) {
+type DraftMode = 'in_context' | 'no_context';
+
+export function NewDocumentModal({
+  opened,
+  onClose,
+  scope,
+  onSuccess,
+  allowNoContext = false,
+}: NewDocumentModalProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [mode, setMode] = useState<DraftMode>('in_context');
   const [contextId, setContextId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -96,6 +108,7 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
   const tagOptions = tags.map((t) => ({ value: t.id, label: t.name }));
 
   const reset = () => {
+    setMode('in_context');
     setContextId(null);
     setTitle('');
     setContent('');
@@ -108,27 +121,32 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
     onClose();
   };
 
-  const canSubmit = contextId != null && title.trim().length > 0;
+  const noContext = allowNoContext && mode === 'no_context';
+  const canSubmit = noContext
+    ? title.trim().length > 0
+    : contextId != null && title.trim().length > 0;
 
   const handleSubmit = async () => {
-    if (!canSubmit || !contextId) return;
+    if (!canSubmit) return;
+    if (!noContext && !contextId) return;
     setLoading(true);
     try {
+      const body = noContext
+        ? { title: title.trim(), content }
+        : { title: title.trim(), content, contextId: contextId!, tagIds };
       const res = await apiFetch('/api/v1/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          content,
-          contextId,
-          tagIds,
-        }),
+        body: JSON.stringify(body),
       });
       if (res.status === 201) {
         const doc = (await res.json()) as { id: string };
-        void queryClient.invalidateQueries({ queryKey: ['contexts', contextId, 'documents'] });
+        if (contextId) {
+          void queryClient.invalidateQueries({ queryKey: ['contexts', contextId, 'documents'] });
+        }
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
         void queryClient.invalidateQueries({ queryKey: ['me', 'personal-documents'] });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
         onSuccess?.();
         handleClose();
         notifications.show({
@@ -138,10 +156,10 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
         });
         void navigate(`/documents/${doc.id}`);
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
           title: 'Error',
-          message: body?.error ?? res.statusText,
+          message: errBody?.error ?? res.statusText,
           color: 'red',
         });
       }
@@ -153,18 +171,35 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
   return (
     <Modal opened={opened} onClose={handleClose} title="New draft" size="sm">
       <Stack gap="md">
-        <Select
-          label="Context (Process or Project)"
-          placeholder="Select context"
-          data={contextOptions}
-          value={contextId}
-          onChange={(v) => setContextId(v)}
-          required
-        />
-        {contextOptions.length === 0 && (
-          <Text size="sm" c="dimmed">
-            No processes or projects in this scope. Create a process or project first.
-          </Text>
+        {allowNoContext && (
+          <Radio.Group
+            label="Create draft"
+            value={mode}
+            onChange={(v) => setMode(v as DraftMode)}
+            description="Without context: draft stays ungrouped until you assign a context."
+          >
+            <Stack gap="xs" mt="xs">
+              <Radio value="in_context" label="In a context (Process or Project)" />
+              <Radio value="no_context" label="Without context (ungrouped draft)" />
+            </Stack>
+          </Radio.Group>
+        )}
+        {!noContext && (
+          <>
+            <Select
+              label="Context (Process or Project)"
+              placeholder="Select context"
+              data={contextOptions}
+              value={contextId}
+              onChange={(v) => setContextId(v)}
+              required
+            />
+            {contextOptions.length === 0 && (
+              <Text size="sm" c="dimmed">
+                No processes or projects in this scope. Create a process or project first.
+              </Text>
+            )}
+          </>
         )}
         <TextInput
           label="Title"
@@ -180,15 +215,17 @@ export function NewDocumentModal({ opened, onClose, scope, onSuccess }: NewDocum
           onChange={(e) => setContent(e.currentTarget.value)}
           minRows={4}
         />
-        <MultiSelect
-          label="Tags"
-          data={tagOptions}
-          value={tagIds}
-          onChange={setTagIds}
-          placeholder="Select tags"
-          searchable
-          clearable
-        />
+        {!noContext && (
+          <MultiSelect
+            label="Tags"
+            data={tagOptions}
+            value={tagIds}
+            onChange={setTagIds}
+            placeholder="Select tags"
+            searchable
+            clearable
+          />
+        )}
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={handleClose}>
             Cancel

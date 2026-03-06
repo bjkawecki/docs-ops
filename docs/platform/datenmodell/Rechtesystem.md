@@ -10,7 +10,7 @@ Einheitliche Beschreibung des Rechtesystems: Konzeption (Grundprinzipien, Units,
 
 Das Rechtesystem basiert auf einer hierarchischen Organisationsstruktur.
 
-- Dokumente gehören genau einem Kontext (Projekt, Prozess oder Unterkontext).
+- Dokumente gehören in der Regel genau einem Kontext (Projekt, Prozess oder Unterkontext); Ausnahme: **kontextfreie Drafts** (contextId null), siehe Abschnitt 3.
 - Kontexte gehören genau einer organisatorischen Einheit (Unit).
 
 **Prinzipien:**
@@ -48,6 +48,8 @@ Company
 - Ownership bestimmt nicht automatisch Leserechte quer.
 
 **Persönliche Kontexte** (User-Scope): Prozesse und Projekte mit Owner = Nutzer (Owner.ownerUserId). Sie sind **standardmäßig privat**; Zugriff nur für den Besitzer oder über explizite Lese-/Schreib-Grants.
+
+**Dokumente ohne Kontext (kontextfreie Drafts):** Ein Document kann mit `contextId = null` existieren (nur als Draft, `publishedAt = null`). Lesen und Schreiben haben ausschließlich der **Ersteller** (createdById) und Nutzer mit **explizitem Grant** auf dieses Dokument. Es gibt keinen Scope-Lead; **Veröffentlichung** ist erst nach Zuweisung eines Kontexts (PATCH contextId) möglich.
 
 ---
 

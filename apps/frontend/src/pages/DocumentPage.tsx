@@ -5,7 +5,9 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   NavLink,
+  Select,
   SimpleGrid,
   Skeleton,
   Stack,
@@ -14,7 +16,6 @@ import {
   TextInput,
   Textarea,
   MultiSelect,
-  Modal,
   ActionIcon,
   Typography,
 } from '@mantine/core';
@@ -109,7 +110,7 @@ type DocumentResponse = {
   title: string;
   content: string;
   pdfUrl: string | null;
-  contextId: string;
+  contextId: string | null;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
@@ -162,6 +163,10 @@ export function DocumentPage() {
   const [draftBasedOnVersionId, setDraftBasedOnVersionId] = useState<string | null>(null);
   const [updateToLatestLoading, setUpdateToLatestLoading] = useState(false);
   const [hasConflictMarkers, setHasConflictMarkers] = useState(false);
+  const [assignContextOpened, { open: openAssignContext, close: closeAssignContext }] =
+    useDisclosure(false);
+  const [assignContextId, setAssignContextId] = useState<string | null>(null);
+  const [assignContextLoading, setAssignContextLoading] = useState(false);
   const editContentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const slugCountsRef = useRef<Record<string, number>>({});
 
@@ -191,6 +196,45 @@ export function DocumentPage() {
 
   const tags = tagsData ?? [];
   const tagOptions = tags.map((t) => ({ value: t.id, label: t.name }));
+
+  type ContextOption = { id: string; contextId: string; name: string; kind: 'process' | 'project' };
+  const { data: assignContextsData } = useQuery({
+    queryKey: ['processes', 'projects', 'ownerUserId=me', 'for-assign'],
+    queryFn: async () => {
+      const [procRes, projRes] = await Promise.all([
+        apiFetch('/api/v1/processes?limit=100&offset=0&ownerUserId=me'),
+        apiFetch('/api/v1/projects?limit=100&offset=0&ownerUserId=me'),
+      ]);
+      const processes = procRes.ok
+        ? ((await procRes.json()) as { items: { id: string; contextId: string; name: string }[] })
+            .items
+        : [];
+      const projects = projRes.ok
+        ? ((await projRes.json()) as { items: { id: string; contextId: string; name: string }[] })
+            .items
+        : [];
+      const options: ContextOption[] = [
+        ...processes.map((p) => ({
+          id: p.id,
+          contextId: p.contextId,
+          name: p.name,
+          kind: 'process' as const,
+        })),
+        ...projects.map((p) => ({
+          id: p.id,
+          contextId: p.contextId,
+          name: p.name,
+          kind: 'project' as const,
+        })),
+      ];
+      return options;
+    },
+    enabled: assignContextOpened && !!documentId,
+  });
+  const assignContextOptions = (assignContextsData ?? []).map((c) => ({
+    value: c.contextId,
+    label: `${c.kind === 'process' ? 'Process' : 'Project'}: ${c.name}`,
+  }));
 
   const { data: draftRequestsData } = useQuery({
     queryKey: ['document-draft-requests', documentId, 'open'],
@@ -468,6 +512,39 @@ export function DocumentPage() {
     }
   };
 
+  const handleAssignContext = async () => {
+    if (!documentId || !assignContextId) return;
+    setAssignContextLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contextId: assignContextId }),
+      });
+      if (res.ok) {
+        closeAssignContext();
+        setAssignContextId(null);
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
+        notifications.show({
+          title: 'Context assigned',
+          message: 'You can now publish the draft.',
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setAssignContextLoading(false);
+    }
+  };
+
   const handleUpdateToLatest = async () => {
     if (!documentId || !data?.currentPublishedVersionId) return;
     setUpdateToLatestLoading(true);
@@ -655,6 +732,7 @@ export function DocumentPage() {
 
   const docTitle = mode === 'edit' ? editTitle || 'Untitled' : data.title;
   const scope = data.scope as RecentScope | null;
+  const hasNoContext = data.contextId == null;
   const contextMeta =
     data.contextProcessId != null
       ? {
@@ -732,7 +810,18 @@ export function DocumentPage() {
       </Group>
     );
   }
-  if (contextMeta) {
+  if (hasNoContext) {
+    metadataItems.push(
+      <Group key="context" gap="xs" align="center">
+        <Text size="sm" c="dimmed" span>
+          Context:{' '}
+        </Text>
+        <Badge size="sm" variant="light" color="gray">
+          No context (ungrouped)
+        </Badge>
+      </Group>
+    );
+  } else if (contextMeta) {
     const ContextIcon =
       contextMeta.typeLabel === 'Process'
         ? IconListCheck
@@ -860,6 +949,16 @@ export function DocumentPage() {
                   onClick={openDelete}
                 >
                   Delete
+                </Button>
+              )}
+              {hasNoContext && data.canWrite && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconTarget size={14} />}
+                  onClick={openAssignContext}
+                >
+                  Assign to context
                 </Button>
               )}
               {data.canPublish && !data.publishedAt && (
@@ -1189,6 +1288,48 @@ export function DocumentPage() {
             Delete
           </Button>
         </Group>
+      </Modal>
+
+      <Modal
+        opened={assignContextOpened}
+        onClose={() => {
+          closeAssignContext();
+          setAssignContextId(null);
+        }}
+        title="Assign to context"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Choose a process or project to assign this draft to. You can then publish it.
+          </Text>
+          <Select
+            label="Context"
+            placeholder="Select process or project"
+            data={assignContextOptions}
+            value={assignContextId}
+            onChange={(v) => setAssignContextId(v)}
+            searchable
+          />
+          <Group justify="flex-end" gap="xs">
+            <Button
+              variant="default"
+              onClick={() => {
+                closeAssignContext();
+                setAssignContextId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!assignContextId}
+              loading={assignContextLoading}
+              onClick={() => void handleAssignContext()}
+            >
+              Assign
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal opened={createTagOpened} onClose={closeCreateTag} title="Create tag" centered>

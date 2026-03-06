@@ -24,7 +24,7 @@ Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Dat
 
 ## 2. Kontexte
 
-- **Context:** Abstraktion „ein Kontext“. id; optional 1:1 zu Process, Project, Subcontext. Document hat contextId (Pflicht-FK) → genau ein Kontext im Schema. Löschen der Context-Zeile löscht Kontexttyp und alle Documents (Cascade).
+- **Context:** Abstraktion „ein Kontext“. id; optional 1:1 zu Process, Project, Subcontext. Document hat contextId (optional, siehe §3). Löschen der Context-Zeile löscht Kontexttyp und alle Documents mit diesem contextId (Cascade). **Document kann optional ohne Kontext existieren** (contextId null); nur als Draft (publishedAt null), Rechte über createdById und Grants (vgl. §3).
 - **Process:** id, name, contextId (unique → Context), ownerId (→ Owner), deletedAt?, createdAt, updatedAt. Immer langlebig (Konzept).
 - **Project:** id, name, contextId (unique), ownerId, subcontexts (1:n), deletedAt?, createdAt, updatedAt. Immer zeitlich begrenzt (Konzept).
 - **Subcontext:** id, name, contextId (unique), projectId (→ Project). Optionale Gliederung unter einem Projekt (z. B. Protokolle, Meilensteine).
@@ -35,10 +35,11 @@ Owner von Process/Project ist über **Owner** (companyId, departmentId, teamId o
 
 ## 3. Dokumente
 
-| Modell       | Spalten (Kern)                                                                  | Relationen                                                           |
-| ------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| **Document** | id, title, content (Text), pdfUrl?, contextId, deletedAt?, createdAt, updatedAt | → context (n:1), documentTags, grantUser, grantTeam, grantDepartment |
+| Modell       | Spalten (Kern)                                                                   | Relationen                                                                     |
+| ------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Document** | id, title, content (Text), pdfUrl?, contextId?, deletedAt?, createdAt, updatedAt | → context (n:1, optional), documentTags, grantUser, grantTeam, grantDepartment |
 
+- **contextId:** Optional (String?). Bei null: kontextfreier Draft; nur Ersteller (createdById) und explizite Grants haben Zugriff; Veröffentlichung erst nach Zuweisung eines Kontexts (PATCH contextId).
 - **pdfUrl:** Optional; URL zur PDF-Version (z. B. nach Export in MinIO/S3).
 - **Geplante Erweiterung (noch nicht in `schema.prisma`):** Dokument-Status **draft** vs. **published**. **Festgelegt:** Feld **publishedAt** (DateTime?, null = Draft). **Sichtbarkeit:** Draft nur für Nutzer mit Schreibrecht auf das Dokument sowie Scope-Lead des Kontexts; Published für alle mit Leserecht. **Veröffentlichen:** Nur Scope-Lead (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin) darf publishedAt setzen. Umsetzung in einer späteren Migration (vgl. Umsetzungs-Todo §15, [Versionierung](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
 - **Tag:** id, name (unique). Global, n:m zu Document über **DocumentTag** (documentId, tagId), @@id([documentId, tagId]).
@@ -65,8 +66,8 @@ Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId
 ## 5. Übersicht (aktueller Stand)
 
 - **Company** → **Department** → **Team**; **User** ↔ Team (TeamMember, Team Lead/TeamLeader); **Department Lead** (Supervisor, Department ↔ User); **Owner** (Department | Team) für Process/Project.
-- **Context** (Abstraktion) mit 1:1 zu Process | Project | Subcontext. **Document** hat contextId (Pflicht).
-- **Document:** title, content, pdfUrl?, contextId, deletedAt?; Tags über **Tag** + **DocumentTag** (n:m).
+- **Context** (Abstraktion) mit 1:1 zu Process | Project | Subcontext. **Document** hat contextId optional (null = kontextfreier Draft).
+- **Document:** title, content, pdfUrl?, contextId?, deletedAt?; Tags über **Tag** + **DocumentTag** (n:m).
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
 - **Umgesetzt:** Pinned (§7) – DocumentPinnedInScope, nur Dokumente.
 - **Geplant (noch nicht umgesetzt):** Document-Status draft/published (§3), Versionierung & PR (§8).

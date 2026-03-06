@@ -125,16 +125,21 @@ export async function getReadableCatalogScope(
 }
 
 /**
- * Returns context IDs where the user can write (scope lead: canWriteContext) and document IDs
- * with explicit Write grant for the user. Used to determine draft visibility in the catalog.
+ * Returns context IDs where the user can write (scope lead: canWriteContext), document IDs
+ * with explicit Write grant, and document IDs of context-free drafts created by the user.
+ * Used to determine draft visibility in the catalog.
  */
 export async function getWritableCatalogScope(
   prisma: PrismaClient,
   userId: string
-): Promise<{ contextIds: string[]; documentIdsFromGrants: string[] }> {
+): Promise<{
+  contextIds: string[];
+  documentIdsFromGrants: string[];
+  documentIdsFromCreator: string[];
+}> {
   const user = await loadUser(prisma, userId);
   if (!user || user.deletedAt !== null) {
-    return { contextIds: [], documentIdsFromGrants: [] };
+    return { contextIds: [], documentIdsFromGrants: [], documentIdsFromCreator: [] };
   }
 
   const companyIds = user.companyLeads.map((c) => c.companyId);
@@ -153,7 +158,7 @@ export async function getWritableCatalogScope(
   ];
 
   if (user.isAdmin) {
-    const [processes, projects, subcontexts] = await Promise.all([
+    const [processes, projects, subcontexts, contextFreeDrafts] = await Promise.all([
       prisma.process.findMany({
         where: { deletedAt: null },
         select: { contextId: true },
@@ -163,6 +168,15 @@ export async function getWritableCatalogScope(
         select: { contextId: true },
       }),
       prisma.subcontext.findMany({ select: { contextId: true } }),
+      prisma.document.findMany({
+        where: {
+          contextId: null,
+          publishedAt: null,
+          deletedAt: null,
+          createdById: userId,
+        },
+        select: { id: true },
+      }),
     ]);
     const contextIds = [
       ...processes.map((p) => p.contextId),
@@ -175,7 +189,8 @@ export async function getWritableCatalogScope(
       teamIdsForGrants,
       uniqueDepartmentIdsForGrants
     );
-    return { contextIds, documentIdsFromGrants };
+    const documentIdsFromCreator = contextFreeDrafts.map((d) => d.id);
+    return { contextIds, documentIdsFromGrants, documentIdsFromCreator };
   }
 
   const ownerOrConditions = [
@@ -257,7 +272,18 @@ export async function getWritableCatalogScope(
     ]),
   ];
 
-  return { contextIds, documentIdsFromGrants };
+  const contextFreeDrafts = await prisma.document.findMany({
+    where: {
+      contextId: null,
+      publishedAt: null,
+      deletedAt: null,
+      createdById: userId,
+    },
+    select: { id: true },
+  });
+  const documentIdsFromCreator = contextFreeDrafts.map((d) => d.id);
+
+  return { contextIds, documentIdsFromGrants, documentIdsFromCreator };
 }
 
 async function getDocumentIdsWithWriteGrants(

@@ -74,12 +74,18 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       getWritableCatalogScope(prisma, userId),
     ]);
     const { contextIds, documentIdsFromGrants } = readableScope;
-    const { contextIds: writableContextIds, documentIdsFromGrants: writableDocumentIdsFromGrants } =
-      writableScope;
+    const {
+      contextIds: writableContextIds,
+      documentIdsFromGrants: writableDocumentIdsFromGrants,
+      documentIdsFromCreator: writableDocumentIdsFromCreator,
+    } = writableScope;
 
     const readableOr: unknown[] = [
       ...(contextIds.length > 0 ? [{ contextId: { in: contextIds } }] : []),
       ...(documentIdsFromGrants.length > 0 ? [{ id: { in: documentIdsFromGrants } }] : []),
+      ...(writableDocumentIdsFromCreator.length > 0
+        ? [{ id: { in: writableDocumentIdsFromCreator } }]
+        : []),
     ];
     if (readableOr.length === 0) {
       return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
@@ -90,6 +96,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       ...(writableContextIds.length > 0 ? [{ contextId: { in: writableContextIds } }] : []),
       ...(writableDocumentIdsFromGrants.length > 0
         ? [{ id: { in: writableDocumentIdsFromGrants } }]
+        : []),
+      ...(writableDocumentIdsFromCreator.length > 0
+        ? [{ id: { in: writableDocumentIdsFromCreator } }]
         : []),
     ];
     const baseWhere: Record<string, unknown> = {
@@ -225,7 +234,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       let ownerDisplay = 'Personal';
       let contextProcessId: string | null = null;
       let contextProjectId: string | null = null;
-      if (ctx.process) {
+      if (!ctx) {
+        contextName = 'Ungrouped';
+      } else if (ctx.process) {
         contextType = 'process';
         contextName = ctx.process.name;
         contextProcessId = ctx.process.id;
@@ -305,7 +316,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-   
   /** POST Upload attachment (binary body, X-Filename required). */
   app.post<{
     Params: { documentId: string };
@@ -396,7 +406,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       return reply.status(204).send();
     }
   );
-   
 
   /** GET Einzeldokument – nur wenn deletedAt null. Liefert canWrite/canDelete für UI. */
   app.get<{
@@ -435,11 +444,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         canDeleteDocument(prisma, userId, documentId),
         canPublishDocument(prisma, userId, documentId),
       ]);
+      const ctx = doc.context;
       const owner =
-        doc.context.process?.owner ??
-        doc.context.project?.owner ??
-        doc.context.subcontext?.project?.owner ??
-        null;
+        ctx?.process?.owner ?? ctx?.project?.owner ?? ctx?.subcontext?.project?.owner ?? null;
       const contextOwnerId = owner?.id ?? null;
       const scope =
         owner?.ownerUserId != null
@@ -452,7 +459,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
                 ? { type: 'team' as const, id: owner.teamId }
                 : null;
 
-      const ctx = doc.context;
       let contextType: 'process' | 'project' = 'process';
       let contextName = '';
       let contextProcessId: string | null = null;
@@ -460,7 +466,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       let contextProjectName: string | null = null;
       let subcontextId: string | null = null;
       let subcontextName: string | null = null;
-      if (ctx.process) {
+      if (!ctx) {
+        contextName = 'Ungrouped';
+      } else if (ctx.process) {
         contextType = 'process';
         contextName = ctx.process.name;
         contextProcessId = ctx.process.id;
@@ -543,9 +551,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
 
       const doc = await prisma.document.findUnique({
         where: { id: documentId, deletedAt: null },
-        select: { id: true, publishedAt: true, content: true },
+        select: { id: true, contextId: true, publishedAt: true, content: true },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      if (doc.contextId == null)
+        return reply
+          .status(400)
+          .send({ error: 'Document must be assigned to a context before publishing' });
       if (doc.publishedAt != null)
         return reply.status(409).send({ error: 'Document is already published' });
 
@@ -1023,11 +1035,46 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** POST Dokument anlegen – canWriteContext(contextId), Tags optional. */
+  /** POST Dokument anlegen – with contextId: canWriteContext; without: context-free draft (creator only). */
   app.post('/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createDocumentBodySchema.parse(request.body);
+
+    if (body.contextId == null) {
+      const doc = await prisma.document.create({
+        data: {
+          title: body.title,
+          content: body.content,
+          contextId: null,
+          description: body.description ?? null,
+          publishedAt: null,
+          createdById: userId,
+        },
+      });
+      const created = await prisma.document.findUniqueOrThrow({
+        where: { id: doc.id },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          pdfUrl: true,
+          contextId: true,
+          createdAt: true,
+          updatedAt: true,
+          publishedAt: true,
+          description: true,
+          createdById: true,
+          createdBy: { select: { name: true } },
+          documentTags: { include: { tag: { select: { id: true, name: true } } } },
+        },
+      });
+      return reply.status(201).send({
+        ...created,
+        createdByName: created.createdBy?.name ?? null,
+        writers: { users: [], teams: [], departments: [] },
+      });
+    }
 
     const context = await prisma.context.findUnique({
       where: { id: body.contextId },
@@ -1117,6 +1164,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const updateData: {
         title?: string;
         content?: string;
+        contextId?: string | null;
         description?: string | null;
         publishedAt?: Date | null;
       } = {};
@@ -1125,6 +1173,34 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (body.description !== undefined) updateData.description = body.description;
       if (body.publishedAt !== undefined) updateData.publishedAt = body.publishedAt;
 
+      if (body.contextId !== undefined) {
+        const currentDoc = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { contextId: true, publishedAt: true },
+        });
+        if (!currentDoc) return reply.status(404).send({ error: 'Document not found' });
+        if (body.contextId === null) {
+          if (currentDoc.publishedAt != null)
+            return reply
+              .status(400)
+              .send({ error: 'Published document cannot be set to no context' });
+          updateData.contextId = null;
+        } else {
+          const ctx = await prisma.context.findUnique({
+            where: { id: body.contextId },
+            select: { id: true },
+          });
+          if (!ctx) return reply.status(404).send({ error: 'Context not found' });
+          const userId = getEffectiveUserId(request as RequestWithUser);
+          const allowed = await canWriteContext(prisma, userId, body.contextId);
+          if (!allowed)
+            return reply
+              .status(403)
+              .send({ error: 'Permission denied to assign document to this context' });
+          updateData.contextId = body.contextId;
+        }
+      }
+
       if (body.tagIds !== undefined) {
         if (body.tagIds.length > 0) {
           const doc = await prisma.document.findUnique({
@@ -1132,6 +1208,10 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             select: { contextId: true },
           });
           if (!doc) return reply.status(404).send({ error: 'Document not found' });
+          if (doc.contextId == null)
+            return reply
+              .status(400)
+              .send({ error: 'Document has no context; tags require a context' });
           const contextOwnerId = await getContextOwnerId(prisma, doc.contextId);
           if (!contextOwnerId)
             return reply
