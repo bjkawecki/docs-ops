@@ -55,6 +55,15 @@ export const userIdParamSchema = z.object({
   userId: z.string().cuid(),
 });
 
+/** Query: GET /admin/users/:userId/documents – Pagination + optional search. */
+export const listUserDocumentsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  search: z.string().min(1).max(255).optional(),
+});
+
+export type ListUserDocumentsQuery = z.infer<typeof listUserDocumentsQuerySchema>;
+
 /** Body: POST /admin/impersonate – Ansicht als Nutzer (Ziel-User-ID). */
 export const impersonateBodySchema = z.object({
   userId: z.string().min(1),

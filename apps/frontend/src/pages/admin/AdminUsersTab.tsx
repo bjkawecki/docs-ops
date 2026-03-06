@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -11,32 +11,35 @@ import {
   Stack,
   SegmentedControl,
   Badge,
-  ActionIcon,
-  Menu,
   Pagination,
   Switch,
   Select,
+  Tabs,
+  Card,
+  Text,
+  ActionIcon,
+  Menu,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import {
   IconPlus,
-  IconDotsVertical,
   IconPencil,
   IconLock,
-  IconUserOff,
-  IconUserCheck,
+  IconTrash,
   IconArrowUp,
   IconArrowDown,
   IconArrowsSort,
+  IconDotsVertical,
 } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../../api/client';
-import { meQueryKey } from '../../hooks/useMe';
+import { meQueryKey, useMe } from '../../hooks/useMe';
 
 export type UserRole = 'User' | 'Team Lead' | 'Department Lead' | 'Company Lead' | 'Admin';
 
-type UserTeam = { id: string; name: string; departmentName: string };
+type UserTeam = { id: string; name: string; departmentName: string; isLead?: boolean };
 type UserDepartment = { id: string; name: string };
 
 type UserRow = {
@@ -48,9 +51,16 @@ type UserRow = {
   deletedAt: string | null;
   teams: UserTeam[];
   departments: UserDepartment[];
+  departmentsAsLead?: UserDepartment[];
 };
 
-type ListUsersRes = { items: UserRow[]; total: number; limit: number; offset: number };
+type ListUsersRes = {
+  items: UserRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  activeAdminCount: number;
+};
 type DepartmentWithTeams = { id: string; name: string; teams: { id: string; name: string }[] };
 type CompaniesRes = { items: { id: string }[] };
 type DepartmentsRes = { items: DepartmentWithTeams[] };
@@ -114,15 +124,19 @@ function SortableTh({
 export function AdminUsersTab() {
   const queryClient = useQueryClient();
   const [offset, setOffset] = useState(0);
-  const [includeDeactivated, setIncludeDeactivated] = useState(false);
+  const [includeDeactivated, setIncludeDeactivated] = useState(true);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [sortBy, setSortBy] = useState<SortByField | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [editUser, setEditUser] = useState<UserRow | null>(null);
-  const [resetPasswordUser, setResetPasswordUser] = useState<UserRow | null>(null);
+  const [detailUser, setDetailUser] = useState<UserRow | null>(null);
+  const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserRow | null>(null);
+  const [deleteUserConfirmUser, setDeleteUserConfirmUser] = useState<UserRow | null>(null);
+
+  const { data: meData } = useMe();
+  const currentUserId = meData?.impersonation?.realUser?.id ?? meData?.user?.id ?? null;
 
   const { data: companiesData } = useQuery({
     queryKey: ['companies'],
@@ -156,6 +170,13 @@ export function AdminUsersTab() {
       return (await res.json()) as ListUsersRes;
     },
   });
+
+  useEffect(() => {
+    if (detailUser && data?.items) {
+      const updated = data.items.find((u) => u.id === detailUser.id);
+      if (updated) setDetailUser(updated);
+    }
+  }, [data?.items, detailUser]);
 
   const invalidateUsers = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
@@ -261,19 +282,18 @@ export function AdminUsersTab() {
         message: 'The user has been updated.',
         color: 'green',
       });
-      setEditUser(null);
     },
     onError: (err: Error) => {
       notifications.show({ title: 'Error', message: err.message, color: 'red' });
     },
   });
 
-  const resetPassword = useMutation({
-    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
-      const res = await apiFetch(`/api/v1/admin/users/${userId}/reset-password`, {
+  const resetPasswordTrigger = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiFetch(`/api/v1/admin/users/${userId}/reset-password/trigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -282,11 +302,30 @@ export function AdminUsersTab() {
     },
     onSuccess: () => {
       notifications.show({
-        title: 'Password set',
-        message: 'The password has been set.',
+        title: 'Password reset triggered',
+        message: 'The user will need to set a new password.',
         color: 'green',
       });
-      setResetPasswordUser(null);
+      setResetPasswordConfirmUser(null);
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    },
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiFetch(`/api/v1/admin/users/${userId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onSuccess: () => {
+      notifications.show({ title: 'User deleted', color: 'green' });
+      setDeleteUserConfirmUser(null);
+      setDetailUser(null);
+      invalidateUsers();
     },
     onError: (err: Error) => {
       notifications.show({ title: 'Error', message: err.message, color: 'red' });
@@ -302,8 +341,8 @@ export function AdminUsersTab() {
           <SegmentedControl
             size="xs"
             data={[
-              { label: 'Active', value: 'active' },
               { label: 'All', value: 'all' },
+              { label: 'Active', value: 'active' },
             ]}
             value={includeDeactivated ? 'all' : 'active'}
             onChange={(v) => {
@@ -417,14 +456,34 @@ export function AdminUsersTab() {
                     setOffset(0);
                   }}
                 />
-                <Table.Th w={50} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {data.items.map((u) => (
                 <Table.Tr key={u.id}>
                   <Table.Td>{u.name}</Table.Td>
-                  <Table.Td>{u.email ?? '–'}</Table.Td>
+                  <Table.Td>
+                    {u.email ? (
+                      <Text
+                        component="button"
+                        type="button"
+                        variant="link"
+                        c="var(--mantine-color-blue-6)"
+                        size="sm"
+                        style={{
+                          cursor: 'pointer',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                        }}
+                        onClick={() => setDetailUser(u)}
+                      >
+                        {u.email}
+                      </Text>
+                    ) : (
+                      '–'
+                    )}
+                  </Table.Td>
                   <Table.Td>{u.role}</Table.Td>
                   <Table.Td>
                     {u.teams?.length ? u.teams.map((t) => t.name).join(', ') : '–'}
@@ -442,45 +501,6 @@ export function AdminUsersTab() {
                         Active
                       </Badge>
                     )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Menu position="bottom-end">
-                      <Menu.Target>
-                        <ActionIcon variant="subtle" size="sm">
-                          <IconDotsVertical size={16} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item
-                          leftSection={<IconPencil size={14} />}
-                          onClick={() => setEditUser(u)}
-                        >
-                          Edit
-                        </Menu.Item>
-                        <Menu.Item
-                          leftSection={
-                            u.deletedAt ? <IconUserCheck size={14} /> : <IconUserOff size={14} />
-                          }
-                          onClick={() =>
-                            updateUser.mutate({
-                              userId: u.id,
-                              body: { deletedAt: u.deletedAt ? null : new Date().toISOString() },
-                            })
-                          }
-                          disabled={updateUser.isPending}
-                        >
-                          {u.deletedAt ? 'Reactivate' : 'Deactivate'}
-                        </Menu.Item>
-                        {!u.deletedAt && (
-                          <Menu.Item
-                            leftSection={<IconLock size={14} />}
-                            onClick={() => setResetPasswordUser(u)}
-                          >
-                            Set password
-                          </Menu.Item>
-                        )}
-                      </Menu.Dropdown>
-                    </Menu>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -503,6 +523,61 @@ export function AdminUsersTab() {
         </>
       )}
 
+      {/* Modal: User detail (tabs: Overview, Documents) */}
+      {detailUser && (
+        <Modal
+          opened
+          onClose={() => setDetailUser(null)}
+          title={`User: ${detailUser.name}`}
+          size="lg"
+        >
+          <UserDetailTabs
+            user={detailUser}
+            departments={departments}
+            activeAdminCount={data?.activeAdminCount}
+            currentUserId={currentUserId}
+            onDeleteUser={() => setDeleteUserConfirmUser(detailUser)}
+            onSaveProfile={async (body) => {
+              await updateUser.mutateAsync({
+                userId: detailUser.id,
+                body: {
+                  name: body.name,
+                  email: body.email,
+                  isAdmin: body.isAdmin,
+                  deletedAt: body.deletedAt,
+                },
+              });
+              if (companyId && typeof body.isCompanyLead === 'boolean') {
+                const wasCompanyLead = detailUser.role === 'Company Lead';
+                if (body.isCompanyLead && !wasCompanyLead) {
+                  const res = await apiFetch(`/api/v1/companies/${companyId}/company-leads`, {
+                    method: 'POST',
+                    body: JSON.stringify({ userId: detailUser.id }),
+                  });
+                  if (!res.ok) {
+                    const err = (await res.json().catch(() => ({}))) as { error?: string };
+                    throw new Error(err.error ?? res.statusText);
+                  }
+                } else if (!body.isCompanyLead && wasCompanyLead) {
+                  const res = await apiFetch(
+                    `/api/v1/companies/${companyId}/company-leads/${detailUser.id}`,
+                    { method: 'DELETE' }
+                  );
+                  if (!res.ok) {
+                    const err = (await res.json().catch(() => ({}))) as { error?: string };
+                    throw new Error(err.error ?? res.statusText);
+                  }
+                }
+              }
+              invalidateUsers();
+            }}
+            onResetPassword={() => setResetPasswordConfirmUser(detailUser)}
+            onAssignmentsChange={invalidateUsers}
+            updateUserPending={updateUser.isPending}
+          />
+        </Modal>
+      )}
+
       {/* Modal: Create user */}
       <Modal opened={createOpened} onClose={closeCreate} title="Create user" size="sm">
         <CreateUserForm
@@ -513,46 +588,710 @@ export function AdminUsersTab() {
         />
       </Modal>
 
-      {/* Modal: Edit user */}
-      {editUser && (
-        <Modal opened onClose={() => setEditUser(null)} title="Edit user" size="sm">
-          <EditUserForm
-            user={editUser}
-            onSubmit={(body) => updateUser.mutate({ userId: editUser.id, body })}
-            onCancel={() => setEditUser(null)}
-            onDeactivate={
-              !editUser.deletedAt
-                ? () =>
-                    updateUser.mutate({
-                      userId: editUser.id,
-                      body: { deletedAt: new Date().toISOString() },
-                    })
-                : undefined
-            }
-            onReactivate={
-              editUser.deletedAt
-                ? () => updateUser.mutate({ userId: editUser.id, body: { deletedAt: null } })
-                : undefined
-            }
-            isPending={updateUser.isPending}
-          />
+      {/* Modal: Reset password confirmation */}
+      {resetPasswordConfirmUser && (
+        <Modal
+          opened
+          onClose={() => setResetPasswordConfirmUser(null)}
+          title="Reset password"
+          size="sm"
+        >
+          <Stack gap="md">
+            <Text size="sm">
+              Trigger a password reset for {resetPasswordConfirmUser.name}? They will need to set a
+              new password (e.g. via email link or on next login).
+            </Text>
+            <Group justify="flex-end" gap="xs">
+              <Button variant="default" onClick={() => setResetPasswordConfirmUser(null)}>
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={() =>
+                  resetPasswordTrigger.mutate(resetPasswordConfirmUser.id, {
+                    onSuccess: () => setResetPasswordConfirmUser(null),
+                  })
+                }
+                loading={resetPasswordTrigger.isPending}
+              >
+                Reset password
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
       )}
 
-      {/* Modal: Set password */}
-      {resetPasswordUser && (
-        <Modal opened onClose={() => setResetPasswordUser(null)} title="Set password" size="sm">
-          <ResetPasswordForm
-            userName={resetPasswordUser.name}
-            onSubmit={(newPassword) =>
-              resetPassword.mutate({ userId: resetPasswordUser.id, newPassword })
-            }
-            onCancel={() => setResetPasswordUser(null)}
-            isPending={resetPassword.isPending}
-          />
+      {/* Modal: Delete user confirmation */}
+      {deleteUserConfirmUser && (
+        <Modal opened onClose={() => setDeleteUserConfirmUser(null)} title="Delete user" size="sm">
+          <Stack gap="md">
+            <Text size="sm">
+              Permanently delete {deleteUserConfirmUser.name}? This cannot be undone. All associated
+              data (contexts, documents, assignments) will be removed.
+            </Text>
+            <Group justify="flex-end" gap="xs">
+              <Button variant="default" onClick={() => setDeleteUserConfirmUser(null)}>
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={() => deleteUser.mutate(deleteUserConfirmUser.id)}
+                loading={deleteUser.isPending}
+              >
+                Delete user
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
       )}
     </Box>
+  );
+}
+
+type UserStatsRes = {
+  storageBytesUsed: number;
+  documentsAsWriterCount: number;
+  draftsCount: number;
+};
+type UserDocumentsRes = {
+  items: { id: string; title: string }[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+function ProfileCardForm({
+  user,
+  onSave,
+  onCancel,
+  isPending,
+  isLastActiveAdmin,
+}: {
+  user: UserRow;
+  onSave: (body: {
+    name: string;
+    email: string | null;
+    isAdmin: boolean;
+    isCompanyLead: boolean;
+    deletedAt: string | null;
+  }) => Promise<void>;
+  onCancel: () => void;
+  isPending: boolean;
+  isLastActiveAdmin?: boolean;
+}) {
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email ?? '');
+  const [isAdmin, setIsAdmin] = useState(user.isAdmin);
+  const [isCompanyLead, setIsCompanyLead] = useState(user.role === 'Company Lead');
+  const [deactivated, setDeactivated] = useState(!!user.deletedAt);
+
+  const handleSubmit = () => {
+    onSave({
+      name: name.trim(),
+      email: email.trim() || null,
+      isAdmin,
+      isCompanyLead,
+      deletedAt: deactivated ? new Date().toISOString() : null,
+    }).catch(() => {});
+  };
+
+  return (
+    <Stack gap="sm">
+      <TextInput label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <TextInput
+        label="Email"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <Switch
+        label="Administrator"
+        description={
+          isLastActiveAdmin ? 'At least one active administrator is required.' : undefined
+        }
+        checked={isAdmin}
+        onChange={(e) => setIsAdmin(e.currentTarget.checked)}
+        disabled={isLastActiveAdmin}
+      />
+      <Switch
+        label="Company lead"
+        checked={isCompanyLead}
+        onChange={(e) => setIsCompanyLead(e.currentTarget.checked)}
+      />
+      <Switch
+        label="Deactivated"
+        description={
+          isLastActiveAdmin ? 'The last administrator cannot be deactivated.' : undefined
+        }
+        checked={deactivated}
+        onChange={(e) => setDeactivated(e.currentTarget.checked)}
+        disabled={isLastActiveAdmin}
+      />
+      <Group gap="xs" mt="xs">
+        <Button size="sm" variant="default" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={handleSubmit} loading={isPending} disabled={!name.trim()}>
+          Save
+        </Button>
+      </Group>
+    </Stack>
+  );
+}
+
+function UserDetailTabs({
+  user,
+  departments,
+  activeAdminCount,
+  currentUserId,
+  onSaveProfile,
+  onResetPassword,
+  onDeleteUser,
+  onAssignmentsChange,
+  updateUserPending,
+}: {
+  user: UserRow;
+  departments: DepartmentWithTeams[];
+  activeAdminCount: number | undefined;
+  currentUserId: string | null;
+  onSaveProfile: (body: {
+    name: string;
+    email: string | null;
+    isAdmin: boolean;
+    isCompanyLead: boolean;
+    deletedAt: string | null;
+  }) => Promise<void>;
+  onResetPassword: () => void;
+  onDeleteUser: () => void;
+  onAssignmentsChange: () => void;
+  updateUserPending: boolean;
+}) {
+  const [documentsPage, setDocumentsPage] = useState(0);
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [assignmentsEditing, setAssignmentsEditing] = useState(false);
+  const DOCS_PAGE_SIZE = 20;
+  const isLastActiveAdmin = activeAdminCount === 1 && !!user.isAdmin && !user.deletedAt;
+
+  const { data: statsData, isPending: statsPending } = useQuery({
+    queryKey: ['admin', 'users', user.id, 'stats'],
+    queryFn: async (): Promise<UserStatsRes> => {
+      const res = await apiFetch(`/api/v1/admin/users/${user.id}/stats`);
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+      return (await res.json()) as UserStatsRes;
+    },
+    enabled: !!user.id,
+  });
+
+  const { data: docsData, isPending: docsPending } = useQuery({
+    queryKey: ['admin', 'users', user.id, 'documents', documentsPage],
+    queryFn: async (): Promise<UserDocumentsRes> => {
+      const res = await apiFetch(
+        `/api/v1/admin/users/${user.id}/documents?limit=${DOCS_PAGE_SIZE}&offset=${documentsPage * DOCS_PAGE_SIZE}`
+      );
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+      return (await res.json()) as UserDocumentsRes;
+    },
+    enabled: !!user.id,
+  });
+
+  const formatBytes = (n: number) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <Tabs defaultValue="details">
+      <Tabs.List>
+        <Tabs.Tab value="details">Overview</Tabs.Tab>
+        <Tabs.Tab value="documents">Documents</Tabs.Tab>
+        <Tabs.Tab value="danger">Account</Tabs.Tab>
+      </Tabs.List>
+
+      <Tabs.Panel value="details" pt="md">
+        <Stack gap="md">
+          <Card withBorder padding="md">
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={600}>
+                Profile
+              </Text>
+              {!profileEditing && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconPencil size={14} />}
+                  onClick={() => setProfileEditing(true)}
+                >
+                  Edit
+                </Button>
+              )}
+            </Group>
+            {profileEditing ? (
+              <ProfileCardForm
+                user={user}
+                onSave={async (body) => {
+                  await onSaveProfile(body);
+                  setProfileEditing(false);
+                }}
+                onCancel={() => setProfileEditing(false)}
+                isPending={updateUserPending}
+                isLastActiveAdmin={isLastActiveAdmin}
+              />
+            ) : (
+              <Stack gap="xs">
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Name
+                  </Text>
+                  <Text size="sm">{user.name}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Email
+                  </Text>
+                  <Text size="sm">{user.email ?? '–'}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Status
+                  </Text>
+                  <Group gap="xs" mt={4}>
+                    {user.deletedAt ? (
+                      <Badge size="sm" color="gray">
+                        Deactivated
+                      </Badge>
+                    ) : (
+                      <Badge size="sm" color="green">
+                        Active
+                      </Badge>
+                    )}
+                    {user.role === 'Company Lead' && (
+                      <Badge size="sm" color="violet" variant="filled">
+                        Company lead
+                      </Badge>
+                    )}
+                    {user.isAdmin && (
+                      <Badge size="sm" color="blue" variant="filled">
+                        Admin
+                      </Badge>
+                    )}
+                  </Group>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    User ID
+                  </Text>
+                  <Text size="sm" style={{ wordBreak: 'break-all' }}>
+                    {user.id}
+                  </Text>
+                </div>
+              </Stack>
+            )}
+          </Card>
+          <Card withBorder padding="md">
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={600}>
+                Assignments
+              </Text>
+              {!assignmentsEditing && (
+                <Menu position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon variant="subtle" size="sm">
+                      <IconDotsVertical size={16} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<IconPencil size={14} />}
+                      onClick={() => setAssignmentsEditing(true)}
+                    >
+                      Edit
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              )}
+            </Group>
+            {assignmentsEditing ? (
+              <AssignmentsCardForm
+                user={user}
+                departments={departments}
+                onSave={() => {
+                  setAssignmentsEditing(false);
+                  onAssignmentsChange();
+                }}
+                onCancel={() => setAssignmentsEditing(false)}
+              />
+            ) : (
+              <AssignmentsCardDisplay user={user} />
+            )}
+          </Card>
+          <Card withBorder padding="md">
+            <Text size="sm" fw={600} mb="xs">
+              Usage
+            </Text>
+            {statsPending ? (
+              <Loader size="sm" />
+            ) : statsData ? (
+              <Group gap="lg">
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Storage
+                  </Text>
+                  <Text size="sm">{formatBytes(statsData.storageBytesUsed)}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Authored
+                  </Text>
+                  <Text size="sm">{statsData.documentsAsWriterCount}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Drafts
+                  </Text>
+                  <Text size="sm">{statsData.draftsCount}</Text>
+                </div>
+              </Group>
+            ) : null}
+          </Card>
+        </Stack>
+      </Tabs.Panel>
+
+      <Tabs.Panel value="danger" pt="md">
+        <Card withBorder padding="md">
+          <Text size="sm" fw={600} mb="xs">
+            Account
+          </Text>
+          <Text size="xs" c="dimmed" mb="md">
+            Sensitive account actions. Use with care.
+          </Text>
+          <Stack gap="md">
+            {!user.deletedAt && (
+              <Group align="center" gap="sm">
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="orange"
+                  leftSection={<IconLock size={14} />}
+                  onClick={onResetPassword}
+                >
+                  Reset password
+                </Button>
+                <Text size="xs" c="dimmed">
+                  Trigger a password reset. The user will need to set a new password.
+                </Text>
+              </Group>
+            )}
+            <Group align="center" gap="sm">
+              <Button
+                size="sm"
+                variant="light"
+                color="red"
+                leftSection={<IconTrash size={14} />}
+                onClick={onDeleteUser}
+                disabled={currentUserId === user.id}
+              >
+                Delete user
+              </Button>
+              <Text size="xs" c="dimmed">
+                {currentUserId === user.id
+                  ? 'You cannot delete your own account.'
+                  : 'Permanently delete this user and all associated data. This cannot be undone.'}
+              </Text>
+            </Group>
+          </Stack>
+        </Card>
+      </Tabs.Panel>
+
+      <Tabs.Panel value="documents" pt="md">
+        {docsPending ? (
+          <Loader size="sm" />
+        ) : docsData ? (
+          <Stack gap="sm">
+            {docsData.items.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No documents (user is not a writer).
+              </Text>
+            ) : (
+              <>
+                <Table withTableBorder withColumnBorders>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Title</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {docsData.items.map((d) => (
+                      <Table.Tr key={d.id}>
+                        <Table.Td>
+                          <Text component={Link} to={`/documents/${d.id}`} size="sm">
+                            {d.title}
+                          </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+                {docsData.total > DOCS_PAGE_SIZE && (
+                  <Pagination
+                    total={Math.ceil(docsData.total / DOCS_PAGE_SIZE)}
+                    value={documentsPage + 1}
+                    onChange={(p) => setDocumentsPage(p - 1)}
+                    size="sm"
+                  />
+                )}
+              </>
+            )}
+          </Stack>
+        ) : null}
+      </Tabs.Panel>
+    </Tabs>
+  );
+}
+
+function AssignmentsCardDisplay({ user }: { user: UserRow }) {
+  const team = user.teams?.[0];
+  const deptLead = user.departmentsAsLead?.[0];
+  const departmentName = deptLead?.name ?? team?.departmentName ?? '–';
+  const departmentRole = deptLead ? 'Lead' : team ? 'Member' : '–';
+
+  const teamRole = team ? (team.isLead ? 'Lead' : 'Member') : '–';
+
+  return (
+    <Stack gap="xs">
+      <Group justify="flex-start" wrap="nowrap" gap="xl" align="flex-start">
+        <div style={{ minWidth: 140 }}>
+          <Text size="xs" c="dimmed">
+            Department
+          </Text>
+          <Text size="sm">{departmentName}</Text>
+        </div>
+        <div>
+          <Text size="xs" c="dimmed">
+            Role
+          </Text>
+          <Text size="sm">{departmentRole}</Text>
+        </div>
+      </Group>
+      <Group justify="flex-start" wrap="nowrap" gap="xl" align="flex-start">
+        <div style={{ minWidth: 140 }}>
+          <Text size="xs" c="dimmed">
+            Team
+          </Text>
+          <Text size="sm">{team?.name ?? '–'}</Text>
+        </div>
+        <div>
+          <Text size="xs" c="dimmed">
+            Role
+          </Text>
+          <Text size="sm">{teamRole}</Text>
+        </div>
+      </Group>
+    </Stack>
+  );
+}
+
+function AssignmentsCardForm({
+  user,
+  departments,
+  onSave,
+  onCancel,
+}: {
+  user: UserRow;
+  departments: DepartmentWithTeams[];
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const allTeams = departments.flatMap((d) =>
+    (d.teams ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      departmentId: d.id,
+      departmentName: d.name,
+    }))
+  );
+  const currentTeam = user.teams?.[0];
+  const currentDeptLead = user.departmentsAsLead?.[0];
+
+  const [teamId, setTeamId] = useState(currentTeam?.id ?? '');
+  const [teamRole, setTeamRole] = useState<'Member' | 'Lead'>(
+    currentTeam?.isLead ? 'Lead' : 'Member'
+  );
+  const [departmentLeadId, setDepartmentLeadId] = useState(currentDeptLead?.id ?? '');
+
+  const removeFromTeam = useMutation({
+    mutationFn: async (teamId: string) => {
+      const res = await apiFetch(`/api/v1/teams/${teamId}/members/${user.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const addToTeam = useMutation({
+    mutationFn: async (teamId: string) => {
+      const res = await apiFetch(`/api/v1/teams/${teamId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const addTeamLead = useMutation({
+    mutationFn: async (teamId: string) => {
+      const res = await apiFetch(`/api/v1/teams/${teamId}/team-leads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const removeTeamLead = useMutation({
+    mutationFn: async (teamId: string) => {
+      const res = await apiFetch(`/api/v1/teams/${teamId}/team-leads/${user.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const addDepartmentLead = useMutation({
+    mutationFn: async (departmentId: string) => {
+      const res = await apiFetch(`/api/v1/departments/${departmentId}/department-leads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const removeDepartmentLead = useMutation({
+    mutationFn: async (departmentId: string) => {
+      const res = await apiFetch(
+        `/api/v1/departments/${departmentId}/department-leads/${user.id}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+    },
+    onError: (e: Error) => notifications.show({ title: 'Error', message: e.message, color: 'red' }),
+  });
+
+  const isPending =
+    removeFromTeam.isPending ||
+    addToTeam.isPending ||
+    addTeamLead.isPending ||
+    removeTeamLead.isPending ||
+    addDepartmentLead.isPending ||
+    removeDepartmentLead.isPending;
+
+  const handleSave = async () => {
+    try {
+      for (const t of user.teams ?? []) {
+        if (t.id !== teamId) await removeFromTeam.mutateAsync(t.id);
+      }
+      if (teamId && !user.teams?.some((t) => t.id === teamId)) {
+        await addToTeam.mutateAsync(teamId);
+      }
+      if (teamId) {
+        const wantLead = teamRole === 'Lead';
+        const current = user.teams?.find((t) => t.id === teamId)?.isLead ?? false;
+        if (wantLead && !current) await addTeamLead.mutateAsync(teamId);
+        if (!wantLead && current) await removeTeamLead.mutateAsync(teamId);
+      }
+      for (const d of user.departmentsAsLead ?? []) {
+        if (d.id !== departmentLeadId) await removeDepartmentLead.mutateAsync(d.id);
+      }
+      if (departmentLeadId && !user.departmentsAsLead?.some((d) => d.id === departmentLeadId)) {
+        await addDepartmentLead.mutateAsync(departmentLeadId);
+      }
+      notifications.show({ title: 'Assignments updated', color: 'green' });
+      onSave();
+    } catch {
+      // errors already shown
+    }
+  };
+
+  const teamOptions = allTeams.map((t) => ({
+    value: t.id,
+    label: `${t.name} (${t.departmentName})`,
+  }));
+
+  const departmentOptions = departments.map((d) => ({ value: d.id, label: d.name }));
+
+  return (
+    <Stack gap="sm">
+      <Select
+        label="Team"
+        placeholder="Select team"
+        data={teamOptions}
+        value={teamId || null}
+        onChange={(v) => setTeamId(v ?? '')}
+        clearable
+        size="sm"
+      />
+      <Select
+        label="Team role"
+        data={[
+          { value: 'Member', label: 'Member' },
+          { value: 'Lead', label: 'Lead' },
+        ]}
+        value={teamRole}
+        onChange={(v) => v && setTeamRole(v as 'Member' | 'Lead')}
+        size="sm"
+      />
+      <Select
+        label="Department (lead)"
+        placeholder="None"
+        description="Department where this user is department lead (optional)"
+        data={departmentOptions}
+        value={departmentLeadId || null}
+        onChange={(v) => setDepartmentLeadId(v ?? '')}
+        clearable
+        size="sm"
+      />
+      <Group gap="xs" mt="xs">
+        <Button size="sm" variant="default" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => void handleSave()} loading={isPending} disabled={!teamId}>
+          Save
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 
@@ -676,125 +1415,6 @@ function CreateUserForm({
           disabled={!name.trim() || !email.trim() || password.length < 8}
         >
           Create
-        </Button>
-      </Group>
-    </Stack>
-  );
-}
-
-function EditUserForm({
-  user,
-  onSubmit,
-  onCancel,
-  onDeactivate,
-  onReactivate,
-  isPending,
-}: {
-  user: UserRow;
-  onSubmit: (body: { name?: string; email?: string | null; isAdmin?: boolean }) => void;
-  onCancel: () => void;
-  onDeactivate?: () => void;
-  onReactivate?: () => void;
-  isPending: boolean;
-}) {
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email ?? '');
-  const [isAdmin, setIsAdmin] = useState(user.isAdmin);
-
-  return (
-    <Stack>
-      <TextInput label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-      <TextInput
-        label="Email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <Switch
-        label="Administrator"
-        checked={isAdmin}
-        onChange={(e) => setIsAdmin(e.currentTarget.checked)}
-      />
-      <Group justify="space-between" mt="md">
-        <Group>
-          {onDeactivate && (
-            <Button
-              variant="light"
-              color="red"
-              size="xs"
-              onClick={onDeactivate}
-              loading={isPending}
-            >
-              Deactivate
-            </Button>
-          )}
-          {onReactivate && (
-            <Button
-              variant="light"
-              color="green"
-              size="xs"
-              onClick={onReactivate}
-              loading={isPending}
-            >
-              Reactivate
-            </Button>
-          )}
-        </Group>
-        <Group>
-          <Button variant="default" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => onSubmit({ name, email: email.trim() || null, isAdmin })}
-            loading={isPending}
-            disabled={!name.trim()}
-          >
-            Save
-          </Button>
-        </Group>
-      </Group>
-    </Stack>
-  );
-}
-
-function ResetPasswordForm({
-  onSubmit,
-  onCancel,
-  isPending,
-}: {
-  userName: string;
-  onSubmit: (newPassword: string) => void;
-  onCancel: () => void;
-  isPending: boolean;
-}) {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-
-  const valid = password.length >= 8 && password === confirm;
-
-  return (
-    <Stack>
-      <TextInput
-        label="New password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        minLength={8}
-      />
-      <TextInput
-        label="Confirm password"
-        type="password"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-        error={confirm && password !== confirm ? 'Does not match' : undefined}
-      />
-      <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button onClick={() => onSubmit(password)} loading={isPending} disabled={!valid}>
-          Set
         </Button>
       </Group>
     </Stack>

@@ -3,16 +3,19 @@ import {
   requireAuthPreHandler,
   requireAdminPreHandler,
   IMPERSONATE_COOKIE_NAME,
+  type RequestWithUser,
 } from '../auth/middleware.js';
 import { hashPassword } from '../auth/password.js';
 import {
   listUsersQuerySchema,
+  listUserDocumentsQuerySchema,
   createUserBodySchema,
   updateUserBodySchema,
   resetPasswordBodySchema,
   userIdParamSchema,
   impersonateBodySchema,
 } from './schemas/admin.js';
+import { GrantRole } from '../../generated/prisma/client.js';
 
 const IMPERSONATE_COOKIE_MAX_AGE = 86400; // 1 Tag
 
@@ -152,6 +155,7 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       Array<{ id: string; name: string; departmentName: string }>
     >();
     const departmentsByUser = new Map<string, Array<{ id: string; name: string }>>();
+    const departmentsAsLeadByUser = new Map<string, Array<{ id: string; name: string }>>();
     for (const r of teamMemberRows) {
       if (!r.team?.department) continue;
       const list = teamsByUser.get(r.userId) ?? [];
@@ -184,6 +188,9 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         deptList.push({ id: r.department.id, name: r.department.name });
       }
       departmentsByUser.set(r.userId, deptList);
+      const leadList = departmentsAsLeadByUser.get(r.userId) ?? [];
+      leadList.push({ id: r.department.id, name: r.department.name });
+      departmentsAsLeadByUser.set(r.userId, leadList);
     }
     let items = users.map((u) => {
       const role = u.isAdmin
@@ -195,13 +202,19 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             : teamLeadSet.has(u.id)
               ? ('Team Lead' as const)
               : ('User' as const);
-      const teams = teamsByUser.get(u.id) ?? [];
+      const teamsRaw = teamsByUser.get(u.id) ?? [];
+      const teams = teamsRaw.map((t) => ({
+        ...t,
+        isLead: teamLeadRows.some((r) => r.userId === u.id && r.teamId === t.id),
+      }));
       const departments = departmentsByUser.get(u.id) ?? [];
+      const departmentsAsLead = departmentsAsLeadByUser.get(u.id) ?? [];
       return {
         ...u,
         role,
         teams,
         departments,
+        departmentsAsLead,
       };
     });
 
@@ -238,8 +251,93 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       items = items.slice(query.offset, query.offset + query.limit);
     }
 
-    return reply.send({ items, total, limit: query.limit, offset: query.offset });
+    const activeAdminCount = await request.server.prisma.user.count({
+      where: { isAdmin: true, deletedAt: null },
+    });
+
+    return reply.send({
+      items,
+      total,
+      limit: query.limit,
+      offset: query.offset,
+      activeAdminCount,
+    });
   });
+
+  /** GET /api/v1/admin/users/:userId/stats – Kennzahlen für User-Detail. */
+  app.get<{ Params: { userId: string } }>(
+    '/admin/users/:userId/stats',
+    { preHandler: preAdmin },
+    async (request, reply) => {
+      const { userId } = userIdParamSchema.parse(request.params);
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found.' });
+      }
+      const [storageBytesUsed, documentsAsWriterCount, draftsCount] = await Promise.all([
+        request.server.prisma.documentAttachment.aggregate({
+          where: { uploadedById: userId },
+          _sum: { sizeBytes: true },
+        }),
+        request.server.prisma.documentGrantUser.count({
+          where: { userId, role: GrantRole.Write },
+        }),
+        request.server.prisma.documentDraft.count({
+          where: { userId },
+        }),
+      ]);
+      return reply.send({
+        storageBytesUsed: storageBytesUsed._sum.sizeBytes ?? 0,
+        documentsAsWriterCount,
+        draftsCount,
+      });
+    }
+  );
+
+  /** GET /api/v1/admin/users/:userId/documents – Dokumente, bei denen User Writer ist (direkte User-Grants). */
+  app.get<{ Params: { userId: string } }>(
+    '/admin/users/:userId/documents',
+    { preHandler: preAdmin },
+    async (request, reply) => {
+      const { userId } = userIdParamSchema.parse(request.params);
+      const query = listUserDocumentsQuerySchema.parse(request.query);
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found.' });
+      }
+      const whereDoc = {
+        deletedAt: null,
+        grantUser: {
+          some: { userId, role: GrantRole.Write },
+        },
+        ...(query.search?.trim() && {
+          title: { contains: query.search.trim(), mode: 'insensitive' as const },
+        }),
+      };
+      const [items, total] = await Promise.all([
+        request.server.prisma.document.findMany({
+          where: whereDoc,
+          select: { id: true, title: true },
+          orderBy: { title: 'asc' },
+          take: query.limit,
+          skip: query.offset,
+        }),
+        request.server.prisma.document.count({ where: whereDoc }),
+      ]);
+      return reply.send({
+        items,
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      });
+    }
+  );
 
   /** POST /api/v1/admin/users – Nutzer anlegen. */
   app.post('/admin/users', { preHandler: preAdmin }, async (request, reply) => {
@@ -361,6 +459,56 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { id: userId },
         data: { passwordHash },
       });
+      return reply.status(204).send();
+    }
+  );
+
+  /** POST /api/v1/admin/users/:userId/reset-password/trigger – Admin löst Passwort-Reset aus (z. B. E-Mail). */
+  app.post<{ Params: { userId: string } }>(
+    '/admin/users/:userId/reset-password/trigger',
+    { preHandler: preAdmin },
+    async (request, reply) => {
+      const { userId } = userIdParamSchema.parse(request.params);
+
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, passwordHash: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found.' });
+      }
+      if (user.passwordHash == null) {
+        return reply.status(400).send({
+          error: 'This user has no local login (SSO). Password reset is not applicable.',
+        });
+      }
+
+      // Placeholder: später z. B. Reset-Token anlegen und E-Mail versenden
+      return reply.status(204).send();
+    }
+  );
+
+  /** DELETE /api/v1/admin/users/:userId – Nutzer endgültig löschen (nur Admin). Irreversibel. */
+  app.delete<{ Params: { userId: string } }>(
+    '/admin/users/:userId',
+    { preHandler: preAdmin },
+    async (request, reply) => {
+      const { userId } = userIdParamSchema.parse(request.params);
+      const currentUserId = (request as RequestWithUser).user.id;
+      if (currentUserId === userId) {
+        return reply.status(403).send({ error: 'You cannot delete your own user account.' });
+      }
+
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found.' });
+      }
+
+      await request.server.prisma.session.deleteMany({ where: { userId } });
+      await request.server.prisma.user.delete({ where: { id: userId } });
       return reply.status(204).send();
     }
   );
