@@ -333,7 +333,7 @@ export function DepartmentContextPage() {
     );
 
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageWithTabs
         title={department.name}
         description="Contexts and content for the department."

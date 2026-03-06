@@ -338,7 +338,7 @@ export function TeamContextPage() {
     );
 
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageWithTabs
         title={team.name}
         description="Contexts and content for the team."

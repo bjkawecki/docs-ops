@@ -285,7 +285,7 @@ export function SubcontextDetailPage() {
   const metadata = <Group gap={4}>{metadataParts.filter(Boolean)}</Group>;
 
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageHeader
         title={data.name}
         metadata={metadata}

@@ -796,7 +796,7 @@ export function DocumentPage() {
 
   return (
     <>
-      <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <Box>
         <PageHeader
           title={docTitle}
           description={mode === 'view' && data.description ? data.description : undefined}

@@ -339,7 +339,7 @@ export function PersonalPage() {
   );
 
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageWithTabs
         title="Personal"
         description="Your personal processes, projects and documents."

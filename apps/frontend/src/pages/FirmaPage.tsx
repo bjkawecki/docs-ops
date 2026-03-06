@@ -338,7 +338,7 @@ export function FirmaPage() {
   );
 
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageWithTabs
         title={company?.name ?? 'Company'}
         description="Contexts and content for the company."

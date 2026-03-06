@@ -112,7 +112,7 @@ export function SharedPage() {
   );
 
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageWithTabs
         title="Shared"
         description="Contexts and documents shared with you."

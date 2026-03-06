@@ -8,7 +8,7 @@ import { SettingsStorageTab } from './settings/SettingsStorageTab';
 
 export function SettingsPage() {
   return (
-    <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+    <Box>
       <PageHeader title="Settings" description="Profile and appearance." />
       <Tabs
         defaultValue="general"
