@@ -64,6 +64,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 - **Logging:** Pino mit konfigurierbarem Level (`LOG_LEVEL`); in Dev optional Pretty-Format (pino-pretty), in Prod JSON. Siehe [Env-und-Config](Env-und-Config.md). Health-Check-Route für Deploy/Monitoring.
 - **Zentraler Error-Handler:** Fastify `setErrorHandler` für einheitliche Fehlerantworten (Zod → 400, Prisma P2025 → 404, sonst 500).
 - **Optional (später):** Swagger/OpenAPI, Vitest + Supertest, Pandoc im Container für PDF-Worker.
+- **Optional: KI-Assistent (Dokumenten-Frage):** RAG (Retrieval Augmented Generation) über dokumentierte Inhalte; LLM-API (OpenAI, Anthropic, Azure OpenAI oder lokales Modell). Nur Inhalte von Dokumenten, auf die der Nutzer Leserecht hat, fließen in die Anfrage. Siehe [Umsetzungs-Todo §21](Umsetzungs-Todo.md#21-optional-ki-assistent-dokumenten-frage).
 
 ---
 

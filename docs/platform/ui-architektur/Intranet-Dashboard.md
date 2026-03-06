@@ -6,19 +6,19 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 
 ## 1. Hauptbereiche
 
-| Route                       | Inhalt                                                                  |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `/`                         | Home / Dashboard                                                        |
-| `/catalog`                  | Einstieg für alle Dokumente (Tabelle, filter- und suchbar)              |
-| `/team`                     | Einstieg Team (eigenes Team; rollenabhängig)                            |
-| `/team/:teamId`             | Team-Kontext (Projekte, Prozesse, Dokumente)                            |
-| `/department`               | Abteilung(en) (rollenabhängig: ein Department oder aufklappbare Liste)  |
-| `/department/:departmentId` | Abteilungs-Kontext                                                      |
-| `/company`                  | Firma / Company                                                         |
-| `/personal`                 | Persönlicher Bereich (Prozesse, Projekte, Dokumente mit Owner = Nutzer) |
-| `/shared`                   | Geteilte Kontexte (Dokumente/Kontexte mit Grant für den Nutzer)         |
-| `/settings`                 | Profil, Account, Theme, Sessions, DocsOps-Identity                      |
-| `/admin`                    | Admin-Bereich (nur für Admins): Nutzer, Teams, Organisation             |
+| Route                       | Inhalt                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `/`                         | Home / Dashboard                                                                              |
+| `/catalog`                  | Einstieg für alle Dokumente (Tabelle, filter- und suchbar)                                    |
+| `/team`                     | Einstieg Team (eigenes Team; rollenabhängig)                                                  |
+| `/team/:teamId`             | Team-Kontext (Projekte, Prozesse, Dokumente)                                                  |
+| `/department`               | Abteilung(en) (rollenabhängig: ein Department oder aufklappbare Liste)                        |
+| `/department/:departmentId` | Abteilungs-Kontext                                                                            |
+| `/company`                  | Firma / Company                                                                               |
+| `/personal`                 | Persönlicher Bereich (Prozesse, Projekte, Dokumente mit Owner = Nutzer)                       |
+| `/shared`                   | Geteilte Kontexte (Dokumente/Kontexte mit Grant für den Nutzer)                               |
+| `/settings`                 | Profil, Account, Theme, Sessions, **Storage** (Speicherübersicht pro Scope), DocsOps-Identity |
+| `/admin`                    | Admin-Bereich (nur für Admins): Nutzer, Teams, Organisation                                   |
 
 ---
 
@@ -50,4 +50,5 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 - Eigenständige Bereiche wie **Knowledge Hub** (`/knowledge`), **Archiv** (`/archiv`), **Ressourcen** (`/ressourcen`) sind derzeit nicht als eigene Routen umgesetzt; Inhalte können über Catalog, Tags und Kontexte abgebildet werden.
 - **Drafts-Card im Overview:** Auf den Overview-Seiten (Personal, Company, Department, Team) eine Card „Drafts“ bzw. „Neueste Dokumente“ mit den neuesten Dokumenten des Scopes; nach Anlegen eines Dokuments (Create → Document) kein Redirect, das neue Dokument erscheint in dieser Card. Nach §15 (draft/published) nur echte Drafts. Vgl. [Umsetzungs-Todo §14](../../plan/Umsetzungs-Todo.md#14-dokumente-in-der-ui).
 - **Drafts-Tab** auf den Scope-Seiten (Personal, Company, Department, Team, ggf. Shared): Ein Tab „Drafts“ mit (1) noch nicht veröffentlichten Dokumenten und (2) offenen PRs, die auf Prüfung/Merge warten. Details in [Umsetzungs-Todo §15](../../plan/Umsetzungs-Todo.md#15-versionierung--pr-workflow). Datenmodell für Drafts/Status siehe [Prisma-Schema-Entwurf](../../plan/Prisma-Schema-Entwurf.md) (§3, §8) und §15.
-- **Volltextsuche** und erweiterte Tag-Filter sind in der Planung (Umsetzungs-Todo §15, §17).
+- **Volltextsuche** und erweiterte Tag-Filter sind in der Planung (Umsetzungs-Todo §18).
+- **Optional: KI-Assistent (Dokumenten-Frage):** Auf der Startseite ein Suchfeld „Frage an deine Dokumente“, mit dem Nutzer in natürlicher Sprache nur die Dokumente befragen können, auf die sie Leserecht haben. Antwort inkl. **Quellen:** klickbare Links zu den zugrunde liegenden Dokumenten (`/documents/:id`). RAG-basiert (Retrieval + LLM); Backend-Endpoint mit Rechtefilter. Siehe [Umsetzungs-Todo §21](../../plan/Umsetzungs-Todo.md#21-optional-ki-assistent-dokumenten-frage).

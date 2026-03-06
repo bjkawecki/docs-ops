@@ -1,7 +1,15 @@
 import { z } from 'zod';
 
-/** Sortable fields for GET /admin/users (DB columns). */
-export const adminUsersSortBySchema = z.enum(['name', 'email', 'isAdmin', 'deletedAt']);
+/** Sortable fields for GET /admin/users (DB columns + relation-based). */
+export const adminUsersSortBySchema = z.enum([
+  'name',
+  'email',
+  'isAdmin',
+  'deletedAt',
+  'role',
+  'teams',
+  'departments',
+]);
 
 /** Query: GET /admin/users – Pagination + Filter + Suche + Sortierung. */
 export const listUsersQuerySchema = z.object({

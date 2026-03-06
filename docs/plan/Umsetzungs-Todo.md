@@ -2,7 +2,7 @@
 
 Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. Siehe [Technologie-Stack](Technologie-Stack.md), [Infrastruktur & Deployment](Infrastruktur-und-Deployment.md) und [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md).
 
-**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–14 (Kern-API, Frontend, Layout, Settings, Admin-UI, Kontexte-Verwaltung, Company Page, Department/Team Pages, Dashboard, Catalog, Dokumente-UI). **Phase 2** (später): Abschnitte 15–20 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen).
+**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–14 (Kern-API, Frontend, Layout, Settings, Admin-UI, Kontexte-Verwaltung, Company Page, Department/Team Pages, Dashboard, Catalog, Dokumente-UI). **Phase 2** (später): Abschnitte 15–20 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen). **Optional:** Abschnitt 21 (KI-Assistent / Dokumenten-Frage).
 
 ---
 
@@ -118,8 +118,9 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 
 - [x] **Zugang & Struktur**
   - Admin-Bereich nur für Nutzer mit `isAdmin` (Route-Guard; 403/Redirect für Nicht-Admins).
-  - Route z. B. `/admin` mit Unterrouten (z. B. `/admin/users`, `/admin/teams`, `/admin/organisation`).
+  - Route `/admin` mit Unterrouten: `/admin/users`, `/admin/teams`, `/admin/departments`, `/admin/company` (Organisation-Tab entfällt).
   - Menüpunkt „Admin“ in der Sidebar nur anzeigen, wenn aktueller Nutzer `isAdmin` (Frontend: Nutzerdaten aus Session/Me-API).
+- **Einheitliches Tab-Design (vier Tabs):** Jeder Tab nutzt dasselbe UX-Muster: **Filter/Suche** (scope-spezifisch), **Liste/Tabelle** aller Einträge, **Create-Button** immer sichtbar und klickbar (Parent z. B. Company/Department im Modal), **Zeile auswählen** → Detailbereich (Members, Leads, Edit, Delete). Company-Tab: Bei nur einer Firma eine **einzelne Karte** (Name, Company leads, Edit); bei mehreren Firmen gleiches Listen-/Filter-Pattern.
 - [x] **Backend: Nutzer-API (neu)**
   - GET `/api/v1/admin/users` – Nutzerliste (paginiert); Filter optional, inkl. **Filter „nur Aktive“ / „inkl. Deaktivierte“** (z. B. Query-Parameter `includeDeactivated=true`); nur für Admins (`requireAdmin`).
   - POST `/api/v1/admin/users` – Nutzer anlegen (Name, E-Mail, Passwort, optional `isAdmin`); nur für Admins.
@@ -134,9 +135,10 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
   - Pro Team: Mitglieder anzeigen, hinzufügen (User auswählen), entfernen; Team Lead anzeigen, hinzufügen, entfernen. Berechtigung laut Backend (Department Lead/Team Lead/Admin).
   - Pro Abteilung: Department-Lead-Liste anzeigen, hinzufügen, entfernen. Nur für Admins (Department-Lead-Zuordnung).
   - UI: z. B. Unterbereich „Teams“ unter `/admin/teams` mit Navigation Team wählen → Mitglieder/Leader verwalten; oder Integration in Organisationsbaum (Abteilung → Teams → Mitglieder).
-- [x] **Optional: Organisation im Admin**
-  - **Nur UI:** Kern-API (Abschnitt 5) bietet bereits CRUD für Firma, Abteilung, Team; Admin-Organisation ist reine UI-Anbindung an diese Routen, keine Backend-Erweiterung nötig.
-  - Firma, Abteilung, Team anzeigen (Baum oder Listen); Anlegen/Bearbeiten/Löschen – nur für Admins (vgl. [Rechtesystem](../platform/datenmodell/Rechtesystem.md)).
+- [ ] **Admin Tab „Teams“ (einheitliches Design):** Alle Teams listen (aus allen Departments), Filter (Name, Department); Create Team immer möglich (Department im Modal); Zeile auswählen → Members/Team leaders, Edit, Delete.
+- [ ] **Admin Tab „Departments“:** Alle Abteilungen listen, Filter (Name, Company); Create Department (Company im Modal); Zeile auswählen → Department leads, Edit, Delete.
+- [ ] **Admin Tab „Company“:** Company-Verwaltung (eine Karte oder Liste) + Company leads; Create Company falls mehrere erlaubt.
+- [ ] **Organisation-Tab entfernen:** Inhalte auf Tabs Company, Departments, Teams verteilen; Route `/admin/organisation` und Komponente `AdminOrganisationTab` entfallen.
 - [x] **Dev-Feature (Admin): Ansicht „als Nutzer X“** – Admins können die Oberfläche bzw. Daten so sehen, als wären sie ein anderer Nutzer (ohne sich auszuloggen); nur für Admins, z. B. zur Prüfung von Rechten oder Support.
 
 ---
@@ -206,7 +208,7 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 ## 13. Dashboard / Home
 
-Startseite ohne Quick Links (redundant zur Sidebar). Drei Blöcke (weitere Blöcke siehe §15, §17):
+Startseite ohne Quick Links (redundant zur Sidebar). Drei Blöcke (weitere Blöcke siehe §15e, §17; optional KI-Assistent §21):
 
 - [x] **Pinned:** Nur **Dokumente** (Flag am Document: „in Liste von Scopes gepinnt“). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle (es gibt nur eine Company). Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell: DocumentPinnedInScope (documentId, scopeType, scopeId, order, pinnedById); siehe [Prisma-Schema-Entwurf §7 (Pinned)](Prisma-Schema-Entwurf.md#7-pinned-geplant); danach API und Dashboard-Block.
 - [x] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
@@ -283,10 +285,13 @@ Detaillierter Plan: [Plan-15a-Datenmodell-Rechte-Sichtbarkeit](Plan-15a-Datenmod
 
 ## 16. Objekt-Speicher (MinIO)
 
-- [ ] S3-Client (MinIO) im Backend anbinden
-- [ ] Upload/Download für Anhänge und Bilder (Dokumente)
-- [ ] Speicherorte in DB referenzieren; Berechtigungen vor Download prüfen
-- [ ] **Speicherübersicht (Assets aus MinIO):** Nutzung/Speicher pro Nutzer sichtbar – **Nutzer:** nur eigene Nutzung; **Team-Lead:** Nutzung aller Team-Mitglieder; **Department-Lead:** Nutzung aller Members der Abteilung (alle Teams der Abteilung); **Company-Lead / Admin:** Nutzung aller Abteilungen.
+Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Binärdateien in MinIO.
+
+- [x] S3-Client (MinIO) im Backend anbinden
+- [x] Upload/Download für Anhänge, Bilder und Exporte (z. B. PDF aus §17) in Dokumenten
+- [x] Speicherorte in DB referenzieren (z. B. `Document.pdfUrl` für Export-PDFs; vgl. §17); Berechtigungen vor Download prüfen
+- [x] **Speicherübersicht (Assets aus MinIO):** Nutzung/Speicher pro Nutzer sichtbar – **Nutzer:** nur eigene Nutzung; **Team-Lead:** Nutzung aller Team-Mitglieder; **Department-Lead:** Nutzung aller Members der Abteilung (alle Teams der Abteilung); **Company-Lead / Admin:** Nutzung aller Abteilungen.
+- [x] **Speicherübersicht im Frontend:** Settings-Tab „Storage“ mit Scope-Auswahl (Personal, Team/Department/Company für Leads/Admin), Anzeige von genutzten Bytes und Anhänge-Anzahl; bei Lead-Scope Tabelle „pro Nutzer“.
 
 ---
 
@@ -331,3 +336,17 @@ Detaillierter Plan: [Plan-15a-Datenmodell-Rechte-Sichtbarkeit](Plan-15a-Datenmod
 - [ ] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) definieren und umsetzen.
 - [ ] **Icons & A11y:** Einheitliche Icon-Bibliothek; Tastatur/Screenreader für Sidebar und Tabs.
 - [ ] **DocsOps-Anleitung im Personal:** Im persönlichen Bereich (in einem Prozess) automatisch ein erstes Dokument „Anleitung für DocsOps“ (z. B. bei erstem Aufruf von /personal oder via Seed/Setup). **Pro Scope/Rolle:** Anleitung rollen-/scope-spezifisch (z. B. Team Lead, Nutzer, Department Lead). **Settings:** Anleitungs-Doku pro Scope ausblendbar (Persistenz in User-Preferences, z. B. `hideGuideInScope`). Hängt vom fertigen Produktstand ab.
+
+---
+
+## 21. Optional: KI-Assistent (Dokumenten-Frage)
+
+**Ziel:** Auf der Startseite (oder eigener Block) eine **KI-Suche**, mit der Nutzer ihre **zugreifbaren Dokumente** in natürlicher Sprache befragen können (z. B. „Welche Prozesse gibt es für Onboarding?“). Antworten basieren nur auf Dokumenten, auf die der Nutzer Leserecht hat. **Jede Antwort enthält Quellen:** Links zu den Dokumenten, aus denen die Antwort abgeleitet wurde.
+
+- [ ] **Abhängigkeiten:** Volltext- oder Vektorsuche über Dokumentinhalte (vgl. §18); Rechtefilter (lesbare Kontexte + Grant-Dokumente, analog `getReadableCatalogScope`) – nur diese Dokumente dürfen in die KI-Anfrage.
+- [ ] **Backend:** Endpoint (z. B. `POST /api/v1/ask`): Frage entgegennehmen, lesbare Dokument-IDs für den Nutzer ermitteln, **Retrieval** (relevante Passagen nur aus diesen Dokumenten; pro Passage Dokument-ID und ggf. Titel mitführen), **RAG**: Prompt aus Treffern bauen, Aufruf einer LLM-API; Response enthält **Antworttext** und **Quellen** (z. B. `sources: [{ documentId, title, excerpt? }]`), damit das Frontend Links zu `/documents/:id` anzeigen kann.
+- [ ] **Sicherheit:** Rechteprüfung ausschließlich im Backend; keine Dokumentinhalte an die KI senden, auf die der Nutzer keinen Zugriff hat. Keine Rechte-Logik im Frontend.
+- [ ] **Startseite:** UI-Element „Frage an deine Dokumente“ (Suchfeld oder eigener Block); Anzeige der KI-Antwort und darunter **Quellen** als klickbare Links zum Dokument (z. B. Titel + Link `/documents/:id`). Optional: Rate-Limits, Caching, Audit-Log.
+- [ ] **Kosten/Betrieb:** LLM-API-Kosten und Latenz pro Anfrage; Konfiguration über Umgebungsvariablen (API-Key, Endpoint); optional Feature-Flag, um das Feature abzuschaltbar zu machen.
+
+**Ergebnis:** Nutzer können auf der Startseite Fragen in natürlicher Sprache stellen und erhalten eine Antwort mit **Links zu den Quell-Dokumenten**, ausschließlich aus Dokumenten, die sie lesen dürfen.

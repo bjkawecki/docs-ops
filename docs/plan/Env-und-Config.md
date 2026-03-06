@@ -13,12 +13,13 @@
 | **SESSION_SECRET**          | Geheimnis für Session-Cookie (Signatur/Verifikation) | Lang genug, zufällig                      |
 | **SESSION_MAX_AGE_SECONDS** | Optional: Session-Laufzeit in Sekunden               | z. B. `604800` (7 Tage)                   |
 | **MINIO_ENDPOINT**          | MinIO-URL (S3-kompatibel)                            | `http://minio:9000`                       |
-| **MINIO_ACCESS_KEY**        | MinIO Access Key                                     | —                                         |
-| **MINIO_SECRET_KEY**        | MinIO Secret Key                                     | —                                         |
+| **MINIO_ACCESS_KEY**        | MinIO Access Key (S3-API)                            | —                                         |
+| **MINIO_SECRET_KEY**        | MinIO Secret Key (S3-API)                            | —                                         |
 | **MINIO_BUCKET**            | Bucket-Name für Anhänge/Exporte                      | z. B. `documents`                         |
 | **LDAP_URL**                | Optional: LDAP/AD für SSO                            | `ldap://…`                                |
 | **OIDC_ISSUER**             | Optional: OIDC Issuer für SSO                        | —                                         |
 
+- **MinIO (Dev):** MinIO-Container nutzt `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`; dieselben Werte können als `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` für den Backend-S3-Client verwendet werden (Fallback im Code, wenn ACCESS_KEY/SECRET_KEY nicht gesetzt).
 - Alle Werte über Umgebung oder `.env` (nicht committen; `.env.example` ohne echte Secrets möglich).
 - Docker Compose: Variablen aus `env_file` oder `environment` in den Service-Definitionen.
 

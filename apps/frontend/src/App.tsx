@@ -2,10 +2,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
-import { TeamsPage } from './pages/TeamsPage';
+import { TeamRedirectPage } from './pages/TeamRedirectPage';
 import { FirmaPage } from './pages/FirmaPage';
 import { CatalogPage } from './pages/CatalogPage';
-import { DepartmentPage } from './pages/DepartmentPage';
+import { DepartmentRedirectPage } from './pages/DepartmentRedirectPage';
 import { DepartmentContextPage } from './pages/DepartmentContextPage';
 import { PersonalPage } from './pages/PersonalPage';
 import { SharedPage } from './pages/SharedPage';
@@ -24,7 +24,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminPage } from './pages/admin/AdminPage';
 import { AdminUsersTab } from './pages/admin/AdminUsersTab';
 import { AdminTeamsTab } from './pages/admin/AdminTeamsTab';
-import { AdminOrganisationTab } from './pages/admin/AdminOrganisationTab';
+import { AdminDepartmentsTab } from './pages/admin/AdminDepartmentsTab';
+import { AdminCompanyTab } from './pages/admin/AdminCompanyTab';
 
 function App() {
   return (
@@ -43,9 +44,9 @@ function App() {
         >
           <Route index element={<HomePage />} />
           <Route path="catalog" element={<CatalogPage />} />
-          <Route path="team" element={<TeamsPage />} />
+          <Route path="team" element={<TeamRedirectPage />} />
           <Route path="team/:teamId" element={<TeamContextPage />} />
-          <Route path="department" element={<DepartmentPage />} />
+          <Route path="department" element={<DepartmentRedirectPage />} />
           <Route path="department/:departmentId" element={<DepartmentContextPage />} />
           <Route path="company" element={<FirmaPage />} />
           <Route path="personal" element={<PersonalPage />} />
@@ -76,7 +77,8 @@ function App() {
             <Route index element={<Navigate to="/admin/users" replace />} />
             <Route path="users" element={<AdminUsersTab />} />
             <Route path="teams" element={<AdminTeamsTab />} />
-            <Route path="organisation" element={<AdminOrganisationTab />} />
+            <Route path="departments" element={<AdminDepartmentsTab />} />
+            <Route path="company" element={<AdminCompanyTab />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>

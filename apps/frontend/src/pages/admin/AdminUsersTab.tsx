@@ -57,7 +57,7 @@ type DepartmentsRes = { items: DepartmentWithTeams[] };
 
 const LIMIT = 20;
 
-type SortByField = 'name' | 'email' | 'isAdmin' | 'deletedAt';
+type SortByField = 'name' | 'email' | 'isAdmin' | 'deletedAt' | 'role' | 'teams' | 'departments';
 type SortOrder = 'asc' | 'desc';
 
 function buildUsersQuery(params: {
@@ -373,16 +373,38 @@ export function AdminUsersTab() {
                   label="Role"
                   currentSortBy={sortBy}
                   sortOrder={sortOrder}
-                  field="isAdmin"
+                  field="role"
                   onSort={() => {
-                    const next = sortBy === 'isAdmin' && sortOrder === 'asc' ? 'desc' : 'asc';
-                    setSortBy('isAdmin');
+                    const next = sortBy === 'role' && sortOrder === 'asc' ? 'desc' : 'asc';
+                    setSortBy('role');
                     setSortOrder(next);
                     setOffset(0);
                   }}
                 />
-                <Table.Th>Teams</Table.Th>
-                <Table.Th>Departments</Table.Th>
+                <SortableTh
+                  label="Teams"
+                  currentSortBy={sortBy}
+                  sortOrder={sortOrder}
+                  field="teams"
+                  onSort={() => {
+                    const next = sortBy === 'teams' && sortOrder === 'asc' ? 'desc' : 'asc';
+                    setSortBy('teams');
+                    setSortOrder(next);
+                    setOffset(0);
+                  }}
+                />
+                <SortableTh
+                  label="Departments"
+                  currentSortBy={sortBy}
+                  sortOrder={sortOrder}
+                  field="departments"
+                  onSort={() => {
+                    const next = sortBy === 'departments' && sortOrder === 'asc' ? 'desc' : 'asc';
+                    setSortBy('departments');
+                    setSortOrder(next);
+                    setOffset(0);
+                  }}
+                />
                 <SortableTh
                   label="Status"
                   currentSortBy={sortBy}

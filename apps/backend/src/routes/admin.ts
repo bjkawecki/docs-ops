@@ -44,7 +44,7 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     return reply.status(204).send();
   });
 
-  /** GET /api/v1/admin/users – Nutzerliste (paginiert, Filter, Suche). */
+  /** GET /api/v1/admin/users – Nutzerliste (paginiert, Filter, Suche, Sortierung). */
   app.get('/admin/users', { preHandler: preAdmin }, async (request, reply) => {
     const query = listUsersQuerySchema.parse(request.query);
     const where: {
@@ -64,24 +64,56 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         { email: { contains: term, mode: 'insensitive' } },
       ];
     }
-    const orderBy = query.sortBy
-      ? ({ [query.sortBy]: query.sortOrder } as {
-          name?: 'asc' | 'desc';
-          email?: 'asc' | 'desc';
-          isAdmin?: 'asc' | 'desc';
-          deletedAt?: 'asc' | 'desc';
-        })
-      : { name: 'asc' as const };
-    const [users, total] = await Promise.all([
-      request.server.prisma.user.findMany({
-        where,
-        select: { id: true, name: true, email: true, isAdmin: true, deletedAt: true },
-        orderBy,
-        take: query.limit,
-        skip: query.offset,
-      }),
-      request.server.prisma.user.count({ where }),
-    ]);
+
+    const sortByRelation =
+      query.sortBy === 'teams' || query.sortBy === 'departments' || query.sortBy === 'role';
+    const CAP_FOR_RELATION_SORT = 5000;
+
+    let users: Array<{
+      id: string;
+      name: string;
+      email: string | null;
+      isAdmin: boolean;
+      deletedAt: string | null;
+    }>;
+    let total: number;
+
+    if (sortByRelation) {
+      const [usersAll, totalCount] = await Promise.all([
+        request.server.prisma.user.findMany({
+          where,
+          select: { id: true, name: true, email: true, isAdmin: true, deletedAt: true },
+          orderBy: { name: 'asc' },
+          take: CAP_FOR_RELATION_SORT,
+        }),
+        request.server.prisma.user.count({ where }),
+      ]);
+      users = usersAll;
+      total = totalCount > CAP_FOR_RELATION_SORT ? CAP_FOR_RELATION_SORT : totalCount;
+    } else {
+      const dbSortField = query.sortBy === 'role' ? undefined : query.sortBy;
+      const orderBy = dbSortField
+        ? ({ [dbSortField]: query.sortOrder } as {
+            name?: 'asc' | 'desc';
+            email?: 'asc' | 'desc';
+            isAdmin?: 'asc' | 'desc';
+            deletedAt?: 'asc' | 'desc';
+          })
+        : { name: 'asc' as const };
+      const [usersPage, totalCount] = await Promise.all([
+        request.server.prisma.user.findMany({
+          where,
+          select: { id: true, name: true, email: true, isAdmin: true, deletedAt: true },
+          orderBy,
+          take: query.limit,
+          skip: query.offset,
+        }),
+        request.server.prisma.user.count({ where }),
+      ]);
+      users = usersPage;
+      total = totalCount;
+    }
+
     const userIds = users.map((u) => u.id);
     const [teamLeadRows, departmentLeadRows, companyLeadRows, teamMemberRows] = await Promise.all([
       request.server.prisma.teamLead.findMany({
@@ -153,7 +185,7 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       }
       departmentsByUser.set(r.userId, deptList);
     }
-    const items = users.map((u) => {
+    let items = users.map((u) => {
       const role = u.isAdmin
         ? ('Admin' as const)
         : companyLeadSet.has(u.id)
@@ -163,13 +195,49 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             : teamLeadSet.has(u.id)
               ? ('Team Lead' as const)
               : ('User' as const);
+      const teams = teamsByUser.get(u.id) ?? [];
+      const departments = departmentsByUser.get(u.id) ?? [];
       return {
         ...u,
         role,
-        teams: teamsByUser.get(u.id) ?? [],
-        departments: departmentsByUser.get(u.id) ?? [],
+        teams,
+        departments,
       };
     });
+
+    if (sortByRelation) {
+      const dir = query.sortOrder === 'asc' ? 1 : -1;
+      if (query.sortBy === 'role') {
+        items.sort((a, b) => dir * (a.role < b.role ? -1 : a.role > b.role ? 1 : 0));
+      } else {
+        const key = query.sortBy === 'teams' ? 'teams' : 'departments';
+        items.sort((a, b) => {
+          const aStr =
+            key === 'teams'
+              ? [...a.teams]
+                  .map((t) => t.name)
+                  .sort()
+                  .join(', ') || '\uFFFF'
+              : [...a.departments]
+                  .map((d) => d.name)
+                  .sort()
+                  .join(', ') || '\uFFFF';
+          const bStr =
+            key === 'teams'
+              ? [...b.teams]
+                  .map((t) => t.name)
+                  .sort()
+                  .join(', ') || '\uFFFF'
+              : [...b.departments]
+                  .map((d) => d.name)
+                  .sort()
+                  .join(', ') || '\uFFFF';
+          return dir * (aStr < bStr ? -1 : aStr > bStr ? 1 : 0);
+        });
+      }
+      items = items.slice(query.offset, query.offset + query.limit);
+    }
+
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 

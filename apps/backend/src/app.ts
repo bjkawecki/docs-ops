@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import { prisma } from './db.js';
+import { initStorage } from './storage/index.js';
 import { authRoutes } from './auth/routes.js';
 import { organisationRoutes } from './routes/organisation.js';
 import { contextRoutes } from './routes/contexts.js';
@@ -43,6 +44,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: buildLoggerConfig() });
   await app.register(fastifyCookie, { secret: process.env.SESSION_SECRET });
   app.decorate('prisma', prisma);
+  const storage = await initStorage();
+  app.decorate('storage', storage ?? null);
   app.addHook('onClose', async (instance) => {
     await instance.prisma.$disconnect();
   });
@@ -89,7 +92,11 @@ export async function buildApp(): Promise<FastifyInstance> {
 
       // Unbekannt → 500
       request.log.error(err);
-      return reply.status(500).send({ error: 'Interner Serverfehler' });
+      const message =
+        process.env.NODE_ENV === 'test'
+          ? err.message || 'Interner Serverfehler'
+          : 'Interner Serverfehler';
+      return reply.status(500).send({ error: message });
     }
   );
 

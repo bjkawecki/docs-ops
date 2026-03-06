@@ -90,6 +90,7 @@ model User {
   draftRequestsSubmitted  DraftRequest[]   @relation("DraftRequestsSubmitted")
   draftRequestsMerged     DraftRequest[]   @relation("DraftRequestsMerged")
   documentDrafts          DocumentDraft[]
+  documentAttachmentsUploaded DocumentAttachment[]
   sessions              Session[]
 }
 
@@ -245,6 +246,7 @@ model Document {
   versions                  DocumentVersion[]
   draftRequests             DraftRequest[]
   documentDrafts            DocumentDraft[]
+  attachments               DocumentAttachment[]
 }
 
 /// Tag: scope-gebunden (ownerId → Owner), für Kategorisierung und Filterung. Eindeutigkeit pro Scope: (ownerId, name).
@@ -265,6 +267,23 @@ model DocumentTag {
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
   @@id([documentId, tagId])
+}
+
+/// Anhang oder Bild zu einem Dokument (Binärdatei in MinIO/S3). Speicherort = objectKey im Bucket.
+model DocumentAttachment {
+  id           String    @id @default(cuid())
+  documentId   String
+  document     Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  objectKey    String    // Key im S3-Bucket, z. B. attachments/{documentId}/{id}.{ext}
+  filename     String    // Originaldateiname
+  contentType  String?   // MIME-Type
+  sizeBytes    Int
+  uploadedById String?
+  uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+
+  @@index([documentId])
+  @@index([uploadedById])
 }
 
 // --- Versionierung & PR (vgl. docs/plan/Prisma-Schema-Entwurf.md §8) ---

@@ -124,6 +124,10 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
   afterAll(async () => {
     const docIds = [draftDocId, publishedDocId].filter((id): id is string => id != null);
     if (docIds.length > 0) {
+       
+      await prisma.documentAttachment.deleteMany({
+        where: { documentId: { in: docIds } },
+      });
       await prisma.draftRequest.deleteMany({ where: { documentId: { in: docIds } } });
       await prisma.documentDraft.deleteMany({ where: { documentId: { in: docIds } } });
       await prisma.documentVersion.deleteMany({ where: { documentId: { in: docIds } } });
@@ -541,6 +545,37 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
       const body = res.json() as { content: string; basedOnVersionId: string | null };
       expect(body.content).toBe('Saved with version pin');
       expect(body.basedOnVersionId).toBe(doc!.currentPublishedVersionId);
+    });
+  });
+
+  describe('GET /documents/:documentId/pdf, attachments (storage)', () => {
+    it('GET pdf when document has no pdfUrl → 404', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/${publishedDocId}/pdf`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(404);
+      const body = res.json() as { error?: string };
+      expect(body.error).toBe('PDF not available');
+    });
+
+    it('POST attachment without storage (no MinIO) → 503', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/attachments`,
+        headers: {
+          cookie,
+          'content-type': 'application/octet-stream',
+          'x-filename': 'test.txt',
+        },
+        payload: Buffer.from('hello'),
+      });
+      expect(res.statusCode).toBe(503);
+      const body = res.json() as { error?: string };
+      expect(body.error).toBe('Storage not available');
     });
   });
 });

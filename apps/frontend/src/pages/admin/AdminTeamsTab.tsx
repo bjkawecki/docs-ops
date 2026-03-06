@@ -14,6 +14,7 @@ import {
   ActionIcon,
   Modal,
   TextInput,
+  Table,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -33,15 +34,19 @@ type AssignmentItem = { id: string; name: string };
 type AssignmentListRes = { items: AssignmentItem[]; total: number; limit: number; offset: number };
 type AdminUsersRes = { items: { id: string; name: string; email: string | null }[]; total: number };
 
+type TeamWithDept = Team & { departmentId: string; departmentName: string };
+
 export function AdminTeamsTab() {
   const queryClient = useQueryClient();
-  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState('');
+  const [filterDepartmentId, setFilterDepartmentId] = useState<string | null>(null);
   const [teamId, setTeamId] = useState<string | null>(null);
 
   const [addMembersOpened, setAddMembersOpened] = useState(false);
   const [addLeadersOpened, setAddLeadersOpened] = useState(false);
   const [createTeamOpened, { open: openCreateTeam, close: closeCreateTeam }] = useDisclosure(false);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [editingTeam, setEditingTeam] = useState<TeamWithDept | null>(null);
+  const [deleteConfirmTeam, setDeleteConfirmTeam] = useState<TeamWithDept | null>(null);
 
   const { data: companiesData } = useQuery({
     queryKey: ['companies'],
@@ -65,13 +70,34 @@ export function AdminTeamsTab() {
   });
 
   const departments = useMemo(() => departmentsData?.items ?? [], [departmentsData?.items]);
-  const teams = useMemo(() => {
-    if (!departmentId || !departments.length) return [];
-    const dept = departments.find((d) => d.id === departmentId);
-    return dept?.teams ?? [];
-  }, [departmentId, departments]);
 
-  const selectedTeam = teamId ? teams.find((t) => t.id === teamId) : null;
+  const allTeams = useMemo(
+    (): TeamWithDept[] =>
+      departments.flatMap((d) =>
+        (d.teams ?? []).map((t) => ({
+          ...t,
+          departmentId: d.id,
+          departmentName: d.name,
+        }))
+      ),
+    [departments]
+  );
+
+  const filteredTeams = useMemo(() => {
+    let list = allTeams;
+    if (filterText.trim()) {
+      const q = filterText.trim().toLowerCase();
+      list = list.filter(
+        (t) => t.name.toLowerCase().includes(q) || t.departmentName.toLowerCase().includes(q)
+      );
+    }
+    if (filterDepartmentId) {
+      list = list.filter((t) => t.departmentId === filterDepartmentId);
+    }
+    return list;
+  }, [allTeams, filterText, filterDepartmentId]);
+
+  const selectedTeam = teamId ? (allTeams.find((t) => t.id === teamId) ?? null) : null;
 
   const { data: membersData, isPending: membersPending } = useQuery({
     queryKey: ['teams', teamId, 'members'],
@@ -97,14 +123,15 @@ export function AdminTeamsTab() {
     if (teamId) void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'members'] });
     if (teamId) void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'team-leads'] });
   };
-  const invalidateDepartments = () => {
-    if (companyId)
+  const invalidateDepartments = (cid?: string | null) => {
+    if (cid) void queryClient.invalidateQueries({ queryKey: ['companies', cid, 'departments'] });
+    else if (companyId)
       void queryClient.invalidateQueries({ queryKey: ['companies', companyId, 'departments'] });
   };
 
   const createTeam = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiFetch(`/api/v1/departments/${departmentId}/teams`, {
+    mutationFn: async ({ name, departmentId: did }: { name: string; departmentId: string }) => {
+      const res = await apiFetch(`/api/v1/departments/${did}/teams`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -115,8 +142,9 @@ export function AdminTeamsTab() {
       }
       return (await res.json()) as Team;
     },
-    onSuccess: () => {
-      invalidateDepartments();
+    onSuccess: (_, variables) => {
+      const dept = departments.find((d) => d.id === variables.departmentId);
+      invalidateDepartments(dept?.companyId ?? companyId);
       closeCreateTeam();
       notifications.show({
         title: 'Team created',
@@ -149,8 +177,9 @@ export function AdminTeamsTab() {
       }
       return (await res.json()) as Team;
     },
-    onSuccess: () => {
-      invalidateDepartments();
+    onSuccess: (_, variables) => {
+      const dept = departments.find((d) => d.id === variables.departmentId);
+      invalidateDepartments(dept?.companyId ?? companyId);
       setEditingTeam(null);
       setTeamId(null);
       notifications.show({
@@ -171,9 +200,12 @@ export function AdminTeamsTab() {
         throw new Error(err.error ?? res.statusText);
       }
     },
-    onSuccess: () => {
-      invalidateDepartments();
+    onSuccess: (_, tid) => {
+      const team = allTeams.find((t) => t.id === tid);
+      const dept = team ? departments.find((d) => d.id === team.departmentId) : undefined;
+      invalidateDepartments(dept?.companyId ?? companyId);
       setTeamId(null);
+      setDeleteConfirmTeam(null);
       notifications.show({
         title: 'Team deleted',
         message: 'The team has been deleted.',
@@ -276,48 +308,99 @@ export function AdminTeamsTab() {
       notifications.show({ title: 'Error', message: err.message, color: 'red' }),
   });
 
-  const departmentOptions = departments.map((d) => ({ value: d.id, label: d.name }));
-  const teamOptions = teams.map((t) => ({ value: t.id, label: t.name }));
+  const departmentOptions = [
+    { value: '', label: 'All departments' },
+    ...departments.map((d) => ({ value: d.id, label: d.name })),
+  ];
 
   return (
     <Box>
       <Title order={4} mb="md">
-        Team selection
+        Teams
       </Title>
-      <Stack gap="sm" mb="xl">
+      <Group align="flex-end" gap="sm" mb="md" wrap="wrap">
+        <TextInput
+          placeholder="Filter by team or department name"
+          value={filterText}
+          onChange={(e) => setFilterText(e.currentTarget.value)}
+          style={{ minWidth: 220 }}
+        />
         <Select
-          label="Department"
-          placeholder="Select department"
+          placeholder="Department"
           data={departmentOptions}
-          value={departmentId}
-          onChange={(v) => {
-            setDepartmentId(v);
-            setTeamId(null);
-          }}
+          value={filterDepartmentId ?? ''}
+          onChange={(v) => setFilterDepartmentId(v || null)}
           disabled={!companyId}
           clearable
+          style={{ width: 180 }}
         />
-        <Group align="flex-end" gap="sm">
-          <Select
-            label="Team"
-            placeholder="Select team"
-            data={teamOptions}
-            value={teamId}
-            onChange={setTeamId}
-            disabled={!departmentId}
-            clearable
-            style={{ flex: 1 }}
-          />
-          <Button
-            size="sm"
-            leftSection={<IconPlus size={14} />}
-            disabled={!departmentId}
-            onClick={openCreateTeam}
-          >
-            Create team
-          </Button>
-        </Group>
-      </Stack>
+        <Button
+          leftSection={<IconPlus size={14} />}
+          onClick={openCreateTeam}
+          disabled={!companyId || departments.length === 0}
+        >
+          Create team
+        </Button>
+      </Group>
+
+      {companyId && departments.length > 0 && (
+        <Table withTableBorder withColumnBorders mb="md">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Team</Table.Th>
+              <Table.Th>Department</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {filteredTeams.length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={3}>
+                  <Text size="sm" c="dimmed">
+                    {allTeams.length === 0
+                      ? 'No teams yet. Create a team to get started.'
+                      : 'No teams match the filter.'}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            ) : (
+              filteredTeams.map((t) => (
+                <Table.Tr
+                  key={t.id}
+                  bg={teamId === t.id ? 'var(--mantine-color-default-hover)' : undefined}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setTeamId(t.id)}
+                >
+                  <Table.Td>{t.name}</Table.Td>
+                  <Table.Td>{t.departmentName}</Table.Td>
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconPencil size={14} />}
+                        onClick={() => setEditingTeam(t)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="red"
+                        leftSection={<IconTrash size={14} />}
+                        onClick={() => setDeleteConfirmTeam(t)}
+                        loading={deleteTeam.isPending}
+                      >
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))
+            )}
+          </Table.Tbody>
+        </Table>
+      )}
 
       {selectedTeam && (
         <>
@@ -337,11 +420,7 @@ export function AdminTeamsTab() {
                 variant="light"
                 color="red"
                 leftSection={<IconTrash size={14} />}
-                onClick={() => {
-                  if (window.confirm(`Really delete team "${selectedTeam.name}"?`)) {
-                    deleteTeam.mutate(selectedTeam.id);
-                  }
-                }}
+                onClick={() => selectedTeam && setDeleteConfirmTeam(selectedTeam)}
                 loading={deleteTeam.isPending}
               >
                 Delete
@@ -431,12 +510,7 @@ export function AdminTeamsTab() {
 
       {!companyId && (
         <Alert color="blue" mt="md">
-          No company set up. Create a company in the Organisation tab first.
-        </Alert>
-      )}
-      {companyId && !departmentId && (
-        <Alert color="blue" mt="md">
-          Select department and team to manage members and team leaders.
+          No company set up. Create a company in the Company tab first.
         </Alert>
       )}
 
@@ -497,7 +571,8 @@ export function AdminTeamsTab() {
 
       <Modal opened={createTeamOpened} onClose={closeCreateTeam} title="Create team" size="sm">
         <CreateTeamForm
-          onSubmit={(name) => createTeam.mutate(name)}
+          departments={departments}
+          onSubmit={(name, departmentId) => createTeam.mutate({ name, departmentId })}
           onCancel={closeCreateTeam}
           loading={createTeam.isPending}
         />
@@ -516,28 +591,70 @@ export function AdminTeamsTab() {
           />
         </Modal>
       )}
+      <Modal
+        opened={!!deleteConfirmTeam}
+        onClose={() => setDeleteConfirmTeam(null)}
+        title="Delete team"
+        size="sm"
+      >
+        {deleteConfirmTeam && (
+          <Stack>
+            <Text size="sm">
+              Really delete team &quot;{deleteConfirmTeam.name}&quot;? This cannot be undone.
+            </Text>
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setDeleteConfirmTeam(null)}>
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={() => deleteTeam.mutate(deleteConfirmTeam.id)}
+                loading={deleteTeam.isPending}
+              >
+                Delete
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
     </Box>
   );
 }
 
 function CreateTeamForm({
+  departments,
   onSubmit,
   onCancel,
   loading,
 }: {
-  onSubmit: (name: string) => void;
+  departments: (Department & { teams?: Team[] })[];
+  onSubmit: (name: string, departmentId: string) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
   const [name, setName] = useState('');
+  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const departmentOptions = departments.map((d) => ({ value: d.id, label: d.name }));
   return (
     <Stack>
       <TextInput label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <Select
+        label="Department"
+        placeholder="Select department"
+        data={departmentOptions}
+        value={departmentId}
+        onChange={(v) => setDepartmentId(v)}
+        required
+      />
       <Group justify="flex-end">
         <Button variant="default" onClick={onCancel}>
           Cancel
         </Button>
-        <Button onClick={() => onSubmit(name)} loading={loading} disabled={!name.trim()}>
+        <Button
+          onClick={() => departmentId && onSubmit(name, departmentId)}
+          loading={loading}
+          disabled={!name.trim() || !departmentId}
+        >
           Create
         </Button>
       </Group>
@@ -553,7 +670,7 @@ function EditTeamForm({
   onCancel,
   loading,
 }: {
-  team: Team;
+  team: TeamWithDept | Team;
   departments: (Department & { teams?: Team[] })[];
   initialDepartmentId: string;
   onSubmit: (name: string, departmentId: string) => void;

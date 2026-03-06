@@ -1,10 +1,11 @@
 import { useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Box, Loader } from '@mantine/core';
 import { useMe } from '../hooks/useMe';
 
 /**
  * Must be used inside AuthGuard. Redirects non-admins to /.
- * User data comes from the same source as the sidebar: useMe().
+ * Shows a loader while me is loading so we don't flash blank or redirect too early.
  */
 export function AdminGuard({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -17,7 +18,17 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     }
   }, [isPending, me, navigate]);
 
-  if (isPending || !me?.user?.isAdmin) {
+  if (isPending || !me) {
+    return (
+      <Box
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}
+      >
+        <Loader size="sm" />
+      </Box>
+    );
+  }
+
+  if (!me.user.isAdmin) {
     return null;
   }
 

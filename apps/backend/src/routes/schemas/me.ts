@@ -65,3 +65,23 @@ const draftsScopeSchema = z
   );
 export const meDraftsQuerySchema = draftsScopeSchema;
 export type MeDraftsQuery = z.infer<typeof meDraftsQuerySchema>;
+
+/** Query: GET /me/storage – scope (personal | team | department | company) and corresponding id. */
+export const meStorageQuerySchema = z
+  .object({
+    scope: z.enum(['personal', 'team', 'department', 'company']).optional(),
+    teamId: z.string().cuid().optional(),
+    departmentId: z.string().cuid().optional(),
+    companyId: z.string().cuid().optional(),
+  })
+  .refine(
+    (q) => {
+      if (!q.scope || q.scope === 'personal') return true;
+      if (q.scope === 'team') return q.teamId != null;
+      if (q.scope === 'department') return q.departmentId != null;
+      if (q.scope === 'company') return q.companyId != null;
+      return true;
+    },
+    { message: 'teamId/departmentId/companyId required when scope is team/department/company' }
+  );
+export type MeStorageQuery = z.infer<typeof meStorageQuerySchema>;

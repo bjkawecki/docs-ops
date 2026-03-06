@@ -4,7 +4,8 @@ import { Tabs, Text, Title } from '@mantine/core';
 const adminTabs = [
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/teams', label: 'Teams' },
-  { to: '/admin/organisation', label: 'Organisation' },
+  { to: '/admin/departments', label: 'Departments' },
+  { to: '/admin/company', label: 'Company' },
 ] as const;
 
 export function AdminPage() {
@@ -19,7 +20,7 @@ export function AdminPage() {
         Admin
       </Title>
       <Text size="sm" c="dimmed" mb="md">
-        Manage users, teams and assignments, and edit the organisation (company, department, team).
+        Manage users, teams, departments, and company.
       </Text>
       <Tabs value={activeTab}>
         <Tabs.List mb="md">

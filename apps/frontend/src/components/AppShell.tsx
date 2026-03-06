@@ -105,7 +105,7 @@ export function AppShell() {
   const isImpersonating =
     me?.impersonation?.active === true ||
     (me?.impersonation != null && 'realUser' in me.impersonation);
-  const showDebugMenu = isAdmin || isImpersonating;
+  const showDebugMenu = isAdmin || isImpersonating || location.pathname.startsWith('/admin');
   const isCompanyLead = (me?.identity?.companyLeads?.length ?? 0) > 0;
   const isDepartmentLead = (me?.identity?.departmentLeads?.length ?? 0) > 0;
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;

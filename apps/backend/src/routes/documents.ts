@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import {
   requireAuthPreHandler,
@@ -32,6 +33,7 @@ import {
   contextIdParamSchema,
   documentIdParamSchema,
   versionIdParamSchema,
+  attachmentIdParamSchema,
   draftRequestIdParamSchema,
   createDraftRequestBodySchema,
   putDraftBodySchema,
@@ -47,7 +49,20 @@ import {
   getTagsQuerySchema,
 } from './schemas/documents.js';
 
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
 const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
+  // Allow binary uploads for attachment route (body as Buffer).
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) =>
+    done(null, body as Buffer)
+  );
+  app.addContentTypeParser(/^image\//, { parseAs: 'buffer' }, (_req, body, done) =>
+    done(null, body as Buffer)
+  );
+  app.addContentTypeParser('application/pdf', { parseAs: 'buffer' }, (_req, body, done) =>
+    done(null, body as Buffer)
+  );
+
   /** GET Catalog: all documents the user can read, with filters and pagination. */
   app.get('/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
@@ -263,6 +278,125 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       offset: query.offset,
     });
   });
+
+  /** GET PDF download: redirect to presigned URL if pdfUrl is object key, else redirect to external URL. */
+  app.get<{ Params: { documentId: string } }>(
+    '/documents/:documentId/pdf',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const doc = await prisma.document.findFirst({
+        where: { id: documentId, deletedAt: null },
+        select: { pdfUrl: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      const pdfUrl = doc.pdfUrl?.trim() ?? '';
+      if (!pdfUrl) return reply.status(404).send({ error: 'PDF not available' });
+      if (/^https?:\/\//i.test(pdfUrl)) {
+        return reply.redirect(302, pdfUrl);
+      }
+      const storage = request.server.storage;
+      if (!storage) return reply.status(503).send({ error: 'Storage not available' });
+      const presigned = await storage.getPresignedGetUrl(pdfUrl, 60);
+      return reply.redirect(302, presigned);
+    }
+  );
+
+   
+  /** POST Upload attachment (binary body, X-Filename required). */
+  app.post<{
+    Params: { documentId: string };
+    Body: Buffer;
+  }>(
+    '/documents/:documentId/attachments',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+      bodyLimit: MAX_ATTACHMENT_SIZE_BYTES,
+    },
+    async (request, reply) => {
+      const storage = request.server.storage;
+      if (!storage) return reply.status(503).send({ error: 'Storage not available' });
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const filename = (request.headers['x-filename'] as string)?.trim();
+      if (!filename) return reply.status(400).send({ error: 'X-Filename header required' });
+      const body = request.body;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        return reply.status(400).send({ error: 'Binary body required' });
+      }
+      if (body.length > MAX_ATTACHMENT_SIZE_BYTES) {
+        return reply.status(413).send({ error: 'File too large' });
+      }
+      const contentType = (request.headers['content-type'] as string) ?? undefined;
+      const ext = filename.includes('.') ? filename.split('.').pop()!.toLowerCase() : 'bin';
+      const objectKey = `attachments/${documentId}/${randomUUID()}.${ext}`;
+      await storage.uploadStream(objectKey, body, contentType);
+      const attachment = await prisma.documentAttachment.create({
+        data: {
+          documentId,
+          objectKey,
+          filename,
+          contentType: contentType || null,
+          sizeBytes: body.length,
+          uploadedById: userId,
+        },
+      });
+      return reply.status(201).send({
+        id: attachment.id,
+        documentId: attachment.documentId,
+        filename: attachment.filename,
+        contentType: attachment.contentType,
+        sizeBytes: attachment.sizeBytes,
+        createdAt: attachment.createdAt,
+      });
+    }
+  );
+
+  /** GET Attachment file: redirect to presigned URL. */
+  app.get<{ Params: { documentId: string; attachmentId: string } }>(
+    '/documents/:documentId/attachments/:attachmentId',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const storage = request.server.storage;
+      if (!storage) return reply.status(503).send({ error: 'Storage not available' });
+      const prisma = request.server.prisma;
+      const { documentId, attachmentId } = attachmentIdParamSchema.parse(request.params);
+      const attachment = await prisma.documentAttachment.findFirst({
+        where: { id: attachmentId, documentId },
+      });
+      if (!attachment) return reply.status(404).send({ error: 'Attachment not found' });
+      const presigned = await storage.getPresignedGetUrl(attachment.objectKey, 60);
+      return reply.redirect(302, presigned);
+    }
+  );
+
+  /** DELETE Attachment (object + DB). */
+  app.delete<{ Params: { documentId: string; attachmentId: string } }>(
+    '/documents/:documentId/attachments/:attachmentId',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+    },
+    async (request, reply) => {
+      const storage = request.server.storage;
+      if (!storage) return reply.status(503).send({ error: 'Storage not available' });
+      const prisma = request.server.prisma;
+      const { documentId, attachmentId } = attachmentIdParamSchema.parse(request.params);
+      const attachment = await prisma.documentAttachment.findFirst({
+        where: { id: attachmentId, documentId },
+      });
+      if (!attachment) return reply.status(404).send({ error: 'Attachment not found' });
+      await storage.deleteObject(attachment.objectKey);
+      await prisma.documentAttachment.delete({ where: { id: attachmentId } });
+      return reply.status(204).send();
+    }
+  );
+   
 
   /** GET Einzeldokument – nur wenn deletedAt null. Liefert canWrite/canDelete für UI. */
   app.get<{

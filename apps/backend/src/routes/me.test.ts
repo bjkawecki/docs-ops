@@ -112,6 +112,30 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     expect(body).toBeDefined();
   });
 
+  it('GET /api/v1/me/storage (personal) → 200 mit usedBytes und attachmentCount', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: TEST_EMAIL, password: TEST_PASSWORD },
+    });
+    const cookie = getCookieHeader(loginRes);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me/storage',
+      headers: { cookie },
+    });
+    if (res.statusCode !== 200) {
+      const payload = res.payload ? String(res.payload).slice(0, 500) : '';
+      throw new Error(`Expected 200, got ${res.statusCode}. Body: ${payload}`);
+    }
+    const body = res.json() as { usedBytes: number; attachmentCount: number };
+    expect(typeof body.usedBytes).toBe('number');
+    expect(body.usedBytes).toBe(0);
+    expect(typeof body.attachmentCount).toBe('number');
+    expect(body.attachmentCount).toBe(0);
+  });
+
   it('PATCH /api/v1/me/preferences → theme und sidebarPinned gespeichert', async () => {
     const loginRes = await app.inject({
       method: 'POST',

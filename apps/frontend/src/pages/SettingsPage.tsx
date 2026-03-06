@@ -4,6 +4,7 @@ import { SettingsGeneralTab } from './settings/SettingsGeneralTab';
 import { SettingsAccountTab } from './settings/SettingsAccountTab';
 import { SettingsSecurityTab } from './settings/SettingsSecurityTab';
 import { SettingsNotificationsTab } from './settings/SettingsNotificationsTab';
+import { SettingsStorageTab } from './settings/SettingsStorageTab';
 
 export function SettingsPage() {
   return (
@@ -25,6 +26,7 @@ export function SettingsPage() {
           <Tabs.Tab value="general">General</Tabs.Tab>
           <Tabs.Tab value="account">Account</Tabs.Tab>
           <Tabs.Tab value="security">Security</Tabs.Tab>
+          <Tabs.Tab value="storage">Storage</Tabs.Tab>
           <Tabs.Tab value="notifications">Notifications</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="general" pt="md">
@@ -35,6 +37,9 @@ export function SettingsPage() {
         </Tabs.Panel>
         <Tabs.Panel value="security" pt="md">
           <SettingsSecurityTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="storage" pt="md">
+          <SettingsStorageTab />
         </Tabs.Panel>
         <Tabs.Panel value="notifications" pt="md">
           <SettingsNotificationsTab />

@@ -37,6 +37,12 @@ export const versionIdParamSchema = z.object({
   versionId: z.cuid(),
 });
 
+/** Params: documentId + attachmentId (for attachment routes). */
+export const attachmentIdParamSchema = z.object({
+  documentId: z.cuid(),
+  attachmentId: z.cuid(),
+});
+
 /** Params: draftRequestId (for PATCH draft-requests). */
 export const draftRequestIdParamSchema = z.object({
   draftRequestId: z.cuid(),
