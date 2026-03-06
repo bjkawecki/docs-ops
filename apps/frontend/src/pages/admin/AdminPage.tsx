@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Tabs, Text, Title } from '@mantine/core';
+import './AdminPage.css';
 
 const adminTabs = [
   { to: '/admin/users', label: 'Users' },

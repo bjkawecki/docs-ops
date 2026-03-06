@@ -1,0 +1,7 @@
+.admin-table-hover tbody tr:hover {
+  background-color: var(--mantine-color-default-hover);
+}
+
+.admin-link-hover:hover {
+  text-decoration: underline;
+}

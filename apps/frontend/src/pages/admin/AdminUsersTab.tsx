@@ -17,8 +17,6 @@ import {
   Tabs,
   Card,
   Text,
-  ActionIcon,
-  Menu,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,7 +29,6 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconArrowsSort,
-  IconDotsVertical,
 } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../api/client';
@@ -381,7 +378,7 @@ export function AdminUsersTab() {
       )}
       {data && !isPending && (
         <>
-          <Table withTableBorder withColumnBorders>
+          <Table withTableBorder withColumnBorders className="admin-table-hover">
             <Table.Thead>
               <Table.Tr>
                 <SortableTh
@@ -470,6 +467,7 @@ export function AdminUsersTab() {
                         variant="link"
                         c="var(--mantine-color-blue-6)"
                         size="sm"
+                        className="admin-link-hover"
                         style={{
                           cursor: 'pointer',
                           background: 'none',
@@ -900,21 +898,14 @@ function UserDetailTabs({
                 Assignments
               </Text>
               {!assignmentsEditing && (
-                <Menu position="bottom-end">
-                  <Menu.Target>
-                    <ActionIcon variant="subtle" size="sm">
-                      <IconDotsVertical size={16} />
-                    </ActionIcon>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Item
-                      leftSection={<IconPencil size={14} />}
-                      onClick={() => setAssignmentsEditing(true)}
-                    >
-                      Edit
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconPencil size={14} />}
+                  onClick={() => setAssignmentsEditing(true)}
+                >
+                  Edit
+                </Button>
               )}
             </Group>
             {assignmentsEditing ? (
@@ -1020,7 +1011,7 @@ function UserDetailTabs({
               </Text>
             ) : (
               <>
-                <Table withTableBorder withColumnBorders>
+                <Table withTableBorder withColumnBorders className="admin-table-hover">
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Title</Table.Th>

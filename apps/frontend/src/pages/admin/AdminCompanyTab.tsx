@@ -1,26 +1,26 @@
 import { useState, useMemo } from 'react';
 import {
   Box,
-  Title,
   Text,
   Loader,
   Alert,
   Group,
   Button,
-  TextInput,
   Stack,
   Card,
-  List,
-  ActionIcon,
   Modal,
   Table,
+  Tabs,
+  TextInput,
+  MultiSelect,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconPencil, IconTrash } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 import type { Company } from 'backend/api-types';
+import { CompanyForm } from './AdminCompanyForm';
 
 type CompaniesRes = { items: Company[]; total: number; limit: number; offset: number };
 type AssignmentListRes = {
@@ -30,14 +30,29 @@ type AssignmentListRes = {
   offset: number;
 };
 type AdminUsersRes = { items: { id: string; name: string; email: string | null }[]; total: number };
+type CompanyStatsRes = {
+  storageBytesUsed: number;
+  departmentCount: number;
+  teamCount: number;
+  memberCount: number;
+  documentCount: number;
+  processCount: number;
+  projectCount: number;
+};
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function AdminCompanyTab() {
   const queryClient = useQueryClient();
-  const [filterText, setFilterText] = useState('');
-  const [companyId, setCompanyId] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [addLeadOpened, setAddLeadOpened] = useState(false);
+  const [companyCardEditing, setCompanyCardEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editLeadIds, setEditLeadIds] = useState<string[]>([]);
   const [deleteConfirmCompany, setDeleteConfirmCompany] = useState<Company | null>(null);
 
   const { data: companiesData, isPending: companiesPending } = useQuery({
@@ -50,36 +65,62 @@ export function AdminCompanyTab() {
   });
 
   const companies = useMemo(() => companiesData?.items ?? [], [companiesData?.items]);
-  const singleCompany = companies.length <= 1 ? (companies[0] ?? null) : null;
-  const selectedCompanyId = companyId ?? singleCompany?.id ?? null;
-  const selectedCompany = selectedCompanyId
-    ? (companies.find((c) => c.id === selectedCompanyId) ?? null)
-    : null;
+  const companyIds = useMemo(() => companies.map((c) => c.id), [companies]);
 
-  const filteredCompanies = useMemo(() => {
-    if (companies.length <= 1) return companies;
-    if (!filterText.trim()) return companies;
-    const q = filterText.trim().toLowerCase();
-    return companies.filter((c) => c.name.toLowerCase().includes(q));
-  }, [companies, filterText]);
+  const { data: leadsBatchData } = useQuery({
+    queryKey: ['companies', 'leads-batch', companyIds.join(',')],
+    queryFn: async (): Promise<Record<string, { id: string; name: string }[]>> => {
+      const entries = await Promise.all(
+        companyIds.map(async (cid) => {
+          const res = await apiFetch(`/api/v1/companies/${cid}/company-leads?limit=100`);
+          const items = res.ok ? ((await res.json()) as AssignmentListRes).items : [];
+          return [cid, items] as const;
+        })
+      );
+      return Object.fromEntries(entries);
+    },
+    enabled: companyIds.length > 0,
+  });
 
-  const { data: leadsData, isPending: leadsPending } = useQuery({
-    queryKey: ['companies', selectedCompanyId, 'company-leads'],
+  const { data: leadsForEditData, isPending: leadsForEditPending } = useQuery({
+    queryKey: ['companies', editingCompany?.id, 'company-leads'],
     queryFn: async (): Promise<AssignmentListRes> => {
-      const res = await apiFetch(`/api/v1/companies/${selectedCompanyId}/company-leads?limit=100`);
+      const res = await apiFetch(`/api/v1/companies/${editingCompany!.id}/company-leads?limit=100`);
       if (!res.ok) throw new Error('Failed to load');
       return (await res.json()) as AssignmentListRes;
     },
-    enabled: !!selectedCompanyId,
+    enabled: !!editingCompany?.id,
   });
-  const leads = leadsData?.items ?? [];
+  const leadsForEdit = leadsForEditData?.items ?? [];
+
+  const { data: adminUsersData } = useQuery({
+    queryKey: ['admin', 'users', 'list'],
+    queryFn: async (): Promise<AdminUsersRes> => {
+      const res = await apiFetch('/api/v1/admin/users?limit=200&includeDeactivated=false');
+      if (!res.ok) throw new Error('Failed to load');
+      return (await res.json()) as AdminUsersRes;
+    },
+    enabled: !!editingCompany?.id,
+  });
+  const userOptions = useMemo(
+    () => (adminUsersData?.items ?? []).map((u) => ({ value: u.id, label: u.name })),
+    [adminUsersData?.items]
+  );
+
+  const { data: companyStatsData, isPending: companyStatsPending } = useQuery({
+    queryKey: ['admin', 'companies', editingCompany?.id, 'stats'],
+    queryFn: async (): Promise<CompanyStatsRes> => {
+      const res = await apiFetch(`/api/v1/admin/companies/${editingCompany!.id}/stats`);
+      if (!res.ok) throw new Error('Failed to load stats');
+      return (await res.json()) as CompanyStatsRes;
+    },
+    enabled: !!editingCompany?.id,
+  });
 
   const invalidateCompanies = () => void queryClient.invalidateQueries({ queryKey: ['companies'] });
-  const invalidateLeads = () => {
-    if (selectedCompanyId)
-      void queryClient.invalidateQueries({
-        queryKey: ['companies', selectedCompanyId, 'company-leads'],
-      });
+  const invalidateLeads = (cid: string) => {
+    void queryClient.invalidateQueries({ queryKey: ['companies', cid, 'company-leads'] });
+    void queryClient.invalidateQueries({ queryKey: ['companies', 'leads-batch'] });
   };
 
   const createCompany = useMutation({
@@ -120,9 +161,12 @@ export function AdminCompanyTab() {
       }
       return (await res.json()) as Company;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       invalidateCompanies();
-      setEditingCompany(null);
+      setEditingCompany((prev) =>
+        prev && prev.id === variables.id ? { ...prev, name: variables.name } : prev
+      );
+      setCompanyCardEditing(false);
       notifications.show({
         title: 'Company updated',
         message: 'The company has been updated.',
@@ -142,7 +186,6 @@ export function AdminCompanyTab() {
     },
     onSuccess: () => {
       invalidateCompanies();
-      setCompanyId(null);
       setDeleteConfirmCompany(null);
       notifications.show({
         title: 'Company deleted',
@@ -154,8 +197,8 @@ export function AdminCompanyTab() {
   });
 
   const addLead = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await apiFetch(`/api/v1/companies/${selectedCompanyId}/company-leads`, {
+    mutationFn: async ({ companyId, userId }: { companyId: string; userId: string }) => {
+      const res = await apiFetch(`/api/v1/companies/${companyId}/company-leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -165,9 +208,8 @@ export function AdminCompanyTab() {
         throw new Error(err.error ?? res.statusText);
       }
     },
-    onSuccess: () => {
-      invalidateLeads();
-      setAddLeadOpened(false);
+    onSuccess: (_, { companyId }) => {
+      invalidateLeads(companyId);
       notifications.show({
         title: 'Company lead added',
         message: 'The company lead has been added.',
@@ -178,8 +220,8 @@ export function AdminCompanyTab() {
   });
 
   const removeLead = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await apiFetch(`/api/v1/companies/${selectedCompanyId}/company-leads/${userId}`, {
+    mutationFn: async ({ companyId, userId }: { companyId: string; userId: string }) => {
+      const res = await apiFetch(`/api/v1/companies/${companyId}/company-leads/${userId}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -187,8 +229,8 @@ export function AdminCompanyTab() {
         throw new Error(err.error ?? res.statusText);
       }
     },
-    onSuccess: () => {
-      invalidateLeads();
+    onSuccess: (_, { companyId }) => {
+      invalidateLeads(companyId);
       notifications.show({
         title: 'Company lead removed',
         message: 'The company lead has been removed.',
@@ -201,193 +243,68 @@ export function AdminCompanyTab() {
   if (companiesPending) {
     return (
       <Box>
-        <Title order={4} mb="sm">
-          Company
-        </Title>
         <Loader size="sm" />
       </Box>
     );
   }
 
-  const showList = companies.length > 1;
-
   return (
     <Box>
-      <Title order={4} mb="md">
-        Company
-      </Title>
+      {companies.length === 0 && (
+        <Group mb="md" justify="flex-end">
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+            Create company
+          </Button>
+        </Group>
+      )}
 
-      {showList ? (
-        <>
-          <Group align="flex-end" gap="sm" mb="md" wrap="wrap">
-            <TextInput
-              placeholder="Filter by company name"
-              value={filterText}
-              onChange={(e) => setFilterText(e.currentTarget.value)}
-              style={{ minWidth: 220 }}
-            />
-            <Button leftSection={<IconPlus size={14} />} onClick={openCreate}>
-              Create company
-            </Button>
-          </Group>
-          <Table withTableBorder withColumnBorders mb="md">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Company</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {filteredCompanies.length === 0 ? (
-                <Table.Tr>
-                  <Table.Td colSpan={2}>
-                    <Text size="sm" c="dimmed">
-                      {companies.length === 0
-                        ? 'No companies yet. Create a company to get started.'
-                        : 'No companies match the filter.'}
+      {companies.length === 0 ? (
+        <Alert color="blue" mb="md">
+          No company set up. Create the company first, then manage company leads.
+        </Alert>
+      ) : (
+        <Table withTableBorder withColumnBorders mb="md" className="admin-table-hover">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Company</Table.Th>
+              <Table.Th>Lead</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {companies.map((c) => {
+              const leadNames = leadsBatchData?.[c.id]?.map((u) => u.name) ?? [];
+              const leadText = leadNames.length > 0 ? leadNames.join(', ') : '–';
+              return (
+                <Table.Tr key={c.id}>
+                  <Table.Td>
+                    <Text
+                      component="button"
+                      type="button"
+                      variant="link"
+                      c="var(--mantine-color-blue-6)"
+                      size="sm"
+                      className="admin-link-hover"
+                      style={{
+                        cursor: 'pointer',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                      }}
+                      onClick={() => {
+                        setEditingCompany(c);
+                        setCompanyCardEditing(false);
+                      }}
+                    >
+                      {c.name}
                     </Text>
                   </Table.Td>
+                  <Table.Td>{leadText}</Table.Td>
                 </Table.Tr>
-              ) : (
-                filteredCompanies.map((c) => (
-                  <Table.Tr
-                    key={c.id}
-                    bg={companyId === c.id ? 'var(--mantine-color-default-hover)' : undefined}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setCompanyId(c.id)}
-                  >
-                    <Table.Td>{c.name}</Table.Td>
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          leftSection={<IconPencil size={14} />}
-                          onClick={() => setEditingCompany(c)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          color="red"
-                          leftSection={<IconTrash size={14} />}
-                          onClick={() => setDeleteConfirmCompany(c)}
-                          loading={deleteCompany.isPending}
-                        >
-                          Delete
-                        </Button>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))
-              )}
-            </Table.Tbody>
-          </Table>
-        </>
-      ) : (
-        <>
-          {companies.length === 0 ? (
-            <Alert color="blue" mb="md">
-              No company set up. Create the company first, then manage company leads.
-            </Alert>
-          ) : null}
-          {singleCompany && (
-            <Group align="center" gap="xs" mb="md">
-              <Title order={4}>{singleCompany.name}</Title>
-              <Button
-                size="xs"
-                variant="light"
-                leftSection={<IconPencil size={14} />}
-                onClick={() => setEditingCompany(singleCompany)}
-              >
-                Edit
-              </Button>
-            </Group>
-          )}
-          {companies.length === 0 && (
-            <Button leftSection={<IconPlus size={14} />} onClick={openCreate} mb="md">
-              Create company
-            </Button>
-          )}
-        </>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
       )}
-
-      {selectedCompany && (
-        <>
-          {showList && (
-            <Group justify="space-between" align="center" mb="sm">
-              <Title order={4}>Company: {selectedCompany.name}</Title>
-              <Group gap="xs">
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconPencil size={14} />}
-                  onClick={() => setEditingCompany(selectedCompany)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="red"
-                  leftSection={<IconTrash size={14} />}
-                  onClick={() => setDeleteConfirmCompany(selectedCompany)}
-                  loading={deleteCompany.isPending}
-                >
-                  Delete
-                </Button>
-              </Group>
-            </Group>
-          )}
-          <Card withBorder padding="md" w={320}>
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>Company leads</Text>
-              <Button
-                size="xs"
-                leftSection={<IconPlus size={12} />}
-                onClick={() => setAddLeadOpened(true)}
-              >
-                Add
-              </Button>
-            </Group>
-            {leadsPending ? (
-              <Loader size="sm" />
-            ) : leads.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No company leads
-              </Text>
-            ) : (
-              <List size="sm">
-                {leads.map((u) => (
-                  <List.Item key={u.id}>
-                    <Group justify="space-between" gap="xs">
-                      <span>{u.name}</span>
-                      <ActionIcon
-                        size="sm"
-                        variant="subtle"
-                        color="red"
-                        onClick={() => removeLead.mutate(u.id)}
-                        loading={removeLead.isPending}
-                      >
-                        <IconTrash size={14} />
-                      </ActionIcon>
-                    </Group>
-                  </List.Item>
-                ))}
-              </List>
-            )}
-          </Card>
-        </>
-      )}
-
-      <CompanyUserPickerModal
-        opened={addLeadOpened}
-        onClose={() => setAddLeadOpened(false)}
-        onSelect={(userId) => addLead.mutate(userId)}
-        excludeIds={leads.map((u) => u.id)}
-        loading={addLead.isPending}
-      />
 
       <Modal opened={createOpened} onClose={closeCreate} title="Create company" size="sm">
         <CompanyForm
@@ -402,16 +319,199 @@ export function AdminCompanyTab() {
         <Modal
           opened
           onClose={() => setEditingCompany(null)}
-          title="Edit company"
-          size="sm"
+          title={`Company: ${editingCompany.name}`}
+          size="lg"
           key={editingCompany.id}
         >
-          <CompanyForm
-            initialName={editingCompany.name}
-            onSubmit={(name) => updateCompany.mutate({ id: editingCompany.id, name })}
-            onCancel={() => setEditingCompany(null)}
-            loading={updateCompany.isPending}
-          />
+          <Tabs defaultValue="overview">
+            <Tabs.List>
+              <Tabs.Tab value="overview">Overview</Tabs.Tab>
+              <Tabs.Tab value="manage">Manage</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="overview" pt="md">
+              <Card withBorder padding="md">
+                <Group justify="space-between" mb="md">
+                  <Text size="sm" fw={600}>
+                    Company
+                  </Text>
+                  {!companyCardEditing && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconPencil size={14} />}
+                      onClick={() => {
+                        setEditName(editingCompany.name);
+                        setEditLeadIds(leadsForEdit.map((u) => u.id));
+                        setCompanyCardEditing(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                </Group>
+                {companyCardEditing ? (
+                  <Stack gap="md">
+                    <TextInput
+                      label="Name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.currentTarget.value)}
+                      required
+                    />
+                    <MultiSelect
+                      label="Lead"
+                      placeholder="Select company leads"
+                      data={userOptions}
+                      value={editLeadIds}
+                      onChange={setEditLeadIds}
+                      searchable
+                      clearable
+                    />
+                    <Group gap="xs">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setCompanyCardEditing(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const name = editName.trim();
+                          if (!name) return;
+                          void (async () => {
+                            try {
+                              if (name !== editingCompany.name) {
+                                await updateCompany.mutateAsync({ id: editingCompany.id, name });
+                              }
+                              const currentIds = leadsForEdit.map((u) => u.id);
+                              const toAdd = editLeadIds.filter((id) => !currentIds.includes(id));
+                              const toRemove = currentIds.filter((id) => !editLeadIds.includes(id));
+                              await Promise.all([
+                                ...toAdd.map((userId) =>
+                                  addLead.mutateAsync({ companyId: editingCompany.id, userId })
+                                ),
+                                ...toRemove.map((userId) =>
+                                  removeLead.mutateAsync({ companyId: editingCompany.id, userId })
+                                ),
+                              ]);
+                              setEditingCompany((prev) =>
+                                prev && prev.id === editingCompany.id ? { ...prev, name } : prev
+                              );
+                              invalidateLeads(editingCompany.id);
+                              setCompanyCardEditing(false);
+                            } catch {
+                              // notifications from mutations
+                            }
+                          })();
+                        }}
+                        loading={
+                          updateCompany.isPending || addLead.isPending || removeLead.isPending
+                        }
+                        disabled={!editName.trim()}
+                      >
+                        Save
+                      </Button>
+                    </Group>
+                  </Stack>
+                ) : leadsForEditPending ? (
+                  <Loader size="sm" />
+                ) : (
+                  <Stack gap="xs">
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Name
+                      </Text>
+                      <Text size="sm">{editingCompany.name}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Lead
+                      </Text>
+                      <Text size="sm">
+                        {leadsForEdit.length === 0
+                          ? '–'
+                          : leadsForEdit.map((u) => u.name).join(', ')}
+                      </Text>
+                    </div>
+                  </Stack>
+                )}
+              </Card>
+              <Card withBorder padding="md" mt="md">
+                <Text size="sm" fw={600} mb="xs">
+                  Stats
+                </Text>
+                {companyStatsPending ? (
+                  <Loader size="sm" />
+                ) : companyStatsData ? (
+                  <Group gap="lg">
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Storage
+                      </Text>
+                      <Text size="sm">{formatBytes(companyStatsData.storageBytesUsed)}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Departments
+                      </Text>
+                      <Text size="sm">{companyStatsData.departmentCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Teams
+                      </Text>
+                      <Text size="sm">{companyStatsData.teamCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Members
+                      </Text>
+                      <Text size="sm">{companyStatsData.memberCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Documents
+                      </Text>
+                      <Text size="sm">{companyStatsData.documentCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Processes
+                      </Text>
+                      <Text size="sm">{companyStatsData.processCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Projects
+                      </Text>
+                      <Text size="sm">{companyStatsData.projectCount}</Text>
+                    </div>
+                  </Group>
+                ) : null}
+              </Card>
+            </Tabs.Panel>
+            <Tabs.Panel value="manage" pt="md">
+              <Card withBorder padding="md">
+                <Text size="sm" fw={600} mb="xs">
+                  Manage
+                </Text>
+                <Text size="xs" c="dimmed" mb="md">
+                  Sensitive actions. Use with care.
+                </Text>
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={() => setDeleteConfirmCompany(editingCompany)}
+                  loading={deleteCompany.isPending}
+                >
+                  Delete company
+                </Button>
+              </Card>
+            </Tabs.Panel>
+          </Tabs>
         </Modal>
       )}
 
@@ -443,101 +543,5 @@ export function AdminCompanyTab() {
         )}
       </Modal>
     </Box>
-  );
-}
-
-function CompanyForm({
-  initialName,
-  onSubmit,
-  onCancel,
-  loading,
-}: {
-  initialName: string;
-  onSubmit: (name: string) => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  const [name, setName] = useState(initialName);
-  return (
-    <Stack>
-      <TextInput
-        label="Name"
-        value={name}
-        onChange={(e) => setName(e.currentTarget.value)}
-        required
-      />
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button onClick={() => onSubmit(name)} loading={loading} disabled={!name.trim()}>
-          Save
-        </Button>
-      </Group>
-    </Stack>
-  );
-}
-
-function CompanyUserPickerModal({
-  opened,
-  onClose,
-  onSelect,
-  excludeIds,
-  loading,
-}: {
-  opened: boolean;
-  onClose: () => void;
-  onSelect: (userId: string) => void;
-  excludeIds: string[];
-  loading: boolean;
-}) {
-  const [search, setSearch] = useState('');
-  const { data, isPending } = useQuery({
-    queryKey: ['admin', 'users', search],
-    queryFn: async (): Promise<AdminUsersRes> => {
-      const params = new URLSearchParams({ limit: '50', includeDeactivated: 'false' });
-      if (search.trim()) params.set('search', search.trim());
-      const res = await apiFetch(`/api/v1/admin/users?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to load');
-      return (await res.json()) as AdminUsersRes;
-    },
-    enabled: opened,
-  });
-  const options = (data?.items ?? []).filter((u) => !excludeIds.includes(u.id));
-
-  return (
-    <Modal opened={opened} onClose={onClose} title="Add company lead" size="sm">
-      <Stack>
-        <TextInput
-          placeholder="Search by name or email"
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-        />
-        {isPending ? (
-          <Loader size="sm" />
-        ) : options.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {search ? 'No matching users' : 'No more users (all already assigned)'}
-          </Text>
-        ) : (
-          <List size="sm">
-            {options.slice(0, 20).map((u) => (
-              <List.Item key={u.id}>
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  fullWidth
-                  justify="flex-start"
-                  onClick={() => onSelect(u.id)}
-                  loading={loading}
-                >
-                  {u.name} {u.email ? `(${u.email})` : ''}
-                </Button>
-              </List.Item>
-            ))}
-          </List>
-        )}
-      </Stack>
-    </Modal>
   );
 }

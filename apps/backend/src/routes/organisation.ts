@@ -19,7 +19,14 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const query = paginationQuerySchema.parse(request.query);
     const [companies, total] = await Promise.all([
       request.server.prisma.company.findMany({
-        include: { departments: true },
+        include: {
+          departments: {
+            include: {
+              _count: { select: { teams: true } },
+              departmentLeads: { include: { user: { select: { id: true, name: true } } } },
+            },
+          },
+        },
         take: query.limit,
         skip: query.offset,
         orderBy: { name: 'asc' },

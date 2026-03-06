@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
   Box,
-  Title,
   Text,
   Loader,
   Alert,
@@ -11,10 +10,10 @@ import {
   Select,
   Stack,
   Card,
-  List,
-  ActionIcon,
   Modal,
   Table,
+  Tabs,
+  MultiSelect,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,13 +22,18 @@ import { IconPlus, IconPencil, IconTrash } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 import type { Company, Department } from 'backend/api-types';
 
+type DepartmentWithCounts = Department & {
+  _count?: { teams: number };
+  departmentLeads?: { user: { id: string; name: string } }[];
+};
 type CompaniesRes = {
-  items: (Company & { departments: Department[] })[];
+  items: (Company & { departments: DepartmentWithCounts[] })[];
   total: number;
   limit: number;
   offset: number;
 };
-type DepartmentWithCompany = Department & { companyName: string };
+type DepartmentWithCompany = DepartmentWithCounts & { companyName: string };
+type MemberCountsRes = Record<string, number>;
 type AssignmentListRes = {
   items: { id: string; name: string }[];
   total: number;
@@ -37,15 +41,30 @@ type AssignmentListRes = {
   offset: number;
 };
 type AdminUsersRes = { items: { id: string; name: string; email: string | null }[]; total: number };
+type DepartmentStatsRes = {
+  storageBytesUsed: number;
+  teamCount: number;
+  memberCount: number;
+  documentCount: number;
+  processCount: number;
+  projectCount: number;
+};
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function AdminDepartmentsTab() {
   const queryClient = useQueryClient();
   const [filterText, setFilterText] = useState('');
   const [filterCompanyId, setFilterCompanyId] = useState<string | null>(null);
-  const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [editingDepartment, setEditingDepartment] = useState<DepartmentWithCompany | null>(null);
-  const [addLeadOpened, setAddLeadOpened] = useState(false);
+  const [departmentCardEditing, setDepartmentCardEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editLeadIds, setEditLeadIds] = useState<string[]>([]);
   const [deleteConfirmDepartment, setDeleteConfirmDepartment] =
     useState<DepartmentWithCompany | null>(null);
 
@@ -79,27 +98,70 @@ export function AdminDepartmentsTab() {
     return list;
   }, [allDepartments, filterText, filterCompanyId]);
 
-  const selectedDepartment = departmentId
-    ? (allDepartments.find((d) => d.id === departmentId) ?? null)
-    : null;
+  const departmentIdsForCounts = useMemo(() => allDepartments.map((d) => d.id), [allDepartments]);
+  const { data: memberCountsData } = useQuery({
+    queryKey: [
+      'admin',
+      'departments',
+      'member-counts',
+      [...departmentIdsForCounts].sort().join(','),
+    ],
+    queryFn: async (): Promise<MemberCountsRes> => {
+      const ids = departmentIdsForCounts.length > 0 ? departmentIdsForCounts.join(',') : '';
+      const url =
+        ids.length > 0
+          ? `/api/v1/admin/departments/member-counts?ids=${encodeURIComponent(ids)}`
+          : '/api/v1/admin/departments/member-counts';
+      const res = await apiFetch(url);
+      if (!res.ok) throw new Error('Failed to load member counts');
+      return (await res.json()) as MemberCountsRes;
+    },
+    enabled: departmentIdsForCounts.length > 0,
+  });
+  const memberCounts = memberCountsData ?? {};
 
-  const { data: leadsData, isPending: leadsPending } = useQuery({
-    queryKey: ['departments', departmentId, 'department-leads'],
+  const { data: leadsForEditData, isPending: leadsForEditPending } = useQuery({
+    queryKey: ['departments', editingDepartment?.id, 'department-leads'],
     queryFn: async (): Promise<AssignmentListRes> => {
-      const res = await apiFetch(`/api/v1/departments/${departmentId}/department-leads?limit=100`);
+      const res = await apiFetch(
+        `/api/v1/departments/${editingDepartment!.id}/department-leads?limit=100`
+      );
       if (!res.ok) throw new Error('Failed to load');
       return (await res.json()) as AssignmentListRes;
     },
-    enabled: !!departmentId,
+    enabled: !!editingDepartment?.id,
   });
-  const leads = leadsData?.items ?? [];
+  const leadsForEdit = leadsForEditData?.items ?? [];
+
+  const { data: adminUsersData } = useQuery({
+    queryKey: ['admin', 'users', 'list'],
+    queryFn: async (): Promise<AdminUsersRes> => {
+      const res = await apiFetch('/api/v1/admin/users?limit=200&includeDeactivated=false');
+      if (!res.ok) throw new Error('Failed to load');
+      return (await res.json()) as AdminUsersRes;
+    },
+    enabled: !!editingDepartment?.id,
+  });
+  const userOptions = useMemo(
+    () => (adminUsersData?.items ?? []).map((u) => ({ value: u.id, label: u.name })),
+    [adminUsersData?.items]
+  );
+
+  const { data: departmentStatsData, isPending: departmentStatsPending } = useQuery({
+    queryKey: ['admin', 'departments', editingDepartment?.id, 'stats'],
+    queryFn: async (): Promise<DepartmentStatsRes> => {
+      const res = await apiFetch(`/api/v1/admin/departments/${editingDepartment!.id}/stats`);
+      if (!res.ok) throw new Error('Failed to load stats');
+      return (await res.json()) as DepartmentStatsRes;
+    },
+    enabled: !!editingDepartment?.id,
+  });
 
   const invalidateCompanies = () => void queryClient.invalidateQueries({ queryKey: ['companies'] });
-  const invalidateLeads = () => {
-    if (departmentId)
-      void queryClient.invalidateQueries({
-        queryKey: ['departments', departmentId, 'department-leads'],
-      });
+  const invalidateLeads = (departmentId: string) => {
+    void queryClient.invalidateQueries({
+      queryKey: ['departments', departmentId, 'department-leads'],
+    });
   };
 
   const createDepartment = useMutation({
@@ -162,7 +224,6 @@ export function AdminDepartmentsTab() {
     },
     onSuccess: () => {
       invalidateCompanies();
-      setDepartmentId(null);
       setDeleteConfirmDepartment(null);
       notifications.show({
         title: 'Department deleted',
@@ -174,7 +235,7 @@ export function AdminDepartmentsTab() {
   });
 
   const addLead = useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({ departmentId, userId }: { departmentId: string; userId: string }) => {
       const res = await apiFetch(`/api/v1/departments/${departmentId}/department-leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,9 +246,8 @@ export function AdminDepartmentsTab() {
         throw new Error(err.error ?? res.statusText);
       }
     },
-    onSuccess: () => {
-      invalidateLeads();
-      setAddLeadOpened(false);
+    onSuccess: (_, { departmentId }) => {
+      invalidateLeads(departmentId);
       notifications.show({
         title: 'Department lead added',
         message: 'The department lead has been added.',
@@ -198,7 +258,7 @@ export function AdminDepartmentsTab() {
   });
 
   const removeLead = useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({ departmentId, userId }: { departmentId: string; userId: string }) => {
       const res = await apiFetch(`/api/v1/departments/${departmentId}/department-leads/${userId}`, {
         method: 'DELETE',
       });
@@ -207,8 +267,8 @@ export function AdminDepartmentsTab() {
         throw new Error(err.error ?? res.statusText);
       }
     },
-    onSuccess: () => {
-      invalidateLeads();
+    onSuccess: (_, { departmentId }) => {
+      invalidateLeads(departmentId);
       notifications.show({
         title: 'Department lead removed',
         message: 'The department lead has been removed.',
@@ -226,9 +286,6 @@ export function AdminDepartmentsTab() {
   if (companiesPending) {
     return (
       <Box>
-        <Title order={4} mb="sm">
-          Departments
-        </Title>
         <Loader size="sm" />
       </Box>
     );
@@ -236,25 +293,26 @@ export function AdminDepartmentsTab() {
 
   return (
     <Box>
-      <Title order={4} mb="md">
-        Departments
-      </Title>
-      <Group align="flex-end" gap="sm" mb="md" wrap="wrap">
-        <TextInput
-          placeholder="Filter by department or company name"
-          value={filterText}
-          onChange={(e) => setFilterText(e.currentTarget.value)}
-          style={{ minWidth: 220 }}
-        />
-        <Select
-          placeholder="Company"
-          data={companyOptions}
-          value={filterCompanyId ?? ''}
-          onChange={(v) => setFilterCompanyId(v || null)}
-          clearable
-          style={{ width: 180 }}
-        />
+      <Group mb="md" justify="space-between" wrap="wrap" gap="sm">
+        <Group gap="sm" wrap="wrap">
+          <TextInput
+            placeholder="Search (department, company)"
+            size="xs"
+            value={filterText}
+            onChange={(e) => setFilterText(e.currentTarget.value)}
+          />
+          <Select
+            placeholder="Company"
+            size="xs"
+            data={companyOptions}
+            value={filterCompanyId ?? ''}
+            onChange={(v) => setFilterCompanyId(v || null)}
+            clearable
+            style={{ width: 160 }}
+          />
+        </Group>
         <Button
+          size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={openCreate}
           disabled={companies.length === 0}
@@ -267,18 +325,20 @@ export function AdminDepartmentsTab() {
         <Alert color="blue">No company set up. Create a company in the Company tab first.</Alert>
       ) : (
         <>
-          <Table withTableBorder withColumnBorders mb="md">
+          <Table withTableBorder withColumnBorders mb="md" className="admin-table-hover">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Department</Table.Th>
                 <Table.Th>Company</Table.Th>
-                <Table.Th>Actions</Table.Th>
+                <Table.Th>Leads</Table.Th>
+                <Table.Th>Members</Table.Th>
+                <Table.Th>Teams</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {filteredDepartments.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={3}>
+                  <Table.Td colSpan={5}>
                     <Text size="sm" c="dimmed">
                       {allDepartments.length === 0
                         ? 'No departments yet. Create a department to get started.'
@@ -287,118 +347,45 @@ export function AdminDepartmentsTab() {
                   </Table.Td>
                 </Table.Tr>
               ) : (
-                filteredDepartments.map((d) => (
-                  <Table.Tr
-                    key={d.id}
-                    bg={departmentId === d.id ? 'var(--mantine-color-default-hover)' : undefined}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setDepartmentId(d.id)}
-                  >
-                    <Table.Td>{d.name}</Table.Td>
-                    <Table.Td>{d.companyName}</Table.Td>
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          leftSection={<IconPencil size={14} />}
+                filteredDepartments.map((d) => {
+                  const leadNames = d.departmentLeads?.map((l) => l.user.name).join(', ') ?? '';
+                  return (
+                    <Table.Tr key={d.id}>
+                      <Table.Td>
+                        <Text
+                          component="button"
+                          type="button"
+                          variant="link"
+                          c="var(--mantine-color-blue-6)"
+                          className="admin-link-hover"
+                          size="sm"
+                          style={{
+                            cursor: 'pointer',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                          }}
                           onClick={() => setEditingDepartment(d)}
                         >
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          color="red"
-                          leftSection={<IconTrash size={14} />}
-                          onClick={() => setDeleteConfirmDepartment(d)}
-                          loading={deleteDepartment.isPending}
-                        >
-                          Delete
-                        </Button>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))
+                          {d.name}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>{d.companyName}</Table.Td>
+                      <Table.Td>{leadNames || '–'}</Table.Td>
+                      <Table.Td>
+                        {memberCounts[d.id] !== undefined ? String(memberCounts[d.id]) : '–'}
+                      </Table.Td>
+                      <Table.Td>
+                        {d._count?.teams !== undefined ? String(d._count.teams) : '–'}
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })
               )}
             </Table.Tbody>
           </Table>
-
-          {selectedDepartment && (
-            <>
-              <Group justify="space-between" align="center" mb="sm">
-                <Title order={4}>Department: {selectedDepartment.name}</Title>
-                <Group gap="xs">
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconPencil size={14} />}
-                    onClick={() => setEditingDepartment(selectedDepartment)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="red"
-                    leftSection={<IconTrash size={14} />}
-                    onClick={() => setDeleteConfirmDepartment(selectedDepartment)}
-                    loading={deleteDepartment.isPending}
-                  >
-                    Delete
-                  </Button>
-                </Group>
-              </Group>
-              <Card withBorder padding="md" w={320}>
-                <Group justify="space-between" mb="xs">
-                  <Text fw={600}>Department leads</Text>
-                  <Button
-                    size="xs"
-                    leftSection={<IconPlus size={12} />}
-                    onClick={() => setAddLeadOpened(true)}
-                  >
-                    Add
-                  </Button>
-                </Group>
-                {leadsPending ? (
-                  <Loader size="sm" />
-                ) : leads.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No department leads
-                  </Text>
-                ) : (
-                  <List size="sm">
-                    {leads.map((u) => (
-                      <List.Item key={u.id}>
-                        <Group justify="space-between" gap="xs">
-                          <span>{u.name}</span>
-                          <ActionIcon
-                            size="sm"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => removeLead.mutate(u.id)}
-                            loading={removeLead.isPending}
-                          >
-                            <IconTrash size={14} />
-                          </ActionIcon>
-                        </Group>
-                      </List.Item>
-                    ))}
-                  </List>
-                )}
-              </Card>
-            </>
-          )}
         </>
       )}
-
-      <DepartmentUserPickerModal
-        opened={addLeadOpened}
-        onClose={() => setAddLeadOpened(false)}
-        onSelect={(userId) => addLead.mutate(userId)}
-        excludeIds={leads.map((u) => u.id)}
-        loading={addLead.isPending}
-      />
 
       <Modal opened={createOpened} onClose={closeCreate} title="Create department" size="sm">
         <CreateDepartmentForm
@@ -410,13 +397,205 @@ export function AdminDepartmentsTab() {
       </Modal>
 
       {editingDepartment && (
-        <Modal opened onClose={() => setEditingDepartment(null)} title="Edit department" size="sm">
-          <EditDepartmentForm
-            department={editingDepartment}
-            onSubmit={(name) => updateDepartment.mutate({ id: editingDepartment.id, name })}
-            onCancel={() => setEditingDepartment(null)}
-            loading={updateDepartment.isPending}
-          />
+        <Modal
+          opened
+          onClose={() => setEditingDepartment(null)}
+          title={`Department: ${editingDepartment.name}`}
+          size="lg"
+          key={editingDepartment.id}
+        >
+          <Tabs defaultValue="overview">
+            <Tabs.List>
+              <Tabs.Tab value="overview">Overview</Tabs.Tab>
+              <Tabs.Tab value="manage">Manage</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="overview" pt="md">
+              <Card withBorder padding="md">
+                <Group justify="space-between" mb="md">
+                  <Text size="sm" fw={600}>
+                    Department
+                  </Text>
+                  {!departmentCardEditing && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconPencil size={14} />}
+                      onClick={() => {
+                        setEditName(editingDepartment.name);
+                        setEditLeadIds(leadsForEdit.map((u) => u.id));
+                        setDepartmentCardEditing(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                </Group>
+                {departmentCardEditing ? (
+                  <Stack gap="md">
+                    <TextInput
+                      label="Name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.currentTarget.value)}
+                      required
+                    />
+                    <MultiSelect
+                      label="Lead"
+                      placeholder="Select department leads"
+                      data={userOptions}
+                      value={editLeadIds}
+                      onChange={setEditLeadIds}
+                      searchable
+                      clearable
+                    />
+                    <Group gap="xs">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setDepartmentCardEditing(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const name = editName.trim();
+                          if (!name) return;
+                          void (async () => {
+                            try {
+                              if (name !== editingDepartment.name) {
+                                await updateDepartment.mutateAsync({
+                                  id: editingDepartment.id,
+                                  name,
+                                });
+                              }
+                              const currentIds = leadsForEdit.map((u) => u.id);
+                              const toAdd = editLeadIds.filter((id) => !currentIds.includes(id));
+                              const toRemove = currentIds.filter((id) => !editLeadIds.includes(id));
+                              await Promise.all([
+                                ...toAdd.map((userId) =>
+                                  addLead.mutateAsync({
+                                    departmentId: editingDepartment.id,
+                                    userId,
+                                  })
+                                ),
+                                ...toRemove.map((userId) =>
+                                  removeLead.mutateAsync({
+                                    departmentId: editingDepartment.id,
+                                    userId,
+                                  })
+                                ),
+                              ]);
+                              setEditingDepartment((prev) =>
+                                prev && prev.id === editingDepartment.id ? { ...prev, name } : prev
+                              );
+                              invalidateLeads(editingDepartment.id);
+                              setDepartmentCardEditing(false);
+                            } catch {
+                              // notifications from mutations
+                            }
+                          })();
+                        }}
+                        loading={
+                          updateDepartment.isPending || addLead.isPending || removeLead.isPending
+                        }
+                        disabled={!editName.trim()}
+                      >
+                        Save
+                      </Button>
+                    </Group>
+                  </Stack>
+                ) : leadsForEditPending ? (
+                  <Loader size="sm" />
+                ) : (
+                  <Stack gap="xs">
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Name
+                      </Text>
+                      <Text size="sm">{editingDepartment.name}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Lead
+                      </Text>
+                      <Text size="sm">
+                        {leadsForEdit.length === 0
+                          ? '–'
+                          : leadsForEdit.map((u) => u.name).join(', ')}
+                      </Text>
+                    </div>
+                  </Stack>
+                )}
+              </Card>
+              <Card withBorder padding="md" mt="md">
+                <Text size="sm" fw={600} mb="xs">
+                  Stats
+                </Text>
+                {departmentStatsPending ? (
+                  <Loader size="sm" />
+                ) : departmentStatsData ? (
+                  <Group gap="lg">
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Storage
+                      </Text>
+                      <Text size="sm">{formatBytes(departmentStatsData.storageBytesUsed)}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Teams
+                      </Text>
+                      <Text size="sm">{departmentStatsData.teamCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Members
+                      </Text>
+                      <Text size="sm">{departmentStatsData.memberCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Documents
+                      </Text>
+                      <Text size="sm">{departmentStatsData.documentCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Processes
+                      </Text>
+                      <Text size="sm">{departmentStatsData.processCount}</Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">
+                        Projects
+                      </Text>
+                      <Text size="sm">{departmentStatsData.projectCount}</Text>
+                    </div>
+                  </Group>
+                ) : null}
+              </Card>
+            </Tabs.Panel>
+            <Tabs.Panel value="manage" pt="md">
+              <Card withBorder padding="md">
+                <Text size="sm" fw={600} mb="xs">
+                  Manage
+                </Text>
+                <Text size="xs" c="dimmed" mb="md">
+                  Sensitive actions. Use with care.
+                </Text>
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={() => setDeleteConfirmDepartment(editingDepartment)}
+                  loading={deleteDepartment.isPending}
+                >
+                  Delete department
+                </Button>
+              </Card>
+            </Tabs.Panel>
+          </Tabs>
         </Modal>
       )}
 
@@ -494,101 +673,5 @@ function CreateDepartmentForm({
         </Button>
       </Group>
     </Stack>
-  );
-}
-
-function EditDepartmentForm({
-  department,
-  onSubmit,
-  onCancel,
-  loading,
-}: {
-  department: Department;
-  onSubmit: (name: string) => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  const [name, setName] = useState(department.name);
-  return (
-    <Stack>
-      <TextInput
-        label="Name"
-        value={name}
-        onChange={(e) => setName(e.currentTarget.value)}
-        required
-      />
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button onClick={() => onSubmit(name)} loading={loading} disabled={!name.trim()}>
-          Save
-        </Button>
-      </Group>
-    </Stack>
-  );
-}
-
-function DepartmentUserPickerModal({
-  opened,
-  onClose,
-  onSelect,
-  excludeIds,
-  loading,
-}: {
-  opened: boolean;
-  onClose: () => void;
-  onSelect: (userId: string) => void;
-  excludeIds: string[];
-  loading: boolean;
-}) {
-  const [search, setSearch] = useState('');
-  const { data, isPending } = useQuery({
-    queryKey: ['admin', 'users', search],
-    queryFn: async (): Promise<AdminUsersRes> => {
-      const params = new URLSearchParams({ limit: '50', includeDeactivated: 'false' });
-      if (search.trim()) params.set('search', search.trim());
-      const res = await apiFetch(`/api/v1/admin/users?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to load');
-      return (await res.json()) as AdminUsersRes;
-    },
-    enabled: opened,
-  });
-  const options = (data?.items ?? []).filter((u) => !excludeIds.includes(u.id));
-
-  return (
-    <Modal opened={opened} onClose={onClose} title="Add department lead" size="sm">
-      <Stack>
-        <TextInput
-          placeholder="Search by name or email"
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-        />
-        {isPending ? (
-          <Loader size="sm" />
-        ) : options.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {search ? 'No matching users' : 'No more users (all already assigned)'}
-          </Text>
-        ) : (
-          <List size="sm">
-            {options.slice(0, 20).map((u) => (
-              <List.Item key={u.id}>
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  fullWidth
-                  justify="flex-start"
-                  onClick={() => onSelect(u.id)}
-                  loading={loading}
-                >
-                  {u.name} {u.email ? `(${u.email})` : ''}
-                </Button>
-              </List.Item>
-            ))}
-          </List>
-        )}
-      </Stack>
-    </Modal>
   );
 }
