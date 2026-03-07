@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:18-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
@@ -17,6 +18,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data
     environment:
       # Nicht die MinIO-Defaults nutzen (Warnung vermeiden). Für Prod: .env mit echten Werten.
@@ -34,6 +36,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
     environment:
       PORT: 8080
       DATABASE_URL: postgresql://app:app@postgres:5432/docsops
@@ -43,7 +46,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8080/health']
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8080/health || exit 1']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -54,36 +57,33 @@ services:
       context: .
       dockerfile: docker/Dockerfile.node-dev
     image: docsops-node-dev
+    restart: unless-stopped
     user: '${UID:-1000}:${GID:-1000}'
     working_dir: /app
     volumes:
       - .:/app
-    command: sh -c "pnpm install && pnpm --filter frontend run dev"
-    depends_on:
-      - app
-    environment:
-      CI: 'true'
-      VITE_API_URL: ''
-    expose:
-      - '5173'
+    # --ignore-scripts avoids backend prepare (prisma generate) in this container;
+    # we run prisma generate once so frontend has types. No dependency on app.
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q -O - http://localhost:5173/ || exit 1']
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:5173/ || exit 1']
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 15
-      start_period: 90s
+      start_period: 10s
+    command: sh -c "pnpm install --ignore-scripts && pnpm --filter backend exec prisma generate && pnpm --filter frontend run dev"
 
   caddy:
     image: caddy:2-alpine
+    restart: unless-stopped
     ports:
       - '5000:80'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
       frontend:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   postgres_data:

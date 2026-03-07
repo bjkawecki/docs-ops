@@ -2,3 +2,10 @@
 # Beim Start laufen die Services mit user ${UID}:${GID}, sodass node_modules dir gehören.
 FROM node:24-alpine
 RUN apk add --no-cache wget && corepack enable pnpm
+
+# PNPM Home Verzeichnis definieren und PATH erweitern
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+# Verzeichnis erstellen, damit der spätere User darin schreiben darf
+RUN mkdir -p /pnpm && chmod 777 /pnpm
