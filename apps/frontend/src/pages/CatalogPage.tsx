@@ -13,11 +13,23 @@ import {
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useMemo, useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { IconArrowDown, IconArrowUp, IconSelector } from '@tabler/icons-react';
 import { PageHeader } from '../components/PageHeader';
 import { apiFetch } from '../api/client';
+import './CatalogPage.css';
+
+/** Renders text with search term wrapped in <mark> (case-insensitive). */
+function highlightMatch(text: string, searchTerm: string): ReactNode {
+  const t = text || '';
+  const s = searchTerm.trim();
+  if (!s) return t;
+  const escaped = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(${escaped})`, 'gi');
+  const parts = t.split(re);
+  return parts.map((part, i) => (i % 2 === 1 ? <mark key={i}>{part}</mark> : part));
+}
 
 const CATALOG_PAGE_SIZE_KEY = 'docsops-catalog-page-size';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
@@ -37,6 +49,8 @@ type CatalogDocument = {
   contextType: 'process' | 'project';
   contextName: string;
   ownerDisplay: string;
+  /** Link to owner scope (company, department, team, or personal). Null if no context. */
+  ownerHref: string | null;
   contextProcessId: string | null;
   contextProjectId: string | null;
 };
@@ -217,8 +231,20 @@ export function CatalogPage() {
     return sortOrder === 'asc' ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />;
   };
 
-  const ThSort = ({ column, label }: { column: SortBy; label: string }) => (
-    <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSort(column)}>
+  const ThSort = ({
+    column,
+    label,
+    sticky,
+  }: {
+    column: SortBy;
+    label: string;
+    sticky?: boolean;
+  }) => (
+    <Table.Th
+      className={sticky ? 'catalog-table-name-cell' : undefined}
+      style={{ cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => setSort(column)}
+    >
       <Group gap={4} wrap="nowrap">
         {label}
         <SortIcon column={column} />
@@ -277,97 +303,128 @@ export function CatalogPage() {
           />
         </Group>
 
-        <Table withTableBorder withColumnBorders striped>
-          <Table.Thead>
-            <Table.Tr>
-              <ThSort column="title" label="Name" />
-              <ThSort column="contextName" label="Context" />
-              <ThSort column="contextType" label="Context type" />
-              <ThSort column="ownerDisplay" label="Owner" />
-              <Table.Th>Tags</Table.Th>
-              <ThSort column="updatedAt" label="Updated" />
-              <ThSort column="createdAt" label="Created" />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {isPending && (
+        <Box
+          style={{ overflowX: 'auto' }}
+          sx={{
+            '& mark': {
+              backgroundColor: 'var(--mantine-color-yellow-3)',
+              color: 'var(--mantine-color-yellow-9)',
+              padding: '0 2px',
+              borderRadius: 2,
+            },
+          }}
+        >
+          <Table withTableBorder withColumnBorders className="catalog-table-hover">
+            <Table.Thead>
               <Table.Tr>
-                <Table.Td colSpan={7}>
-                  <Text size="sm" c="dimmed">
-                    Loading…
-                  </Text>
-                </Table.Td>
+                <ThSort column="title" label="Name" sticky />
+                <ThSort column="ownerDisplay" label="Owner" />
+                <ThSort column="contextType" label="Context type" />
+                <ThSort column="contextName" label="Context" />
+                <Table.Th>Tags</Table.Th>
+                <ThSort column="updatedAt" label="Updated" />
+                <ThSort column="createdAt" label="Created" />
               </Table.Tr>
-            )}
-            {!isPending && isError && (
-              <Table.Tr>
-                <Table.Td colSpan={7}>
-                  <Text size="sm" c="red">
-                    Failed to load documents.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-            {!isPending && !isError && data && data.items.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={7}>
-                  <Text size="sm" c="dimmed">
-                    No documents match the filters.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-            {!isPending &&
-              !isError &&
-              data &&
-              data.items.length > 0 &&
-              data.items.map((doc) => (
-                <Table.Tr key={doc.id}>
-                  <Table.Td>
-                    <Anchor component={Link} to={`/documents/${doc.id}`} size="sm">
-                      {doc.title || doc.id}
-                    </Anchor>
-                  </Table.Td>
-                  <Table.Td>
-                    <Anchor
-                      component={Link}
-                      to={contextHref(doc)}
-                      size="sm"
-                      title={doc.contextName}
-                    >
-                      {doc.contextName || '—'}
-                    </Anchor>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{doc.contextType === 'process' ? 'Process' : 'Project'}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{doc.ownerDisplay}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={4}>
-                      {doc.documentTags.map((dt) => (
-                        <Badge key={dt.tag.id} size="sm" variant="light">
-                          {dt.tag.name}
-                        </Badge>
-                      ))}
-                      {doc.documentTags.length === 0 && (
-                        <Text size="sm" c="dimmed">
-                          —
-                        </Text>
-                      )}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{formatDate(doc.updatedAt)}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{formatDate(doc.createdAt)}</Text>
+            </Table.Thead>
+            <Table.Tbody>
+              {isPending && (
+                <Table.Tr>
+                  <Table.Td colSpan={7}>
+                    <Text size="sm" c="dimmed">
+                      Loading…
+                    </Text>
                   </Table.Td>
                 </Table.Tr>
-              ))}
-          </Table.Tbody>
-        </Table>
+              )}
+              {!isPending && isError && (
+                <Table.Tr>
+                  <Table.Td colSpan={7}>
+                    <Text size="sm" c="red">
+                      Failed to load documents.
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+              {!isPending && !isError && data && data.items.length === 0 && (
+                <Table.Tr>
+                  <Table.Td colSpan={7}>
+                    <Text size="sm" c="dimmed">
+                      No documents match the filters.
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+              {!isPending &&
+                !isError &&
+                data &&
+                data.items.length > 0 &&
+                data.items.map((doc) => (
+                  <Table.Tr key={doc.id}>
+                    <Table.Td className="catalog-table-name-cell">
+                      <Anchor
+                        component={Link}
+                        to={`/documents/${doc.id}`}
+                        size="sm"
+                        style={{ fontWeight: 600 }}
+                      >
+                        {highlightMatch(doc.title || doc.id, search)}
+                      </Anchor>
+                    </Table.Td>
+                    <Table.Td>
+                      {doc.ownerHref ? (
+                        <Anchor
+                          component={Link}
+                          to={doc.ownerHref}
+                          size="sm"
+                          className="catalog-table-link-style"
+                        >
+                          {doc.ownerDisplay}
+                        </Anchor>
+                      ) : (
+                        <Text size="sm" component="span" className="catalog-table-link-style">
+                          {doc.ownerDisplay}
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{doc.contextType === 'process' ? 'Process' : 'Project'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Anchor
+                        component={Link}
+                        to={contextHref(doc)}
+                        size="sm"
+                        title={doc.contextName}
+                        className="catalog-table-link-style"
+                      >
+                        {doc.contextName || '—'}
+                      </Anchor>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {doc.documentTags.map((dt) => (
+                          <Badge key={dt.tag.id} size="sm" variant="light">
+                            {dt.tag.name}
+                          </Badge>
+                        ))}
+                        {doc.documentTags.length === 0 && (
+                          <Text size="sm" c="dimmed">
+                            —
+                          </Text>
+                        )}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{formatDate(doc.updatedAt)}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{formatDate(doc.createdAt)}</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+            </Table.Tbody>
+          </Table>
+        </Box>
         {!isPending && !isError && data && totalPages > 1 && (
           <Group justify="flex-end">
             <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />

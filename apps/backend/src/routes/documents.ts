@@ -172,9 +172,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
               name: true,
               owner: {
                 select: {
-                  company: { select: { name: true } },
-                  department: { select: { name: true } },
-                  team: { select: { name: true } },
+                  company: { select: { id: true, name: true } },
+                  department: { select: { id: true, name: true } },
+                  team: { select: { id: true, name: true } },
                   ownerUserId: true,
                   ownerUser: { select: { name: true } },
                 },
@@ -187,9 +187,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
               name: true,
               owner: {
                 select: {
-                  company: { select: { name: true } },
-                  department: { select: { name: true } },
-                  team: { select: { name: true } },
+                  company: { select: { id: true, name: true } },
+                  department: { select: { id: true, name: true } },
+                  team: { select: { id: true, name: true } },
                   ownerUserId: true,
                   ownerUser: { select: { name: true } },
                 },
@@ -206,9 +206,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
                   name: true,
                   owner: {
                     select: {
-                      company: { select: { name: true } },
-                      department: { select: { name: true } },
-                      team: { select: { name: true } },
+                      company: { select: { id: true, name: true } },
+                      department: { select: { id: true, name: true } },
+                      team: { select: { id: true, name: true } },
                       ownerUserId: true,
                       ownerUser: { select: { name: true } },
                     },
@@ -253,48 +253,46 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       let contextType: 'process' | 'project' = 'process';
       let contextName = '';
       let ownerDisplay = 'Personal';
+      let ownerHref: string | null = null;
       let contextProcessId: string | null = null;
       let contextProjectId: string | null = null;
+      const getOwnerFrom = (o: {
+        company: { id: string; name: string } | null;
+        department: { id: string; name: string } | null;
+        team: { id: string; name: string } | null;
+        ownerUserId: string | null;
+        ownerUser: { name: string | null } | null;
+      }) => {
+        ownerDisplay =
+          o.company?.name ??
+          o.department?.name ??
+          o.team?.name ??
+          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
+        if (o.company != null) ownerHref = '/company';
+        else if (o.department != null) ownerHref = `/department/${o.department.id}`;
+        else if (o.team != null) ownerHref = `/team/${o.team.id}`;
+        else if (o.ownerUserId != null) ownerHref = '/personal';
+      };
       if (!ctx) {
         contextName = 'Ungrouped';
       } else {
         contextName = ctx.displayName ?? '';
         if (ctx.contextType === 'process' || ctx.contextType === 'project')
           contextType = ctx.contextType;
-        ownerDisplay = ctx.ownerDisplayName ?? 'Personal';
         if (ctx.process) {
           if (!contextName) contextName = ctx.process.name;
           contextProcessId = ctx.process.id;
-          if (ownerDisplay === 'Personal') {
-            const o = ctx.process.owner;
-            ownerDisplay =
-              o.company?.name ??
-              o.department?.name ??
-              o.team?.name ??
-              (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
-          }
+          getOwnerFrom(ctx.process.owner);
         } else if (ctx.project) {
           if (!contextName) contextName = ctx.project.name;
           contextProjectId = ctx.project.id;
-          if (ownerDisplay === 'Personal') {
-            const o = ctx.project.owner;
-            ownerDisplay =
-              o.company?.name ??
-              o.department?.name ??
-              o.team?.name ??
-              (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
-          }
+          getOwnerFrom(ctx.project.owner);
         } else if (ctx.subcontext) {
           if (!contextName) contextName = ctx.subcontext.name;
           contextProjectId = ctx.subcontext.project.id;
-          if (ownerDisplay === 'Personal') {
-            const o = ctx.subcontext.project.owner;
-            ownerDisplay =
-              o.company?.name ??
-              o.department?.name ??
-              o.team?.name ??
-              (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
-          }
+          getOwnerFrom(ctx.subcontext.project.owner);
+        } else {
+          ownerDisplay = ctx.ownerDisplayName ?? 'Personal';
         }
       }
       return {
@@ -307,6 +305,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextType,
         contextName,
         ownerDisplay,
+        ownerHref,
         contextProcessId,
         contextProjectId,
       };

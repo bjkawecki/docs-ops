@@ -1,0 +1,30 @@
+/* Sticky first column (name): layout + default background in CSS so hover can override */
+.catalog-table-hover .catalog-table-name-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 180px;
+  background: var(--mantine-color-body);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.06);
+}
+.catalog-table-hover thead .catalog-table-name-cell {
+  z-index: 2;
+}
+/* Hover for all cells; higher specificity for name cell so it overrides its default background */
+.catalog-table-hover tbody tr:hover td {
+  background-color: var(--mantine-color-default-hover);
+}
+.catalog-table-hover tbody tr:hover td.catalog-table-name-cell {
+  background-color: var(--mantine-color-default-hover);
+}
+
+/* Link-style without blue: inherit color, underline on hover (for Owner and Context) */
+.catalog-table-hover .catalog-table-link-style,
+.catalog-table-hover .catalog-table-link-style:visited {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.catalog-table-hover .catalog-table-link-style:hover {
+  text-decoration: underline;
+}
