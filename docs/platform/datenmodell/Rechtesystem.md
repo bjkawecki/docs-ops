@@ -51,6 +51,10 @@ Company
 
 **Dokumente ohne Kontext (kontextfreie Drafts):** Ein Document kann mit `contextId = null` existieren (nur als Draft, `publishedAt = null`). Lesen und Schreiben haben ausschließlich der **Ersteller** (createdById) und Nutzer mit **explizitem Grant** auf dieses Dokument. Es gibt keinen Scope-Lead; **Veröffentlichung** ist erst nach Zuweisung eines Kontexts (PATCH contextId) möglich.
 
+**Trash (Papierkorb):** Soft-gelöschte Dokumente (`deletedAt` gesetzt) sind nur für Nutzer sichtbar, die das Dokument löschen dürfen (canDeleteDocument). Wiederherstellen (Restore) darf derselbe Nutzerkreis.
+
+**Archive:** Archivierte Dokumente (`archivedAt` gesetzt) werden aus normalen Listen ausgeblendet. Archivieren/Entarchivieren (PATCH archivedAt) darf, wer Schreibrecht hat (canWrite).
+
 ---
 
 ### 4. Rollen

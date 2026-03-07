@@ -6,9 +6,11 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
 import { useRecentItems } from '../hooks/useRecentItems';
+import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { PageWithTabs } from '../components/PageWithTabs';
+import { TrashTabContent } from '../components/TrashTabContent';
 import {
   ContextCard,
   ContextGrid,
@@ -143,6 +145,8 @@ export function PersonalPage() {
     { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
     { value: 'drafts', label: 'Drafts' },
+    { value: 'trash', label: 'Trash' },
+    { value: 'archive', label: 'Archive' },
   ];
   const [activeTab, setActiveTab] = useState(tabs[0].value);
 
@@ -367,6 +371,12 @@ export function PersonalPage() {
           <Fragment key="documents">{documentsPanel}</Fragment>,
           <Fragment key="drafts">
             <DraftsTabContent scopeParams={{ scope: 'personal' }} />
+          </Fragment>,
+          <Fragment key="trash">
+            <TrashTabContent scope="personal" />
+          </Fragment>,
+          <Fragment key="archive">
+            <ArchiveTabContent scope="personal" />
           </Fragment>,
         ]}
       </PageWithTabs>

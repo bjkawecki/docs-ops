@@ -47,7 +47,8 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 
 ## 5. Ausblick (frühere Konzeptideen, noch nicht umgesetzt)
 
-- Eigenständige Bereiche wie **Knowledge Hub** (`/knowledge`), **Archiv** (`/archiv`), **Ressourcen** (`/ressourcen`) sind derzeit nicht als eigene Routen umgesetzt; Inhalte können über Catalog, Tags und Kontexte abgebildet werden.
+- **Trash & Archive:** Auf den Seiten **Personal** (`/personal`) und **Company** (`/company`) gibt es die Tabs **Trash** (soft-gelöschte Dokumente/Drafts, mit Restore) und **Archive** (archivierte Dokumente, mit Unarchive). Eine eigene Route `/archiv` existiert nicht; Archiv-Inhalte werden über diese Tabs abgebildet.
+- Eigenständige Bereiche wie **Knowledge Hub** (`/knowledge`), **Ressourcen** (`/ressourcen`) sind derzeit nicht als eigene Routen umgesetzt; Inhalte können über Catalog, Tags und Kontexte abgebildet werden.
 - **Drafts-Card im Overview:** Auf den Overview-Seiten (Personal, Company, Department, Team) eine Card „Drafts“ bzw. „Neueste Dokumente“ mit den neuesten Dokumenten des Scopes; nach Anlegen eines Dokuments (Create → Document) kein Redirect, das neue Dokument erscheint in dieser Card. Nach §15 (draft/published) nur echte Drafts. Vgl. [Umsetzungs-Todo §14](../../plan/Umsetzungs-Todo.md#14-dokumente-in-der-ui).
 - **Drafts-Tab** auf den Scope-Seiten (Personal, Company, Department, Team, ggf. Shared): Ein Tab „Drafts“ mit (1) noch nicht veröffentlichten Dokumenten und (2) offenen PRs, die auf Prüfung/Merge warten. Details in [Umsetzungs-Todo §15](../../plan/Umsetzungs-Todo.md#15-versionierung--pr-workflow). Datenmodell für Drafts/Status siehe [Prisma-Schema-Entwurf](../../plan/Prisma-Schema-Entwurf.md) (§3, §8) und §15.
 - **Volltextsuche** und erweiterte Tag-Filter sind in der Planung (Umsetzungs-Todo §18).

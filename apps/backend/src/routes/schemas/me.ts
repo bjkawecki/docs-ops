@@ -85,3 +85,20 @@ export const meStorageQuerySchema = z
     { message: 'teamId/departmentId/companyId required when scope is team/department/company' }
   );
 export type MeStorageQuery = z.infer<typeof meStorageQuerySchema>;
+
+/** Query: GET /me/trash – scope (personal | company), companyId when scope=company, limit, offset. */
+export const meTrashQuerySchema = z
+  .object({
+    scope: z.enum(['personal', 'company']),
+    companyId: z.string().cuid().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine((q) => q.scope !== 'company' || q.companyId != null, {
+    message: 'companyId required when scope is company',
+  });
+export type MeTrashQuery = z.infer<typeof meTrashQuerySchema>;
+
+/** Query: GET /me/archive – same as trash (scope, companyId, limit, offset). */
+export const meArchiveQuerySchema = meTrashQuerySchema;
+export type MeArchiveQuery = z.infer<typeof meArchiveQuerySchema>;

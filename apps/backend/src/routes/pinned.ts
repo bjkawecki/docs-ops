@@ -44,7 +44,7 @@ const pinnedRoutes: FastifyPluginAsync = (app: FastifyInstance): void => {
     const pins = await prisma.documentPinnedInScope.findMany({
       where: {
         OR: scopeConditions.map((s) => ({ scopeType: s.scopeType, scopeId: s.scopeId })),
-        document: { deletedAt: null },
+        document: { deletedAt: null, archivedAt: null },
       },
       include: {
         document: { select: { id: true, title: true } },
@@ -89,7 +89,7 @@ const pinnedRoutes: FastifyPluginAsync = (app: FastifyInstance): void => {
     }
 
     const doc = await prisma.document.findUnique({
-      where: { id: body.documentId, deletedAt: null },
+      where: { id: body.documentId, deletedAt: null, archivedAt: null },
       select: { id: true },
     });
     if (!doc) {

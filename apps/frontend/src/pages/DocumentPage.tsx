@@ -1071,6 +1071,8 @@ export function DocumentPage() {
                 withBorder
                 padding="xl"
                 style={{
+                  width: 'min(720px, 90vw)',
+                  minWidth: 'min(720px, 90vw)',
                   maxWidth: 'min(720px, 90vw)',
                   flexShrink: 0,
                 }}

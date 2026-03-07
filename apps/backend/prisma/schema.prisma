@@ -230,6 +230,7 @@ model Document {
   contextId                 String?                  // null = kontextfreier Draft; Veröffentlichung nur mit Kontext
   context                   Context?                 @relation(fields: [contextId], references: [id], onDelete: SetNull)
   deletedAt                 DateTime?                // Soft delete: aus Listen ausblenden, ggf. wiederherstellbar
+  archivedAt                DateTime?                // Archiv: aus normalen Listen ausgeblendet, nur in Archive-Tab
   documentTags              DocumentTag[]
   grantUser                 DocumentGrantUser[]
   grantTeam                 DocumentGrantTeam[]

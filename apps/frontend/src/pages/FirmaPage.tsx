@@ -3,8 +3,10 @@ import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
+import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
+import { TrashTabContent } from '../components/TrashTabContent';
 import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
 import { useRecentItems } from '../hooks/useRecentItems';
@@ -144,6 +146,8 @@ export function FirmaPage() {
     { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
     { value: 'drafts', label: 'Drafts' },
+    { value: 'trash', label: 'Trash' },
+    { value: 'archive', label: 'Archive' },
   ];
 
   const [activeTab, setActiveTab] = useState(tabs[0].value);
@@ -371,6 +375,12 @@ export function FirmaPage() {
               scopeParams={effectiveCompanyId != null ? { companyId: effectiveCompanyId } : {}}
               enabled={effectiveCompanyId != null}
             />
+          </Fragment>,
+          <Fragment key="trash">
+            <TrashTabContent scope="company" companyId={effectiveCompanyId} />
+          </Fragment>,
+          <Fragment key="archive">
+            <ArchiveTabContent scope="company" companyId={effectiveCompanyId} />
           </Fragment>,
         ]}
       </PageWithTabs>

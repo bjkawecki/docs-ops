@@ -103,6 +103,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     ];
     const baseWhere: Record<string, unknown> = {
       deletedAt: null,
+      archivedAt: null,
       AND: [{ OR: readableOr }, { OR: draftVisibleOr }],
     };
 
@@ -1012,6 +1013,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const documentWhere = {
         contextId,
         deletedAt: null,
+        archivedAt: null,
         ...(writeAllowed ? {} : { publishedAt: { not: null } }),
       };
       const [items, total] = await Promise.all([
@@ -1040,12 +1042,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createDocumentBodySchema.parse(request.body);
+    const content = body.content.trim() === '' ? `# ${body.title}\n\n` : body.content;
 
     if (body.contextId == null) {
       const doc = await prisma.document.create({
         data: {
           title: body.title,
-          content: body.content,
+          content,
           contextId: null,
           description: body.description ?? null,
           publishedAt: null,
@@ -1115,7 +1118,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const doc = await prisma.document.create({
       data: {
         title: body.title,
-        content: body.content,
+        content,
         contextId: body.contextId,
         description: body.description ?? null,
         publishedAt: body.publishedAt ?? null,
@@ -1167,11 +1170,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextId?: string | null;
         description?: string | null;
         publishedAt?: Date | null;
+        archivedAt?: Date | null;
       } = {};
       if (body.title != null) updateData.title = body.title;
       if (body.content != null) updateData.content = body.content;
       if (body.description !== undefined) updateData.description = body.description;
       if (body.publishedAt !== undefined) updateData.publishedAt = body.publishedAt;
+      if (body.archivedAt !== undefined) updateData.archivedAt = body.archivedAt;
 
       if (body.contextId !== undefined) {
         const currentDoc = await prisma.document.findUnique({
@@ -1246,6 +1251,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           content: true,
           pdfUrl: true,
           contextId: true,
+          archivedAt: true,
           createdAt: true,
           updatedAt: true,
           publishedAt: true,
@@ -1278,6 +1284,34 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       await prisma.document.update({
         where: { id: documentId },
         data: { deletedAt: new Date() },
+      });
+      return reply.status(204).send();
+    }
+  );
+
+  /** POST Dokument aus Papierkorb wiederherstellen – setzt deletedAt = null. Wer löschen darf, darf wiederherstellen. */
+  app.post(
+    '/documents/:documentId/restore',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      if (doc.deletedAt == null) {
+        return reply.status(400).send({ error: 'Not in trash' });
+      }
+      const allowed = await canDeleteDocument(prisma, userId, documentId);
+      if (!allowed) {
+        return reply.status(403).send({ error: 'Permission denied to restore this document' });
+      }
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { deletedAt: null },
       });
       return reply.status(204).send();
     }

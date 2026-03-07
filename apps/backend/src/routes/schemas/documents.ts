@@ -98,7 +98,7 @@ export const createDocumentBodySchema = z
     message: 'publishedAt not allowed when creating a context-free draft (no contextId)',
   });
 
-/** Body: Dokument aktualisieren. contextId setzbar (null → Kontext für Veröffentlichung). */
+/** Body: Dokument aktualisieren. contextId setzbar (null → Kontext für Veröffentlichung). archivedAt: setzen = archivieren, null = entarchivieren. */
 export const updateDocumentBodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
   content: z.string().optional(),
@@ -106,6 +106,7 @@ export const updateDocumentBodySchema = z.object({
   tagIds: z.array(z.cuid()).optional(),
   description: z.string().max(500).trim().optional().nullable(),
   publishedAt: z.coerce.date().optional().nullable(),
+  archivedAt: z.coerce.date().optional().nullable(),
 });
 
 /** Grant-Rolle (API: String). */

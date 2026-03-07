@@ -130,10 +130,11 @@ export function NewDocumentModal({
     if (!canSubmit) return;
     if (!noContext && !contextId) return;
     setLoading(true);
+    const contentToSend = content.trim() === '' ? `# ${title.trim()}\n\n` : content;
     try {
       const body = noContext
-        ? { title: title.trim(), content }
-        : { title: title.trim(), content, contextId: contextId!, tagIds };
+        ? { title: title.trim(), content: contentToSend }
+        : { title: title.trim(), content: contentToSend, contextId: contextId!, tagIds };
       const res = await apiFetch('/api/v1/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
