@@ -2,7 +2,6 @@ import {
   Badge,
   Box,
   Group,
-  Paper,
   Stack,
   Table,
   Text,
@@ -10,17 +9,22 @@ import {
   Select,
   MultiSelect,
   Pagination,
-  Button,
   Anchor,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { IconArrowDown, IconArrowUp, IconSelector } from '@tabler/icons-react';
 import { PageHeader } from '../components/PageHeader';
 import { apiFetch } from '../api/client';
 
-const PAGE_SIZE = 25;
+const CATALOG_PAGE_SIZE_KEY = 'docsops-catalog-page-size';
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
+
+type SortBy = 'title' | 'updatedAt' | 'createdAt' | 'contextName' | 'contextType' | 'ownerDisplay';
+type SortOrder = 'asc' | 'desc';
 
 type TagItem = { id: string; name: string };
 type CatalogDocument = {
@@ -61,6 +65,19 @@ function contextHref(doc: CatalogDocument): string {
   return '#';
 }
 
+function parseStoredPageSize(): number {
+  try {
+    const v = window.localStorage.getItem(CATALOG_PAGE_SIZE_KEY);
+    if (v == null) return DEFAULT_PAGE_SIZE;
+    const n = parseInt(v, 10);
+    return PAGE_SIZE_OPTIONS.includes(n as (typeof PAGE_SIZE_OPTIONS)[number])
+      ? n
+      : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+}
+
 /**
  * Catalog: all accessible documents as table (filter/sort/search).
  * No tab area per §7.
@@ -75,7 +92,25 @@ export function CatalogPage() {
     return t.split(',').filter(Boolean);
   }, [searchParams]);
   const search = searchParams.get('search') ?? '';
+  const sortBy = (searchParams.get('sortBy') as SortBy) || 'updatedAt';
+  const sortOrder = (searchParams.get('sortOrder') as SortOrder) || 'desc';
+  const urlLimit = searchParams.get('limit');
+  const limitFromStorage = parseStoredPageSize();
+  const limit = urlLimit
+    ? Math.min(100, Math.max(1, parseInt(urlLimit, 10) || DEFAULT_PAGE_SIZE))
+    : limitFromStorage;
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
+
+  // Sync limit to URL when coming from localStorage (so URL reflects persisted preference)
+  useEffect(() => {
+    if (!urlLimit && limitFromStorage !== DEFAULT_PAGE_SIZE) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('limit', String(limitFromStorage));
+        return next;
+      });
+    }
+  }, [urlLimit, limitFromStorage, setSearchParams]);
 
   const setFilter = useCallback(
     (key: string, value: string | string[] | null) => {
@@ -107,20 +142,46 @@ export function CatalogPage() {
     [setSearchParams]
   );
 
-  // Tag-Filter nur bei gewähltem Scope (companyId/departmentId/teamId); Catalog hat aktuell keinen Scope-Filter → keine Tags geladen
-  const scopeForTags = null as string | null;
+  const setSort = useCallback(
+    (by: SortBy, order?: SortOrder) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('sortBy', by);
+        next.set('sortOrder', order ?? (sortBy === by && sortOrder === 'desc' ? 'asc' : 'desc'));
+        next.delete('page');
+        return next;
+      });
+    },
+    [setSearchParams, sortBy, sortOrder]
+  );
+
+  const setLimit = useCallback(
+    (value: number) => {
+      try {
+        window.localStorage.setItem(CATALOG_PAGE_SIZE_KEY, String(value));
+      } catch {
+        /* ignore */
+      }
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('limit', String(value));
+        next.delete('page');
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  // All tags from scopes the user can read in the catalog (for filter dropdown + search).
   const { data: tagsData } = useQuery({
-    queryKey: ['tags', 'catalog', scopeForTags],
+    queryKey: ['tags', 'catalog'],
     queryFn: async () => {
-      if (!scopeForTags) return [];
-      const res = await apiFetch(`/api/v1/tags?ownerId=${scopeForTags}`);
+      const res = await apiFetch('/api/v1/tags/catalog');
       if (!res.ok) throw new Error('Failed to load tags');
       return (await res.json()) as TagItem[];
     },
-    enabled: !!scopeForTags,
   });
 
-  const limit = PAGE_SIZE;
   const offset = (page - 1) * limit;
   const catalogQueryParamsString = useMemo(() => {
     const params = new URLSearchParams();
@@ -131,8 +192,10 @@ export function CatalogPage() {
     }
     tagIds.forEach((id) => params.append('tagIds', id));
     if (search.trim()) params.set('search', search.trim());
+    params.set('sortBy', sortBy);
+    params.set('sortOrder', sortOrder);
     return params.toString();
-  }, [limit, offset, contextType, tagIds, search]);
+  }, [limit, offset, contextType, tagIds, search, sortBy, sortOrder]);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['catalog-documents', catalogQueryParamsString],
@@ -149,164 +212,168 @@ export function CatalogPage() {
     [tagsData]
   );
 
+  const SortIcon = ({ column }: { column: SortBy }) => {
+    if (sortBy !== column) return <IconSelector size={14} style={{ opacity: 0.5 }} />;
+    return sortOrder === 'asc' ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />;
+  };
+
+  const ThSort = ({ column, label }: { column: SortBy; label: string }) => (
+    <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSort(column)}>
+      <Group gap={4} wrap="nowrap">
+        {label}
+        <SortIcon column={column} />
+      </Group>
+    </Table.Th>
+  );
+
   return (
     <Box>
       <PageHeader
         title="Catalog"
         description="All documents you can access. Filter, search, and sort."
       />
-      <Box style={{ display: 'flex', gap: 'var(--mantine-spacing-md)', flexWrap: 'wrap' }}>
-        <Paper withBorder p="md" style={{ minWidth: 220, flex: '0 0 auto' }}>
-          <Stack gap="md">
-            <Text size="sm" fw={600}>
-              Filters
-            </Text>
-            <Select
-              label="Context type"
-              placeholder="All"
-              data={[
-                { value: '', label: 'All' },
-                { value: 'process', label: 'Process' },
-                { value: 'project', label: 'Project' },
-              ]}
-              value={contextType || null}
-              onChange={(v) => setFilter('contextType', v ?? '')}
-              clearable
-            />
-            <MultiSelect
-              label="Tags"
-              placeholder="All tags"
-              data={tagOptions}
-              value={tagIds}
-              onChange={(v) => setFilter('tagIds', v)}
-              clearable
-              searchable
-            />
-          </Stack>
-        </Paper>
+      <Stack gap="md">
+        <Group gap="md" wrap="wrap" align="flex-end">
+          <TextInput
+            label="Search"
+            placeholder="Search by name"
+            value={search}
+            onChange={(e) => setFilter('search', e.currentTarget.value)}
+            style={{ minWidth: 200 }}
+          />
+          <Select
+            label="Context type"
+            placeholder="All"
+            data={[
+              { value: '', label: 'All' },
+              { value: 'process', label: 'Process' },
+              { value: 'project', label: 'Project' },
+            ]}
+            value={contextType || null}
+            onChange={(v) => setFilter('contextType', v ?? '')}
+            clearable
+            style={{ minWidth: 140 }}
+          />
+          <MultiSelect
+            label="Tags"
+            placeholder="Search or select tags"
+            data={tagOptions}
+            value={tagIds}
+            onChange={(v) => setFilter('tagIds', v)}
+            clearable
+            searchable
+            nothingFoundMessage="No tags match"
+            style={{ minWidth: 200 }}
+          />
+          <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+            {data != null ? `${data.total} document${data.total !== 1 ? 's' : ''}` : '—'}
+          </Text>
+          <Select
+            label="Per page"
+            data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+            value={String(limit)}
+            onChange={(v) => v && setLimit(parseInt(v, 10))}
+            style={{ width: 90 }}
+          />
+        </Group>
 
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Stack gap="md">
-            <Group justify="space-between" wrap="nowrap" gap="xs">
-              <TextInput
-                placeholder="Filter by title..."
-                value={search}
-                onChange={(e) => setFilter('search', e.currentTarget.value)}
-                style={{ maxWidth: 280 }}
-              />
-              <Text size="sm" c="dimmed">
-                {data != null ? `${data.total} document${data.total !== 1 ? 's' : ''}` : '—'}
-              </Text>
-            </Group>
-
-            <Table withTableBorder withColumnBorders striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Title</Table.Th>
-                  <Table.Th>Context</Table.Th>
-                  <Table.Th>Context type</Table.Th>
-                  <Table.Th>Owner</Table.Th>
-                  <Table.Th>Tags</Table.Th>
-                  <Table.Th>Updated</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {isPending && (
-                  <Table.Tr>
-                    <Table.Td colSpan={7}>
-                      <Text size="sm" c="dimmed">
-                        Loading…
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                )}
-                {!isPending && isError && (
-                  <Table.Tr>
-                    <Table.Td colSpan={7}>
-                      <Text size="sm" c="red">
-                        Failed to load documents.
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                )}
-                {!isPending && !isError && data && data.items.length === 0 && (
-                  <Table.Tr>
-                    <Table.Td colSpan={7}>
-                      <Text size="sm" c="dimmed">
-                        No documents match the filters.
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                )}
-                {!isPending &&
-                  !isError &&
-                  data &&
-                  data.items.length > 0 &&
-                  data.items.map((doc) => (
-                    <Table.Tr key={doc.id}>
-                      <Table.Td>
-                        <Anchor component={Link} to={`/documents/${doc.id}`} size="sm">
-                          {doc.title || doc.id}
-                        </Anchor>
-                      </Table.Td>
-                      <Table.Td>
-                        <Anchor
-                          component={Link}
-                          to={contextHref(doc)}
-                          size="sm"
-                          title={doc.contextName}
-                        >
-                          {doc.contextName || '—'}
-                        </Anchor>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">
-                          {doc.contextType === 'process' ? 'Process' : 'Project'}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{doc.ownerDisplay}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={4}>
-                          {doc.documentTags.map((dt) => (
-                            <Badge key={dt.tag.id} size="sm" variant="light">
-                              {dt.tag.name}
-                            </Badge>
-                          ))}
-                          {doc.documentTags.length === 0 && (
-                            <Text size="sm" c="dimmed">
-                              —
-                            </Text>
-                          )}
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{formatDate(doc.updatedAt)}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Button
-                          component={Link}
-                          to={`/documents/${doc.id}`}
-                          variant="light"
-                          size="xs"
-                        >
-                          Open
-                        </Button>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-              </Table.Tbody>
-            </Table>
-            {!isPending && !isError && data && totalPages > 1 && (
-              <Group justify="flex-end">
-                <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
-              </Group>
+        <Table withTableBorder withColumnBorders striped>
+          <Table.Thead>
+            <Table.Tr>
+              <ThSort column="title" label="Name" />
+              <ThSort column="contextName" label="Context" />
+              <ThSort column="contextType" label="Context type" />
+              <ThSort column="ownerDisplay" label="Owner" />
+              <Table.Th>Tags</Table.Th>
+              <ThSort column="updatedAt" label="Updated" />
+              <ThSort column="createdAt" label="Created" />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {isPending && (
+              <Table.Tr>
+                <Table.Td colSpan={7}>
+                  <Text size="sm" c="dimmed">
+                    Loading…
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
             )}
-          </Stack>
-        </Box>
-      </Box>
+            {!isPending && isError && (
+              <Table.Tr>
+                <Table.Td colSpan={7}>
+                  <Text size="sm" c="red">
+                    Failed to load documents.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+            {!isPending && !isError && data && data.items.length === 0 && (
+              <Table.Tr>
+                <Table.Td colSpan={7}>
+                  <Text size="sm" c="dimmed">
+                    No documents match the filters.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+            {!isPending &&
+              !isError &&
+              data &&
+              data.items.length > 0 &&
+              data.items.map((doc) => (
+                <Table.Tr key={doc.id}>
+                  <Table.Td>
+                    <Anchor component={Link} to={`/documents/${doc.id}`} size="sm">
+                      {doc.title || doc.id}
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <Anchor
+                      component={Link}
+                      to={contextHref(doc)}
+                      size="sm"
+                      title={doc.contextName}
+                    >
+                      {doc.contextName || '—'}
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{doc.contextType === 'process' ? 'Process' : 'Project'}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{doc.ownerDisplay}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={4}>
+                      {doc.documentTags.map((dt) => (
+                        <Badge key={dt.tag.id} size="sm" variant="light">
+                          {dt.tag.name}
+                        </Badge>
+                      ))}
+                      {doc.documentTags.length === 0 && (
+                        <Text size="sm" c="dimmed">
+                          —
+                        </Text>
+                      )}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{formatDate(doc.updatedAt)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{formatDate(doc.createdAt)}</Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+          </Table.Tbody>
+        </Table>
+        {!isPending && !isError && data && totalPages > 1 && (
+          <Group justify="flex-end">
+            <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
+          </Group>
+        )}
+      </Stack>
     </Box>
   );
 }

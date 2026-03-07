@@ -15,6 +15,7 @@
     "test": "vitest run",
     "create-admin": "tsx scripts/create-admin.ts",
     "seed": "tsx scripts/run-seed.ts",
+    "backfill-context-owner-display": "tsx scripts/run-backfill-context-owner-display.ts",
     "migrate:remove-failed-user-preferences": "pnpm exec prisma db execute --file scripts/remove-failed-user-preferences-migration.sql"
   },
   "dependencies": {

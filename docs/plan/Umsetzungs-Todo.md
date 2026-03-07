@@ -35,13 +35,13 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [x] Login (lokal oder LDAP/SSO-Anbindung)
 - [x] **Sessions** (Postgres, httpOnly-Cookie); Middleware „Nutzer aus Request“
 - [x] Geschützte Routen nur mit gültiger Auth
-- [ ] **Login-Seite (UI/UX):** Aktuell minimales zentriertes Paper mit E-Mail/Passwort und Button. Vorschläge zur besseren Gestaltung:
-  - [ ] **Layout:** Volle Viewport-Höhe nutzen, Formular vertikal zentrieren (`minHeight: 100vh`, Flexbox); dezenter Hintergrund (z. B. helles Grau oder subtiler Verlauf), damit die Karte sich abhebt; leichter Schatten auf dem Paper.
-  - [ ] **Branding & Kontext:** Produktname/Logo oberhalb des Formulars; kurzer Untertitel (z. B. „Internal documentation“); bei SSO optional Hinweis „Use your company account“ oder „Sign in with SSO“.
-  - [ ] **Formular:** Autofocus auf E-Mail-Feld; Fehlermeldung nach Login-Fehler als Alert oder klar hervorgehoben; Submit-Button optisch betonen (Primary, ggf. größer); optional „Remember me“, falls Backend persistente Session unterstützt.
-  - [ ] **Barrierefreiheit:** Nach fehlgeschlagenem Login Fokus auf E-Mail oder Fehlermeldung setzen; Labels mit Inputs verbinden (for/id); Fehlermeldung per aria-describedby anbinden.
-  - [ ] **Optionale Inhalte:** „Forgot password?“-Link, falls Reset-Flow existiert; Hinweis „Contact IT for access“ für neue Nutzer, falls kein öffentliches Sign-up.
-  - [ ] **Konsistenz:** Login-Seite an gleiches Theme (Hell/Dunkel) wie die App anbinden (z. B. ThemeFromPreferences), damit der Übergang nach dem Login stimmig ist; gleiche Mantine-Variablen (Schrift, Abstände) wie im Rest der App.
+- [x] **Login-Seite (UI/UX):** Aktuell minimales zentriertes Paper mit E-Mail/Passwort und Button. Vorschläge zur besseren Gestaltung:
+  - [x] **Layout:** Volle Viewport-Höhe nutzen, Formular vertikal zentrieren (`minHeight: 100vh`, Flexbox); dezenter Hintergrund (z. B. helles Grau oder subtiler Verlauf), damit die Karte sich abhebt; leichter Schatten auf dem Paper.
+  - [x] **Branding & Kontext:** Produktname/Logo oberhalb des Formulars; kurzer Untertitel (z. B. „Internal documentation“); bei SSO optional Hinweis „Use your company account“ oder „Sign in with SSO“.
+  - [x] **Formular:** Autofocus auf E-Mail-Feld; Fehlermeldung nach Login-Fehler als Alert oder klar hervorgehoben; Submit-Button optisch betonen (Primary, ggf. größer); optional „Remember me“, falls Backend persistente Session unterstützt.
+  - [x] **Barrierefreiheit:** Nach fehlgeschlagenem Login Fokus auf E-Mail oder Fehlermeldung setzen; Labels mit Inputs verbinden (for/id); Fehlermeldung per aria-describedby anbinden.
+  - [x] **Optionale Inhalte:** „Forgot password?“-Link, falls Reset-Flow existiert; Hinweis „Contact IT for access“ für neue Nutzer, falls kein öffentliches Sign-up.
+  - [x] **Konsistenz:** Login-Seite an gleiches Theme (Hell/Dunkel) wie die App anbinden (z. B. ThemeFromPreferences), damit der Übergang nach dem Login stimmig ist; gleiche Mantine-Variablen (Schrift, Abstände) wie im Rest der App.
 
 ---
 
@@ -210,6 +210,7 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 - [x] **Backend:** `GET /api/v1/documents` (Catalog-Liste) mit Pagination und Filtern (contextType, owner, tagIds, search); nur Dokumente zurückgeben, die der Nutzer lesen darf (canRead: Kontext + Grants); Response inkl. Kontext-Typ, Kontext-Name, Owner-Anzeige, Tags.
 - [x] **Frontend:** Catalog-Seite mit Filter-Panel (Context type, Owner, Tags), Titelsuche, Tabelle (Title, Context, Context type, Owner, Tags, Updated, Actions), Pagination; Filter in URL-Query; alle Texte auf Englisch.
+- [x] **Catalog-Sortierung nach Kontext/Owner (DB):** Context und Owner haben gecachte Anzeigenamen (Context: displayName, contextType, ownerDisplayName; Owner: displayName). Sortierung nach contextName, contextType, ownerDisplay erfolgt in der DB (orderBy auf Context), kein 2000er-Limit mehr. Sync bei Create/Update von Process, Project, Subcontext sowie bei Namensänderung Company/Department/Team/User (siehe [Prisma-Schema-Entwurf §2](Prisma-Schema-Entwurf.md#2-kontexte), [Pseudocode Datenmodell Kontext](../platform/datenmodell/Pseudocode%20Datenmodell.md)).
 
 ---
 
@@ -232,7 +233,7 @@ Startseite ohne Quick Links (redundant zur Sidebar). Drei Blöcke (weitere Blöc
 - [x] **Anzeige mit Rechte-Checks:** GET `/documents/:id` liefert `canWrite`/`canDelete`; GET Process/Project liefert `canWriteContext`; UI zeigt Edit/Delete bzw. „New document“ nur bei Berechtigung.
 - [x] **Anlegen/Bearbeiten/Löschen von Dokumenten in Kontexten:** Dokumentenliste auf Kontext-Detail-Seite (Process/Project), „New document“-Modal, DocumentPage mit Lese-/Bearbeiten-Modus, PATCH/DELETE; Recent Items beim Öffnen eines Dokuments. Create-Button als Menu (Process | Project | Document); bei Document nur Kontext + Titel im Modal, **kein Redirect** nach Anlegen – Nutzer bleibt auf der Seite.
 - [x] **Subcontext-UI (Unterkontexte unter Projekten):** Auf Projekt-Detailseite Block „Unterkontexte“ mit Liste und „Unterkontext anlegen“; Subcontext-Detailseite (`/subcontexts/:subcontextId`) mit Dokumentenliste, „Neues Dokument“, Bearbeiten/Löschen; GET Subcontext liefert `canWriteContext`; Breadcrumb/Link „Unterkontext von [Projektname]“.
-- [ ] **Kontextfreie Drafts (Teil 2):** Document.contextId optional (Prisma + Migration). Rechte: bei contextId null nur Creator (createdById) und Grants (canRead/canWrite); getWritableCatalogScope um documentIdsFromCreator erweitern; POST /documents mit optionalem contextId (ohne = Draft ohne Kontext); PATCH contextId (null → Kontext) erlauben; Publish nur mit Kontext. Frontend: „Draft ohne Kontext“ im Create-Menü (Personal), Anzeige in Drafts-Tab/Card, DocumentPage „Assign to context“, Catalog.
+- [x] **Kontextfreie Drafts (Teil 2):** Document.contextId optional (Prisma + Migration). Rechte: bei contextId null nur Creator (createdById) und Grants (canRead/canWrite); getWritableCatalogScope um documentIdsFromCreator erweitern; POST /documents mit optionalem contextId (ohne = Draft ohne Kontext); PATCH contextId (null → Kontext) erlauben; Publish nur mit Kontext. Frontend: „Draft ohne Kontext“ im Create-Menü (Personal), Anzeige in Drafts-Tab/Card, DocumentPage „Assign to context“, Catalog.
 - [x] **Trash & Archive (Personal & Organization):** Trash-Tab (soft-deleted documents/drafts), GET `/me/trash`, POST `/documents/:id/restore`; Archive-Tab (archivierte Dokumente), Document.archivedAt (Prisma + Migration), GET `/me/archive`, PATCH document.archivedAt; Catalog/Listen filtern archivierte Dokumente aus; Tabs auf Personal-, Company-, Department- und Team-Seite (Sichtbarkeit: Admin oder Scope-Lead, Rechte nach unten).
 - [x] **Kontext Trash & Archive (Variante B):** Schema: Process/Project mit `archivedAt`; Soft-Delete (DELETE Kontext → deletedAt + Kaskade auf Dokumente, Pins entfernen); POST restore/unarchive für Kontexte; POST documents/restore bei trashed Kontext = Abkoppeln (contextId null). GET /me/trash und /me/archive inkl. Kontexte (items mit type document|process|project, displayTitle, Filter/Sort), Scopes **personal**, **company**, **department**, **team**. **Rechte §4b:** Schreib-Tabs (Drafts, Trash, Archive) nur für Admin oder Scope-Lead (Company/Department/Team Lead; Rechte gelten nach unten); GET /me/drafts – offene PRs nur für Schreiber (writable); bei fehlendem Zugriff leere Liste (kein 403). Frontend: Trash/Archive als Tabelle (Filter Typ, Sort, Restore/Unarchive pro Zeile); „Move to trash“ und „Archive“ an Kontexten; Archive/Unarchive auf DocumentPage. Einheitliche Regel: `canShowWriteTabs(me, canManage)` (lib/canShowWriteTabs.ts).
 
@@ -332,11 +333,13 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 - [ ] Backup-Konzept (DB, MinIO), Hinweis in App vor Update
 - [ ] README: Voraussetzungen, Installation, Update
 - [ ] **DocsOps-Demo online:** Demo-Instanz online stellen, sobald die Plattform nutzbar ist.
+- [ ] **Optionale öffentliche Seiten für Demo:** Per Feature-Flag (z. B. `VITE_LANDING_PAGE_ENABLED`) schaltbar: **(1) Landing** unter `/` (Produktname, Kurzbeschreibung, „Sign in“ / „Try demo“, Link zu Docs); **(2) Docs-Page** unter `/docs` – eine öffentliche Dokumentation mit Abschnitten z. B. Features/Versionen (Changelog), Getting started, optional API-Überblick (ohne vollständige OpenAPI); Inhalte statisch (Markdown) oder aus Build. Wenn Flag aus: bisheriges Verhalten (Redirect zu Login bzw. Home). Nützlich für öffentliche Demo-URL; intern bleibt reiner Login-Einstieg.
 
 ---
 
 ## 20. Layout- & UX-Ergänzungen (Phase 2)
 
+- [ ] **Optionale öffentliche Seiten (Demo):** Siehe §19 (Landing + Docs per Flag). UI/UX: Landing (Logo, Titel „DocsOps“, Untertitel, CTA „Sign in“ / „Try demo“, Link „Docs“); Docs-Page (`/docs`) mit Struktur Features/Versionen, Getting started, ggf. API-Überblick.
 - [ ] **Suchfeld in der Sidebar:** Anbindung an Volltextsuche (vgl. Abschnitt 18).
 - [ ] **Tabs auf Kontext-Detailseiten:** Tabs (z. B. „Documents“ | „Subcontexts“ | „Settings“ | „History“) lohnen sich, wenn pro Kontext noch mehr dazu kommt (Mitglieder, Einstellungen, Nutzung/History). Aktuell keine Tabs auf Process/Project/Subcontext-Detail; bei Erweiterung um diese Bereiche Tabs einführen.
 - [ ] **Breadcrumbs:** Pfad anzeigen: Scope → Kontext (Process/Project) → ggf. Subcontext → Dokument; klickbare Links für jede Ebene. Scope = Personal/Company/Department/Team, dann Kontext/Subcontext/Dokument (umgesetzt für Kontext-, Subcontext- und Dokument-Detailseiten).

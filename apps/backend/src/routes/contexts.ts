@@ -11,6 +11,12 @@ import {
   canCreateProcessOrProjectForOwner,
 } from '../permissions/contextPermissions.js';
 import {
+  setOwnerDisplayName,
+  setContextDisplayFromProcess,
+  setContextDisplayFromProject,
+  setContextDisplayFromSubcontext,
+} from '../contextOwnerDisplay.js';
+import {
   processListQuerySchema,
   projectListQuerySchema,
   createProcessBodySchema,
@@ -39,6 +45,7 @@ async function findOrCreateOwner(
       owner = await prisma.owner.create({
         data: { companyId: opts.companyId },
       });
+      await setOwnerDisplayName(prisma, owner.id);
     }
     return { id: owner.id };
   }
@@ -50,6 +57,7 @@ async function findOrCreateOwner(
       owner = await prisma.owner.create({
         data: { departmentId: opts.departmentId },
       });
+      await setOwnerDisplayName(prisma, owner.id);
     }
     return { id: owner.id };
   }
@@ -61,6 +69,7 @@ async function findOrCreateOwner(
       owner = await prisma.owner.create({
         data: { teamId: opts.teamId },
       });
+      await setOwnerDisplayName(prisma, owner.id);
     }
     return { id: owner.id };
   }
@@ -72,6 +81,7 @@ async function findOrCreateOwner(
       owner = await prisma.owner.create({
         data: { ownerUserId: opts.ownerUserId },
       });
+      await setOwnerDisplayName(prisma, owner.id);
     }
     return { id: owner.id };
   }
@@ -136,6 +146,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       },
       include: { context: true, owner: true },
     });
+    await setContextDisplayFromProcess(prisma, context.id, process.id);
     return reply.status(201).send(process);
   });
 
@@ -190,6 +201,12 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         data,
         include: { context: true, owner: true },
       });
+      if (body.name != null) {
+        await prisma.context.update({
+          where: { id: process.contextId },
+          data: { displayName: body.name },
+        });
+      }
       return reply.send(updated);
     }
   );
@@ -317,6 +334,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       },
       include: { context: true, owner: true, subcontexts: true },
     });
+    await setContextDisplayFromProject(prisma, context.id, project.id);
     return reply.status(201).send(project);
   });
 
@@ -376,6 +394,12 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         data,
         include: { context: true, owner: true, subcontexts: true },
       });
+      if (body.name != null) {
+        await prisma.context.update({
+          where: { id: project.contextId },
+          data: { displayName: body.name },
+        });
+      }
       return reply.send(updated);
     }
   );
@@ -562,6 +586,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         data: { name: body.name, contextId: context.id, projectId },
         include: { context: true, project: true },
       });
+      await setContextDisplayFromSubcontext(prisma, context.id, subcontext.id);
       return reply.status(201).send(subcontext);
     }
   );
@@ -603,6 +628,12 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         data: body,
         include: { context: true, project: true },
       });
+      if (body.name != null) {
+        await prisma.context.update({
+          where: { id: subcontext.contextId },
+          data: { displayName: body.name },
+        });
+      }
       return reply.send(updated);
     }
   );

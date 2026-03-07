@@ -109,6 +109,13 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 
 ---
 
+## 11. Optionale öffentliche Seiten (Landing + Docs, Demo)
+
+- **Ziel:** Für eine öffentlich erreichbare Demo-URL (z. B. `https://demo.docsops.example.com`) **öffentliche Seiten ohne Login** anbieten: (1) **Landing** unter `/`, (2) **Docs** unter `/docs` (Produkt-/Feature-Doku, Versionen, Getting started, optional API-Überblick). Intern (ohne Flag) bleibt der bisherige Einstieg: nicht eingeloggt → Redirect zu `/login`.
+- **Umsetzung (geplant):** Ein Feature-Flag im Frontend (z. B. `VITE_LANDING_PAGE_ENABLED`). Wenn gesetzt: `/` = Landing (Logo, Kurzbeschreibung, „Sign in“ / „Try demo“, Link zu Docs); `/docs` = eine Docs-Page mit Abschnitten (statisch/Markdown oder aus Build). Wenn Flag aus: Verhalten wie bisher. Details und UX siehe [Umsetzungs-Todo §19 und §20](Umsetzungs-Todo.md).
+
+---
+
 ## Nächste Schritte (Plan)
 
 - [x] Technologie-Stack festlegen (Sprache/Framework, DB, Reverse Proxy) – siehe [Technologie-Stack](Technologie-Stack.md).

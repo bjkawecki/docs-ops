@@ -24,6 +24,7 @@ import {
 import { type GrantRole } from '../../generated/prisma/client.js';
 import {
   getReadableCatalogScope,
+  getReadableCatalogOwnerIds,
   getWritableCatalogScope,
 } from '../permissions/catalogPermissions.js';
 import { mergeThreeWay } from '../mergeThreeWay.js';
@@ -162,6 +163,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       context: {
         select: {
           id: true,
+          displayName: true,
+          contextType: true,
+          ownerDisplayName: true,
           process: {
             select: {
               id: true,
@@ -217,18 +221,34 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       },
     };
 
-    const [items, total] = await Promise.all([
+    const sortBy = query.sortBy ?? 'updatedAt';
+    const sortOrder = query.sortOrder ?? 'desc';
+
+    const orderBy =
+      sortBy === 'contextName'
+        ? { context: { displayName: sortOrder } }
+        : sortBy === 'contextType'
+          ? { context: { contextType: sortOrder } }
+          : sortBy === 'ownerDisplay'
+            ? { context: { ownerDisplayName: sortOrder } }
+            : ({ [sortBy]: sortOrder } as {
+                title?: 'asc' | 'desc';
+                updatedAt?: 'asc' | 'desc';
+                createdAt?: 'asc' | 'desc';
+              });
+
+    const [rawItems, totalCount] = await Promise.all([
       prisma.document.findMany({
         where: baseWhere,
         select,
-        orderBy: { updatedAt: 'desc' },
+        orderBy,
         take: query.limit,
         skip: query.offset,
       }),
       prisma.document.count({ where: baseWhere }),
     ]);
 
-    const mapped = items.map((doc) => {
+    const mapDoc = (doc: (typeof rawItems)[number]) => {
       const ctx = doc.context;
       let contextType: 'process' | 'project' = 'process';
       let contextName = '';
@@ -237,36 +257,45 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       let contextProjectId: string | null = null;
       if (!ctx) {
         contextName = 'Ungrouped';
-      } else if (ctx.process) {
-        contextType = 'process';
-        contextName = ctx.process.name;
-        contextProcessId = ctx.process.id;
-        const o = ctx.process.owner;
-        ownerDisplay =
-          o.company?.name ??
-          o.department?.name ??
-          o.team?.name ??
-          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
-      } else if (ctx.project) {
-        contextType = 'project';
-        contextName = ctx.project.name;
-        contextProjectId = ctx.project.id;
-        const o = ctx.project.owner;
-        ownerDisplay =
-          o.company?.name ??
-          o.department?.name ??
-          o.team?.name ??
-          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
-      } else if (ctx.subcontext) {
-        contextType = 'project';
-        contextName = ctx.subcontext.name;
-        contextProjectId = ctx.subcontext.project.id;
-        const o = ctx.subcontext.project.owner;
-        ownerDisplay =
-          o.company?.name ??
-          o.department?.name ??
-          o.team?.name ??
-          (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
+      } else {
+        contextName = ctx.displayName ?? '';
+        if (ctx.contextType === 'process' || ctx.contextType === 'project')
+          contextType = ctx.contextType;
+        ownerDisplay = ctx.ownerDisplayName ?? 'Personal';
+        if (ctx.process) {
+          if (!contextName) contextName = ctx.process.name;
+          contextProcessId = ctx.process.id;
+          if (ownerDisplay === 'Personal') {
+            const o = ctx.process.owner;
+            ownerDisplay =
+              o.company?.name ??
+              o.department?.name ??
+              o.team?.name ??
+              (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
+          }
+        } else if (ctx.project) {
+          if (!contextName) contextName = ctx.project.name;
+          contextProjectId = ctx.project.id;
+          if (ownerDisplay === 'Personal') {
+            const o = ctx.project.owner;
+            ownerDisplay =
+              o.company?.name ??
+              o.department?.name ??
+              o.team?.name ??
+              (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
+          }
+        } else if (ctx.subcontext) {
+          if (!contextName) contextName = ctx.subcontext.name;
+          contextProjectId = ctx.subcontext.project.id;
+          if (ownerDisplay === 'Personal') {
+            const o = ctx.subcontext.project.owner;
+            ownerDisplay =
+              o.company?.name ??
+              o.department?.name ??
+              o.team?.name ??
+              (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
+          }
+        }
       }
       return {
         id: doc.id,
@@ -281,11 +310,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextProcessId,
         contextProjectId,
       };
-    });
+    };
+
+    const items = rawItems.map(mapDoc);
 
     return reply.send({
-      items: mapped,
-      total,
+      items,
+      total: totalCount,
       limit: query.limit,
       offset: query.offset,
     });
@@ -1439,6 +1470,20 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       return reply.send({ grants: list });
     }
   );
+
+  /** GET Tags for catalog filter – all tags from scopes the user can read in the catalog. */
+  app.get('/tags/catalog', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
+    const ownerIds = await getReadableCatalogOwnerIds(prisma, userId);
+    if (ownerIds.length === 0) return reply.send([]);
+    const tags = await prisma.tag.findMany({
+      where: { ownerId: { in: ownerIds } },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+    return reply.send(tags);
+  });
 
   /** GET Tags (scope-aware) – ownerId oder contextId erforderlich, canReadScopeForOwner. */
   app.get('/tags', { preHandler: requireAuthPreHandler }, async (request, reply) => {

@@ -18,13 +18,13 @@ Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Dat
 - **TeamMember:** Junction Team ↔ User (Mitgliedschaft). @@id([teamId, userId]).
 - **TeamLeader** (Rolle: Team Lead): Junction Team ↔ User. Schreibrechte für Team-Kontexte. @@id([teamId, userId]).
 - **Supervisor** (Rolle: Department Lead): Junction Department ↔ User. Nutzer mit Leserechten auf alle Dokumente der Abteilung und ihrer Teams (Prozesse, Projekte, Unterkontexte), nicht auf persönliche Kontexte (ownerUserId). Ableitung in der App.
-- **Owner:** Abstraktion für Prozess/Projekt. id, companyId?, departmentId?, teamId?, ownerUserId? (in der App genau einer gesetzt). Process und Project haben ownerId → Owner.
+- **Owner:** Abstraktion für Prozess/Projekt. id, companyId?, departmentId?, teamId?, ownerUserId? (in der App genau einer gesetzt), **displayName?** (gecacht für Katalog-Sortierung; synchron bei Namensänderung Company/Department/Team/User). Process und Project haben ownerId → Owner.
 
 ---
 
 ## 2. Kontexte
 
-- **Context:** Abstraktion „ein Kontext“. id; optional 1:1 zu Process, Project, Subcontext. Document hat contextId (optional, siehe §3). Löschen der Context-Zeile löscht Kontexttyp und alle Documents mit diesem contextId (Cascade). **Document kann optional ohne Kontext existieren** (contextId null); nur als Draft (publishedAt null), Rechte über createdById und Grants (vgl. §3).
+- **Context:** Abstraktion „ein Kontext“. id; **displayName?**, **contextType?** ('process' | 'project'), **ownerDisplayName?** (gecachte Anzeigenamen für Katalog-Sortierung ohne Joins); optional 1:1 zu Process, Project, Subcontext. Document hat contextId (optional, siehe §3). Löschen der Context-Zeile löscht Kontexttyp und alle Documents mit diesem contextId (Cascade). **Document kann optional ohne Kontext existieren** (contextId null); nur als Draft (publishedAt null), Rechte über createdById und Grants (vgl. §3). Sync: displayName/contextType/ownerDisplayName werden bei Create/Update von Process, Project, Subcontext sowie bei Owner.displayName-Update (Namensänderung Company/Department/Team/User) gesetzt.
 - **Process:** id, name, contextId (unique → Context), ownerId (→ Owner), deletedAt?, archivedAt?, createdAt, updatedAt. Immer langlebig (Konzept). **Soft-Delete:** DELETE setzt nur deletedAt (und kaskadiert auf Dokumente). **Archiv:** archivedAt wie bei Document; Kaskade auf Dokumente bei PATCH; GET-Listen filtern archivedAt: null.
 - **Project:** id, name, contextId (unique), ownerId, subcontexts (1:n), deletedAt?, archivedAt?, createdAt, updatedAt. Immer zeitlich begrenzt (Konzept). Verhalten wie Process (Soft-Delete + Archiv inkl. Kaskade auf alle Kontext-Dokumente).
 - **Subcontext:** id, name, contextId (unique), projectId (→ Project). Optionale Gliederung unter einem Projekt (z. B. Protokolle, Meilensteine). Kein eigenes deletedAt/archivedAt; Sichtbarkeit folgt dem übergeordneten Project.

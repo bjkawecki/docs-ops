@@ -26,6 +26,7 @@ import {
   getReadableCatalogScope,
   getWritableCatalogScope,
 } from '../permissions/catalogPermissions.js';
+import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 
 /** Ein Eintrag in „Zuletzt angesehene“ (process/project/document). */
@@ -1544,6 +1545,15 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       data: { name: body.name },
       select: { id: true, name: true, email: true, isAdmin: true },
     });
+    const prisma = request.server.prisma;
+    const owners = await prisma.owner.findMany({
+      where: { ownerUserId: userId },
+      select: { id: true },
+    });
+    for (const o of owners) {
+      await setOwnerDisplayName(prisma, o.id);
+      await refreshContextOwnerDisplayForOwner(prisma, o.id);
+    }
     return reply.send(updated);
   });
 

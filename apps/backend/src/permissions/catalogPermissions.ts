@@ -125,6 +125,57 @@ export async function getReadableCatalogScope(
 }
 
 /**
+ * Returns unique owner IDs for the given context IDs (process, project, or subcontext owner).
+ */
+export async function getOwnerIdsForContextIds(
+  prisma: PrismaClient,
+  contextIds: string[]
+): Promise<string[]> {
+  if (contextIds.length === 0) return [];
+  const [processes, projects, subcontexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { contextId: { in: contextIds } },
+      select: { ownerId: true },
+    }),
+    prisma.project.findMany({
+      where: { contextId: { in: contextIds } },
+      select: { ownerId: true },
+    }),
+    prisma.subcontext.findMany({
+      where: { contextId: { in: contextIds } },
+      select: { project: { select: { ownerId: true } } },
+    }),
+  ]);
+  const ownerIds = [
+    ...processes.map((p) => p.ownerId),
+    ...projects.map((p) => p.ownerId),
+    ...subcontexts.map((s) => s.project.ownerId),
+  ];
+  return [...new Set(ownerIds)];
+}
+
+/**
+ * Returns owner IDs for all scopes the user can read in the catalog (contexts + document-grant contexts).
+ * Used to load "all catalog tags" for the catalog filter.
+ */
+export async function getReadableCatalogOwnerIds(
+  prisma: PrismaClient,
+  userId: string
+): Promise<string[]> {
+  const scope = await getReadableCatalogScope(prisma, userId);
+  let allContextIds = [...scope.contextIds];
+  if (scope.documentIdsFromGrants.length > 0) {
+    const docs = await prisma.document.findMany({
+      where: { id: { in: scope.documentIdsFromGrants } },
+      select: { contextId: true },
+    });
+    const grantContextIds = docs.map((d) => d.contextId).filter((id): id is string => id != null);
+    allContextIds = [...new Set([...allContextIds, ...grantContextIds])];
+  }
+  return getOwnerIdsForContextIds(prisma, allContextIds);
+}
+
+/**
  * Returns context IDs where the user can write (scope lead: canWriteContext), document IDs
  * with explicit Write grant, and document IDs of context-free drafts created by the user.
  * Used to determine draft visibility in the catalog.

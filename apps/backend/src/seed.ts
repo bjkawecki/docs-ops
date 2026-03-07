@@ -7,6 +7,12 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { hashPassword } from './auth/password.js';
+import {
+  setOwnerDisplayName,
+  setContextDisplayFromProcess,
+  setContextDisplayFromProject,
+  setContextDisplayFromSubcontext,
+} from './contextOwnerDisplay.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve from project root (apps/backend) so it works with tsx and node dist
@@ -158,7 +164,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     let owner = await prisma.owner.findFirst({
       where: { companyId, departmentId: null, teamId: null, ownerUserId: null },
     });
-    if (!owner) owner = await prisma.owner.create({ data: { companyId } });
+    if (!owner) {
+      owner = await prisma.owner.create({ data: { companyId } });
+      await setOwnerDisplayName(prisma, owner.id);
+    }
     ownerByCompany.set(row.name, owner.id);
   }
   for (const row of departments) {
@@ -167,7 +176,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     let owner = await prisma.owner.findFirst({
       where: { departmentId, companyId: null, teamId: null, ownerUserId: null },
     });
-    if (!owner) owner = await prisma.owner.create({ data: { departmentId } });
+    if (!owner) {
+      owner = await prisma.owner.create({ data: { departmentId } });
+      await setOwnerDisplayName(prisma, owner.id);
+    }
     ownerByDepartment.set(row.name, owner.id);
   }
   for (const row of teams) {
@@ -176,7 +188,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     let owner = await prisma.owner.findFirst({
       where: { teamId, companyId: null, departmentId: null, ownerUserId: null },
     });
-    if (!owner) owner = await prisma.owner.create({ data: { teamId } });
+    if (!owner) {
+      owner = await prisma.owner.create({ data: { teamId } });
+      await setOwnerDisplayName(prisma, owner.id);
+    }
     ownerByTeam.set(row.name, owner.id);
   }
   const firstUserEmail = users[0]?.email;
@@ -186,7 +201,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       let owner = await prisma.owner.findFirst({
         where: { ownerUserId: userId, companyId: null, departmentId: null, teamId: null },
       });
-      if (!owner) owner = await prisma.owner.create({ data: { ownerUserId: userId } });
+      if (!owner) {
+        owner = await prisma.owner.create({ data: { ownerUserId: userId } });
+        await setOwnerDisplayName(prisma, owner.id);
+      }
       ownerByUser.set(firstUserEmail, owner.id);
     }
   }
@@ -202,11 +220,13 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     const process = await prisma.process.create({
       data: { name: 'Company-Prozess', contextId: ctx.id, ownerId: companyOwnerId },
     });
+    await setContextDisplayFromProcess(prisma, ctx.id, process.id);
     processByScope.set(`company:${companyName}`, process.id);
     const ctx2 = await prisma.context.create({ data: {} });
     const project = await prisma.project.create({
       data: { name: 'Company-Projekt', contextId: ctx2.id, ownerId: companyOwnerId },
     });
+    await setContextDisplayFromProject(prisma, ctx2.id, project.id);
     projectByScope.set(`company:${companyName}`, project.id);
   }
 
@@ -217,11 +237,13 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     const process = await prisma.process.create({
       data: { name: `${row.name}-Prozess`, contextId: ctx.id, ownerId },
     });
+    await setContextDisplayFromProcess(prisma, ctx.id, process.id);
     processByScope.set(`department:${row.name}`, process.id);
     const ctx2 = await prisma.context.create({ data: {} });
     const project = await prisma.project.create({
       data: { name: `${row.name}-Projekt`, contextId: ctx2.id, ownerId },
     });
+    await setContextDisplayFromProject(prisma, ctx2.id, project.id);
     projectByScope.set(`department:${row.name}`, project.id);
   }
 
@@ -232,11 +254,13 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     const process = await prisma.process.create({
       data: { name: `${row.name}-Prozess`, contextId: ctx.id, ownerId },
     });
+    await setContextDisplayFromProcess(prisma, ctx.id, process.id);
     processByScope.set(`team:${row.name}`, process.id);
     const ctx2 = await prisma.context.create({ data: {} });
     const project = await prisma.project.create({
       data: { name: `${row.name}-Projekt`, contextId: ctx2.id, ownerId },
     });
+    await setContextDisplayFromProject(prisma, ctx2.id, project.id);
     projectByScope.set(`team:${row.name}`, project.id);
   }
 
@@ -246,11 +270,13 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     const process = await prisma.process.create({
       data: { name: 'Mein Prozess', contextId: ctx.id, ownerId },
     });
+    await setContextDisplayFromProcess(prisma, ctx.id, process.id);
     processByScope.set('personal:', process.id);
     const ctx2 = await prisma.context.create({ data: {} });
     const project = await prisma.project.create({
       data: { name: 'Mein Projekt', contextId: ctx2.id, ownerId },
     });
+    await setContextDisplayFromProject(prisma, ctx2.id, project.id);
     projectByScope.set('personal:', project.id);
   }
 
@@ -258,13 +284,15 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
   const companyProjectId = companyName ? projectByScope.get(`company:${companyName}`) : null;
   if (companyProjectId) {
     const ctx1 = await prisma.context.create({ data: {} });
-    await prisma.subcontext.create({
+    const sub1 = await prisma.subcontext.create({
       data: { name: 'Protokolle', contextId: ctx1.id, projectId: companyProjectId },
     });
+    await setContextDisplayFromSubcontext(prisma, ctx1.id, sub1.id);
     const ctx2 = await prisma.context.create({ data: {} });
-    await prisma.subcontext.create({
+    const sub2 = await prisma.subcontext.create({
       data: { name: 'Meilensteine', contextId: ctx2.id, projectId: companyProjectId },
     });
+    await setContextDisplayFromSubcontext(prisma, ctx2.id, sub2.id);
   }
 
   // --- Tags pro Scope (Company, erstes Team, Personal) ---
@@ -293,6 +321,20 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     }
   }
 
+  /** Realistic document titles per scope (process = ongoing context, project = time-bound). */
+  function seedDocTitle(scopeKey: string, kind: 'process' | 'project'): string {
+    const name = scopeKey.includes(':') ? (scopeKey.split(':')[1]?.trim() ?? '') : '';
+    if (scopeKey.startsWith('company:'))
+      return kind === 'process' ? 'Onboarding Guide' : 'Product Roadmap';
+    if (scopeKey.startsWith('department:')) {
+      if (kind === 'process') return name === 'Sales' ? 'Sales Playbook' : 'Engineering Guidelines';
+      return name === 'Sales' ? 'Q1 Campaign' : 'Release Plan';
+    }
+    if (scopeKey.startsWith('team:')) return kind === 'process' ? 'Team Wiki' : 'Sprint Planning';
+    if (scopeKey === 'personal:') return kind === 'process' ? 'My Notes' : 'Side Project';
+    return kind === 'process' ? 'Overview' : 'Project Overview';
+  }
+
   // --- Dokumente: je 1–2 pro Kontext (Process/Project), optional mit Tags ---
   const docContent = '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n';
   for (const [scopeKey, processId] of processByScope) {
@@ -302,7 +344,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     });
     const doc = await prisma.document.create({
       data: {
-        title: `Dokument in ${scopeKey}`,
+        title: seedDocTitle(scopeKey, 'process'),
         content: docContent,
         contextId: process.contextId,
       },
@@ -321,7 +363,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     });
     await prisma.document.create({
       data: {
-        title: `Projekt-Dokument ${scopeKey}`,
+        title: seedDocTitle(scopeKey, 'project'),
         content: docContent,
         contextId: project.contextId,
       },
@@ -332,10 +374,14 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       where: { projectId: companyProjectId },
       select: { name: true, contextId: true },
     });
+    const subcontextTitles: Record<string, string> = {
+      Protokolle: 'Meeting Notes',
+      Meilensteine: 'Project Milestones',
+    };
     for (const sub of subcontexts) {
       await prisma.document.create({
         data: {
-          title: `Dokument: ${sub.name}`,
+          title: subcontextTitles[sub.name] ?? sub.name,
           content: docContent,
           contextId: sub.contextId,
         },

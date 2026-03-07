@@ -131,6 +131,7 @@ model Owner {
   departmentId   String?
   teamId         String?
   ownerUserId    String?
+  displayName    String?   // Cached for catalog sort/display; synced when Company/Department/Team/User name changes
   company        Company?    @relation("OwnerCompany", fields: [companyId], references: [id], onDelete: Restrict)
   department     Department? @relation("OwnerDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
   team           Team?      @relation("OwnerTeam", fields: [teamId], references: [id], onDelete: Restrict)
@@ -145,11 +146,14 @@ model Owner {
 /// Abstraktion „ein Kontext“: Jeder Kontexttyp hat genau eine Context-Zeile.
 /// Document hat Pflicht-FK contextId → genau ein Kontext im Schema. Löschen der Context-Zeile löscht den Kontexttyp und alle Documents (Cascade).
 model Context {
-  id          String       @id @default(cuid())
-  process     Process?
-  project     Project?
-  subcontext  Subcontext?
-  documents   Document[]
+  id               String       @id @default(cuid())
+  displayName      String?      // Cached from Process/Project/Subcontext name; for catalog sort
+  contextType      String?      // 'process' | 'project'
+  ownerDisplayName String?      // Cached from Owner; for catalog sort without extra join
+  process          Process?
+  project          Project?
+  subcontext       Subcontext?
+  documents        Document[]
 }
 
 /// Prozess: dauerhafter Kontext (z. B. Onboarding), selten archiviert.

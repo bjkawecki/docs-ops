@@ -15,6 +15,7 @@ import {
   userIdParamSchema,
   impersonateBodySchema,
 } from './schemas/admin.js';
+import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
 import {
   companyIdParamSchema,
   departmentIdParamSchema,
@@ -692,6 +693,17 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         data,
         select: { id: true, name: true, email: true, isAdmin: true, deletedAt: true },
       });
+      if (data.name !== undefined) {
+        const prisma = request.server.prisma;
+        const owners = await prisma.owner.findMany({
+          where: { ownerUserId: userId },
+          select: { id: true },
+        });
+        for (const o of owners) {
+          await setOwnerDisplayName(prisma, o.id);
+          await refreshContextOwnerDisplayForOwner(prisma, o.id);
+        }
+      }
       return reply.send(updated);
     }
   );

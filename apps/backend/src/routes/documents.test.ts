@@ -124,7 +124,6 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
   afterAll(async () => {
     const docIds = [draftDocId, publishedDocId].filter((id): id is string => id != null);
     if (docIds.length > 0) {
-       
       await prisma.documentAttachment.deleteMany({
         where: { documentId: { in: docIds } },
       });
@@ -205,6 +204,24 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
         headers: { cookie },
       });
       expect(res.statusCode).toBe(409);
+    });
+  });
+
+  describe('GET /documents (catalog) sortBy', () => {
+    it('sortBy=contextName returns 200 and items with contextName', async () => {
+      const cookie = await loginAs(`scope-lead-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/documents?limit=10&sortBy=contextName&sortOrder=asc',
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { items: { id: string; contextName: string }[]; total: number };
+      expect(Array.isArray(body.items)).toBe(true);
+      expect(typeof body.total).toBe('number');
+      body.items.forEach((item) => {
+        expect(item).toHaveProperty('contextName');
+      });
     });
   });
 

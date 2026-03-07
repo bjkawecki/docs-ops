@@ -36,8 +36,13 @@ superuser_teams: List[Team] # Schreibrechte als Superuser
 class Kontext:
 id
 name
+displayName: String? # Gecacht für Katalog-Sortierung/Anzeige (aus Prozess-/Projekt-/Unterkontext-Name)
+contextType: String? # 'process' | 'project'
+ownerDisplayName: String? # Gecacht: Anzeigename des Owners (Firma/Abteilung/Team/Nutzer)
 owner: Abteilung | Team | Nutzer # Zugehörigkeit
 dokumente: List[Dokument]
+
+# displayName/contextType/ownerDisplayName werden bei Create/Update von Prozess, Projekt, Unterkontext sowie bei Namensänderungen von Firma/Abteilung/Team/Nutzer synchron gehalten.
 
 class Prozess(Kontext):
 typ: 'Prozess'

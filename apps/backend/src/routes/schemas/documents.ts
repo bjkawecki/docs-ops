@@ -11,7 +11,7 @@ function normalizeToCuidArray(v: unknown): string[] {
 }
 const cuidArray = z.preprocess(normalizeToCuidArray, z.array(z.string().cuid()));
 
-/** Query: GET /documents (catalog list) – pagination + filters. */
+/** Query: GET /documents (catalog list) – pagination + filters + sort. */
 export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
   contextType: z.enum(['process', 'project']).optional(),
   companyId: z.string().cuid().optional(),
@@ -19,6 +19,10 @@ export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
   teamId: z.string().cuid().optional(),
   tagIds: cuidArray.optional().default([]),
   search: z.string().min(1).optional(),
+  sortBy: z
+    .enum(['title', 'updatedAt', 'createdAt', 'contextName', 'contextType', 'ownerDisplay'])
+    .optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });
 
 /** Params: contextId. */
