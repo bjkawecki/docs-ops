@@ -18,13 +18,20 @@ const queryClient = new QueryClient({
   },
 });
 
+const storedScheme =
+  typeof window !== 'undefined'
+    ? (window.localStorage.getItem('docsops-color-scheme') as 'light' | 'dark' | 'auto' | null)
+    : null;
+const initialColorScheme =
+  storedScheme && ['light', 'dark', 'auto'].includes(storedScheme) ? storedScheme : 'light';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <MantineProvider
         theme={appTheme}
         cssVariablesResolver={appCssVariablesResolver}
-        defaultColorScheme="light"
+        defaultColorScheme={initialColorScheme}
       >
         <Notifications position="bottom-right" />
         <BrowserRouter>

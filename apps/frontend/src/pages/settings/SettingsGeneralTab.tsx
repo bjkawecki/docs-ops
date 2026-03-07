@@ -105,6 +105,11 @@ export function SettingsGeneralTab() {
       void queryClient.invalidateQueries({ queryKey: meQueryKey });
       if (variables.theme !== undefined) {
         setColorScheme(variables.theme);
+        try {
+          window.localStorage.setItem('docsops-color-scheme', variables.theme);
+        } catch {
+          // ignore localStorage errors (e.g. private mode)
+        }
         notifications.show({
           title: 'Theme updated',
           message: `Color scheme set to ${variables.theme}.`,

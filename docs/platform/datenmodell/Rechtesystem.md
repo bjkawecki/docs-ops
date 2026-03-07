@@ -55,7 +55,7 @@ Company
 
 **Archive:** Archivierte Dokumente (`archivedAt` gesetzt) werden aus normalen Listen ausgeblendet. Archivieren/Entarchivieren (PATCH archivedAt) darf, wer Schreibrecht hat (canWrite). Kontexte (Process/Project) haben ebenfalls `archivedAt`; beim Archivieren kaskadiert der Status auf alle Dokumente des Kontexts.
 
-**Sichtbarkeit Drafts / Trash / Archive (§4b):** Nur für Scope Lead bzw. Nutzer mit Write Grant sichtbar (Leser sehen keine Entwürfe, keinen Papierkorb, kein Archiv). Offene Draft Requests (PRs) nur für Schreiber; bei fehlendem Zugriff (z. B. Company ohne Lead/Grant) liefern GET /me/trash und GET /me/archive eine **leere Liste** (kein 403).
+**Sichtbarkeit Drafts / Trash / Archive (§4b):** Die Tabs Drafts, Trash und Archive werden angezeigt, wenn der Nutzer **Admin** oder **Scope-Lead** ist (Company Lead, Department Lead, Team Lead; Rechte gelten nach unten: Company Lead sieht die Tabs auch in Departments/Teams seiner Firma). Leser ohne Lead-Rolle sehen diese Tabs nicht. Offene Draft Requests (PRs) nur für Schreiber. GET /me/trash und GET /me/archive unterstützen die Scopes **personal**, **company**, **department** und **team**; bei fehlendem Zugriff liefern sie eine **leere Liste** (kein 403).
 
 ---
 
