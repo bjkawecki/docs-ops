@@ -8,6 +8,7 @@ import App from './App';
 import { appTheme, appCssVariablesResolver } from './theme';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import './styles/links.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

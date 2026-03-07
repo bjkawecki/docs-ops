@@ -782,7 +782,7 @@ export function AppShell() {
                   </Group>
                 </UnstyledButton>
               </Menu.Target>
-              <Menu.Dropdown>
+              <Menu.Dropdown data-user-menu-dropdown>
                 {me?.user?.isAdmin && (
                   <Menu.Item
                     component={Link}

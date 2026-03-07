@@ -1,0 +1,37 @@
+/* Link color follows theme primary (index 4, e.g. Cornflower #5e82ff). Unvisited = primary-4, visited = primary-3 (lighter). */
+:root {
+  --mantine-color-anchor: var(--mantine-primary-color-4);
+}
+
+a,
+.mantine-Anchor-root {
+  color: var(--mantine-primary-color-4);
+}
+
+a:visited,
+.mantine-Anchor-root:visited {
+  color: var(--mantine-primary-color-3);
+}
+
+/* Buttons (when used as links, e.g. "View more") do not show visited state */
+a.mantine-Button-root:visited,
+.mantine-Button-root:visited {
+  color: var(--mantine-primary-color-4);
+}
+
+/* Sidebar: links keep default text color (no primary color). */
+[data-sidebar-nav] a,
+[data-sidebar-nav] a:visited,
+[data-sidebar-nav] .mantine-Anchor-root,
+[data-sidebar-nav] .mantine-Anchor-root:visited,
+[data-sidebar-nav] .mantine-NavLink-root {
+  color: inherit;
+}
+
+/* User menu dropdown: link items neutral (Log out is not a link, keeps its color). */
+[data-user-menu-dropdown] a,
+[data-user-menu-dropdown] a:visited,
+[data-user-menu-dropdown] .mantine-Anchor-root,
+[data-user-menu-dropdown] .mantine-Anchor-root:visited {
+  color: inherit;
+}

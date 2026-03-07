@@ -361,12 +361,7 @@ export function CatalogPage() {
                 data.items.map((doc) => (
                   <Table.Tr key={doc.id}>
                     <Table.Td className="catalog-table-name-cell">
-                      <Anchor
-                        component={Link}
-                        to={`/documents/${doc.id}`}
-                        size="sm"
-                        style={{ fontWeight: 600 }}
-                      >
+                      <Anchor component={Link} to={`/documents/${doc.id}`} size="sm">
                         {highlightMatch(doc.title || doc.id, search)}
                       </Anchor>
                     </Table.Td>

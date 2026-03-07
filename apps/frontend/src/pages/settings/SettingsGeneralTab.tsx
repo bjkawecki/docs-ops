@@ -26,6 +26,11 @@ import { IconDotsVertical } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 import { useMe, meQueryKey } from '../../hooks/useMe';
 import type { UserPreferences } from '../../components/ThemeFromPreferences';
+import {
+  PRIMARY_COLOR_PRESETS,
+  PRIMARY_COLOR_PRESET_LABELS,
+  type PrimaryColorPreset,
+} from '../../theme';
 
 export function SettingsGeneralTab() {
   const queryClient = useQueryClient();
@@ -123,6 +128,13 @@ export function SettingsGeneralTab() {
           color: 'green',
         });
       }
+      if (variables.primaryColor !== undefined) {
+        notifications.show({
+          title: 'Primary color updated',
+          message: 'Accent color has been updated.',
+          color: 'green',
+        });
+      }
       if (variables.locale !== undefined) {
         notifications.show({
           title: 'Language saved',
@@ -153,6 +165,7 @@ export function SettingsGeneralTab() {
   const { user, identity, preferences } = data;
   const theme = preferences?.theme ?? 'light';
   const sidebarPinned = preferences?.sidebarPinned ?? false;
+  const primaryColor: PrimaryColorPreset = preferences?.primaryColor ?? 'blue';
   const locale = preferences?.locale ?? 'en';
 
   return (
@@ -250,6 +263,40 @@ export function SettingsGeneralTab() {
                       patchPreferences.mutate({ sidebarPinned: e.currentTarget.checked })
                     }
                     disabled={patchPreferences.isPending}
+                  />
+                </Group>
+                <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+                  <Stack gap={2}>
+                    <Text size="sm" fw={500}>
+                      Primary color
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Accent color for links, tabs, and buttons.
+                    </Text>
+                  </Stack>
+                  <Select
+                    value={primaryColor}
+                    onChange={(value) => {
+                      if (
+                        value !== null &&
+                        (PRIMARY_COLOR_PRESETS as readonly string[]).includes(value)
+                      ) {
+                        patchPreferences.mutate({
+                          primaryColor: value as PrimaryColorPreset,
+                        });
+                      }
+                    }}
+                    data={[...PRIMARY_COLOR_PRESETS]
+                      .sort((a, b) =>
+                        PRIMARY_COLOR_PRESET_LABELS[a].localeCompare(PRIMARY_COLOR_PRESET_LABELS[b])
+                      )
+                      .map((preset) => ({
+                        label: PRIMARY_COLOR_PRESET_LABELS[preset],
+                        value: preset,
+                      }))}
+                    disabled={patchPreferences.isPending}
+                    w={200}
+                    styles={{ option: { whiteSpace: 'nowrap' } }}
                   />
                 </Group>
                 <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">

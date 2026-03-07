@@ -19,6 +19,20 @@ export const patchPreferencesBodySchema = z.object({
   sidebarPinned: z.boolean().optional(),
   scopeRecentPanelOpen: z.boolean().optional(),
   locale: z.enum(['en', 'de']).optional(),
+  primaryColor: z
+    .enum([
+      'blue',
+      'green',
+      'violet',
+      'teal',
+      'indigo',
+      'amber',
+      'sky',
+      'rose',
+      'orange',
+      'fuchsia',
+    ])
+    .optional(),
   recentItemsByScope: z.record(z.string(), z.array(recentItemSchema).max(8)).optional(),
 });
 

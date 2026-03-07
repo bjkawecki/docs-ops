@@ -36,12 +36,23 @@ export type RecentPreferencesItem = {
   name?: string;
 };
 
-/** User-Preferences: theme, sidebarPinned, scopeRecentPanelOpen, locale, recentItemsByScope. Defaults in App, nicht in DB. */
+/** User-Preferences: theme, sidebarPinned, scopeRecentPanelOpen, locale, primaryColor, recentItemsByScope. Defaults in App, nicht in DB. */
 export type UserPreferences = {
   theme?: 'light' | 'dark' | 'auto';
   sidebarPinned?: boolean;
   scopeRecentPanelOpen?: boolean;
   locale?: 'en' | 'de';
+  primaryColor?:
+    | 'blue'
+    | 'green'
+    | 'violet'
+    | 'teal'
+    | 'indigo'
+    | 'amber'
+    | 'sky'
+    | 'rose'
+    | 'orange'
+    | 'fuchsia';
   /** Pro Scope (company/department/team) eine Liste; Key z. B. "company:cid", "department:did", "team:tid". */
   recentItemsByScope?: Record<string, RecentPreferencesItem[]>;
 };
@@ -1745,6 +1756,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         scopeRecentPanelOpen: body.scopeRecentPanelOpen,
       }),
       ...(body.locale !== undefined && { locale: body.locale }),
+      ...(body.primaryColor !== undefined && { primaryColor: body.primaryColor }),
       ...(body.recentItemsByScope !== undefined && { recentItemsByScope }),
     };
 

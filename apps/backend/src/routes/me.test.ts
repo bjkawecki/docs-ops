@@ -164,6 +164,41 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     expect(prefs?.sidebarPinned).toBe(true);
   });
 
+  it('PATCH /api/v1/me/preferences → primaryColor gespeichert und per GET geliefert', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: TEST_EMAIL, password: TEST_PASSWORD },
+    });
+    const cookie = getCookieHeader(loginRes);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/preferences',
+      headers: { cookie },
+      payload: { primaryColor: 'green' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { primaryColor: string };
+    expect(body.primaryColor).toBe('green');
+
+    const getRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me/preferences',
+      headers: { cookie },
+    });
+    expect(getRes.statusCode).toBe(200);
+    const getBody = getRes.json() as { primaryColor?: string };
+    expect(getBody.primaryColor).toBe('green');
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: testUserId },
+      select: { preferences: true },
+    });
+    const prefs = user.preferences as { primaryColor?: string } | null;
+    expect(prefs?.primaryColor).toBe('green');
+  });
+
   it('PATCH /api/v1/me/preferences → scopeRecentPanelOpen gespeichert und per GET geliefert', async () => {
     const loginRes = await app.inject({
       method: 'POST',

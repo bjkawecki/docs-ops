@@ -27,6 +27,17 @@ export type MeResponse = {
     sidebarPinned?: boolean;
     scopeRecentPanelOpen?: boolean;
     locale?: 'en' | 'de';
+    primaryColor?:
+      | 'blue'
+      | 'green'
+      | 'violet'
+      | 'teal'
+      | 'indigo'
+      | 'amber'
+      | 'sky'
+      | 'rose'
+      | 'orange'
+      | 'fuchsia';
     recentItemsByScope?: Record<
       string,
       { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
