@@ -51,9 +51,11 @@ Company
 
 **Dokumente ohne Kontext (kontextfreie Drafts):** Ein Document kann mit `contextId = null` existieren (nur als Draft, `publishedAt = null`). Lesen und Schreiben haben ausschließlich der **Ersteller** (createdById) und Nutzer mit **explizitem Grant** auf dieses Dokument. Es gibt keinen Scope-Lead; **Veröffentlichung** ist erst nach Zuweisung eines Kontexts (PATCH contextId) möglich.
 
-**Trash (Papierkorb):** Soft-gelöschte Dokumente (`deletedAt` gesetzt) sind nur für Nutzer sichtbar, die das Dokument löschen dürfen (canDeleteDocument). Wiederherstellen (Restore) darf derselbe Nutzerkreis.
+**Trash (Papierkorb):** Soft-gelöschte Dokumente (`deletedAt` gesetzt) sind nur für Nutzer sichtbar, die das Dokument löschen dürfen (canDeleteDocument). Wiederherstellen (Restore) darf derselbe Nutzerkreis. **Kontexte (Variante B):** Beim Soft-Delete eines Kontexts (Process/Project) werden alle zugehörigen Dokumente mitgelöscht (Kaskade). Restore eines Dokuments aus einem trashed Kontext = Abkoppeln (contextId = null) als kontextfreier Draft.
 
-**Archive:** Archivierte Dokumente (`archivedAt` gesetzt) werden aus normalen Listen ausgeblendet. Archivieren/Entarchivieren (PATCH archivedAt) darf, wer Schreibrecht hat (canWrite).
+**Archive:** Archivierte Dokumente (`archivedAt` gesetzt) werden aus normalen Listen ausgeblendet. Archivieren/Entarchivieren (PATCH archivedAt) darf, wer Schreibrecht hat (canWrite). Kontexte (Process/Project) haben ebenfalls `archivedAt`; beim Archivieren kaskadiert der Status auf alle Dokumente des Kontexts.
+
+**Sichtbarkeit Drafts / Trash / Archive (§4b):** Nur für Scope Lead bzw. Nutzer mit Write Grant sichtbar (Leser sehen keine Entwürfe, keinen Papierkorb, kein Archiv). Offene Draft Requests (PRs) nur für Schreiber; bei fehlendem Zugriff (z. B. Company ohne Lead/Grant) liefern GET /me/trash und GET /me/archive eine **leere Liste** (kein 403).
 
 ---
 

@@ -1,11 +1,14 @@
 import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { apiFetch } from '../api/client';
+import { ArchiveTabContent } from '../components/ArchiveTabContent';
+import { TrashTabContent } from '../components/TrashTabContent';
+import { canShowWriteTabs } from '../lib/canShowWriteTabs';
 import { useMe } from '../hooks/useMe';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
@@ -41,7 +44,7 @@ export function DepartmentContextPage() {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const { data: me } = useMe();
+  const { data: me, isPending: mePending } = useMe();
 
   const {
     data: department,
@@ -118,6 +121,24 @@ export function DepartmentContextPage() {
     });
   };
 
+  const handleArchive = async (id: string, type: 'process' | 'project') => {
+    const endpoint = type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
+    const res = await apiFetch(`${endpoint}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    });
+    if (res.ok) {
+      invalidateContexts();
+      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
+      notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      notifications.show({ title: 'Error', message: body?.error ?? res.statusText, color: 'red' });
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -126,10 +147,11 @@ export function DepartmentContextPage() {
       const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
       if (res.status === 204) {
         invalidateContexts();
+        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         setDeleteTarget(null);
         notifications.show({
-          title: 'Deleted',
-          message: 'Context was deleted.',
+          title: 'Moved to trash',
+          message: 'Context can be restored from the Trash tab.',
           color: 'green',
         });
       } else {
@@ -145,15 +167,27 @@ export function DepartmentContextPage() {
     }
   };
 
-  const tabs = [
+  const canWrite = canShowWriteTabs(me, canManage);
+  const baseTabs = [
     { value: 'overview', label: 'Overview' },
     { value: 'processes', label: 'Processes' },
     { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
-    { value: 'drafts', label: 'Drafts' },
   ];
+  const writeTabs = [
+    { value: 'drafts', label: 'Drafts' },
+    { value: 'trash', label: 'Trash' },
+    { value: 'archive', label: 'Archive' },
+  ];
+  const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
 
-  const [activeTab, setActiveTab] = useState(tabs[0].value);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [canWrite, activeTab]);
   const processes = processesData ?? [];
   const projects = projectsData ?? [];
   const processesPreview = processes.slice(0, 5);
@@ -236,12 +270,14 @@ export function DepartmentContextPage() {
             </Group>
           </Stack>
         </Card>
-        <DraftsCard
-          scopeParams={{ departmentId }}
-          limit={5}
-          enabled={!!departmentId}
-          onViewMore={() => setActiveTab('drafts')}
-        />
+        {canWrite && (
+          <DraftsCard
+            scopeParams={{ departmentId }}
+            limit={5}
+            enabled={!!departmentId}
+            onViewMore={() => setActiveTab('drafts')}
+          />
+        )}
       </SimpleGrid>
     </Stack>
   );
@@ -270,6 +306,7 @@ export function DepartmentContextPage() {
               href={`/processes/${p.id}`}
               canManage={canManage}
               onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
+              onArchive={() => void handleArchive(p.id, 'process')}
               onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
             />
           ))}
@@ -302,6 +339,7 @@ export function DepartmentContextPage() {
               href={`/projects/${p.id}`}
               canManage={canManage}
               onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
+              onArchive={() => void handleArchive(p.id, 'project')}
               onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
             />
           ))}
@@ -319,7 +357,7 @@ export function DepartmentContextPage() {
   );
 
   if (!departmentId) return null;
-  if (departmentPending)
+  if (departmentPending || mePending)
     return (
       <Text size="sm" c="dimmed">
         Loading…
@@ -361,9 +399,19 @@ export function DepartmentContextPage() {
           <Fragment key="processes">{processesPanel}</Fragment>,
           <Fragment key="projects">{projectsPanel}</Fragment>,
           <Fragment key="documents">{documentsPanel}</Fragment>,
-          <Fragment key="drafts">
-            <DraftsTabContent scopeParams={{ departmentId }} enabled={!!departmentId} />
-          </Fragment>,
+          ...(canWrite
+            ? [
+                <Fragment key="drafts">
+                  <DraftsTabContent scopeParams={{ departmentId }} enabled={!!departmentId} />
+                </Fragment>,
+                <Fragment key="trash">
+                  <TrashTabContent scope="department" departmentId={departmentId ?? undefined} />
+                </Fragment>,
+                <Fragment key="archive">
+                  <ArchiveTabContent scope="department" departmentId={departmentId ?? undefined} />
+                </Fragment>,
+              ]
+            : []),
         ]}
       </PageWithTabs>
 
@@ -399,11 +447,12 @@ export function DepartmentContextPage() {
       <Modal
         opened={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
-        title="Delete context"
+        title="Move to trash"
         centered
       >
         <Text size="sm" c="dimmed" mb="md">
-          This context and related data will be permanently deleted. Continue?
+          This context and its documents will be moved to trash. You can restore them from the Trash
+          tab.
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={() => setDeleteTarget(null)}>
@@ -416,7 +465,7 @@ export function DepartmentContextPage() {
               void handleDeleteConfirm();
             }}
           >
-            Delete
+            Move to trash
           </Button>
         </Group>
       </Modal>

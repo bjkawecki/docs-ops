@@ -1289,7 +1289,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** POST Dokument aus Papierkorb wiederherstellen – setzt deletedAt = null. Wer löschen darf, darf wiederherstellen. */
+  /** POST Dokument aus Papierkorb wiederherstellen. Wenn Kontext trashed: Abkoppeln (contextId = null) als Draft; sonst nur deletedAt = null. */
   app.post(
     '/documents/:documentId/restore',
     { preHandler: requireAuthPreHandler },
@@ -1299,7 +1299,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const doc = await prisma.document.findUnique({
         where: { id: documentId },
-        select: { id: true, deletedAt: true },
+        select: { id: true, deletedAt: true, contextId: true },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
       if (doc.deletedAt == null) {
@@ -1309,9 +1309,23 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!allowed) {
         return reply.status(403).send({ error: 'Permission denied to restore this document' });
       }
+      let contextTrashed = false;
+      if (doc.contextId) {
+        const [process, project] = await Promise.all([
+          prisma.process.findFirst({
+            where: { contextId: doc.contextId },
+            select: { deletedAt: true },
+          }),
+          prisma.project.findFirst({
+            where: { contextId: doc.contextId },
+            select: { deletedAt: true },
+          }),
+        ]);
+        contextTrashed = process?.deletedAt != null || project?.deletedAt != null;
+      }
       await prisma.document.update({
         where: { id: documentId },
-        data: { deletedAt: null },
+        data: contextTrashed ? { deletedAt: null, contextId: null } : { deletedAt: null },
       });
       return reply.status(204).send();
     }

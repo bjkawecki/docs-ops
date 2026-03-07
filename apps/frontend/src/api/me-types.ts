@@ -34,3 +34,8 @@ export type MeResponse = {
   /** Nur gesetzt, wenn Admin gerade als anderer Nutzer agiert. */
   impersonation?: { active: true; realUser: { id: string; name: string } };
 };
+
+/** Response GET /api/v1/me/can-write-in-scope (?scope=company&companyId=...). */
+export type CanWriteInScopeResponse = {
+  canWrite: boolean;
+};

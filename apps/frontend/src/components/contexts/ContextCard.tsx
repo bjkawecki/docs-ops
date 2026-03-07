@@ -17,7 +17,10 @@ export interface ContextCardProps {
   /** Only show three-dot menu when permitted */
   canManage?: boolean;
   onEdit?: () => void;
+  /** Soft-delete (move to trash); can be restored */
   onDelete?: () => void;
+  /** Archive context and its documents */
+  onArchive?: () => void;
 }
 
 export function ContextCard({
@@ -28,6 +31,7 @@ export function ContextCard({
   canManage,
   onEdit,
   onDelete,
+  onArchive,
 }: ContextCardProps) {
   const typeLabel = type === 'process' ? 'Process' : 'Project';
 
@@ -69,9 +73,10 @@ export function ContextCard({
             </Menu.Target>
             <Menu.Dropdown>
               {onEdit != null && <Menu.Item onClick={onEdit}>Edit</Menu.Item>}
+              {onArchive != null && <Menu.Item onClick={onArchive}>Archive</Menu.Item>}
               {onDelete != null && (
                 <Menu.Item color="red" onClick={onDelete}>
-                  Delete
+                  Move to trash
                 </Menu.Item>
               )}
             </Menu.Dropdown>

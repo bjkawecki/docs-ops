@@ -86,19 +86,57 @@ export const meStorageQuerySchema = z
   );
 export type MeStorageQuery = z.infer<typeof meStorageQuerySchema>;
 
-/** Query: GET /me/trash – scope (personal | company), companyId when scope=company, limit, offset. */
+/** Query: GET /me/trash – scope, type filter, sort, pagination. */
 export const meTrashQuerySchema = z
   .object({
-    scope: z.enum(['personal', 'company']),
+    scope: z.enum(['personal', 'company', 'department', 'team']),
     companyId: z.string().cuid().optional(),
+    departmentId: z.string().cuid().optional(),
+    teamId: z.string().cuid().optional(),
+    type: z.enum(['document', 'process', 'project']).optional(),
+    sortBy: z.enum(['deletedAt', 'title']).default('deletedAt'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc'),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
   })
-  .refine((q) => q.scope !== 'company' || q.companyId != null, {
-    message: 'companyId required when scope is company',
-  });
+  .refine(
+    (q) => {
+      if (q.scope === 'company') return q.companyId != null;
+      if (q.scope === 'department') return q.departmentId != null;
+      if (q.scope === 'team') return q.teamId != null;
+      return true;
+    },
+    { message: 'companyId/departmentId/teamId required for scope company/department/team' }
+  );
 export type MeTrashQuery = z.infer<typeof meTrashQuerySchema>;
 
-/** Query: GET /me/archive – same as trash (scope, companyId, limit, offset). */
-export const meArchiveQuerySchema = meTrashQuerySchema;
+/** Query: GET /me/archive – same as trash, sortBy uses archivedAt. */
+export const meArchiveQuerySchema = meTrashQuerySchema.safeExtend({
+  sortBy: z.enum(['archivedAt', 'title']).default('archivedAt'),
+});
 export type MeArchiveQuery = z.infer<typeof meArchiveQuerySchema>;
+
+/** Query: GET /me/can-write-in-scope – scope and scope id (company, department, or team). */
+export const meCanWriteInScopeQuerySchema = z
+  .object({
+    scope: z.enum(['company', 'department', 'team']),
+    companyId: z.string().cuid().optional(),
+    departmentId: z.string().cuid().optional(),
+    teamId: z.string().cuid().optional(),
+  })
+  .refine(
+    (q) => {
+      if (q.scope === 'company') return q.companyId != null;
+      if (q.scope === 'department') return q.departmentId != null;
+      if (q.scope === 'team') return q.teamId != null;
+      return true;
+    },
+    { message: 'companyId/departmentId/teamId required for scope company/department/team' }
+  );
+export type MeCanWriteInScopeQuery = z.infer<typeof meCanWriteInScopeQuerySchema>;
+
+/** Response: GET /me/can-write-in-scope. */
+export const meCanWriteInScopeResponseSchema = z.object({
+  canWrite: z.boolean(),
+});
+export type MeCanWriteInScopeResponse = z.infer<typeof meCanWriteInScopeResponseSchema>;

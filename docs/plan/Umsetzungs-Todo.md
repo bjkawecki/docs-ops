@@ -35,6 +35,13 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 - [x] Login (lokal oder LDAP/SSO-Anbindung)
 - [x] **Sessions** (Postgres, httpOnly-Cookie); Middleware „Nutzer aus Request“
 - [x] Geschützte Routen nur mit gültiger Auth
+- [ ] **Login-Seite (UI/UX):** Aktuell minimales zentriertes Paper mit E-Mail/Passwort und Button. Vorschläge zur besseren Gestaltung:
+  - [ ] **Layout:** Volle Viewport-Höhe nutzen, Formular vertikal zentrieren (`minHeight: 100vh`, Flexbox); dezenter Hintergrund (z. B. helles Grau oder subtiler Verlauf), damit die Karte sich abhebt; leichter Schatten auf dem Paper.
+  - [ ] **Branding & Kontext:** Produktname/Logo oberhalb des Formulars; kurzer Untertitel (z. B. „Internal documentation“); bei SSO optional Hinweis „Use your company account“ oder „Sign in with SSO“.
+  - [ ] **Formular:** Autofocus auf E-Mail-Feld; Fehlermeldung nach Login-Fehler als Alert oder klar hervorgehoben; Submit-Button optisch betonen (Primary, ggf. größer); optional „Remember me“, falls Backend persistente Session unterstützt.
+  - [ ] **Barrierefreiheit:** Nach fehlgeschlagenem Login Fokus auf E-Mail oder Fehlermeldung setzen; Labels mit Inputs verbinden (for/id); Fehlermeldung per aria-describedby anbinden.
+  - [ ] **Optionale Inhalte:** „Forgot password?“-Link, falls Reset-Flow existiert; Hinweis „Contact IT for access“ für neue Nutzer, falls kein öffentliches Sign-up.
+  - [ ] **Konsistenz:** Login-Seite an gleiches Theme (Hell/Dunkel) wie die App anbinden (z. B. ThemeFromPreferences), damit der Übergang nach dem Login stimmig ist; gleiche Mantine-Variablen (Schrift, Abstände) wie im Rest der App.
 
 ---
 
@@ -227,6 +234,7 @@ Startseite ohne Quick Links (redundant zur Sidebar). Drei Blöcke (weitere Blöc
 - [x] **Subcontext-UI (Unterkontexte unter Projekten):** Auf Projekt-Detailseite Block „Unterkontexte“ mit Liste und „Unterkontext anlegen“; Subcontext-Detailseite (`/subcontexts/:subcontextId`) mit Dokumentenliste, „Neues Dokument“, Bearbeiten/Löschen; GET Subcontext liefert `canWriteContext`; Breadcrumb/Link „Unterkontext von [Projektname]“.
 - [ ] **Kontextfreie Drafts (Teil 2):** Document.contextId optional (Prisma + Migration). Rechte: bei contextId null nur Creator (createdById) und Grants (canRead/canWrite); getWritableCatalogScope um documentIdsFromCreator erweitern; POST /documents mit optionalem contextId (ohne = Draft ohne Kontext); PATCH contextId (null → Kontext) erlauben; Publish nur mit Kontext. Frontend: „Draft ohne Kontext“ im Create-Menü (Personal), Anzeige in Drafts-Tab/Card, DocumentPage „Assign to context“, Catalog.
 - [x] **Trash & Archive (Personal & Organization):** Trash-Tab (soft-deleted documents/drafts), GET `/me/trash`, POST `/documents/:id/restore`; Archive-Tab (archivierte Dokumente), Document.archivedAt (Prisma + Migration), GET `/me/archive`, PATCH document.archivedAt; Catalog/Listen filtern archivierte Dokumente aus; Tabs auf Personal- und Company-Seite.
+- [x] **Kontext Trash & Archive (Variante B):** Schema: Process/Project mit `archivedAt`; Soft-Delete (DELETE Kontext → deletedAt + Kaskade auf Dokumente, Pins entfernen); POST restore/unarchive für Kontexte; POST documents/restore bei trashed Kontext = Abkoppeln (contextId null). GET /me/trash und /me/archive inkl. Kontexte (items mit type document|process|project, displayTitle, Filter/Sort). **Rechte §4b:** Sichtbarkeit Drafts/Trash/Archive nur für Scope Lead bzw. Write Grant; GET /me/drafts – offene PRs nur für Schreiber (writable); GET /me/trash und /me/archive (Company) inkl. Write-Grant-Dokumente; bei fehlendem Zugriff leere Liste (kein 403). Frontend: Trash/Archive als Tabelle (Filter Typ, Sort, Restore/Unarchive pro Zeile); „Move to trash“ und „Archive“ an Kontexten; Archive/Unarchive auf DocumentPage.
 
 ---
 

@@ -161,7 +161,8 @@ model Process {
   context     Context    @relation(fields: [contextId], references: [id], onDelete: Cascade)
   ownerId     String
   owner       Owner      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  deletedAt   DateTime?  // Soft delete / Archiv
+  deletedAt   DateTime?  // Soft delete
+  archivedAt  DateTime?  // Archiv: aus normalen Listen ausgeblendet
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -176,7 +177,8 @@ model Project {
   ownerId      String
   owner        Owner        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   subcontexts  Subcontext[]
-  deletedAt    DateTime?    // Soft delete / Archiv
+  deletedAt    DateTime?    // Soft delete
+  archivedAt   DateTime?    // Archiv: aus normalen Listen ausgeblendet
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }

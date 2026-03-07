@@ -86,6 +86,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const where = {
       deletedAt: null,
+      archivedAt: null,
       ...(query.companyId != null && { owner: { companyId: query.companyId } }),
       ...(query.departmentId != null && { owner: { departmentId: query.departmentId } }),
       ...(query.teamId != null && { owner: { teamId: query.teamId } }),
@@ -172,14 +173,21 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const allowed = await canWriteContext(prisma, userId, process.contextId);
       if (!allowed) return reply.status(403).send({ error: 'No write permission' });
       const body = updateProcessBodySchema.parse(request.body);
+      const data: { name?: string; deletedAt?: Date | null; archivedAt?: Date | null } = {};
+      if (body.name != null) data.name = body.name;
+      if (body.deletedAt !== undefined)
+        data.deletedAt = body.deletedAt ? new Date(body.deletedAt) : null;
+      if (body.archivedAt !== undefined) {
+        data.archivedAt = body.archivedAt ? new Date(body.archivedAt) : null;
+        const docDate = body.archivedAt ? new Date(body.archivedAt) : null;
+        await prisma.document.updateMany({
+          where: { contextId: process.contextId },
+          data: { archivedAt: docDate },
+        });
+      }
       const updated = await prisma.process.update({
         where: { id: processId },
-        data: {
-          ...(body.name != null && { name: body.name }),
-          ...(body.deletedAt !== undefined && {
-            deletedAt: body.deletedAt ? new Date(body.deletedAt) : null,
-          }),
-        },
+        data,
         include: { context: true, owner: true },
       });
       return reply.send(updated);
@@ -199,7 +207,55 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       });
       const allowed = await canWriteContext(prisma, userId, process.contextId);
       if (!allowed) return reply.status(403).send({ error: 'No write permission' });
-      await prisma.process.delete({ where: { id: processId } });
+      const docIds = await prisma.document.findMany({
+        where: { contextId: process.contextId },
+        select: { id: true },
+      });
+      const ids = docIds.map((d) => d.id);
+      if (ids.length > 0) {
+        await prisma.documentPinnedInScope.deleteMany({ where: { documentId: { in: ids } } });
+      }
+      await prisma.$transaction([
+        prisma.document.updateMany({
+          where: { contextId: process.contextId },
+          data: { deletedAt: new Date() },
+        }),
+        prisma.process.update({
+          where: { id: processId },
+          data: { deletedAt: new Date() },
+        }),
+      ]);
+      return reply.status(204).send();
+    }
+  );
+
+  /** POST /api/v1/processes/:id/restore – Kontext und alle zugehörigen Dokumente aus Papierkorb. */
+  app.post(
+    '/processes/:processId/restore',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { processId } = processIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const process = await prisma.process.findUniqueOrThrow({
+        where: { id: processId },
+        select: { contextId: true, deletedAt: true },
+      });
+      if (process.deletedAt == null) {
+        return reply.status(400).send({ error: 'Process is not in trash' });
+      }
+      const allowed = await canWriteContext(prisma, userId, process.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      await prisma.$transaction([
+        prisma.document.updateMany({
+          where: { contextId: process.contextId },
+          data: { deletedAt: null },
+        }),
+        prisma.process.update({
+          where: { id: processId },
+          data: { deletedAt: null },
+        }),
+      ]);
       return reply.status(204).send();
     }
   );
@@ -211,6 +267,7 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const where = {
       deletedAt: null,
+      archivedAt: null,
       ...(query.companyId != null && { owner: { companyId: query.companyId } }),
       ...(query.departmentId != null && { owner: { departmentId: query.departmentId } }),
       ...(query.teamId != null && { owner: { teamId: query.teamId } }),
@@ -292,18 +349,98 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       });
       const allowed = await canWriteContext(prisma, userId, project.contextId);
       if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      const projectWithSub = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { contextId: true },
+        include: { subcontexts: { select: { contextId: true } } },
+      });
+      const contextIds = [
+        projectWithSub.contextId,
+        ...projectWithSub.subcontexts.map((s) => s.contextId),
+      ];
       const body = updateProjectBodySchema.parse(request.body);
+      const data: { name?: string; deletedAt?: Date | null; archivedAt?: Date | null } = {};
+      if (body.name != null) data.name = body.name;
+      if (body.deletedAt !== undefined)
+        data.deletedAt = body.deletedAt ? new Date(body.deletedAt) : null;
+      if (body.archivedAt !== undefined) {
+        data.archivedAt = body.archivedAt ? new Date(body.archivedAt) : null;
+        const docDate = body.archivedAt ? new Date(body.archivedAt) : null;
+        await prisma.document.updateMany({
+          where: { contextId: { in: contextIds } },
+          data: { archivedAt: docDate },
+        });
+      }
       const updated = await prisma.project.update({
         where: { id: projectId },
-        data: {
-          ...(body.name != null && { name: body.name }),
-          ...(body.deletedAt !== undefined && {
-            deletedAt: body.deletedAt ? new Date(body.deletedAt) : null,
-          }),
-        },
+        data,
         include: { context: true, owner: true, subcontexts: true },
       });
       return reply.send(updated);
+    }
+  );
+
+  /** POST /api/v1/processes/:id/unarchive – Kontext und alle zugehörigen Dokumente entarchivieren. */
+  app.post(
+    '/processes/:processId/unarchive',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { processId } = processIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const process = await prisma.process.findUniqueOrThrow({
+        where: { id: processId },
+        select: { contextId: true, archivedAt: true },
+      });
+      if (process.archivedAt == null) {
+        return reply.status(400).send({ error: 'Process is not archived' });
+      }
+      const allowed = await canWriteContext(prisma, userId, process.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      await prisma.$transaction([
+        prisma.document.updateMany({
+          where: { contextId: process.contextId },
+          data: { archivedAt: null },
+        }),
+        prisma.process.update({
+          where: { id: processId },
+          data: { archivedAt: null },
+        }),
+      ]);
+      return reply.status(204).send();
+    }
+  );
+
+  /** POST /api/v1/projects/:id/unarchive – Kontext und alle zugehörigen Dokumente entarchivieren. */
+  app.post(
+    '/projects/:projectId/unarchive',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { projectId } = projectIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { contextId: true, archivedAt: true },
+        include: { subcontexts: { select: { contextId: true } } },
+      });
+      if (project.archivedAt == null) {
+        return reply.status(400).send({ error: 'Project is not archived' });
+      }
+      const allowed = await canWriteContext(prisma, userId, project.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      const contextIds = [project.contextId, ...project.subcontexts.map((s) => s.contextId)];
+      await prisma.$transaction([
+        prisma.document.updateMany({
+          where: { contextId: { in: contextIds } },
+          data: { archivedAt: null },
+        }),
+        prisma.project.update({
+          where: { id: projectId },
+          data: { archivedAt: null },
+        }),
+      ]);
+      return reply.status(204).send();
     }
   );
 
@@ -317,10 +454,62 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const project = await prisma.project.findUniqueOrThrow({
         where: { id: projectId },
         select: { contextId: true },
+        include: { subcontexts: { select: { contextId: true } } },
       });
       const allowed = await canWriteContext(prisma, userId, project.contextId);
       if (!allowed) return reply.status(403).send({ error: 'No write permission' });
-      await prisma.project.delete({ where: { id: projectId } });
+      const contextIds = [project.contextId, ...project.subcontexts.map((s) => s.contextId)];
+      const docIds = await prisma.document.findMany({
+        where: { contextId: { in: contextIds } },
+        select: { id: true },
+      });
+      const ids = docIds.map((d) => d.id);
+      if (ids.length > 0) {
+        await prisma.documentPinnedInScope.deleteMany({ where: { documentId: { in: ids } } });
+      }
+      await prisma.$transaction([
+        prisma.document.updateMany({
+          where: { contextId: { in: contextIds } },
+          data: { deletedAt: new Date() },
+        }),
+        prisma.project.update({
+          where: { id: projectId },
+          data: { deletedAt: new Date() },
+        }),
+      ]);
+      return reply.status(204).send();
+    }
+  );
+
+  /** POST /api/v1/projects/:id/restore – Kontext und alle zugehörigen Dokumente aus Papierkorb. */
+  app.post(
+    '/projects/:projectId/restore',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { projectId } = projectIdParamSchema.parse(request.params);
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { contextId: true, deletedAt: true },
+        include: { subcontexts: { select: { contextId: true } } },
+      });
+      if (project.deletedAt == null) {
+        return reply.status(400).send({ error: 'Project is not in trash' });
+      }
+      const allowed = await canWriteContext(prisma, userId, project.contextId);
+      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      const contextIds = [project.contextId, ...project.subcontexts.map((s) => s.contextId)];
+      await prisma.$transaction([
+        prisma.document.updateMany({
+          where: { contextId: { in: contextIds } },
+          data: { deletedAt: null },
+        }),
+        prisma.project.update({
+          where: { id: projectId },
+          data: { deletedAt: null },
+        }),
+      ]);
       return reply.status(204).send();
     }
   );

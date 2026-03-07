@@ -1,7 +1,7 @@
 import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { DraftsCard } from '../components/DraftsCard';
@@ -9,6 +9,7 @@ import { DraftsTabContent } from '../components/DraftsTabContent';
 import { TrashTabContent } from '../components/TrashTabContent';
 import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
+import { canShowWriteTabs } from '../lib/canShowWriteTabs';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
 import {
@@ -42,7 +43,7 @@ export function FirmaPage() {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const { data: me } = useMe();
+  const { data: me, isPending: mePending } = useMe();
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;
   const isAdmin = me?.user?.isAdmin === true;
 
@@ -54,7 +55,7 @@ export function FirmaPage() {
       const data = (await res.json()) as { items: CompanyRes[] };
       return data.items[0] ?? null;
     },
-    enabled: isAdmin && !companyIdFromLead,
+    enabled: !companyIdFromLead,
   });
 
   const effectiveCompanyId = companyIdFromLead ?? firstCompany?.id;
@@ -113,6 +114,24 @@ export function FirmaPage() {
     });
   };
 
+  const handleArchive = async (id: string, type: 'process' | 'project') => {
+    const endpoint = type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
+    const res = await apiFetch(`${endpoint}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    });
+    if (res.ok) {
+      invalidateContexts();
+      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
+      notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      notifications.show({ title: 'Error', message: body?.error ?? res.statusText, color: 'red' });
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -121,10 +140,11 @@ export function FirmaPage() {
       const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
       if (res.status === 204) {
         invalidateContexts();
+        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         setDeleteTarget(null);
         notifications.show({
-          title: 'Deleted',
-          message: 'Context was deleted.',
+          title: 'Moved to trash',
+          message: 'Context can be restored from the Trash tab.',
           color: 'green',
         });
       } else {
@@ -140,17 +160,27 @@ export function FirmaPage() {
     }
   };
 
-  const tabs = [
+  const canWrite = effectiveCompanyId != null && canShowWriteTabs(me, canManage);
+  const baseTabs = [
     { value: 'overview', label: 'Overview' },
     { value: 'processes', label: 'Processes' },
     { value: 'projects', label: 'Projects' },
     { value: 'documents', label: 'Documents' },
+  ];
+  const writeTabs = [
     { value: 'drafts', label: 'Drafts' },
     { value: 'trash', label: 'Trash' },
     { value: 'archive', label: 'Archive' },
   ];
+  const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
 
-  const [activeTab, setActiveTab] = useState(tabs[0].value);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [canWrite, activeTab]);
   const companyScope = effectiveCompanyId
     ? { type: 'company' as const, id: effectiveCompanyId }
     : null;
@@ -287,6 +317,7 @@ export function FirmaPage() {
               href={`/processes/${p.id}`}
               canManage={canManage}
               onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
+              onArchive={() => void handleArchive(p.id, 'process')}
               onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
             />
           ))}
@@ -325,6 +356,7 @@ export function FirmaPage() {
               href={`/projects/${p.id}`}
               canManage={canManage}
               onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
+              onArchive={() => void handleArchive(p.id, 'project')}
               onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
             />
           ))}
@@ -340,6 +372,13 @@ export function FirmaPage() {
       </Text>
     </Card>
   );
+
+  if (effectiveCompanyId != null && mePending)
+    return (
+      <Text size="sm" c="dimmed">
+        Loading…
+      </Text>
+    );
 
   return (
     <Box>
@@ -370,18 +409,24 @@ export function FirmaPage() {
           <Fragment key="processes">{processesPanel}</Fragment>,
           <Fragment key="projects">{projectsPanel}</Fragment>,
           <Fragment key="documents">{documentsPanel}</Fragment>,
-          <Fragment key="drafts">
-            <DraftsTabContent
-              scopeParams={effectiveCompanyId != null ? { companyId: effectiveCompanyId } : {}}
-              enabled={effectiveCompanyId != null}
-            />
-          </Fragment>,
-          <Fragment key="trash">
-            <TrashTabContent scope="company" companyId={effectiveCompanyId} />
-          </Fragment>,
-          <Fragment key="archive">
-            <ArchiveTabContent scope="company" companyId={effectiveCompanyId} />
-          </Fragment>,
+          ...(canWrite
+            ? [
+                <Fragment key="drafts">
+                  <DraftsTabContent
+                    scopeParams={
+                      effectiveCompanyId != null ? { companyId: effectiveCompanyId } : {}
+                    }
+                    enabled={effectiveCompanyId != null}
+                  />
+                </Fragment>,
+                <Fragment key="trash">
+                  <TrashTabContent scope="company" companyId={effectiveCompanyId} />
+                </Fragment>,
+                <Fragment key="archive">
+                  <ArchiveTabContent scope="company" companyId={effectiveCompanyId} />
+                </Fragment>,
+              ]
+            : []),
         ]}
       </PageWithTabs>
 
@@ -417,11 +462,12 @@ export function FirmaPage() {
       <Modal
         opened={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
-        title="Delete context"
+        title="Move to trash"
         centered
       >
         <Text size="sm" c="dimmed" mb="md">
-          This context and related data will be permanently deleted. Continue?
+          This context and its documents will be moved to trash. You can restore them from the Trash
+          tab.
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={() => setDeleteTarget(null)}>
@@ -434,7 +480,7 @@ export function FirmaPage() {
               void handleDeleteConfirm();
             }}
           >
-            Delete
+            Move to trash
           </Button>
         </Group>
       </Modal>

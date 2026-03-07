@@ -54,6 +54,7 @@ export const createProjectBodySchema = createProcessProjectBase.refine(
 export const updateProcessBodySchema = z.object({
   name: z.string().min(1).max(255).optional(),
   deletedAt: z.string().datetime().nullable().optional(),
+  archivedAt: z.string().datetime().nullable().optional(),
 });
 
 export const updateProjectBodySchema = updateProcessBodySchema;

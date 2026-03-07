@@ -33,6 +33,8 @@ import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { notifications } from '@mantine/notifications';
 import {
+  IconArchive,
+  IconArchiveOff,
   IconBuildingSkyscraper,
   IconListCheck,
   IconPencil,
@@ -111,6 +113,7 @@ type DocumentResponse = {
   content: string;
   pdfUrl: string | null;
   contextId: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
@@ -146,6 +149,7 @@ export function DocumentPage() {
   const recentActions = useRecentItemsActions();
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -329,10 +333,11 @@ export function DocumentPage() {
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
         void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         closeDelete();
         notifications.show({
-          title: 'Deleted',
-          message: 'Document was deleted.',
+          title: 'Moved to trash',
+          message: 'Document can be restored from the Trash tab.',
           color: 'green',
         });
         void navigate('/catalog', { replace: true });
@@ -346,6 +351,68 @@ export function DocumentPage() {
       }
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!documentId) return;
+    setArchiveLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+      });
+      if (res.ok) {
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+        notifications.show({
+          title: 'Archived',
+          message: 'Document was archived.',
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!documentId) return;
+    setArchiveLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archivedAt: null }),
+      });
+      if (res.ok) {
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+        notifications.show({
+          title: 'Unarchived',
+          message: 'Document was restored to active.',
+          color: 'green',
+        });
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Error',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+      }
+    } finally {
+      setArchiveLoading(false);
     }
   };
 
@@ -940,6 +1007,28 @@ export function DocumentPage() {
                   Submit for review
                 </Button>
               )}
+              {data.canWrite && !data.archivedAt && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconArchive size={14} />}
+                  loading={archiveLoading}
+                  onClick={() => void handleArchive()}
+                >
+                  Archive
+                </Button>
+              )}
+              {data.canWrite && data.archivedAt && (
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconArchiveOff size={14} />}
+                  loading={archiveLoading}
+                  onClick={() => void handleUnarchive()}
+                >
+                  Unarchive
+                </Button>
+              )}
               {data.canDelete && (
                 <Button
                   variant="light"
@@ -948,7 +1037,7 @@ export function DocumentPage() {
                   leftSection={<IconTrash size={14} />}
                   onClick={openDelete}
                 >
-                  Delete
+                  Move to trash
                 </Button>
               )}
               {hasNoContext && data.canWrite && (
@@ -1272,7 +1361,7 @@ export function DocumentPage() {
         </Stack>
       </Box>
 
-      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete document" centered>
+      <Modal opened={deleteOpened} onClose={closeDelete} title="Move to trash" centered>
         <Text size="sm" c="dimmed" mb="md">
           This document will be moved to trash (soft delete). Continue?
         </Text>
@@ -1287,7 +1376,7 @@ export function DocumentPage() {
               void handleDeleteConfirm();
             }}
           >
-            Delete
+            Move to trash
           </Button>
         </Group>
       </Modal>

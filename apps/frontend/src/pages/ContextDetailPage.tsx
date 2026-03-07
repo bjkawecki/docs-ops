@@ -173,17 +173,35 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     });
   };
 
+  const handleArchive = async () => {
+    const res = await apiFetch(`${endpoint}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    });
+    if (res.ok) {
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
+      notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      notifications.show({ title: 'Error', message: body?.error ?? res.statusText, color: 'red' });
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     setDeleteLoading(true);
     try {
       const res = await apiFetch(`${endpoint}/${id}`, { method: 'DELETE' });
       if (res.status === 204) {
         void queryClient.invalidateQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         closeDelete();
         void navigate('/company', { replace: true });
         notifications.show({
-          title: 'Deleted',
-          message: 'Context was deleted.',
+          title: 'Moved to trash',
+          message: 'Context can be restored from the Trash tab.',
           color: 'green',
         });
       } else {
@@ -338,8 +356,11 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
                 <Button variant="light" size="sm" onClick={handleEditClick}>
                   Edit
                 </Button>
+                <Button variant="light" size="sm" onClick={() => void handleArchive()}>
+                  Archive
+                </Button>
                 <Button variant="light" size="sm" color="red" onClick={openDelete}>
-                  Delete
+                  Move to trash
                 </Button>
               </>
             )}
@@ -489,9 +510,10 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         onSuccess={handleEditSuccess}
       />
 
-      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete context" centered>
+      <Modal opened={deleteOpened} onClose={closeDelete} title="Move to trash" centered>
         <Text size="sm" c="dimmed" mb="md">
-          This context and related data will be permanently deleted. Continue?
+          This context and its documents will be moved to trash. You can restore them from the Trash
+          tab.
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={closeDelete}>
@@ -504,7 +526,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
               void handleDeleteConfirm();
             }}
           >
-            Delete
+            Move to trash
           </Button>
         </Group>
       </Modal>

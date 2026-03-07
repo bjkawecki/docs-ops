@@ -25,9 +25,9 @@ Tabellen und Spalten für `prisma/schema.prisma`, abgeleitet aus [Pseudocode Dat
 ## 2. Kontexte
 
 - **Context:** Abstraktion „ein Kontext“. id; optional 1:1 zu Process, Project, Subcontext. Document hat contextId (optional, siehe §3). Löschen der Context-Zeile löscht Kontexttyp und alle Documents mit diesem contextId (Cascade). **Document kann optional ohne Kontext existieren** (contextId null); nur als Draft (publishedAt null), Rechte über createdById und Grants (vgl. §3).
-- **Process:** id, name, contextId (unique → Context), ownerId (→ Owner), deletedAt?, createdAt, updatedAt. Immer langlebig (Konzept).
-- **Project:** id, name, contextId (unique), ownerId, subcontexts (1:n), deletedAt?, createdAt, updatedAt. Immer zeitlich begrenzt (Konzept).
-- **Subcontext:** id, name, contextId (unique), projectId (→ Project). Optionale Gliederung unter einem Projekt (z. B. Protokolle, Meilensteine).
+- **Process:** id, name, contextId (unique → Context), ownerId (→ Owner), deletedAt?, archivedAt?, createdAt, updatedAt. Immer langlebig (Konzept). **Soft-Delete:** DELETE setzt nur deletedAt (und kaskadiert auf Dokumente). **Archiv:** archivedAt wie bei Document; Kaskade auf Dokumente bei PATCH; GET-Listen filtern archivedAt: null.
+- **Project:** id, name, contextId (unique), ownerId, subcontexts (1:n), deletedAt?, archivedAt?, createdAt, updatedAt. Immer zeitlich begrenzt (Konzept). Verhalten wie Process (Soft-Delete + Archiv inkl. Kaskade auf alle Kontext-Dokumente).
+- **Subcontext:** id, name, contextId (unique), projectId (→ Project). Optionale Gliederung unter einem Projekt (z. B. Protokolle, Meilensteine). Kein eigenes deletedAt/archivedAt; Sichtbarkeit folgt dem übergeordneten Project.
 
 Owner von Process/Project ist über **Owner** (companyId, departmentId, teamId oder ownerUserId) abgebildet; genau einer in der App validieren. Persönliche Kontexte: Owner mit ownerUserId (→ User).
 

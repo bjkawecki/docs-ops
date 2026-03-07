@@ -16,10 +16,11 @@ import {
   meStorageQuerySchema,
   meTrashQuerySchema,
   meArchiveQuerySchema,
+  meCanWriteInScopeQuerySchema,
   type MeDraftsQuery,
 } from './schemas/me.js';
 import { canPinForScope } from '../permissions/pinnedPermissions.js';
-import { canViewCompany } from '../permissions/assignmentPermissions.js';
+import { canViewCompany, canViewDepartment } from '../permissions/assignmentPermissions.js';
 import { paginationQuerySchema, type PaginationQuery } from './schemas/organisation.js';
 import {
   getReadableCatalogScope,
@@ -141,76 +142,88 @@ async function getDraftsScope(
   return { scopeContextIds, scopeDocumentIds: [] };
 }
 
-/** Maps a document with context relation to trash/archive item shape (contextName). */
-function mapTrashItem(doc: {
-  id: string;
-  title: string;
-  contextId: string | null;
-  deletedAt: Date | null;
-  updatedAt: Date;
-  context?: {
-    process: { name: string } | null;
-    project: { name: string } | null;
-    subcontext: { name: string } | null;
-  } | null;
-}): {
-  id: string;
-  title: string;
-  contextId: string | null;
-  deletedAt: string;
-  updatedAt: string;
-  contextName: string;
-} {
-  let contextName = 'No context';
-  if (doc.context) {
-    if (doc.context.process) contextName = doc.context.process.name;
-    else if (doc.context.project) contextName = doc.context.project.name;
-    else if (doc.context.subcontext) contextName = doc.context.subcontext.name;
-  }
-  return {
-    id: doc.id,
-    title: doc.title,
-    contextId: doc.contextId,
-    deletedAt: doc.deletedAt?.toISOString() ?? '',
-    updatedAt: doc.updatedAt.toISOString(),
-    contextName,
-  };
+/** All context IDs belonging to a company (process + project + subcontext). */
+async function getCompanyContextIds(prisma: PrismaClient, companyId: string): Promise<string[]> {
+  const [processContexts, projectContexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { owner: { companyId } },
+      select: { contextId: true },
+    }),
+    prisma.project.findMany({
+      where: { owner: { companyId } },
+      select: { contextId: true },
+      include: { subcontexts: { select: { contextId: true } } },
+    }),
+  ]);
+  return [
+    ...processContexts.map((p) => p.contextId),
+    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
+  ];
 }
 
-/** Maps a document with context relation to archive item shape (contextName, archivedAt). */
-function mapArchiveItem(doc: {
+/** All context IDs belonging to a department (process + project + subcontext). */
+async function getDepartmentContextIds(
+  prisma: PrismaClient,
+  departmentId: string
+): Promise<string[]> {
+  const [processContexts, projectContexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { owner: { departmentId } },
+      select: { contextId: true },
+    }),
+    prisma.project.findMany({
+      where: { owner: { departmentId } },
+      select: { contextId: true },
+      include: { subcontexts: { select: { contextId: true } } },
+    }),
+  ]);
+  return [
+    ...processContexts.map((p) => p.contextId),
+    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
+  ];
+}
+
+/** All context IDs belonging to a team (process + project + subcontext). */
+async function getTeamContextIds(prisma: PrismaClient, teamId: string): Promise<string[]> {
+  const [processContexts, projectContexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { owner: { teamId } },
+      select: { contextId: true },
+    }),
+    prisma.project.findMany({
+      where: { owner: { teamId } },
+      select: { contextId: true },
+      include: { subcontexts: { select: { contextId: true } } },
+    }),
+  ]);
+  return [
+    ...processContexts.map((p) => p.contextId),
+    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
+  ];
+}
+
+/** Unified trash/archive item for table (type, displayTitle, date). */
+export type MeTrashArchiveItem = {
+  type: 'document' | 'process' | 'project';
   id: string;
-  title: string;
-  contextId: string | null;
-  archivedAt: Date | null;
-  updatedAt: Date;
+  displayTitle: string;
+  contextName: string;
+  deletedAt?: string;
+  archivedAt?: string;
+};
+
+function contextNameFromDoc(doc: {
   context?: {
     process: { name: string } | null;
     project: { name: string } | null;
     subcontext: { name: string } | null;
   } | null;
-}): {
-  id: string;
-  title: string;
-  contextId: string | null;
-  archivedAt: string;
-  updatedAt: string;
-  contextName: string;
-} {
-  let contextName = 'No context';
-  if (doc.context) {
-    if (doc.context.process) contextName = doc.context.process.name;
-    else if (doc.context.project) contextName = doc.context.project.name;
-    else if (doc.context.subcontext) contextName = doc.context.subcontext.name;
-  }
-  return {
-    id: doc.id,
-    title: doc.title,
-    contextId: doc.contextId,
-    archivedAt: doc.archivedAt?.toISOString() ?? '',
-    updatedAt: doc.updatedAt.toISOString(),
-    contextName,
-  };
+}): string {
+  if (!doc.context) return 'No context';
+  if (doc.context.process) return doc.context.process.name;
+  if (doc.context.project) return doc.context.project.name;
+  if (doc.context.subcontext) return doc.context.subcontext.name;
+  return 'No context';
 }
 
 /** Ein Team-Eintrag in der Identity (mit Rolle). */
@@ -409,7 +422,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** GET /api/v1/me/trash – Soft-deleted documents (scope=personal or scope=company&companyId). */
+  /** GET /api/v1/me/trash – Soft-deleted documents and contexts (unified items, filter/sort/paginate). §4b: Company = lead or writable; else empty list. */
   app.get('/me/trash', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
@@ -425,110 +438,388 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       },
     };
 
+    const allItems: MeTrashArchiveItem[] = [];
+
     if (query.scope === 'personal') {
-      const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
-        prisma.process.findMany({
-          where: { deletedAt: null, owner: { ownerUserId: userId } },
-          select: { contextId: true },
-        }),
-        prisma.project.findMany({
-          where: { deletedAt: null, owner: { ownerUserId: userId } },
-          select: { contextId: true },
-        }),
-        prisma.subcontext.findMany({
-          where: { project: { owner: { ownerUserId: userId } } },
-          select: { contextId: true },
-        }),
-      ]);
-      const personalContextIds = [
-        ...processContexts.map((p) => p.contextId),
-        ...projectContexts.map((p) => p.contextId),
-        ...subcontextContexts.map((s) => s.contextId),
-      ];
-      const where = {
-        deletedAt: { not: null },
-        OR: [
-          ...(personalContextIds.length > 0 ? [{ contextId: { in: personalContextIds } }] : []),
-          { contextId: null, createdById: userId },
-        ].filter(Boolean),
-      };
-      if (!where.OR || where.OR.length === 0) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      const [items, total] = await Promise.all([
+      const [trashedDocs, trashedProcesses, trashedProjects] = await Promise.all([
         prisma.document.findMany({
-          where,
+          where: {
+            deletedAt: { not: null },
+            OR: [
+              { context: { process: { owner: { ownerUserId: userId } } } },
+              { context: { project: { owner: { ownerUserId: userId } } } },
+              { context: { subcontext: { project: { owner: { ownerUserId: userId } } } } },
+              { contextId: null, createdById: userId },
+            ],
+          },
           select: {
             id: true,
             title: true,
-            contextId: true,
             deletedAt: true,
-            updatedAt: true,
             ...contextInclude,
           },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { deletedAt: 'desc' },
         }),
-        prisma.document.count({ where }),
+        prisma.process.findMany({
+          where: { deletedAt: { not: null }, owner: { ownerUserId: userId } },
+          select: { id: true, name: true, deletedAt: true },
+        }),
+        prisma.project.findMany({
+          where: { deletedAt: { not: null }, owner: { ownerUserId: userId } },
+          select: { id: true, name: true, deletedAt: true },
+        }),
       ]);
-      const mapped = items.map((doc) => mapTrashItem(doc));
-      return reply.send({ items: mapped, total, limit: query.limit, offset: query.offset });
+      for (const d of trashedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          deletedAt: d.deletedAt?.toISOString() ?? '',
+        });
+      }
+      for (const p of trashedProcesses) {
+        allItems.push({
+          type: 'process',
+          id: p.id,
+          displayTitle: p.name,
+          contextName: '-',
+          deletedAt: p.deletedAt?.toISOString() ?? '',
+        });
+      }
+      for (const p of trashedProjects) {
+        allItems.push({
+          type: 'project',
+          id: p.id,
+          displayTitle: p.name,
+          contextName: '-',
+          deletedAt: p.deletedAt?.toISOString() ?? '',
+        });
+      }
+    } else if (query.scope === 'company') {
+      const companyId = query.companyId!;
+      const [writable, companyLead, trashedProcs, trashedProjs, allCompanyContextIdsRows] =
+        await Promise.all([
+          getWritableCatalogScope(prisma, userId),
+          canViewCompany(prisma, userId, companyId),
+          prisma.process.findMany({
+            where: { deletedAt: { not: null }, owner: { companyId } },
+            select: { id: true, name: true, contextId: true, deletedAt: true },
+          }),
+          prisma.project.findMany({
+            where: { deletedAt: { not: null }, owner: { companyId } },
+            select: { id: true, name: true, contextId: true, deletedAt: true },
+          }),
+          Promise.all([
+            prisma.process.findMany({
+              where: { owner: { companyId } },
+              select: { contextId: true },
+            }),
+            prisma.project.findMany({
+              where: { owner: { companyId } },
+              select: { contextId: true },
+              include: { subcontexts: { select: { contextId: true } } },
+            }),
+          ]),
+        ]);
+      const companyContextIds = [
+        ...allCompanyContextIdsRows[0].map((p) => p.contextId),
+        ...allCompanyContextIdsRows[1].flatMap((p) => [
+          p.contextId,
+          ...p.subcontexts.map((s) => s.contextId),
+        ]),
+      ];
+      const writableCtxSet = new Set(writable.contextIds);
+      const writableDocSet = new Set(writable.documentIdsFromGrants);
+
+      const hasContextAccess =
+        trashedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
+        trashedProjs.some((p) => writableCtxSet.has(p.contextId));
+      const trashedDocIds =
+        companyContextIds.length > 0
+          ? await prisma.document
+              .findMany({
+                where: { deletedAt: { not: null }, contextId: { in: companyContextIds } },
+                select: { id: true },
+              })
+              .then((r) => r.map((d) => d.id))
+          : [];
+      const hasDocAccess = companyLead || trashedDocIds.some((id) => writableDocSet.has(id));
+      if (!companyLead && !hasContextAccess && !hasDocAccess) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+
+      for (const p of trashedProcs) {
+        if (companyLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'process',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            deletedAt: p.deletedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      for (const p of trashedProjs) {
+        if (companyLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'project',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            deletedAt: p.deletedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      const writableDocIds = [...writableDocSet];
+      const trashedDocs = await prisma.document.findMany({
+        where: {
+          deletedAt: { not: null },
+          ...(companyLead
+            ? companyContextIds.length > 0
+              ? { contextId: { in: companyContextIds } }
+              : { id: { in: [] } }
+            : {
+                OR: [
+                  ...(companyContextIds.length > 0
+                    ? [{ contextId: { in: companyContextIds } }]
+                    : []),
+                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
+                ].filter(Boolean),
+              }),
+        },
+        select: { id: true, title: true, contextId: true, deletedAt: true, ...contextInclude },
+      });
+      for (const d of trashedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          deletedAt: d.deletedAt?.toISOString() ?? '',
+        });
+      }
+    } else if (query.scope === 'department' && query.departmentId != null) {
+      const departmentId = query.departmentId;
+      const department = await prisma.department.findUnique({
+        where: { id: departmentId },
+        select: { companyId: true },
+      });
+      if (!department) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      const [
+        writable,
+        scopeLeadDept,
+        scopeLeadCompany,
+        trashedProcs,
+        trashedProjs,
+        scopeContextIds,
+      ] = await Promise.all([
+        getWritableCatalogScope(prisma, userId),
+        canViewDepartment(prisma, userId, departmentId),
+        canViewCompany(prisma, userId, department.companyId ?? ''),
+        prisma.process.findMany({
+          where: { deletedAt: { not: null }, owner: { departmentId } },
+          select: { id: true, name: true, contextId: true, deletedAt: true },
+        }),
+        prisma.project.findMany({
+          where: { deletedAt: { not: null }, owner: { departmentId } },
+          select: { id: true, name: true, contextId: true, deletedAt: true },
+        }),
+        getDepartmentContextIds(prisma, departmentId),
+      ]);
+      const scopeLead = scopeLeadDept || (department.companyId != null && scopeLeadCompany);
+      const writableCtxSet = new Set(writable.contextIds);
+      const writableDocSet = new Set(writable.documentIdsFromGrants);
+      const hasContextAccess =
+        trashedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
+        trashedProjs.some((p) => writableCtxSet.has(p.contextId));
+      const trashedDocIds =
+        scopeContextIds.length > 0
+          ? await prisma.document
+              .findMany({
+                where: { deletedAt: { not: null }, contextId: { in: scopeContextIds } },
+                select: { id: true },
+              })
+              .then((r) => r.map((d) => d.id))
+          : [];
+      const hasDocAccess = scopeLead || trashedDocIds.some((id) => writableDocSet.has(id));
+      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      for (const p of trashedProcs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'process',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            deletedAt: p.deletedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      for (const p of trashedProjs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'project',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            deletedAt: p.deletedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      const writableDocIds = [...writableDocSet];
+      const trashedDocs = await prisma.document.findMany({
+        where: {
+          deletedAt: { not: null },
+          ...(scopeLead
+            ? scopeContextIds.length > 0
+              ? { contextId: { in: scopeContextIds } }
+              : { id: { in: [] } }
+            : {
+                OR: [
+                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
+                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
+                ].filter(Boolean),
+              }),
+        },
+        select: { id: true, title: true, contextId: true, deletedAt: true, ...contextInclude },
+      });
+      for (const d of trashedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          deletedAt: d.deletedAt?.toISOString() ?? '',
+        });
+      }
+    } else if (query.scope === 'team' && query.teamId != null) {
+      const teamId = query.teamId;
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { departmentId: true, department: { select: { companyId: true } } },
+      });
+      if (!team) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      const companyId = team.department?.companyId ?? null;
+      const [
+        writable,
+        scopeLeadDept,
+        scopeLeadCompany,
+        isTeamLead,
+        trashedProcs,
+        trashedProjs,
+        scopeContextIds,
+      ] = await Promise.all([
+        getWritableCatalogScope(prisma, userId),
+        team.departmentId != null
+          ? canViewDepartment(prisma, userId, team.departmentId)
+          : Promise.resolve(false),
+        companyId != null ? canViewCompany(prisma, userId, companyId) : Promise.resolve(false),
+        prisma.teamLead
+          .findUnique({
+            where: { teamId_userId: { teamId, userId } },
+            select: { userId: true },
+          })
+          .then((r) => r != null),
+        prisma.process.findMany({
+          where: { deletedAt: { not: null }, owner: { teamId } },
+          select: { id: true, name: true, contextId: true, deletedAt: true },
+        }),
+        prisma.project.findMany({
+          where: { deletedAt: { not: null }, owner: { teamId } },
+          select: { id: true, name: true, contextId: true, deletedAt: true },
+        }),
+        getTeamContextIds(prisma, teamId),
+      ]);
+      const scopeLead = scopeLeadDept || scopeLeadCompany || isTeamLead;
+      const writableCtxSet = new Set(writable.contextIds);
+      const writableDocSet = new Set(writable.documentIdsFromGrants);
+      const hasContextAccess =
+        trashedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
+        trashedProjs.some((p) => writableCtxSet.has(p.contextId));
+      const trashedDocIds =
+        scopeContextIds.length > 0
+          ? await prisma.document
+              .findMany({
+                where: { deletedAt: { not: null }, contextId: { in: scopeContextIds } },
+                select: { id: true },
+              })
+              .then((r) => r.map((d) => d.id))
+          : [];
+      const hasDocAccess = scopeLead || trashedDocIds.some((id) => writableDocSet.has(id));
+      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      for (const p of trashedProcs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'process',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            deletedAt: p.deletedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      for (const p of trashedProjs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'project',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            deletedAt: p.deletedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      const writableDocIds = [...writableDocSet];
+      const trashedDocs = await prisma.document.findMany({
+        where: {
+          deletedAt: { not: null },
+          ...(scopeLead
+            ? scopeContextIds.length > 0
+              ? { contextId: { in: scopeContextIds } }
+              : { id: { in: [] } }
+            : {
+                OR: [
+                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
+                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
+                ].filter(Boolean),
+              }),
+        },
+        select: { id: true, title: true, contextId: true, deletedAt: true, ...contextInclude },
+      });
+      for (const d of trashedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          deletedAt: d.deletedAt?.toISOString() ?? '',
+        });
+      }
     }
 
-    const companyId = query.companyId!;
-    const allowed = await canViewCompany(prisma, userId, companyId);
-    if (!allowed) {
-      return reply.status(403).send({ error: 'No access to this company' });
-    }
-    const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
-      prisma.process.findMany({
-        where: { deletedAt: null, owner: { companyId } },
-        select: { contextId: true },
-      }),
-      prisma.project.findMany({
-        where: { deletedAt: null, owner: { companyId } },
-        select: { contextId: true },
-      }),
-      prisma.subcontext.findMany({
-        where: { project: { owner: { companyId } } },
-        select: { contextId: true },
-      }),
-    ]);
-    const companyContextIds = [
-      ...processContexts.map((p) => p.contextId),
-      ...projectContexts.map((p) => p.contextId),
-      ...subcontextContexts.map((s) => s.contextId),
-    ];
-    if (companyContextIds.length === 0) {
-      return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-    }
-    const where = {
-      deletedAt: { not: null },
-      contextId: { in: companyContextIds },
-    };
-    const [items, total] = await Promise.all([
-      prisma.document.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          contextId: true,
-          deletedAt: true,
-          updatedAt: true,
-          ...contextInclude,
-        },
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { deletedAt: 'desc' },
-      }),
-      prisma.document.count({ where }),
-    ]);
-    const mapped = items.map((doc) => mapTrashItem(doc));
-    return reply.send({ items: mapped, total, limit: query.limit, offset: query.offset });
+    const sortKey = query.sortBy === 'title' ? 'displayTitle' : 'deletedAt';
+    const sortVal = (a: MeTrashArchiveItem) =>
+      sortKey === 'displayTitle' ? (a.displayTitle ?? '').toLowerCase() : (a.deletedAt ?? '');
+    allItems.sort((a, b) => {
+      const va = sortVal(a);
+      const vb = sortVal(b);
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return query.sortOrder === 'asc' ? cmp : -cmp;
+    });
+    const filtered = query.type != null ? allItems.filter((i) => i.type === query.type) : allItems;
+    const total = filtered.length;
+    const items = filtered.slice(query.offset, query.offset + query.limit);
+    return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 
-  /** GET /api/v1/me/archive – Archived documents (scope=personal or scope=company&companyId). */
+  /** GET /api/v1/me/archive – Archived documents and contexts (unified items). §4b: Company = lead or writable; else empty list. */
   app.get('/me/archive', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
@@ -543,105 +834,525 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         },
       },
     };
-    const archiveSelect = {
-      id: true,
-      title: true,
-      contextId: true,
-      archivedAt: true,
-      updatedAt: true,
-      ...archiveContextInclude,
-    };
+
+    const allItems: MeTrashArchiveItem[] = [];
 
     if (query.scope === 'personal') {
-      const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
+      const [archivedDocs, archivedProcesses, archivedProjects] = await Promise.all([
+        prisma.document.findMany({
+          where: {
+            deletedAt: null,
+            archivedAt: { not: null },
+            OR: [
+              { context: { process: { owner: { ownerUserId: userId } } } },
+              { context: { project: { owner: { ownerUserId: userId } } } },
+              { context: { subcontext: { project: { owner: { ownerUserId: userId } } } } },
+              { contextId: null, createdById: userId },
+            ],
+          },
+          select: { id: true, title: true, archivedAt: true, ...archiveContextInclude },
+        }),
         prisma.process.findMany({
-          where: { deletedAt: null, owner: { ownerUserId: userId } },
-          select: { contextId: true },
+          where: { archivedAt: { not: null }, owner: { ownerUserId: userId } },
+          select: { id: true, name: true, archivedAt: true },
         }),
         prisma.project.findMany({
-          where: { deletedAt: null, owner: { ownerUserId: userId } },
-          select: { contextId: true },
-        }),
-        prisma.subcontext.findMany({
-          where: { project: { owner: { ownerUserId: userId } } },
-          select: { contextId: true },
+          where: { archivedAt: { not: null }, owner: { ownerUserId: userId } },
+          select: { id: true, name: true, archivedAt: true },
         }),
       ]);
-      const personalContextIds = [
-        ...processContexts.map((p) => p.contextId),
-        ...projectContexts.map((p) => p.contextId),
-        ...subcontextContexts.map((s) => s.contextId),
+      for (const d of archivedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          archivedAt: d.archivedAt?.toISOString() ?? '',
+        });
+      }
+      for (const p of archivedProcesses) {
+        allItems.push({
+          type: 'process',
+          id: p.id,
+          displayTitle: p.name,
+          contextName: '-',
+          archivedAt: p.archivedAt?.toISOString() ?? '',
+        });
+      }
+      for (const p of archivedProjects) {
+        allItems.push({
+          type: 'project',
+          id: p.id,
+          displayTitle: p.name,
+          contextName: '-',
+          archivedAt: p.archivedAt?.toISOString() ?? '',
+        });
+      }
+    } else if (query.scope === 'company') {
+      const companyId = query.companyId!;
+      const [writable, companyLead, archivedProcs, archivedProjs, allCompanyContextIdsRows] =
+        await Promise.all([
+          getWritableCatalogScope(prisma, userId),
+          canViewCompany(prisma, userId, companyId),
+          prisma.process.findMany({
+            where: { archivedAt: { not: null }, deletedAt: null, owner: { companyId } },
+            select: { id: true, name: true, contextId: true, archivedAt: true },
+          }),
+          prisma.project.findMany({
+            where: { archivedAt: { not: null }, deletedAt: null, owner: { companyId } },
+            select: { id: true, name: true, contextId: true, archivedAt: true },
+          }),
+          Promise.all([
+            prisma.process.findMany({
+              where: { owner: { companyId } },
+              select: { contextId: true },
+            }),
+            prisma.project.findMany({
+              where: { owner: { companyId } },
+              select: { contextId: true },
+              include: { subcontexts: { select: { contextId: true } } },
+            }),
+          ]),
+        ]);
+      const companyContextIds = [
+        ...allCompanyContextIdsRows[0].map((p) => p.contextId),
+        ...allCompanyContextIdsRows[1].flatMap((p) => [
+          p.contextId,
+          ...p.subcontexts.map((s) => s.contextId),
+        ]),
       ];
-      const where = {
-        deletedAt: null,
-        archivedAt: { not: null },
-        OR: [
-          ...(personalContextIds.length > 0 ? [{ contextId: { in: personalContextIds } }] : []),
-          { contextId: null, createdById: userId },
-        ].filter(Boolean),
-      };
-      if (!where.OR || where.OR.length === 0) {
+      const writableCtxSet = new Set(writable.contextIds);
+      const writableDocSet = new Set(writable.documentIdsFromGrants);
+
+      const hasContextAccess =
+        archivedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
+        archivedProjs.some((p) => writableCtxSet.has(p.contextId));
+      const archivedDocIds =
+        companyContextIds.length > 0
+          ? await prisma.document
+              .findMany({
+                where: {
+                  deletedAt: null,
+                  archivedAt: { not: null },
+                  contextId: { in: companyContextIds },
+                },
+                select: { id: true },
+              })
+              .then((r) => r.map((d) => d.id))
+          : [];
+      const hasDocAccess = companyLead || archivedDocIds.some((id) => writableDocSet.has(id));
+      if (!companyLead && !hasContextAccess && !hasDocAccess) {
         return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
       }
-      const [items, total] = await Promise.all([
-        prisma.document.findMany({
-          where,
-          select: archiveSelect,
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { archivedAt: 'desc' },
+
+      for (const p of archivedProcs) {
+        if (companyLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'process',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            archivedAt: p.archivedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      for (const p of archivedProjs) {
+        if (companyLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'project',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            archivedAt: p.archivedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      const writableDocIds = [...writableDocSet];
+      const archivedDocs = await prisma.document.findMany({
+        where: {
+          deletedAt: null,
+          archivedAt: { not: null },
+          ...(companyLead
+            ? companyContextIds.length > 0
+              ? { contextId: { in: companyContextIds } }
+              : { id: { in: [] } }
+            : {
+                OR: [
+                  ...(companyContextIds.length > 0
+                    ? [{ contextId: { in: companyContextIds } }]
+                    : []),
+                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
+                ].filter(Boolean),
+              }),
+        },
+        select: {
+          id: true,
+          title: true,
+          contextId: true,
+          archivedAt: true,
+          ...archiveContextInclude,
+        },
+      });
+      for (const d of archivedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          archivedAt: d.archivedAt?.toISOString() ?? '',
+        });
+      }
+    } else if (query.scope === 'department' && query.departmentId != null) {
+      const departmentId = query.departmentId;
+      const department = await prisma.department.findUnique({
+        where: { id: departmentId },
+        select: { companyId: true },
+      });
+      if (!department) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      const [
+        writable,
+        scopeLeadDept,
+        scopeLeadCompany,
+        archivedProcs,
+        archivedProjs,
+        scopeContextIds,
+      ] = await Promise.all([
+        getWritableCatalogScope(prisma, userId),
+        canViewDepartment(prisma, userId, departmentId),
+        canViewCompany(prisma, userId, department.companyId ?? ''),
+        prisma.process.findMany({
+          where: { archivedAt: { not: null }, deletedAt: null, owner: { departmentId } },
+          select: { id: true, name: true, contextId: true, archivedAt: true },
         }),
-        prisma.document.count({ where }),
+        prisma.project.findMany({
+          where: { archivedAt: { not: null }, deletedAt: null, owner: { departmentId } },
+          select: { id: true, name: true, contextId: true, archivedAt: true },
+        }),
+        getDepartmentContextIds(prisma, departmentId),
       ]);
-      const mapped = items.map((doc) => mapArchiveItem(doc));
-      return reply.send({ items: mapped, total, limit: query.limit, offset: query.offset });
+      const scopeLead = scopeLeadDept || (department.companyId != null && scopeLeadCompany);
+      const writableCtxSet = new Set(writable.contextIds);
+      const writableDocSet = new Set(writable.documentIdsFromGrants);
+      const hasContextAccess =
+        archivedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
+        archivedProjs.some((p) => writableCtxSet.has(p.contextId));
+      const archivedDocIds =
+        scopeContextIds.length > 0
+          ? await prisma.document
+              .findMany({
+                where: {
+                  deletedAt: null,
+                  archivedAt: { not: null },
+                  contextId: { in: scopeContextIds },
+                },
+                select: { id: true },
+              })
+              .then((r) => r.map((d) => d.id))
+          : [];
+      const hasDocAccess = scopeLead || archivedDocIds.some((id) => writableDocSet.has(id));
+      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      for (const p of archivedProcs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'process',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            archivedAt: p.archivedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      for (const p of archivedProjs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'project',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            archivedAt: p.archivedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      const writableDocIds = [...writableDocSet];
+      const archivedDocs = await prisma.document.findMany({
+        where: {
+          deletedAt: null,
+          archivedAt: { not: null },
+          ...(scopeLead
+            ? scopeContextIds.length > 0
+              ? { contextId: { in: scopeContextIds } }
+              : { id: { in: [] } }
+            : {
+                OR: [
+                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
+                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
+                ].filter(Boolean),
+              }),
+        },
+        select: {
+          id: true,
+          title: true,
+          contextId: true,
+          archivedAt: true,
+          ...archiveContextInclude,
+        },
+      });
+      for (const d of archivedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          archivedAt: d.archivedAt?.toISOString() ?? '',
+        });
+      }
+    } else if (query.scope === 'team' && query.teamId != null) {
+      const teamId = query.teamId;
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { departmentId: true, department: { select: { companyId: true } } },
+      });
+      if (!team) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      const companyId = team.department?.companyId ?? null;
+      const [
+        writable,
+        scopeLeadDept,
+        scopeLeadCompany,
+        isTeamLead,
+        archivedProcs,
+        archivedProjs,
+        scopeContextIds,
+      ] = await Promise.all([
+        getWritableCatalogScope(prisma, userId),
+        team.departmentId != null
+          ? canViewDepartment(prisma, userId, team.departmentId)
+          : Promise.resolve(false),
+        companyId != null ? canViewCompany(prisma, userId, companyId) : Promise.resolve(false),
+        prisma.teamLead
+          .findUnique({
+            where: { teamId_userId: { teamId, userId } },
+            select: { userId: true },
+          })
+          .then((r) => r != null),
+        prisma.process.findMany({
+          where: { archivedAt: { not: null }, deletedAt: null, owner: { teamId } },
+          select: { id: true, name: true, contextId: true, archivedAt: true },
+        }),
+        prisma.project.findMany({
+          where: { archivedAt: { not: null }, deletedAt: null, owner: { teamId } },
+          select: { id: true, name: true, contextId: true, archivedAt: true },
+        }),
+        getTeamContextIds(prisma, teamId),
+      ]);
+      const scopeLead = scopeLeadDept || scopeLeadCompany || isTeamLead;
+      const writableCtxSet = new Set(writable.contextIds);
+      const writableDocSet = new Set(writable.documentIdsFromGrants);
+      const hasContextAccess =
+        archivedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
+        archivedProjs.some((p) => writableCtxSet.has(p.contextId));
+      const archivedDocIds =
+        scopeContextIds.length > 0
+          ? await prisma.document
+              .findMany({
+                where: {
+                  deletedAt: null,
+                  archivedAt: { not: null },
+                  contextId: { in: scopeContextIds },
+                },
+                select: { id: true },
+              })
+              .then((r) => r.map((d) => d.id))
+          : [];
+      const hasDocAccess = scopeLead || archivedDocIds.some((id) => writableDocSet.has(id));
+      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
+        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      }
+      for (const p of archivedProcs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'process',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            archivedAt: p.archivedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      for (const p of archivedProjs) {
+        if (scopeLead || writableCtxSet.has(p.contextId)) {
+          allItems.push({
+            type: 'project',
+            id: p.id,
+            displayTitle: p.name,
+            contextName: '-',
+            archivedAt: p.archivedAt?.toISOString() ?? '',
+          });
+        }
+      }
+      const writableDocIds = [...writableDocSet];
+      const archivedDocs = await prisma.document.findMany({
+        where: {
+          deletedAt: null,
+          archivedAt: { not: null },
+          ...(scopeLead
+            ? scopeContextIds.length > 0
+              ? { contextId: { in: scopeContextIds } }
+              : { id: { in: [] } }
+            : {
+                OR: [
+                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
+                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
+                ].filter(Boolean),
+              }),
+        },
+        select: {
+          id: true,
+          title: true,
+          contextId: true,
+          archivedAt: true,
+          ...archiveContextInclude,
+        },
+      });
+      for (const d of archivedDocs) {
+        allItems.push({
+          type: 'document',
+          id: d.id,
+          displayTitle: d.title,
+          contextName: contextNameFromDoc(d),
+          archivedAt: d.archivedAt?.toISOString() ?? '',
+        });
+      }
     }
 
-    const companyId = query.companyId!;
-    const allowed = await canViewCompany(prisma, userId, companyId);
-    if (!allowed) {
-      return reply.status(403).send({ error: 'No access to this company' });
-    }
-    const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
-      prisma.process.findMany({
-        where: { deletedAt: null, owner: { companyId } },
-        select: { contextId: true },
-      }),
-      prisma.project.findMany({
-        where: { deletedAt: null, owner: { companyId } },
-        select: { contextId: true },
-      }),
-      prisma.subcontext.findMany({
-        where: { project: { owner: { companyId } } },
-        select: { contextId: true },
-      }),
-    ]);
-    const companyContextIds = [
-      ...processContexts.map((p) => p.contextId),
-      ...projectContexts.map((p) => p.contextId),
-      ...subcontextContexts.map((s) => s.contextId),
-    ];
-    if (companyContextIds.length === 0) {
-      return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-    }
-    const where = {
-      deletedAt: null,
-      archivedAt: { not: null },
-      contextId: { in: companyContextIds },
-    };
-    const [items, total] = await Promise.all([
-      prisma.document.findMany({
-        where,
-        select: archiveSelect,
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { archivedAt: 'desc' },
-      }),
-      prisma.document.count({ where }),
-    ]);
-    const mapped = items.map((doc) => mapArchiveItem(doc));
-    return reply.send({ items: mapped, total, limit: query.limit, offset: query.offset });
+    const sortKey = query.sortBy === 'title' ? 'displayTitle' : 'archivedAt';
+    const sortVal = (a: MeTrashArchiveItem) =>
+      sortKey === 'displayTitle' ? (a.displayTitle ?? '').toLowerCase() : (a.archivedAt ?? '');
+    allItems.sort((a, b) => {
+      const va = sortVal(a);
+      const vb = sortVal(b);
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return query.sortOrder === 'asc' ? cmp : -cmp;
+    });
+    const filtered = query.type != null ? allItems.filter((i) => i.type === query.type) : allItems;
+    const total = filtered.length;
+    const items = filtered.slice(query.offset, query.offset + query.limit);
+    return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
+
+  /** GET /api/v1/me/can-write-in-scope – Whether the user has write access in the given scope (§4b: lead or writable). */
+  app.get(
+    '/me/can-write-in-scope',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const query = meCanWriteInScopeQuerySchema.parse(request.query);
+
+      if (query.scope === 'company' && query.companyId != null) {
+        const companyId = query.companyId;
+        const [scopeLead, scopeContextIds, writable] = await Promise.all([
+          canViewCompany(prisma, userId, companyId),
+          getCompanyContextIds(prisma, companyId),
+          getWritableCatalogScope(prisma, userId),
+        ]);
+        if (scopeLead) return reply.send({ canWrite: true });
+        const writableCtxSet = new Set(writable.contextIds);
+        if (scopeContextIds.some((id) => writableCtxSet.has(id)))
+          return reply.send({ canWrite: true });
+        if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
+          const docInScope = await prisma.document.findFirst({
+            where: {
+              contextId: { in: scopeContextIds },
+              id: { in: writable.documentIdsFromGrants },
+            },
+            select: { id: true },
+          });
+          if (docInScope) return reply.send({ canWrite: true });
+        }
+        return reply.send({ canWrite: false });
+      }
+
+      if (query.scope === 'department' && query.departmentId != null) {
+        const departmentId = query.departmentId;
+        const department = await prisma.department.findUnique({
+          where: { id: departmentId },
+          select: { companyId: true },
+        });
+        if (!department) return reply.send({ canWrite: false });
+        const [scopeLeadDept, scopeLeadCompany, scopeContextIds, writable] = await Promise.all([
+          canViewDepartment(prisma, userId, departmentId),
+          canViewCompany(prisma, userId, department.companyId ?? ''),
+          getDepartmentContextIds(prisma, departmentId),
+          getWritableCatalogScope(prisma, userId),
+        ]);
+        const scopeLead = scopeLeadDept || (department.companyId != null && scopeLeadCompany);
+        if (scopeLead) return reply.send({ canWrite: true });
+        const writableCtxSet = new Set(writable.contextIds);
+        if (scopeContextIds.some((id) => writableCtxSet.has(id)))
+          return reply.send({ canWrite: true });
+        if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
+          const docInScope = await prisma.document.findFirst({
+            where: {
+              contextId: { in: scopeContextIds },
+              id: { in: writable.documentIdsFromGrants },
+            },
+            select: { id: true },
+          });
+          if (docInScope) return reply.send({ canWrite: true });
+        }
+        return reply.send({ canWrite: false });
+      }
+
+      if (query.scope === 'team' && query.teamId != null) {
+        const teamId = query.teamId;
+        const team = await prisma.team.findUnique({
+          where: { id: teamId },
+          select: { departmentId: true, department: { select: { companyId: true } } },
+        });
+        if (!team) return reply.send({ canWrite: false });
+        const companyId = team.department?.companyId ?? null;
+        const [scopeLeadDept, scopeLeadCompany, isTeamLead, scopeContextIds, writable] =
+          await Promise.all([
+            team.departmentId != null
+              ? canViewDepartment(prisma, userId, team.departmentId)
+              : Promise.resolve(false),
+            companyId != null ? canViewCompany(prisma, userId, companyId) : Promise.resolve(false),
+            prisma.teamLead
+              .findUnique({
+                where: { teamId_userId: { teamId, userId } },
+                select: { userId: true },
+              })
+              .then((r) => r != null),
+            getTeamContextIds(prisma, teamId),
+            getWritableCatalogScope(prisma, userId),
+          ]);
+        const scopeLead = scopeLeadDept || scopeLeadCompany || isTeamLead;
+        if (scopeLead) return reply.send({ canWrite: true });
+        const writableCtxSet = new Set(writable.contextIds);
+        if (scopeContextIds.some((id) => writableCtxSet.has(id)))
+          return reply.send({ canWrite: true });
+        if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
+          const docInScope = await prisma.document.findFirst({
+            where: {
+              contextId: { in: scopeContextIds },
+              id: { in: writable.documentIdsFromGrants },
+            },
+            select: { id: true },
+          });
+          if (docInScope) return reply.send({ canWrite: true });
+        }
+        return reply.send({ canWrite: false });
+      }
+
+      return reply.send({ canWrite: false });
+    }
+  );
 
   /** GET /api/v1/me/shared-documents – Dokumente, auf die der Nutzer per Grant Zugriff hat (paginiert). */
   app.get('/me/shared-documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
@@ -725,16 +1436,13 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const query = meDraftsQuerySchema.parse(request.query);
 
-    const [scope, writable, readable] = await Promise.all([
+    const [scope, writable] = await Promise.all([
       getDraftsScope(prisma, userId, query),
       getWritableCatalogScope(prisma, userId),
-      getReadableCatalogScope(prisma, userId),
     ]);
 
     const writableCtxSet = new Set(writable.contextIds);
     const writableDocSet = new Set(writable.documentIdsFromGrants);
-    const readableCtxSet = new Set(readable.contextIds);
-    const readableDocSet = new Set(readable.documentIdsFromGrants);
     const includeContextFreeDrafts =
       query.scope === 'personal' ||
       (!query.scope && !query.companyId && !query.departmentId && !query.teamId);
@@ -743,10 +1451,6 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       ...scope.scopeDocumentIds.filter((d) => writableDocSet.has(d)),
       ...(includeContextFreeDrafts ? writable.documentIdsFromCreator : []),
     ];
-    const inScopeReadableContextIds = scope.scopeContextIds.filter((c) => readableCtxSet.has(c));
-    const inScopeReadableDocIdsFromGrants = scope.scopeDocumentIds.filter((d) =>
-      readableDocSet.has(d)
-    );
 
     const draftDocWhere =
       inScopeWritableContextIds.length > 0 || inScopeWritableDocIds.length > 0
@@ -779,26 +1483,27 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         })
       : [];
 
-    let readableDocIdsInScope: string[] = [...inScopeReadableDocIdsFromGrants];
-    if (inScopeReadableContextIds.length > 0) {
+    /** §4b: Offene Draft Requests nur für Schreiber (writable), nicht für Leser. */
+    let writableDocIdsForPrs: string[] = [...inScopeWritableDocIds];
+    if (inScopeWritableContextIds.length > 0) {
       const fromContexts = await prisma.document.findMany({
         where: {
-          contextId: { in: inScopeReadableContextIds },
+          contextId: { in: inScopeWritableContextIds },
           deletedAt: null,
           archivedAt: null,
         },
         select: { id: true },
       });
-      readableDocIdsInScope = [
-        ...new Set([...readableDocIdsInScope, ...fromContexts.map((d) => d.id)]),
+      writableDocIdsForPrs = [
+        ...new Set([...writableDocIdsForPrs, ...fromContexts.map((d) => d.id)]),
       ];
     }
     const openDraftRequests =
-      readableDocIdsInScope.length > 0
+      writableDocIdsForPrs.length > 0
         ? await prisma.draftRequest.findMany({
             where: {
               status: 'open',
-              documentId: { in: readableDocIdsInScope },
+              documentId: { in: writableDocIdsForPrs },
             },
             select: {
               id: true,

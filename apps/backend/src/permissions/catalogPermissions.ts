@@ -27,11 +27,11 @@ export async function getReadableCatalogScope(
   if (user.isAdmin) {
     const [processes, projects, subcontexts] = await Promise.all([
       prisma.process.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         select: { contextId: true },
       }),
       prisma.project.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         select: { contextId: true },
       }),
       prisma.subcontext.findMany({ select: { contextId: true } }),
@@ -62,11 +62,11 @@ export async function getReadableCatalogScope(
     grantDeptDocs,
   ] = await Promise.all([
     prisma.process.findMany({
-      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      where: { deletedAt: null, archivedAt: null, owner: { ownerUserId: userId } },
       select: { contextId: true },
     }),
     prisma.project.findMany({
-      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      where: { deletedAt: null, archivedAt: null, owner: { ownerUserId: userId } },
       select: { contextId: true },
     }),
     prisma.subcontext.findMany({
@@ -75,13 +75,13 @@ export async function getReadableCatalogScope(
     }),
     ownerOrConditions.length > 0
       ? prisma.process.findMany({
-          where: { deletedAt: null, owner: { OR: ownerOrConditions } },
+          where: { deletedAt: null, archivedAt: null, owner: { OR: ownerOrConditions } },
           select: { contextId: true },
         })
       : Promise.resolve([]),
     ownerOrConditions.length > 0
       ? prisma.project.findMany({
-          where: { deletedAt: null, owner: { OR: ownerOrConditions } },
+          where: { deletedAt: null, archivedAt: null, owner: { OR: ownerOrConditions } },
           select: { contextId: true },
         })
       : Promise.resolve([]),
@@ -160,11 +160,11 @@ export async function getWritableCatalogScope(
   if (user.isAdmin) {
     const [processes, projects, subcontexts, contextFreeDrafts] = await Promise.all([
       prisma.process.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         select: { contextId: true },
       }),
       prisma.project.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         select: { contextId: true },
       }),
       prisma.subcontext.findMany({ select: { contextId: true } }),
@@ -214,11 +214,11 @@ export async function getWritableCatalogScope(
     grantDeptDocs,
   ] = await Promise.all([
     prisma.process.findMany({
-      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      where: { deletedAt: null, archivedAt: null, owner: { ownerUserId: userId } },
       select: { contextId: true },
     }),
     prisma.project.findMany({
-      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      where: { deletedAt: null, archivedAt: null, owner: { ownerUserId: userId } },
       select: { contextId: true },
     }),
     prisma.subcontext.findMany({
@@ -227,13 +227,13 @@ export async function getWritableCatalogScope(
     }),
     ownerOrConditions.length > 0
       ? prisma.process.findMany({
-          where: { deletedAt: null, owner: { OR: ownerOrConditions } },
+          where: { deletedAt: null, archivedAt: null, owner: { OR: ownerOrConditions } },
           select: { contextId: true },
         })
       : Promise.resolve([]),
     ownerOrConditions.length > 0
       ? prisma.project.findMany({
-          where: { deletedAt: null, owner: { OR: ownerOrConditions } },
+          where: { deletedAt: null, archivedAt: null, owner: { OR: ownerOrConditions } },
           select: { contextId: true },
         })
       : Promise.resolve([]),

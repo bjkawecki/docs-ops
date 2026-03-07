@@ -105,6 +105,24 @@ export function PersonalPage() {
     });
   };
 
+  const handleArchive = async (id: string, type: 'process' | 'project') => {
+    const endpoint = type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
+    const res = await apiFetch(`${endpoint}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    });
+    if (res.ok) {
+      invalidateContexts();
+      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
+      notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      notifications.show({ title: 'Error', message: body?.error ?? res.statusText, color: 'red' });
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -113,10 +131,11 @@ export function PersonalPage() {
       const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
       if (res.status === 204) {
         invalidateContexts();
+        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         setDeleteTarget(null);
         notifications.show({
-          title: 'Deleted',
-          message: 'Context was deleted.',
+          title: 'Moved to trash',
+          message: 'Context can be restored from the Trash tab.',
           color: 'green',
         });
       } else {
@@ -274,6 +293,7 @@ export function PersonalPage() {
               href={`/processes/${p.id}`}
               canManage
               onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
+              onArchive={() => void handleArchive(p.id, 'process')}
               onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
             />
           ))}
@@ -306,6 +326,7 @@ export function PersonalPage() {
               href={`/projects/${p.id}`}
               canManage
               onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
+              onArchive={() => void handleArchive(p.id, 'project')}
               onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
             />
           ))}
@@ -410,11 +431,12 @@ export function PersonalPage() {
       <Modal
         opened={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
-        title="Delete context"
+        title="Move to trash"
         centered
       >
         <Text size="sm" c="dimmed" mb="md">
-          This context and related data will be permanently deleted. Continue?
+          This context and its documents will be moved to trash. You can restore them from the Trash
+          tab.
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={() => setDeleteTarget(null)}>
@@ -427,7 +449,7 @@ export function PersonalPage() {
               void handleDeleteConfirm();
             }}
           >
-            Delete
+            Move to trash
           </Button>
         </Group>
       </Modal>
