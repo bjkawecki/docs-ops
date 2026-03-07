@@ -5,9 +5,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
-import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
-import { RecentItemsCard } from '../components/contexts';
 
 type DocItem = {
   id: string;
@@ -21,8 +19,6 @@ const SHARED_SCOPE = { type: 'shared' as const };
 
 export function SharedPage() {
   const [activeTab, setActiveTab] = useState('overview');
-  const { items: recentItems } = useRecentItems(SHARED_SCOPE);
-
   const { data: sharedDocsRes, isPending: docsPending } = useQuery({
     queryKey: ['me', 'shared-documents'],
     queryFn: async () => {
@@ -44,29 +40,30 @@ export function SharedPage() {
   const overviewPanel = (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <RecentItemsCard items={recentItems} />
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Shared with you
-            </Text>
-            {docsPreview.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No documents shared with you yet.
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Shared with you
               </Text>
-            ) : (
-              <Stack gap={4}>
-                {docsPreview.map((d) => (
-                  <Link
-                    key={d.id}
-                    to={`/documents/${d.id}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                  >
-                    {d.title || d.id}
-                  </Link>
-                ))}
-              </Stack>
-            )}
+              {docsPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No documents shared with you yet.
+                </Text>
+              ) : (
+                <Stack gap={4}>
+                  {docsPreview.map((d) => (
+                    <Link
+                      key={d.id}
+                      to={`/documents/${d.id}`}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                    >
+                      {d.title || d.id}
+                    </Link>
+                  ))}
+                </Stack>
+              )}
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
                 View more
@@ -119,6 +116,8 @@ export function SharedPage() {
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        recentScope={SHARED_SCOPE}
+        recentViewMoreHref="/catalog"
       >
         {[
           <Fragment key="overview">{overviewPanel}</Fragment>,

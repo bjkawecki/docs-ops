@@ -17,6 +17,7 @@ const recentItemSchema = z.object({
 export const patchPreferencesBodySchema = z.object({
   theme: z.enum(['light', 'dark', 'auto']).optional(),
   sidebarPinned: z.boolean().optional(),
+  scopeRecentPanelOpen: z.boolean().optional(),
   locale: z.enum(['en', 'de']).optional(),
   recentItemsByScope: z.record(z.string(), z.array(recentItemSchema).max(8)).optional(),
 });

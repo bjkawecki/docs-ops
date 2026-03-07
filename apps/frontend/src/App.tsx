@@ -3,7 +3,7 @@ import { AppShell } from './components/AppShell';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { TeamRedirectPage } from './pages/TeamRedirectPage';
-import { FirmaPage } from './pages/FirmaPage';
+import { CompanyPage } from './pages/CompanyPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { DepartmentRedirectPage } from './pages/DepartmentRedirectPage';
 import { DepartmentContextPage } from './pages/DepartmentContextPage';
@@ -48,7 +48,7 @@ function App() {
           <Route path="team/:teamId" element={<TeamContextPage />} />
           <Route path="department" element={<DepartmentRedirectPage />} />
           <Route path="department/:departmentId" element={<DepartmentContextPage />} />
-          <Route path="company" element={<FirmaPage />} />
+          <Route path="company" element={<CompanyPage />} />
           <Route path="personal" element={<PersonalPage />} />
           <Route path="shared" element={<SharedPage />} />
           <Route path="settings" element={<SettingsPage />} />

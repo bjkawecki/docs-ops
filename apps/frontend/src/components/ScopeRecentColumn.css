@@ -1,0 +1,8 @@
+/* Links in "Recently viewed" always look fresh (no :visited styling) */
+[data-recent-viewed-list] a,
+[data-recent-viewed-list] a:visited {
+  color: var(--mantine-color-anchor);
+}
+[data-recent-viewed-list] a:hover {
+  text-decoration: underline;
+}

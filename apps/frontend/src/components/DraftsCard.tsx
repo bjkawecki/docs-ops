@@ -1,4 +1,4 @@
-import { Button, Card, Group, Stack, Text } from '@mantine/core';
+import { Box, Button, Card, Group, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import {
   useMeDrafts,
@@ -48,48 +48,50 @@ export function DraftsCard({
 
   return (
     <Card withBorder padding="md" h="100%">
-      <Stack gap="xs">
-        <Text fw={600} size="sm">
-          Drafts
-        </Text>
-        {isPending ? (
-          <Text size="sm" c="dimmed">
-            Loading…
+      <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+        <Box style={{ flex: 1, minHeight: 0 }}>
+          <Text fw={600} size="sm">
+            Drafts
           </Text>
-        ) : !hasDrafts ? (
-          <Text size="sm" c="dimmed">
-            No drafts or pending review.
-          </Text>
-        ) : (
-          <>
-            {draftDocuments.length > 0 && (
-              <>
-                <Text size="xs" c="dimmed" fw={500}>
-                  Unpublished
-                </Text>
-                <DraftPreviewLinks items={draftDocuments} to={(id) => `/documents/${id}`} />
-              </>
-            )}
-            {openDraftRequests.length > 0 && (
-              <>
-                <Text size="xs" c="dimmed" fw={500} mt={draftDocuments.length > 0 ? 'xs' : 0}>
-                  Pending review
-                </Text>
-                <Stack gap={4}>
-                  {openDraftRequests.map((dr: OpenDraftRequestItem) => (
-                    <Link
-                      key={dr.id}
-                      to={`/documents/${dr.documentId}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                    >
-                      {dr.documentTitle || dr.documentId}
-                    </Link>
-                  ))}
-                </Stack>
-              </>
-            )}
-          </>
-        )}
+          {isPending ? (
+            <Text size="sm" c="dimmed">
+              Loading…
+            </Text>
+          ) : !hasDrafts ? (
+            <Text size="sm" c="dimmed">
+              No drafts or pending review.
+            </Text>
+          ) : (
+            <>
+              {draftDocuments.length > 0 && (
+                <>
+                  <Text size="xs" c="dimmed" fw={500}>
+                    Unpublished
+                  </Text>
+                  <DraftPreviewLinks items={draftDocuments} to={(id) => `/documents/${id}`} />
+                </>
+              )}
+              {openDraftRequests.length > 0 && (
+                <>
+                  <Text size="xs" c="dimmed" fw={500} mt={draftDocuments.length > 0 ? 'xs' : 0}>
+                    Pending review
+                  </Text>
+                  <Stack gap={4}>
+                    {openDraftRequests.map((dr: OpenDraftRequestItem) => (
+                      <Link
+                        key={dr.id}
+                        to={`/documents/${dr.documentId}`}
+                        style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                      >
+                        {dr.documentTitle || dr.documentId}
+                      </Link>
+                    ))}
+                  </Stack>
+                </>
+              )}
+            </>
+          )}
+        </Box>
         {onViewMore && (
           <Group justify="flex-end" mt="xs">
             <Button variant="subtle" size="xs" onClick={onViewMore}>

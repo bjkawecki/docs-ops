@@ -1,4 +1,4 @@
-import { Stack, Text } from '@mantine/core';
+import { Box, Stack, Text } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { ContentCardWrapper, ViewMoreLink } from './cardShared';
 
@@ -13,15 +13,18 @@ export interface SectionCardProps {
 /**
  * Section card – gleiche Component-Basis wie ContextCard (cardShared).
  * Used for dashboard blocks (Recent, Latest) and anywhere a consistent content card is needed.
+ * "View more" is pinned to bottom right when card has height.
  */
 export function SectionCard({ title, children, viewMoreHref }: SectionCardProps) {
   return (
     <ContentCardWrapper>
-      <Stack gap="xs">
-        <Text fw={600} size="md">
-          {title}
-        </Text>
-        {children}
+      <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+        <Box style={{ flex: 1, minHeight: 0 }}>
+          <Text fw={600} size="md">
+            {title}
+          </Text>
+          {children}
+        </Box>
         {viewMoreHref && <ViewMoreLink to={viewMoreHref} />}
       </Stack>
     </ContentCardWrapper>

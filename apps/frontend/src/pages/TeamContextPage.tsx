@@ -10,7 +10,6 @@ import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { TrashTabContent } from '../components/TrashTabContent';
 import { canShowWriteTabs } from '../lib/canShowWriteTabs';
 import { useMe } from '../hooks/useMe';
-import { useRecentItems } from '../hooks/useRecentItems';
 import { PageWithTabs } from '../components/PageWithTabs';
 import {
   ContextCard,
@@ -19,7 +18,6 @@ import {
   EditContextNameModal,
   NewContextModal,
   NewDocumentModal,
-  RecentItemsCard,
 } from '../components/contexts';
 import { notifications } from '@mantine/notifications';
 
@@ -109,7 +107,6 @@ export function TeamContextPage() {
   });
 
   const teamScope = teamId != null ? { type: 'team' as const, id: teamId } : null;
-  const { items: recentItems } = useRecentItems(teamScope);
 
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({ queryKey: ['processes', 'team', teamId ?? ''] });
@@ -202,29 +199,30 @@ export function TeamContextPage() {
   const overviewPanel = (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <RecentItemsCard items={recentItems} />
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Processes
-            </Text>
-            {processesPreview.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No processes yet.
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Processes
               </Text>
-            ) : (
-              <Stack gap={4}>
-                {processesPreview.map((p) => (
-                  <Link
-                    key={p.id}
-                    to={`/processes/${p.id}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                  >
-                    {p.name}
-                  </Link>
-                ))}
-              </Stack>
-            )}
+              {processesPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No processes yet.
+                </Text>
+              ) : (
+                <Stack gap={4}>
+                  {processesPreview.map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/processes/${p.id}`}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                    >
+                      {p.name}
+                    </Link>
+                  ))}
+                </Stack>
+              )}
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('processes')}>
                 View more
@@ -232,28 +230,30 @@ export function TeamContextPage() {
             </Group>
           </Stack>
         </Card>
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Projects
-            </Text>
-            {projectsPreview.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No projects yet.
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Projects
               </Text>
-            ) : (
-              <Stack gap={4}>
-                {projectsPreview.map((p) => (
-                  <Link
-                    key={p.id}
-                    to={`/projects/${p.id}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                  >
-                    {p.name}
-                  </Link>
-                ))}
-              </Stack>
-            )}
+              {projectsPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No projects yet.
+                </Text>
+              ) : (
+                <Stack gap={4}>
+                  {projectsPreview.map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/projects/${p.id}`}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                    >
+                      {p.name}
+                    </Link>
+                  ))}
+                </Stack>
+              )}
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('projects')}>
                 View more
@@ -261,14 +261,16 @@ export function TeamContextPage() {
             </Group>
           </Stack>
         </Card>
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Documents
-            </Text>
-            <Text size="sm" c="dimmed">
-              Documents – content to follow.
-            </Text>
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Documents
+              </Text>
+              <Text size="sm" c="dimmed">
+                Documents – content to follow.
+              </Text>
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
                 View more
@@ -399,6 +401,8 @@ export function TeamContextPage() {
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        recentScope={teamScope}
+        recentViewMoreHref="/catalog"
       >
         {[
           <Fragment key="overview">{overviewPanel}</Fragment>,

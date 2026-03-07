@@ -25,6 +25,7 @@ export type MeResponse = {
   preferences: {
     theme?: 'light' | 'dark' | 'auto';
     sidebarPinned?: boolean;
+    scopeRecentPanelOpen?: boolean;
     locale?: 'en' | 'de';
     recentItemsByScope?: Record<
       string,

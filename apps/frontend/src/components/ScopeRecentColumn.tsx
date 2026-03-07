@@ -1,0 +1,158 @@
+import './ScopeRecentColumn.css';
+import { Box, Button, Group, ScrollArea, Stack, Text } from '@mantine/core';
+import {
+  IconClock,
+  IconLayoutSidebarRightCollapse,
+  IconLayoutSidebarRightExpand,
+} from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
+import type { RecentScope } from '../hooks/useRecentItems';
+import { useRecentItems } from '../hooks/useRecentItems';
+
+const TOGGLE_STRIP_WIDTH = 32;
+const WIDTH_OPEN = 300;
+const WIDTH_CLOSED = 48;
+
+export interface ScopeRecentColumnProps {
+  /** Whether the column is expanded (visible). Default true when undefined. */
+  open: boolean;
+  onToggle: () => void;
+  scope: RecentScope | null;
+  /** Kept for API compatibility; not used (no "View more" in sidebar). */
+  viewMoreHref?: string;
+}
+
+/**
+ * Persistent right column for "Recently viewed" on scope pages.
+ * Collapsible; state is persisted via preferences (scopeRecentPanelOpen).
+ * Plain list (no card), full height, body background.
+ */
+export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnProps) {
+  const { items } = useRecentItems(scope);
+
+  if (scope === null) return null;
+
+  const contentWidth = open ? WIDTH_OPEN : WIDTH_CLOSED;
+
+  return (
+    <Box
+      style={{
+        width: TOGGLE_STRIP_WIDTH + contentWidth,
+        minWidth: TOGGLE_STRIP_WIDTH + contentWidth,
+        flexShrink: 0,
+        alignSelf: 'stretch',
+        display: 'flex',
+        flexDirection: 'row',
+      }}
+    >
+      {/* Toggle strip: left of the sidebar */}
+      <Box
+        style={{
+          width: TOGGLE_STRIP_WIDTH,
+          minWidth: TOGGLE_STRIP_WIDTH,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          paddingTop: 'var(--mantine-spacing-sm)',
+          background: 'var(--mantine-color-body)',
+        }}
+      >
+        <Button
+          variant="subtle"
+          size="xs"
+          p={4}
+          onClick={onToggle}
+          aria-label={open ? 'Collapse recently viewed' : 'Expand recently viewed'}
+          title={open ? 'Collapse' : 'Recently viewed'}
+        >
+          {open ? (
+            <IconLayoutSidebarRightCollapse size={16} />
+          ) : (
+            <IconLayoutSidebarRightExpand size={16} />
+          )}
+        </Button>
+      </Box>
+      {/* Sidebar content: right of the toggle */}
+      <Box
+        style={{
+          width: contentWidth,
+          minWidth: contentWidth,
+          flexShrink: 0,
+          alignSelf: 'stretch',
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: '1px solid var(--mantine-color-default-border)',
+          background: 'var(--mantine-color-body)',
+        }}
+      >
+        {open ? (
+          <>
+            <Box style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <ScrollArea style={{ flex: 1 }} type="auto" scrollbarSize="xs">
+                <Box
+                  p="md"
+                  role="list"
+                  aria-labelledby="recently-viewed-heading"
+                  data-recent-viewed-list
+                >
+                  <Group gap="xs" mb="xs" wrap="nowrap">
+                    <IconClock
+                      size={18}
+                      style={{ color: 'var(--mantine-color-dimmed)' }}
+                      aria-hidden
+                    />
+                    <Text id="recently-viewed-heading" size="sm" fw={500}>
+                      Recently viewed
+                    </Text>
+                  </Group>
+                  <Box style={{ paddingLeft: 28 }}>
+                    {items.length === 0 ? (
+                      <Text size="sm" c="dimmed">
+                        The list fills as you browse contexts and documents.
+                      </Text>
+                    ) : (
+                      <Stack gap={4}>
+                        {items.map((item) => {
+                          const href =
+                            item.type === 'document'
+                              ? `/documents/${item.id}`
+                              : item.type === 'process'
+                                ? `/processes/${item.id}`
+                                : `/projects/${item.id}`;
+                          return (
+                            <Link
+                              key={`${item.type}-${item.id}`}
+                              to={href}
+                              style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                            >
+                              {item.name ?? item.id}
+                            </Link>
+                          );
+                        })}
+                      </Stack>
+                    )}
+                  </Box>
+                </Box>
+              </ScrollArea>
+            </Box>
+          </>
+        ) : (
+          <Box
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              paddingTop: 'var(--mantine-spacing-md)',
+            }}
+          >
+            <IconClock size={20} style={{ color: 'var(--mantine-color-dimmed)' }} aria-hidden />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+}

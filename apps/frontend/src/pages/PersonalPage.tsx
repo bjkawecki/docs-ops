@@ -5,7 +5,6 @@ import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
-import { useRecentItems } from '../hooks/useRecentItems';
 import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
@@ -18,7 +17,6 @@ import {
   EditContextNameModal,
   NewContextModal,
   NewDocumentModal,
-  RecentItemsCard,
 } from '../components/contexts';
 import { notifications } from '@mantine/notifications';
 
@@ -56,7 +54,6 @@ export function PersonalPage() {
   useMe();
 
   const personalScope = PERSONAL_SCOPE;
-  const { items: recentItems } = useRecentItems(personalScope);
 
   const queryParams = 'limit=50&offset=0&ownerUserId=me';
 
@@ -172,29 +169,30 @@ export function PersonalPage() {
   const overviewPanel = (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <RecentItemsCard items={recentItems} />
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Processes
-            </Text>
-            {processesPreview.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No processes yet.
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Processes
               </Text>
-            ) : (
-              <Stack gap={4}>
-                {processesPreview.map((p) => (
-                  <Link
-                    key={p.id}
-                    to={`/processes/${p.id}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                  >
-                    {p.name}
-                  </Link>
-                ))}
-              </Stack>
-            )}
+              {processesPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No processes yet.
+                </Text>
+              ) : (
+                <Stack gap={4}>
+                  {processesPreview.map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/processes/${p.id}`}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                    >
+                      {p.name}
+                    </Link>
+                  ))}
+                </Stack>
+              )}
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('processes')}>
                 View more
@@ -202,28 +200,30 @@ export function PersonalPage() {
             </Group>
           </Stack>
         </Card>
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Projects
-            </Text>
-            {projectsPreview.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No projects yet.
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Projects
               </Text>
-            ) : (
-              <Stack gap={4}>
-                {projectsPreview.map((p) => (
-                  <Link
-                    key={p.id}
-                    to={`/projects/${p.id}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                  >
-                    {p.name}
-                  </Link>
-                ))}
-              </Stack>
-            )}
+              {projectsPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No projects yet.
+                </Text>
+              ) : (
+                <Stack gap={4}>
+                  {projectsPreview.map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/projects/${p.id}`}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                    >
+                      {p.name}
+                    </Link>
+                  ))}
+                </Stack>
+              )}
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('projects')}>
                 View more
@@ -231,28 +231,30 @@ export function PersonalPage() {
             </Group>
           </Stack>
         </Card>
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Documents
-            </Text>
-            {docsPreview.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No documents yet.
+        <Card withBorder padding="md" h="100%">
+          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Text fw={600} size="sm">
+                Documents
               </Text>
-            ) : (
-              <Stack gap={4}>
-                {docsPreview.map((d) => (
-                  <Link
-                    key={d.id}
-                    to={`/documents/${d.id}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                  >
-                    {d.title || d.id}
-                  </Link>
-                ))}
-              </Stack>
-            )}
+              {docsPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No documents yet.
+                </Text>
+              ) : (
+                <Stack gap={4}>
+                  {docsPreview.map((d) => (
+                    <Link
+                      key={d.id}
+                      to={`/documents/${d.id}`}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                    >
+                      {d.title || d.id}
+                    </Link>
+                  ))}
+                </Stack>
+              )}
+            </Box>
             <Group justify="flex-end" mt="xs">
               <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
                 View more
@@ -384,6 +386,8 @@ export function PersonalPage() {
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        recentScope={personalScope}
+        recentViewMoreHref="/catalog"
       >
         {[
           <Fragment key="overview">{overviewPanel}</Fragment>,
