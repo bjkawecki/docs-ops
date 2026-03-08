@@ -16,7 +16,6 @@ import {
   Button,
   Badge,
   Divider,
-  useMantineColorScheme,
   useMantineTheme,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,6 +37,7 @@ import {
 } from '@tabler/icons-react';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
+import { useResolvedColorScheme } from '../hooks/useResolvedColorScheme';
 import { DocopsLogo } from './DocopsLogo';
 
 function isActive(path: string, current: string): boolean {
@@ -89,7 +89,7 @@ export function AppShell() {
   const [departmentsSectionExpanded, setDepartmentsSectionExpanded] = useState(false);
   const [teamsSectionExpanded, setTeamsSectionExpanded] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const { colorScheme } = useMantineColorScheme();
+  const resolvedColorScheme = useResolvedColorScheme();
   const theme = useMantineTheme();
   const navLinkStyles = useMemo(() => getNavLinkStyles(), []);
   const sidebarOther = (theme as { other?: Record<string, string> }).other;
@@ -661,7 +661,7 @@ export function AppShell() {
         p="md"
         style={{
           backgroundColor:
-            colorScheme === 'dark'
+            resolvedColorScheme === 'dark'
               ? (sidebarOther?.sidebarBg ?? 'var(--mantine-color-dark-8)')
               : (sidebarOther?.sidebarBgLight ?? 'var(--mantine-color-gray-0)'),
         }}
@@ -829,17 +829,17 @@ export function AppShell() {
                 borderRadius: 'var(--mantine-radius-sm)',
                 boxShadow: 'var(--mantine-shadow-md)',
                 background:
-                  colorScheme === 'dark'
+                  resolvedColorScheme === 'dark'
                     ? 'var(--mantine-color-dark-6)'
                     : 'var(--mantine-color-yellow-2)',
                 border:
-                  colorScheme === 'dark'
+                  resolvedColorScheme === 'dark'
                     ? '1px solid var(--mantine-color-dark-5)'
                     : '1px solid var(--mantine-color-yellow-4)',
               }}
             >
               <Group justify="space-between" wrap="nowrap">
-                <Text size="sm" c={colorScheme === 'dark' ? 'gray.3' : 'dark.7'}>
+                <Text size="sm" c={resolvedColorScheme === 'dark' ? 'gray.3' : 'dark.7'}>
                   Viewing as <strong>{me.user.name}</strong>
                   {me.user.email ? ` (${me.user.email})` : ''}, {getDisplayRole(me)}. You are{' '}
                   {me.impersonation.realUser.name}.

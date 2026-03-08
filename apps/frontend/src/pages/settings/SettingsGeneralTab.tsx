@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications';
 import { useState, useEffect } from 'react';
 import { IconDotsVertical } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
+import { COLOR_SCHEME_STORAGE_KEY } from '../../constants';
 import { useMe, meQueryKey } from '../../hooks/useMe';
 import type { UserPreferences } from '../../components/ThemeFromPreferences';
 import {
@@ -46,6 +47,12 @@ export function SettingsGeneralTab() {
       setName(data.user.name);
     }
   }, [data]);
+
+  // Sync Mantine scheme to stored preference when preferences load (fixes selector vs layout mismatch)
+  useEffect(() => {
+    const preferred = data?.preferences?.theme ?? 'light';
+    setColorScheme(preferred);
+  }, [data?.preferences?.theme, setColorScheme]);
 
   const patchMe = useMutation({
     mutationFn: async (body: { name: string }) => {
@@ -111,7 +118,7 @@ export function SettingsGeneralTab() {
       if (variables.theme !== undefined) {
         setColorScheme(variables.theme);
         try {
-          window.localStorage.setItem('docsops-color-scheme', variables.theme);
+          window.localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, variables.theme);
         } catch {
           // ignore localStorage errors (e.g. private mode)
         }

@@ -11,6 +11,7 @@ Konzept und Architektur der internen Dokumentationsplattform. **Einstieg:** [Doc
 | **versionierung/**  | Versionierung (Snapshots als Full-Version), Pseudo-Git, Pull-Request-Workflow; inkl. zugehörige Diagramme (SVG).                                                   |
 | **ui-architektur/** | UI und Nutzung: [Intranet-Dashboard](ui-architektur/Intranet-Dashboard.md) (URLs, Seiten), [Architektur und Workflow](ui-architektur/Architektur-und-Workflow.md). |
 | **diagramme/**      | Strukturelle Übersichten (Hierarchie, Kontexte, Struktur-Diagramme) als SVG.                                                                                       |
+| _(Wurzel)_          | [KI – Datenbank sicher durchsuchen](KI-Datenbank-sicher-durchsuchen.md) – Sichere Nutzung der DB für KI-Suche (RAG, kein direkter DB-Zugriff durch LLM).           |
 
 ## Lesereihenfolge (empfohlen)
 

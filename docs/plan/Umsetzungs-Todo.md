@@ -147,6 +147,9 @@ Vor Admin umgesetzt, damit Theme (Hell/Dunkel/Auto) früh app-weit gilt. Einstel
 - [ ] **Admin Tab „Company“:** Company-Verwaltung (eine Karte oder Liste) + Company leads; Create Company falls mehrere erlaubt.
 - [ ] **Organisation-Tab entfernen:** Inhalte auf Tabs Company, Departments, Teams verteilen; Route `/admin/organisation` und Komponente `AdminOrganisationTab` entfallen.
 - [x] **Dev-Feature (Admin): Ansicht „als Nutzer X“** – Admins können die Oberfläche bzw. Daten so sehen, als wären sie ein anderer Nutzer (ohne sich auszuloggen); nur für Admins, z. B. zur Prüfung von Rechten oder Support.
+- [ ] **Admin: KI-Settings** – Konfiguration des KI-Assistenten (vgl. §21): API-Endpoint, Modell, Feature-Flag ein/aus, ggf. globale Rate-Limits; nur für Admins; Persistenz in Config/DB.
+- [ ] **Admin: Chat-History pro User** – Übersicht der KI-Chat-Verläufe pro Nutzer (z. B. Liste der Sitzungen/Threads, letzte Frage, Datum); nur für Admins; dient Support und Audit; Backend speichert Chat-Verläufe pro User (vgl. §21).
+- [ ] **Admin: Token-Verbrauch pro User** – Anzeige des verbrauchten Token-Volumens (Input/Output) pro Nutzer (aggregiert oder pro Zeitraum); nur für Admins; Backend trackt Token-Nutzung je Anfrage (vgl. §21).
 
 ---
 
@@ -216,8 +219,9 @@ Personal-Seite (`/personal`) und Shared-Seite (`/shared`) mit derselben Struktur
 
 ## 13. Dashboard / Home
 
-Startseite ohne Quick Links (redundant zur Sidebar). Drei Blöcke (weitere Blöcke siehe §15e, §17; optional KI-Assistent §21):
+Startseite ohne Quick Links (redundant zur Sidebar). **Suchleiste** oben mit Schalter **Normal / KI-Modus** (vgl. §18, §21): Normal = klassische Volltextsuche → Suchseite/Catalog; KI = Frage an Dokumente → Suchseite mit KI-Chat. Drei Blöcke (weitere Blöcke siehe §15e, §17; optional KI-Assistent §21):
 
+- [ ] **Suchleiste mit Schalter (Normal/KI-Modus):** Einheitliches Suchfeld auf dem Dashboard (ggf. auch in Sidebar §20); Schalter oder Tabs „Normal“ / „KI“. Normal: Eingabe führt zu klassischer Suche (Suchseite oder Catalog mit Treffern). KI: Eingabe öffnet bzw. fokussiert Suchseite im KI-Chat-Modus (vgl. §18).
 - [x] **Pinned:** Nur **Dokumente** (Flag am Document: „in Liste von Scopes gepinnt“). Team Lead kann für sein Team anpinnen, Department Lead für sein Department, Company Lead für alle (es gibt nur eine Company). Nur Scope-Lead (und Admin) darf anpinnen; Anzeige für Nutzer: Pins aus eigenem Team, eigenem Department, Company-weit. Datenmodell: DocumentPinnedInScope (documentId, scopeType, scopeId, order, pinnedById); siehe [Prisma-Schema-Entwurf §7 (Pinned)](Prisma-Schema-Entwurf.md#7-pinned-geplant); danach API und Dashboard-Block.
 - [x] **Recent:** Zuletzt angesehene Einträge (aus bestehender recentItemsByScope, auf dem Dashboard aggregiert, z. B. Top 10 über alle Scopes).
 - [x] **Latest:** Neueste Dokumente, die der Nutzer lesen darf (z. B. Slice aus Catalog, sortiert nach updatedAt, Limit 10).
@@ -316,11 +320,12 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 
 ---
 
-## 18. Volltextsuche
+## 18. Volltextsuche & Suchseite
 
 - [ ] PostgreSQL Full-Text-Search oder externe Engine (Meilisearch/Typesense)
 - [ ] Such-API (Query, Filter nach Kontext/Team)
-- [ ] Such-UI (Dashboard, Suche + Tags)
+- [ ] **Suchseite:** Dedizierte Route (z. B. `/search`) mit einheitlicher Such-UI; Anbindung an Volltextsuche (Filter, Tags). Bei Aufruf aus dem Dashboard im **KI-Modus** (vgl. §13): gleiche Suchseite, aber **KI-Chat-Ansicht** – Nutzer sieht Konversation (Frage → Antwort + Quellen), Fortsetzung des Dialogs möglich. Normal-Modus: klassische Trefferliste (Dokumente, Kontexte). Eine Suchseite, zwei Darstellungsmodi (Listen- vs. Chat-UI) je nach Herkunft oder expliziter Umschaltung.
+- [ ] Such-UI auf Dashboard (Suchleiste + Schalter §13), optional Suchfeld in Sidebar (§20)
 
 ---
 
@@ -354,12 +359,13 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 
 ## 21. Optional: KI-Assistent (Dokumenten-Frage)
 
-**Ziel:** Auf der Startseite (oder eigener Block) eine **KI-Suche**, mit der Nutzer ihre **zugreifbaren Dokumente** in natürlicher Sprache befragen können (z. B. „Welche Prozesse gibt es für Onboarding?“). Antworten basieren nur auf Dokumenten, auf die der Nutzer Leserecht hat. **Jede Antwort enthält Quellen:** Links zu den Dokumenten, aus denen die Antwort abgeleitet wurde.
+**Ziel:** Auf der Startseite (oder eigener Block) eine **KI-Suche**, mit der Nutzer ihre **zugreifbaren Dokumente** in natürlicher Sprache befragen können (z. B. „Welche Prozesse gibt es für Onboarding?“). Antworten basieren nur auf Dokumenten, auf die der Nutzer Leserecht hat. **Jede Antwort enthält Quellen:** Links zu den Dokumenten, aus denen die Antwort abgeleitet wurde. **Sichere DB-Nutzung:** Die KI darf nur über definierte Wege auf Daten zugreifen – siehe [KI – Datenbank sicher durchsuchen](../platform/KI-Datenbank-sicher-durchsuchen.md) (RAG, optional Agent mit nutzerabhängigen Tools/MCP; nur Dokument-Fragen erlauben; semantische/Volltextsuche für natürlichsprachige Fragen).
 
 - [ ] **Abhängigkeiten:** Volltext- oder Vektorsuche über Dokumentinhalte (vgl. §18); Rechtefilter (lesbare Kontexte + Grant-Dokumente, analog `getReadableCatalogScope`) – nur diese Dokumente dürfen in die KI-Anfrage.
 - [ ] **Backend:** Endpoint (z. B. `POST /api/v1/ask`): Frage entgegennehmen, lesbare Dokument-IDs für den Nutzer ermitteln, **Retrieval** (relevante Passagen nur aus diesen Dokumenten; pro Passage Dokument-ID und ggf. Titel mitführen), **RAG**: Prompt aus Treffern bauen, Aufruf einer LLM-API; Response enthält **Antworttext** und **Quellen** (z. B. `sources: [{ documentId, title, excerpt? }]`), damit das Frontend Links zu `/documents/:id` anzeigen kann.
-- [ ] **Sicherheit:** Rechteprüfung ausschließlich im Backend; keine Dokumentinhalte an die KI senden, auf die der Nutzer keinen Zugriff hat. Keine Rechte-Logik im Frontend.
-- [ ] **Startseite:** UI-Element „Frage an deine Dokumente“ (Suchfeld oder eigener Block); Anzeige der KI-Antwort und darunter **Quellen** als klickbare Links zum Dokument (z. B. Titel + Link `/documents/:id`). Optional: Rate-Limits, Caching, Audit-Log.
-- [ ] **Kosten/Betrieb:** LLM-API-Kosten und Latenz pro Anfrage; Konfiguration über Umgebungsvariablen (API-Key, Endpoint); optional Feature-Flag, um das Feature abzuschaltbar zu machen.
+- [ ] **Sicherheit:** Rechteprüfung ausschließlich im Backend; keine Dokumentinhalte an die KI senden, auf die der Nutzer keinen Zugriff hat. Keine Rechte-Logik im Frontend. **Kein direkter DB-Zugriff durch die KI** – nur über Backend-APIs und feste Retrieval-Pfade (vgl. Plattform-Doku oben).
+- [ ] **Startseite / Suchseite:** Suchleiste mit Schalter Normal/KI (§13); KI-Modus führt zur **Suchseite mit KI-Chat** (§18): Konversationsverlauf, Antwort + Quellen, Fortsetzung des Dialogs. Optional: Rate-Limits, Caching, Audit-Log.
+- [ ] **Chat-History & Token pro User:** Backend speichert Chat-Verläufe pro Nutzer (für Suchseite und Admin-Übersicht); Token-Verbrauch pro Anfrage erfassen und pro User aggregieren – Anzeige in Admin (§9: Chat-History pro User, Token-Verbrauch pro User).
+- [ ] **Kosten/Betrieb:** LLM-API-Kosten und Latenz pro Anfrage; Konfiguration über Umgebungsvariablen (API-Key, Endpoint); **Admin: KI-Settings** (§9) für Feature-Flag und Konfiguration.
 
-**Ergebnis:** Nutzer können auf der Startseite Fragen in natürlicher Sprache stellen und erhalten eine Antwort mit **Links zu den Quell-Dokumenten**, ausschließlich aus Dokumenten, die sie lesen dürfen.
+**Ergebnis:** Nutzer können (Dashboard/Suchseite) im KI-Modus Fragen in natürlicher Sprache stellen und erhalten eine Antwort mit **Links zu den Quell-Dokumenten**, ausschließlich aus Dokumenten, die sie lesen dürfen. Admin hat Übersicht über KI-Settings, Chat-History und Token-Verbrauch pro User.

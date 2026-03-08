@@ -1,5 +1,5 @@
-import { type ReactNode, useMemo } from 'react';
-import { MantineProvider } from '@mantine/core';
+import { type ReactNode, useEffect, useMemo } from 'react';
+import { MantineProvider, useMantineColorScheme } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
 import { appCssVariablesResolver, createAppTheme, type PrimaryColorPreset } from '../theme';
@@ -15,6 +15,15 @@ export type UserPreferences = {
     { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
   >;
 };
+
+/** Syncs Mantine color scheme to the stored preference when preferences load or theme changes. */
+function SyncColorScheme({ preferredScheme }: { preferredScheme: 'light' | 'dark' | 'auto' }) {
+  const { setColorScheme } = useMantineColorScheme();
+  useEffect(() => {
+    setColorScheme(preferredScheme);
+  }, [preferredScheme, setColorScheme]);
+  return null;
+}
 
 export function ThemeFromPreferences({ children }: { children: ReactNode }) {
   const { data: preferences, isPending } = useQuery({
@@ -41,6 +50,7 @@ export function ThemeFromPreferences({ children }: { children: ReactNode }) {
       cssVariablesResolver={appCssVariablesResolver}
       defaultColorScheme={colorScheme}
     >
+      <SyncColorScheme preferredScheme={colorScheme} />
       <RecentItemsProvider>{children}</RecentItemsProvider>
     </MantineProvider>
   );
