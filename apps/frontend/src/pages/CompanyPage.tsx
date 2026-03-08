@@ -18,7 +18,9 @@ import {
   EditContextNameModal,
   NewContextModal,
   NewDocumentModal,
+  OverviewCard,
 } from '../components/contexts';
+import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 
 type ProcessItem = { id: string; name: string; contextId: string };
@@ -191,93 +193,69 @@ export function CompanyPage() {
   const overviewPanel = (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <Card withBorder padding="md" h="100%">
-          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-            <Box style={{ flex: 1, minHeight: 0 }}>
-              <Text fw={600} size="sm">
-                Processes
-              </Text>
-              {effectiveCompanyId == null ? (
-                <Text size="sm" c="dimmed">
-                  No company selected.
-                </Text>
-              ) : processesPreview.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No processes yet.
-                </Text>
-              ) : (
-                <Stack gap={4}>
-                  {processesPreview.map((p) => (
-                    <Link
-                      key={p.id}
-                      to={`/processes/${p.id}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                    >
-                      {p.name}
-                    </Link>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-            <Group justify="flex-end" mt="xs">
-              <Button variant="subtle" size="xs" onClick={() => setActiveTab('processes')}>
-                View more
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-        <Card withBorder padding="md" h="100%">
-          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-            <Box style={{ flex: 1, minHeight: 0 }}>
-              <Text fw={600} size="sm">
-                Projects
-              </Text>
-              {effectiveCompanyId == null ? (
-                <Text size="sm" c="dimmed">
-                  No company selected.
-                </Text>
-              ) : projectsPreview.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No projects yet.
-                </Text>
-              ) : (
-                <Stack gap={4}>
-                  {projectsPreview.map((p) => (
-                    <Link
-                      key={p.id}
-                      to={`/projects/${p.id}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                    >
-                      {p.name}
-                    </Link>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-            <Group justify="flex-end" mt="xs">
-              <Button variant="subtle" size="xs" onClick={() => setActiveTab('projects')}>
-                View more
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-        <Card withBorder padding="md" h="100%">
-          <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-            <Box style={{ flex: 1, minHeight: 0 }}>
-              <Text fw={600} size="sm">
-                Documents
-              </Text>
-              <Text size="sm" c="dimmed">
-                Documents – content to follow.
-              </Text>
-            </Box>
-            <Group justify="flex-end" mt="xs">
-              <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
-                View more
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
+        <OverviewCard
+          title="Processes"
+          titleIcon={<IconRoute size={18} style={{ flexShrink: 0 }} />}
+          onViewMore={() => setActiveTab('processes')}
+        >
+          {effectiveCompanyId == null ? (
+            <Text size="sm" c="dimmed">
+              No company selected.
+            </Text>
+          ) : processesPreview.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No processes yet.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {processesPreview.map((p) => (
+                <Link
+                  key={p.id}
+                  to={`/processes/${p.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                >
+                  {p.name}
+                </Link>
+              ))}
+            </Stack>
+          )}
+        </OverviewCard>
+        <OverviewCard
+          title="Projects"
+          titleIcon={<IconBriefcase size={18} style={{ flexShrink: 0 }} />}
+          onViewMore={() => setActiveTab('projects')}
+        >
+          {effectiveCompanyId == null ? (
+            <Text size="sm" c="dimmed">
+              No company selected.
+            </Text>
+          ) : projectsPreview.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No projects yet.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {projectsPreview.map((p) => (
+                <Link
+                  key={p.id}
+                  to={`/projects/${p.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                >
+                  {p.name}
+                </Link>
+              ))}
+            </Stack>
+          )}
+        </OverviewCard>
+        <OverviewCard
+          title="Documents"
+          titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
+          onViewMore={() => setActiveTab('documents')}
+        >
+          <Text size="sm" c="dimmed">
+            Documents – content to follow.
+          </Text>
+        </OverviewCard>
         {effectiveCompanyId != null && (
           <DraftsCard
             scopeParams={{ companyId: effectiveCompanyId }}

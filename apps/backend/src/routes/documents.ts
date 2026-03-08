@@ -248,6 +248,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       prisma.document.count({ where: baseWhere }),
     ]);
 
+    type ScopeInfo = {
+      scopeType: 'team' | 'department' | 'company' | 'personal';
+      scopeId: string | null;
+      scopeName: string;
+    };
     const mapDoc = (doc: (typeof rawItems)[number]) => {
       const ctx = doc.context;
       let contextType: 'process' | 'project' = 'process';
@@ -256,6 +261,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       let ownerHref: string | null = null;
       let contextProcessId: string | null = null;
       let contextProjectId: string | null = null;
+      let scopeInfo: ScopeInfo = { scopeType: 'personal', scopeId: null, scopeName: 'Personal' };
       const getOwnerFrom = (o: {
         company: { id: string; name: string } | null;
         department: { id: string; name: string } | null;
@@ -268,10 +274,27 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           o.department?.name ??
           o.team?.name ??
           (o.ownerUserId != null ? (o.ownerUser?.name ?? 'Personal') : 'Personal');
-        if (o.company != null) ownerHref = '/company';
-        else if (o.department != null) ownerHref = `/department/${o.department.id}`;
-        else if (o.team != null) ownerHref = `/team/${o.team.id}`;
-        else if (o.ownerUserId != null) ownerHref = '/personal';
+        if (o.company != null) {
+          ownerHref = '/company';
+          scopeInfo = { scopeType: 'company', scopeId: o.company.id, scopeName: o.company.name };
+        } else if (o.department != null) {
+          ownerHref = `/department/${o.department.id}`;
+          scopeInfo = {
+            scopeType: 'department',
+            scopeId: o.department.id,
+            scopeName: o.department.name,
+          };
+        } else if (o.team != null) {
+          ownerHref = `/team/${o.team.id}`;
+          scopeInfo = { scopeType: 'team', scopeId: o.team.id, scopeName: o.team.name };
+        } else if (o.ownerUserId != null) {
+          ownerHref = '/personal';
+          scopeInfo = {
+            scopeType: 'personal',
+            scopeId: null,
+            scopeName: o.ownerUser?.name ?? 'Personal',
+          };
+        }
       };
       if (!ctx) {
         contextName = 'Ungrouped';
@@ -293,6 +316,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           getOwnerFrom(ctx.subcontext.project.owner);
         } else {
           ownerDisplay = ctx.ownerDisplayName ?? 'Personal';
+          scopeInfo = {
+            scopeType: 'personal',
+            scopeId: null,
+            scopeName: ctx.ownerDisplayName ?? 'Personal',
+          };
         }
       }
       return {
@@ -308,6 +336,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         ownerHref,
         contextProcessId,
         contextProjectId,
+        scopeType: scopeInfo.scopeType,
+        scopeId: scopeInfo.scopeId,
+        scopeName: scopeInfo.scopeName,
       };
     };
 

@@ -1,9 +1,10 @@
-import { Box, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Card, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { DraftsCard } from '../components/DraftsCard';
+import { ViewMoreButton } from '../components/contexts/cardShared';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { PageWithTabs } from '../components/PageWithTabs';
 
@@ -64,11 +65,7 @@ export function SharedPage() {
                 </Stack>
               )}
             </Box>
-            <Group justify="flex-end" mt="xs">
-              <Button variant="subtle" size="xs" onClick={() => setActiveTab('documents')}>
-                View more
-              </Button>
-            </Group>
+            <ViewMoreButton onClick={() => setActiveTab('documents')} />
           </Stack>
         </Card>
         <DraftsCard

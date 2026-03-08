@@ -19,6 +19,17 @@ a.mantine-Button-root:visited,
   color: var(--mantine-primary-color-4);
 }
 
+/* Card text links (not in tables): hover = one shade lighter */
+.mantine-Card-root a:hover,
+.mantine-Card-root .mantine-Anchor-root:hover {
+  color: var(--mantine-primary-color-3);
+}
+.mantine-Card-root .mantine-Table-root a:hover,
+.mantine-Card-root .mantine-Table-root .mantine-Anchor-root:hover,
+.mantine-Card-root table a:hover {
+  color: var(--mantine-primary-color-4);
+}
+
 /* Sidebar: links keep default text color (no primary color). */
 [data-sidebar-nav] a,
 [data-sidebar-nav] a:visited,

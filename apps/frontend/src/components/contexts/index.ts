@@ -1,3 +1,4 @@
+export { OverviewCard } from './cardShared';
 export { ContextCard } from './ContextCard';
 export type { ContextCardProps } from './ContextCard';
 export { CreateContextMenu } from './CreateContextMenu';

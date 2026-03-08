@@ -1,11 +1,13 @@
 import './ScopeRecentColumn.css';
 import { Box, Button, Group, ScrollArea, Stack, Text } from '@mantine/core';
+import { useMantineTheme } from '@mantine/core';
 import {
   IconClock,
   IconLayoutSidebarRightCollapse,
   IconLayoutSidebarRightExpand,
 } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
+import { RecentItemIcon } from './contexts/RecentItemsCard';
 import type { RecentScope } from '../hooks/useRecentItems';
 import { useRecentItems } from '../hooks/useRecentItems';
 
@@ -28,6 +30,7 @@ export interface ScopeRecentColumnProps {
  * Plain list (no card), full height, body background.
  */
 export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnProps) {
+  const { primaryColor } = useMantineTheme();
   const { items } = useRecentItems(scope);
 
   if (scope === null) return null;
@@ -60,6 +63,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
         }}
       >
         <Button
+          color={primaryColor}
           variant="subtle"
           size="xs"
           p={4}
@@ -122,13 +126,19 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
                                 ? `/processes/${item.id}`
                                 : `/projects/${item.id}`;
                           return (
-                            <Link
-                              key={`${item.type}-${item.id}`}
-                              to={href}
-                              style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                            >
-                              {item.name ?? item.id}
-                            </Link>
+                            <Group key={`${item.type}-${item.id}`} gap="xs" wrap="nowrap">
+                              <RecentItemIcon type={item.type} size={14} />
+                              <Link
+                                to={href}
+                                style={{
+                                  fontSize: 'var(--mantine-font-size-sm)',
+                                  flex: 1,
+                                  minWidth: 0,
+                                }}
+                              >
+                                {item.name ?? item.id}
+                              </Link>
+                            </Group>
                           );
                         })}
                       </Stack>

@@ -1,20 +1,35 @@
 import { Badge, Box, Button, Group, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
+import {
+  IconBuildingSkyscraper,
+  IconCalendar,
+  IconClock,
+  IconFileText,
+  IconPin,
+  IconPencil,
+  IconSitemap,
+  IconUser,
+  IconUsersGroup,
+} from '@tabler/icons-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DocopsLogo } from '../components/DocopsLogo';
 import { RecentItemsCard, SectionCard } from '../components/contexts';
 import { useMe } from '../hooks/useMe';
-import { useMeDrafts } from '../hooks/useMeDrafts';
+import { useMeDrafts, type DraftScopeType } from '../hooks/useMeDrafts';
 import { getAggregatedRecentItems } from '../hooks/useRecentItems';
 import { apiFetch } from '../api/client';
 
-const LATEST_LIMIT = 10;
+const CARD_TITLE_ICON_SIZE = 18;
+
+/** Max items shown per dashboard card (Recent, Latest, Pinned, Drafts). */
+const DASHBOARD_CARD_LIMIT = 5;
 
 type PinnedItem = {
   id: string;
   scopeType: 'team' | 'department' | 'company';
   scopeId: string;
+  scopeName: string | null;
   documentId: string;
   documentTitle: string;
   documentHref: string;
@@ -28,6 +43,8 @@ type CatalogDocument = {
   id: string;
   title: string;
   updatedAt: string;
+  scopeType?: DraftScopeType;
+  scopeName?: string;
 };
 type CatalogResponse = {
   items: CatalogDocument[];
@@ -38,6 +55,57 @@ type CatalogResponse = {
 
 function scopeTypeLabel(scopeType: string): string {
   return scopeType.charAt(0).toUpperCase() + scopeType.slice(1);
+}
+
+const SCOPE_ICON_SIZE = 14;
+/** Vertical gap between rows in dashboard card lists. */
+const DASHBOARD_ITEM_GAP = 8;
+/** Horizontal gap between columns (title, scope, date) within a row. */
+const ROW_PADDING = 20;
+/** Title column width: as wide as the longest title (max-content), not a fixed rem. */
+const TITLE_COLUMN_WIDTH = 'max-content';
+
+/** Renders [icon] scopeName with left padding for separation from document title. */
+function ScopeSuffix({ scopeType, scopeName }: { scopeType: DraftScopeType; scopeName: string }) {
+  const ScopeIcon =
+    scopeType === 'team'
+      ? IconUsersGroup
+      : scopeType === 'department'
+        ? IconSitemap
+        : scopeType === 'company'
+          ? IconBuildingSkyscraper
+          : IconUser;
+  return (
+    <Text
+      component="span"
+      size="xs"
+      c="dimmed"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        minWidth: 0,
+        lineHeight: 1,
+      }}
+    >
+      <ScopeIcon
+        size={SCOPE_ICON_SIZE}
+        style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)', display: 'block' }}
+        aria-hidden
+      />
+      <span
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          lineHeight: 1,
+        }}
+        title={scopeName}
+      >
+        {scopeName}
+      </span>
+    </Text>
+  );
 }
 
 function formatDate(iso: string): string {
@@ -56,7 +124,10 @@ export function HomePage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const { data: me } = useMe();
-  const recentItems = getAggregatedRecentItems(me?.preferences?.recentItemsByScope, 10);
+  const recentItems = getAggregatedRecentItems(
+    me?.preferences?.recentItemsByScope,
+    DASHBOARD_CARD_LIMIT
+  );
 
   const {
     data: pinnedData,
@@ -70,17 +141,17 @@ export function HomePage() {
       return (await res.json()) as PinnedResponse;
     },
   });
-  const pinnedItems = pinnedData?.items ?? [];
+  const pinnedItems = (pinnedData?.items ?? []).slice(0, DASHBOARD_CARD_LIMIT);
 
   const {
     data: latestData,
     isPending: latestPending,
     isError: latestError,
   } = useQuery({
-    queryKey: ['catalog-documents', 'dashboard-latest', LATEST_LIMIT, 0],
+    queryKey: ['catalog-documents', 'dashboard-latest', DASHBOARD_CARD_LIMIT, 0],
     queryFn: async (): Promise<CatalogResponse> => {
       const res = await apiFetch(
-        `/api/v1/documents?${new URLSearchParams({ limit: String(LATEST_LIMIT), offset: '0' })}`
+        `/api/v1/documents?${new URLSearchParams({ limit: String(DASHBOARD_CARD_LIMIT), offset: '0' })}`
       );
       if (!res.ok) throw new Error('Failed to load documents');
       return (await res.json()) as CatalogResponse;
@@ -89,7 +160,10 @@ export function HomePage() {
 
   const latestItems = latestData?.items ?? [];
 
-  const { data: draftsData, isPending: draftsPending } = useMeDrafts({}, { limit: 10, offset: 0 });
+  const { data: draftsData, isPending: draftsPending } = useMeDrafts(
+    {},
+    { limit: DASHBOARD_CARD_LIMIT, offset: 0 }
+  );
   const draftDocuments = draftsData?.draftDocuments ?? [];
   const openDraftRequests = draftsData?.openDraftRequests ?? [];
   const hasDrafts = draftDocuments.length > 0 || openDraftRequests.length > 0;
@@ -141,7 +215,10 @@ export function HomePage() {
       </Stack>
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-        <SectionCard title="Pinned">
+        <SectionCard
+          title="Pinned"
+          titleIcon={<IconPin size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+        >
           {pinnedPending ? (
             <Text size="sm" c="dimmed">
               Loading…
@@ -167,6 +244,11 @@ export function HomePage() {
                     style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
                   >
                     {item.documentTitle}
+                    {item.scopeName != null && item.scopeName !== '' && (
+                      <Text component="span" size="xs" c="dimmed" ml={4}>
+                        ({item.scopeName})
+                      </Text>
+                    )}
                   </Link>
                 </Group>
               ))}
@@ -174,9 +256,16 @@ export function HomePage() {
           )}
         </SectionCard>
 
-        <RecentItemsCard items={recentItems} />
+        <RecentItemsCard
+          items={recentItems}
+          titleIcon={<IconClock size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+        />
 
-        <SectionCard title="Latest documents" viewMoreHref="/catalog">
+        <SectionCard
+          title="Latest documents"
+          titleIcon={<IconFileText size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+          viewMoreHref="/catalog"
+        >
           {latestPending ? (
             <Text size="sm" c="dimmed">
               Loading…
@@ -190,26 +279,59 @@ export function HomePage() {
               No documents yet.
             </Text>
           ) : (
-            <Stack gap={4}>
-              {latestItems.map((doc) => (
-                <Link
-                  key={doc.id}
-                  to={`/documents/${doc.id}`}
-                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                >
-                  {doc.title}
-                  {doc.updatedAt && (
-                    <Text component="span" size="xs" c="dimmed" ml="xs">
-                      — {formatDate(doc.updatedAt)}
-                    </Text>
-                  )}
-                </Link>
-              ))}
-            </Stack>
+            <Box
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `${TITLE_COLUMN_WIDTH} auto auto`,
+                gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
+                alignItems: 'center',
+                width: 'fit-content',
+                minWidth: 0,
+              }}
+            >
+              {latestItems.flatMap((doc) => {
+                const scopeType = doc.scopeType ?? 'personal';
+                const scopeName = doc.scopeName ?? 'Personal';
+                return [
+                  <Link
+                    key={`${doc.id}-t`}
+                    to={`/documents/${doc.id}`}
+                    style={{
+                      fontSize: 'var(--mantine-font-size-sm)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={doc.title}
+                  >
+                    {doc.title}
+                  </Link>,
+                  <ScopeSuffix key={`${doc.id}-s`} scopeType={scopeType} scopeName={scopeName} />,
+                  doc.updatedAt ? (
+                    <Group key={`${doc.id}-d`} gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                      <IconCalendar
+                        size={SCOPE_ICON_SIZE}
+                        style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)' }}
+                        aria-hidden
+                      />
+                      <Text size="xs" c="dimmed">
+                        {formatDate(doc.updatedAt)}
+                      </Text>
+                    </Group>
+                  ) : (
+                    <span key={`${doc.id}-d`} />
+                  ),
+                ];
+              })}
+            </Box>
           )}
         </SectionCard>
 
-        <SectionCard title="Drafts / Pending review" viewMoreHref="/personal">
+        <SectionCard
+          title="Drafts / Pending review"
+          titleIcon={<IconPencil size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+          viewMoreHref="/personal"
+        >
           {draftsPending ? (
             <Text size="sm" c="dimmed">
               Loading…
@@ -219,29 +341,82 @@ export function HomePage() {
               No drafts or pending review.
             </Text>
           ) : (
-            <Stack gap={4}>
-              {draftDocuments.map((d) => (
-                <Link
-                  key={d.id}
-                  to={`/documents/${d.id}`}
-                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+            <Stack gap={DASHBOARD_ITEM_GAP}>
+              {draftDocuments.length > 0 && (
+                <Box
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `${TITLE_COLUMN_WIDTH} auto`,
+                    gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
+                    alignItems: 'center',
+                    width: 'fit-content',
+                    minWidth: 0,
+                  }}
                 >
-                  {d.title || d.id}
-                </Link>
-              ))}
-              {openDraftRequests.map((dr) => (
-                <Group key={dr.id} gap="xs" wrap="nowrap">
-                  <Badge size="sm" variant="light">
-                    Pending review
-                  </Badge>
-                  <Link
-                    to={`/documents/${dr.documentId}`}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
-                  >
-                    {dr.documentTitle || dr.documentId}
-                  </Link>
-                </Group>
-              ))}
+                  {draftDocuments.flatMap((d) => {
+                    const title = d.title || d.id;
+                    return [
+                      <Link
+                        key={`${d.id}-t`}
+                        to={`/documents/${d.id}`}
+                        style={{
+                          fontSize: 'var(--mantine-font-size-sm)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={title}
+                      >
+                        {title}
+                      </Link>,
+                      <ScopeSuffix
+                        key={`${d.id}-s`}
+                        scopeType={d.scopeType}
+                        scopeName={d.scopeName}
+                      />,
+                    ];
+                  })}
+                </Box>
+              )}
+              {openDraftRequests.length > 0 && (
+                <Box
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `auto ${TITLE_COLUMN_WIDTH} auto`,
+                    gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
+                    alignItems: 'center',
+                    width: 'fit-content',
+                    minWidth: 0,
+                  }}
+                >
+                  {openDraftRequests.flatMap((dr) => {
+                    const title = dr.documentTitle || dr.documentId;
+                    return [
+                      <Badge key={`${dr.id}-b`} size="sm" variant="light" style={{ flexShrink: 0 }}>
+                        Pending review
+                      </Badge>,
+                      <Link
+                        key={`${dr.id}-t`}
+                        to={`/documents/${dr.documentId}`}
+                        style={{
+                          fontSize: 'var(--mantine-font-size-sm)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={title}
+                      >
+                        {title}
+                      </Link>,
+                      <ScopeSuffix
+                        key={`${dr.id}-s`}
+                        scopeType={dr.scopeType}
+                        scopeName={dr.scopeName}
+                      />,
+                    ];
+                  })}
+                </Box>
+              )}
             </Stack>
           )}
         </SectionCard>

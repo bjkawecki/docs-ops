@@ -52,13 +52,49 @@ const pinnedRoutes: FastifyPluginAsync = (app: FastifyInstance): void => {
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     });
 
+    const pinTeamIds = [
+      ...new Set(pins.filter((p) => p.scopeType === 'team').map((p) => p.scopeId)),
+    ];
+    const pinDepartmentIds = [
+      ...new Set(pins.filter((p) => p.scopeType === 'department').map((p) => p.scopeId)),
+    ];
+    const pinCompanyIds = [
+      ...new Set(pins.filter((p) => p.scopeType === 'company').map((p) => p.scopeId)),
+    ];
+    const [teams, departments, companies] = await Promise.all([
+      pinTeamIds.length > 0
+        ? prisma.team.findMany({
+            where: { id: { in: pinTeamIds } },
+            select: { id: true, name: true },
+          })
+        : [],
+      pinDepartmentIds.length > 0
+        ? prisma.department.findMany({
+            where: { id: { in: pinDepartmentIds } },
+            select: { id: true, name: true },
+          })
+        : [],
+      pinCompanyIds.length > 0
+        ? prisma.company.findMany({
+            where: { id: { in: pinCompanyIds } },
+            select: { id: true, name: true },
+          })
+        : [],
+    ]);
+    const scopeNameByKey = new Map<string, string>();
+    for (const t of teams) scopeNameByKey.set(`team:${t.id}`, t.name);
+    for (const d of departments) scopeNameByKey.set(`department:${d.id}`, d.name);
+    for (const c of companies) scopeNameByKey.set(`company:${c.id}`, c.name);
+
     const items = await Promise.all(
       pins.map(async (pin) => {
         const canUnpin = await canPinForScope(prisma, userId, pin.scopeType, pin.scopeId);
+        const scopeName = scopeNameByKey.get(`${pin.scopeType}:${pin.scopeId}`) ?? null;
         return {
           id: pin.id,
           scopeType: pin.scopeType,
           scopeId: pin.scopeId,
+          scopeName,
           documentId: pin.document.id,
           documentTitle: pin.document.title,
           documentHref: `/documents/${pin.document.id}`,

@@ -57,6 +57,39 @@ export type UserPreferences = {
   recentItemsByScope?: Record<string, RecentPreferencesItem[]>;
 };
 
+/** Owner select for resolving scope (team/department/company/personal) and display name. */
+const ownerScopeSelect = {
+  teamId: true,
+  departmentId: true,
+  companyId: true,
+  ownerUserId: true,
+  displayName: true,
+} as const;
+
+type OwnerScopeRow = {
+  teamId: string | null;
+  departmentId: string | null;
+  companyId: string | null;
+  ownerUserId: string | null;
+  displayName: string | null;
+};
+
+function getScopeFromOwner(owner: OwnerScopeRow | null): {
+  scopeType: 'team' | 'department' | 'company' | 'personal';
+  scopeId: string | null;
+  scopeName: string;
+} {
+  if (!owner) {
+    return { scopeType: 'personal', scopeId: null, scopeName: 'Personal' };
+  }
+  const name = owner.displayName?.trim() || 'Personal';
+  if (owner.teamId) return { scopeType: 'team', scopeId: owner.teamId, scopeName: name };
+  if (owner.departmentId)
+    return { scopeType: 'department', scopeId: owner.departmentId, scopeName: name };
+  if (owner.companyId) return { scopeType: 'company', scopeId: owner.companyId, scopeName: name };
+  return { scopeType: 'personal', scopeId: null, scopeName: name };
+}
+
 /** Scope for GET /me/drafts: context IDs and grant-based document IDs in that scope. */
 async function getDraftsScope(
   prisma: PrismaClient,
@@ -1480,7 +1513,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           }
         : null;
 
-    const draftDocuments = draftDocWhere
+    const draftDocumentsRaw = draftDocWhere
       ? await prisma.document.findMany({
           where: draftDocWhere,
           select: {
@@ -1489,12 +1522,39 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             contextId: true,
             updatedAt: true,
             createdAt: true,
+            context: {
+              select: {
+                process: { select: { owner: { select: ownerScopeSelect } } },
+                project: { select: { owner: { select: ownerScopeSelect } } },
+                subcontext: {
+                  select: { project: { select: { owner: { select: ownerScopeSelect } } } },
+                },
+              },
+            },
           },
           take: query.limit,
           skip: query.offset,
           orderBy: { updatedAt: 'desc' },
         })
       : [];
+    const draftDocuments = draftDocumentsRaw.map((d) => {
+      const owner =
+        d.context?.process?.owner ??
+        d.context?.project?.owner ??
+        d.context?.subcontext?.project?.owner ??
+        null;
+      const scope = getScopeFromOwner(owner);
+      return {
+        id: d.id,
+        title: d.title,
+        contextId: d.contextId,
+        updatedAt: d.updatedAt,
+        createdAt: d.createdAt,
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        scopeName: scope.scopeName,
+      };
+    });
 
     /** §4b: Offene Draft Requests nur für Schreiber (writable), nicht für Leser. */
     let writableDocIdsForPrs: string[] = [...inScopeWritableDocIds];
@@ -1511,7 +1571,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         ...new Set([...writableDocIdsForPrs, ...fromContexts.map((d) => d.id)]),
       ];
     }
-    const openDraftRequests =
+    const openDraftRequestsRaw =
       writableDocIdsForPrs.length > 0
         ? await prisma.draftRequest.findMany({
             where: {
@@ -1523,7 +1583,20 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
               documentId: true,
               submittedAt: true,
               status: true,
-              document: { select: { title: true } },
+              document: {
+                select: {
+                  title: true,
+                  context: {
+                    select: {
+                      process: { select: { owner: { select: ownerScopeSelect } } },
+                      project: { select: { owner: { select: ownerScopeSelect } } },
+                      subcontext: {
+                        select: { project: { select: { owner: { select: ownerScopeSelect } } } },
+                      },
+                    },
+                  },
+                },
+              },
               submittedBy: { select: { id: true, name: true } },
             },
             orderBy: { submittedAt: 'desc' },
@@ -1532,9 +1605,14 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           })
         : [];
 
-    return reply.send({
-      draftDocuments,
-      openDraftRequests: openDraftRequests.map((dr) => ({
+    const openDraftRequests = openDraftRequestsRaw.map((dr) => {
+      const owner =
+        dr.document.context?.process?.owner ??
+        dr.document.context?.project?.owner ??
+        dr.document.context?.subcontext?.project?.owner ??
+        null;
+      const scope = getScopeFromOwner(owner);
+      return {
         id: dr.id,
         documentId: dr.documentId,
         documentTitle: dr.document.title,
@@ -1542,7 +1620,15 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         submittedByName: dr.submittedBy.name,
         submittedAt: dr.submittedAt,
         status: dr.status,
-      })),
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        scopeName: scope.scopeName,
+      };
+    });
+
+    return reply.send({
+      draftDocuments,
+      openDraftRequests,
       limit: query.limit,
       offset: query.offset,
     });

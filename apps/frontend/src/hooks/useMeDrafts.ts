@@ -9,12 +9,17 @@ export type MeDraftsScopeParams =
   | { teamId: string }
   | Record<string, never>;
 
+export type DraftScopeType = 'team' | 'department' | 'company' | 'personal';
+
 export type DraftDocumentItem = {
   id: string;
   title: string;
   contextId: string | null;
   updatedAt: string;
   createdAt?: string;
+  scopeType: DraftScopeType;
+  scopeId: string | null;
+  scopeName: string;
 };
 
 export type OpenDraftRequestItem = {
@@ -25,6 +30,9 @@ export type OpenDraftRequestItem = {
   submittedByName: string;
   submittedAt: string;
   status: string;
+  scopeType: DraftScopeType;
+  scopeId: string | null;
+  scopeName: string;
 };
 
 export type MeDraftsResponse = {
