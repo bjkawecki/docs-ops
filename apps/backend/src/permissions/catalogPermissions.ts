@@ -15,7 +15,12 @@ export async function getReadableCatalogScope(
     return { contextIds: [], documentIdsFromGrants: [] };
   }
 
-  const companyIds = user.companyLeads.map((c) => c.companyId);
+  const companyIds = [
+    ...user.companyLeads.map((c) => c.companyId),
+    ...user.departmentLeads.map((d) => d.department.companyId),
+    ...user.teamMemberships.map((m) => m.team.department.companyId),
+    ...user.leadOfTeams.map((l) => l.team.department.companyId),
+  ].filter((id): id is string => id != null);
   const departmentIds = [
     ...user.departmentLeads.map((d) => d.departmentId),
     ...user.teamMemberships.map((m) => m.team.departmentId),
@@ -193,7 +198,12 @@ export async function getWritableCatalogScope(
     return { contextIds: [], documentIdsFromGrants: [], documentIdsFromCreator: [] };
   }
 
-  const companyIds = user.companyLeads.map((c) => c.companyId);
+  const companyIds = [
+    ...user.companyLeads.map((c) => c.companyId),
+    ...user.departmentLeads.map((d) => d.department.companyId),
+    ...user.teamMemberships.map((m) => m.team.department.companyId),
+    ...user.leadOfTeams.map((l) => l.team.department.companyId),
+  ].filter((id): id is string => id != null);
   const departmentIdsFromLeads = user.departmentLeads.map((d) => d.departmentId);
   const teamIdsFromLeads = user.leadOfTeams.map((l) => l.teamId);
   const departmentIdsFromTeams = [
