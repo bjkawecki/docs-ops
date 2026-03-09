@@ -8,6 +8,21 @@ a,
   color: var(--mantine-primary-color-4);
 }
 
+/* Shared content links (cards, Recently viewed): one source of truth for color + underline. */
+.app-content-link,
+.app-content-link:visited {
+  color: var(--mantine-primary-color-4);
+  text-decoration: underline;
+}
+.app-content-link:hover {
+  color: var(--mantine-primary-color-3);
+}
+
+/* Card links (Overview + Context cards): always underline + primary color (single source of truth). */
+.mantine-Card-root a:not(.mantine-Button-root) {
+  text-decoration: underline;
+}
+
 a:visited,
 .mantine-Anchor-root:visited {
   color: var(--mantine-primary-color-3);

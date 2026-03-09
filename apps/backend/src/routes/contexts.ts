@@ -106,7 +106,19 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const [all, total] = await Promise.all([
       prisma.process.findMany({
         where,
-        include: { context: true, owner: true },
+        include: {
+          context: {
+            include: {
+              documents: {
+                where: { deletedAt: null },
+                take: 5,
+                orderBy: { updatedAt: 'desc' },
+                select: { id: true, title: true },
+              },
+            },
+          },
+          owner: true,
+        },
         take: query.limit,
         skip: query.offset,
         orderBy: { name: 'asc' },
@@ -116,7 +128,14 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const allowed = await Promise.all(
       all.map(async (p) => ((await canReadContext(prisma, userId, p.contextId)) ? p : null))
     );
-    const items = allowed.filter((p): p is NonNullable<typeof p> => p !== null);
+    const rawItems = allowed.filter((p): p is NonNullable<typeof p> => p !== null);
+    const items = rawItems.map((p) => ({
+      id: p.id,
+      name: p.name,
+      contextId: p.contextId,
+      owner: p.owner,
+      documents: p.context.documents,
+    }));
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 
@@ -294,7 +313,20 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const [all, total] = await Promise.all([
       prisma.project.findMany({
         where,
-        include: { context: true, owner: true, subcontexts: true },
+        include: {
+          context: {
+            include: {
+              documents: {
+                where: { deletedAt: null },
+                take: 5,
+                orderBy: { updatedAt: 'desc' },
+                select: { id: true, title: true },
+              },
+            },
+          },
+          owner: true,
+          subcontexts: { select: { id: true, name: true } },
+        },
         take: query.limit,
         skip: query.offset,
         orderBy: { name: 'asc' },
@@ -304,7 +336,15 @@ const contextRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const allowed = await Promise.all(
       all.map(async (p) => ((await canReadContext(prisma, userId, p.contextId)) ? p : null))
     );
-    const items = allowed.filter((p): p is NonNullable<typeof p> => p !== null);
+    const rawItems = allowed.filter((p): p is NonNullable<typeof p> => p !== null);
+    const items = rawItems.map((p) => ({
+      id: p.id,
+      name: p.name,
+      contextId: p.contextId,
+      owner: p.owner,
+      documents: p.context.documents,
+      subcontexts: p.subcontexts,
+    }));
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 

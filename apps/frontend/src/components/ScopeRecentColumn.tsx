@@ -6,7 +6,7 @@ import {
   IconLayoutSidebarRightCollapse,
   IconLayoutSidebarRightExpand,
 } from '@tabler/icons-react';
-import { Link } from 'react-router-dom';
+import { ContentLink } from './ContentLink';
 import { RecentItemIcon } from './contexts/RecentItemsCard';
 import type { RecentScope } from '../hooks/useRecentItems';
 import { useRecentItems } from '../hooks/useRecentItems';
@@ -136,7 +136,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
                           return (
                             <Group key={`${item.type}-${item.id}`} gap="xs" wrap="nowrap">
                               <RecentItemIcon type={item.type} size={14} />
-                              <Link
+                              <ContentLink
                                 to={href}
                                 style={{
                                   fontSize: 'var(--mantine-font-size-sm)',
@@ -145,7 +145,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
                                 }}
                               >
                                 {item.name ?? item.id}
-                              </Link>
+                              </ContentLink>
                             </Group>
                           );
                         })}

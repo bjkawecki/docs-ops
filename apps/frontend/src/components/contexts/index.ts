@@ -1,6 +1,5 @@
-export { OverviewCard } from './cardShared';
-export { ContextCard } from './ContextCard';
-export type { ContextCardProps } from './ContextCard';
+export { ScopeCard } from './cardShared';
+export type { ScopeCardProps, ScopeCardViewMore } from './cardShared';
 export { CreateContextMenu } from './CreateContextMenu';
 export type { CreateContextMenuProps } from './CreateContextMenu';
 export { ContextGrid } from './ContextGrid';

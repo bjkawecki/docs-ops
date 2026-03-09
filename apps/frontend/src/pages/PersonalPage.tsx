@@ -11,19 +11,29 @@ import { DraftsTabContent } from '../components/DraftsTabContent';
 import { PageWithTabs } from '../components/PageWithTabs';
 import { TrashTabContent } from '../components/TrashTabContent';
 import {
-  ContextCard,
   ContextGrid,
   CreateContextMenu,
   EditContextNameModal,
   NewContextModal,
   NewDocumentModal,
-  OverviewCard,
+  ScopeCard,
 } from '../components/contexts';
 import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 
-type ProcessItem = { id: string; name: string; contextId: string };
-type ProjectItem = { id: string; name: string; contextId: string };
+type ProcessItem = {
+  id: string;
+  name: string;
+  contextId: string;
+  documents?: { id: string; title: string }[];
+};
+type ProjectItem = {
+  id: string;
+  name: string;
+  contextId: string;
+  documents?: { id: string; title: string }[];
+  subcontexts?: { id: string; name: string }[];
+};
 type DocItem = {
   id: string;
   title: string;
@@ -104,25 +114,6 @@ export function PersonalPage() {
     });
   };
 
-  const handleArchive = async (id: string, type: 'process' | 'project') => {
-    const endpoint = type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
-    const res = await apiFetch(`${endpoint}/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
-    });
-    if (res.ok) {
-      invalidateContexts();
-      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
-      void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
-      setActiveTab('overview');
-      notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
-    } else {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      notifications.show({ title: 'Error', message: body?.error ?? res.statusText, color: 'red' });
-    }
-  };
-
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -184,10 +175,10 @@ export function PersonalPage() {
   const overviewPanel = (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <OverviewCard
+        <ScopeCard
           title="Processes"
           titleIcon={<IconRoute size={18} style={{ flexShrink: 0 }} />}
-          onViewMore={() => setActiveTab('processes')}
+          viewMore={{ onClick: () => setActiveTab('processes') }}
         >
           {processesPreview.length === 0 ? (
             <Text size="sm" c="dimmed">
@@ -206,11 +197,11 @@ export function PersonalPage() {
               ))}
             </Stack>
           )}
-        </OverviewCard>
-        <OverviewCard
+        </ScopeCard>
+        <ScopeCard
           title="Projects"
           titleIcon={<IconBriefcase size={18} style={{ flexShrink: 0 }} />}
-          onViewMore={() => setActiveTab('projects')}
+          viewMore={{ onClick: () => setActiveTab('projects') }}
         >
           {projectsPreview.length === 0 ? (
             <Text size="sm" c="dimmed">
@@ -229,11 +220,11 @@ export function PersonalPage() {
               ))}
             </Stack>
           )}
-        </OverviewCard>
-        <OverviewCard
+        </ScopeCard>
+        <ScopeCard
           title="Documents"
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
-          onViewMore={() => setActiveTab('documents')}
+          viewMore={{ onClick: () => setActiveTab('documents') }}
         >
           {docsPreview.length === 0 ? (
             <Text size="sm" c="dimmed">
@@ -252,7 +243,7 @@ export function PersonalPage() {
               ))}
             </Stack>
           )}
-        </OverviewCard>
+        </ScopeCard>
         <DraftsCard
           scopeParams={{ scope: 'personal' }}
           limit={5}
@@ -279,15 +270,11 @@ export function PersonalPage() {
       ) : (
         <ContextGrid>
           {processes.map((p) => (
-            <ContextCard
+            <ScopeCard
               key={p.id}
               title={p.name}
-              type="process"
               href={`/processes/${p.id}`}
-              canManage
-              onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'process' })}
-              onArchive={() => void handleArchive(p.id, 'process')}
-              onDelete={() => setDeleteTarget({ id: p.id, type: 'process' })}
+              documents={p.documents}
             />
           ))}
         </ContextGrid>
@@ -312,15 +299,12 @@ export function PersonalPage() {
       ) : (
         <ContextGrid>
           {projects.map((p) => (
-            <ContextCard
+            <ScopeCard
               key={p.id}
               title={p.name}
-              type="project"
               href={`/projects/${p.id}`}
-              canManage
-              onEdit={() => setEditTarget({ id: p.id, name: p.name, type: 'project' })}
-              onArchive={() => void handleArchive(p.id, 'project')}
-              onDelete={() => setDeleteTarget({ id: p.id, type: 'project' })}
+              documents={p.documents}
+              subcontexts={p.subcontexts}
             />
           ))}
         </ContextGrid>

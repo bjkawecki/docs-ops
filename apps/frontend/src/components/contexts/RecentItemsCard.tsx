@@ -1,8 +1,8 @@
 import { Group, Stack, Text } from '@mantine/core';
 import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
-import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import type { RecentItem, RecentItemType } from '../../hooks/useRecentItems';
+import { ContentLink } from '../ContentLink';
 import { SectionCard } from './SectionCard';
 
 /** Icon for a recent item by type (document / process / project). Used in RecentItemsCard and ScopeRecentColumn. */
@@ -48,12 +48,16 @@ export function RecentItemsCard({ items, titleIcon, viewMoreHref }: RecentItemsC
             return (
               <Group key={`${item.type}-${item.id}`} gap="xs" wrap="nowrap">
                 <RecentItemIcon type={item.type} />
-                <Link
+                <ContentLink
                   to={href}
-                  style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
+                  style={{
+                    fontSize: 'var(--mantine-font-size-sm)',
+                    flex: 1,
+                    minWidth: 0,
+                  }}
                 >
                   {item.name ?? item.id}
-                </Link>
+                </ContentLink>
               </Group>
             );
           })}

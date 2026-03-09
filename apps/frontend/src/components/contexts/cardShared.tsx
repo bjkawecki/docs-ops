@@ -2,6 +2,7 @@ import { Box, Button, Card, Group, Stack, Text } from '@mantine/core';
 import { useMantineTheme } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { ContentLink } from '../ContentLink';
 
 /** One "View more" control: always the same Link-Button. Dashboard: real link (to). Scope tabs: to="#" + onClick with preventDefault. Same look and hover everywhere. */
 export function ViewMoreButton({ to, onClick }: { to?: string; onClick?: () => void }) {
@@ -29,35 +30,140 @@ export function ViewMoreButton({ to, onClick }: { to?: string; onClick?: () => v
   );
 }
 
-/** Card for scope overview (Processes, Projects, Documents): icon, prominent title, spacing, View more button. */
-export function OverviewCard({
+export interface BaseCardProps {
+  /** Title (can be plain text or a Link). */
+  title: ReactNode;
+  /** Optional icon left of title. */
+  titleIcon?: ReactNode;
+  /** Main content (document list, custom content). */
+  children: ReactNode;
+  /** View more: either link (to) or action (onClick). Rendered bottom right. Omit to hide footer. */
+  viewMore?: { to?: string; onClick?: () => void };
+  /** Optional slot for header actions (e.g. three-dot menu). */
+  actions?: ReactNode;
+  className?: string;
+}
+
+/** Shared base for ScopeCard and others: same layout, View more always bottom right when viewMore is set. */
+export function BaseCard({
   title,
   titleIcon,
   children,
-  onViewMore,
-}: {
-  title: string;
-  titleIcon?: ReactNode;
-  children: ReactNode;
-  onViewMore: () => void;
-}) {
+  viewMore,
+  actions,
+  className,
+}: BaseCardProps) {
   return (
-    <Card {...contentCardProps}>
+    <Card {...contentCardProps} className={className}>
       <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-        <Box style={{ flex: 1, minHeight: 0 }}>
-          <Stack gap="md">
-            <Group gap="xs" wrap="nowrap">
-              {titleIcon}
-              <Text fw={600} size="md">
+        <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+            {titleIcon}
+            {typeof title === 'string' ? (
+              <Text fw={600} size="md" truncate>
                 {title}
               </Text>
-            </Group>
-            {children}
-          </Stack>
-        </Box>
-        <ViewMoreButton onClick={onViewMore} />
+            ) : (
+              title
+            )}
+          </Group>
+          {actions}
+        </Group>
+        <Box style={{ flex: 1, minHeight: 0 }}>{children}</Box>
+        {viewMore != null && (
+          <Box
+            style={{
+              marginTop: 'auto',
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <ViewMoreButton to={viewMore.to} onClick={viewMore.onClick} />
+          </Box>
+        )}
       </Stack>
     </Card>
+  );
+}
+
+/** View more config: link (to) or action (onClick). */
+export interface ScopeCardViewMore {
+  to?: string;
+  onClick?: () => void;
+}
+
+export interface ScopeCardProps {
+  /** Card title (always plain text, not a link). */
+  title: string;
+  titleIcon?: ReactNode;
+  /** View more: link and/or click handler. For context list mode with href, can be omitted and will be set to { to: href }. */
+  viewMore?: ScopeCardViewMore;
+  /**
+   * Overview mode: pass children (e.g. list of links). Body = children.
+   * Context mode: omit children and pass href + documents/subcontexts/metadata; body is built internally.
+   */
+  children?: ReactNode;
+  /** Context mode: link to detail page. Used for viewMore.to when documents or subcontexts are provided. */
+  href?: string;
+  /** Context mode: document list (overview-style card). */
+  documents?: { id: string; title: string }[];
+  /** Context mode: subcontexts line (e.g. "Subcontexts: A, B"). */
+  subcontexts?: { id: string; name: string }[];
+  /** Context mode: custom body when no documents/subcontexts (e.g. metadata). */
+  metadata?: ReactNode;
+}
+
+/** Unified card for scope Overview tab (children + viewMore.onClick) and Processes/Projects tabs (href + documents/subcontexts). Title is always plain text. Link styling via CSS only. */
+export function ScopeCard({
+  title,
+  titleIcon,
+  viewMore: viewMoreProp,
+  children,
+  href,
+  documents,
+  subcontexts,
+  metadata,
+}: ScopeCardProps) {
+  const isContextListMode =
+    children === undefined && (documents !== undefined || subcontexts !== undefined);
+  const isContextMetadataMode =
+    children === undefined && !isContextListMode && (href !== undefined || metadata !== undefined);
+
+  const viewMore = viewMoreProp ?? (isContextListMode && href ? { to: href } : undefined);
+
+  const body =
+    children !== undefined ? (
+      children
+    ) : isContextListMode ? (
+      <>
+        {documents && documents.length > 0 && (
+          <Stack gap={4} align="flex-start">
+            {documents.map((doc) => (
+              <ContentLink
+                key={doc.id}
+                to={`/documents/${doc.id}`}
+                style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+              >
+                {doc.title || doc.id}
+              </ContentLink>
+            ))}
+          </Stack>
+        )}
+        {subcontexts && subcontexts.length > 0 && (
+          <Text size="xs" c="dimmed">
+            Subcontexts: {subcontexts.map((s) => s.name).join(', ')}
+          </Text>
+        )}
+      </>
+    ) : isContextMetadataMode ? (
+      <>{metadata}</>
+    ) : null;
+
+  return (
+    <BaseCard title={title} titleIcon={titleIcon} viewMore={viewMore ?? undefined}>
+      {body ?? null}
+    </BaseCard>
   );
 }
 
