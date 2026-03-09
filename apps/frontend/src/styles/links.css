@@ -54,6 +54,31 @@ a.mantine-Button-root:visited,
   color: var(--mantine-primary-color-4);
 }
 
+/* Context detail: process/project list – no visited state (always same color). */
+[data-context-sibling-nav] a,
+[data-context-sibling-nav] a:visited {
+  color: var(--mantine-primary-color-4);
+}
+[data-context-sibling-nav] a:hover {
+  color: var(--mantine-primary-color-3);
+}
+/* Left column: do not shrink below 280px on large screens. */
+@media (min-width: 62em) {
+  [data-context-sibling-nav] {
+    min-width: 280px;
+  }
+}
+
+/* Context detail: document title in table – link for accessibility, looks like text (row is clickable). No hover/focus on text. */
+.mantine-Card-root [data-context-docs-table] .app-content-link,
+.mantine-Card-root [data-context-docs-table] .app-content-link:visited,
+.mantine-Card-root [data-context-docs-table] .app-content-link:hover,
+.mantine-Card-root [data-context-docs-table] .app-content-link:focus,
+.mantine-Card-root [data-context-docs-table] .app-content-link:focus-visible {
+  color: inherit;
+  text-decoration: none;
+}
+
 /* Sidebar: links keep default text color (no primary color). */
 [data-sidebar-nav] a,
 [data-sidebar-nav] a:visited,

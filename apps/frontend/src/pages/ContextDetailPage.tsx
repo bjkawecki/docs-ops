@@ -17,6 +17,8 @@ import {
   NavLink,
   Badge,
   Box,
+  Card,
+  Paper,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,6 +26,7 @@ import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
 import { useRecentItemsActions, type RecentScope } from '../hooks/useRecentItems';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
+import { ContentLink } from '../components/ContentLink';
 import { EditContextNameModal } from '../components/contexts/EditContextNameModal';
 import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
@@ -391,7 +394,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
             {typeLabel}
           </Text>
         </Breadcrumbs>
-        <Flex justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Flex justify="space-between" align="flex-start" wrap="wrap" gap="lg">
           <Group gap="sm" align="center">
             {type === 'process' ? (
               <IconRoute size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
@@ -445,128 +448,127 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         </Flex>
       </Stack>
 
-      <Flex
-        direction={{ base: 'column', lg: 'row' }}
-        gap={{ base: 'xl', lg: 80 }}
-        align="flex-start"
-      >
-        <Box w={{ base: '100%', lg: 280 }} style={{ flexShrink: 0 }}>
-          <Text
-            tt="uppercase"
-            fz="xs"
-            fw={600}
-            c="dimmed"
-            mb="sm"
-            style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
-          >
-            {type === 'process' ? 'All Processes' : 'All Projects'}
-          </Text>
-          <Stack component="nav" gap={2}>
-            {siblings.map((sibling) => (
-              <NavLink
-                key={sibling.id}
-                component={Link}
-                to={`/${type === 'process' ? 'processes' : 'projects'}/${sibling.id}`}
-                label={sibling.name}
-                active={sibling.id === id}
-                variant="light"
-                style={{ borderRadius: 'var(--mantine-radius-sm)' }}
-              />
-            ))}
-          </Stack>
-        </Box>
+      <Paper withBorder={false} p="lg" radius="md">
+        <Flex
+          direction={{ base: 'column', lg: 'row' }}
+          gap={{ base: 'xl', lg: 48 }}
+          align="flex-start"
+        >
+          <Box w={{ base: '100%', lg: 280 }} style={{ flexShrink: 0 }} data-context-sibling-nav>
+            <Text
+              tt="uppercase"
+              fz="xs"
+              fw={600}
+              c="dimmed"
+              mb="sm"
+              style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
+            >
+              {type === 'process' ? 'All Processes' : 'All Projects'}
+            </Text>
+            <Stack component="nav" gap={2}>
+              {siblings.map((sibling) => (
+                <NavLink
+                  key={sibling.id}
+                  component={Link}
+                  to={`/${type === 'process' ? 'processes' : 'projects'}/${sibling.id}`}
+                  label={sibling.name}
+                  active={sibling.id === id}
+                  variant="light"
+                  style={{ borderRadius: 'var(--mantine-radius-sm)' }}
+                />
+              ))}
+            </Stack>
+          </Box>
 
-        <Box style={{ flex: 1, minWidth: 0, width: '100%' }}>
-          <Stack gap="xl">
-            <Box>
-              <Text fw={600} size="lg" mb="md">
-                Documents
-              </Text>
-              {documents.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No documents yet.
+          <Card withBorder padding="md" style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Stack gap="xl">
+              <Box data-context-docs-table>
+                <Text tt="uppercase" fz="xs" fw={600} c="dimmed" mb="sm">
+                  Documents
                 </Text>
-              ) : (
-                <Table highlightOnHover verticalSpacing="sm">
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th style={{ width: '60%' }}>Title</Table.Th>
-                      <Table.Th style={{ width: '25%' }}>Tags</Table.Th>
-                      <Table.Th style={{ width: '15%' }}>Last updated</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {documents.map((doc) => (
-                      <Table.Tr
-                        key={doc.id}
-                        onClick={() => {
-                          void navigate(`/documents/${doc.id}`);
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <Table.Td>
-                          <Text fw={500}>{doc.title}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Group gap="xs">
-                            {doc.documentTags.map((dt) => (
-                              <Badge key={dt.tag.id} size="sm" variant="light" color="gray">
-                                {dt.tag.name}
-                              </Badge>
-                            ))}
-                          </Group>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="dimmed">
-                            {new Date(doc.updatedAt).toLocaleDateString()}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              )}
-            </Box>
-
-            {type === 'project' && (
-              <Box>
-                <Group justify="space-between" wrap="nowrap" mb="md">
-                  <Text fw={600} size="lg">
-                    Unterkontexte
-                  </Text>
-                  {data.canWriteContext && (
-                    <Button variant="light" size="xs" onClick={openNewSubcontext}>
-                      Unterkontext anlegen
-                    </Button>
-                  )}
-                </Group>
-                {((data as ProjectResponse).subcontexts?.length ?? 0) === 0 ? (
+                {documents.length === 0 ? (
                   <Text size="sm" c="dimmed">
-                    No subcontexts yet.
+                    No documents yet.
                   </Text>
                 ) : (
-                  <Stack gap={4}>
-                    {((data as ProjectResponse).subcontexts ?? []).map((sub) => (
-                      <Link
-                        key={sub.id}
-                        to={`/subcontexts/${sub.id}`}
-                        style={{
-                          fontSize: 'var(--mantine-font-size-sm)',
-                          textDecoration: 'none',
-                          fontWeight: 500,
-                          color: 'inherit',
-                        }}
-                      >
-                        {sub.name}
-                      </Link>
-                    ))}
-                  </Stack>
+                  <Table highlightOnHover verticalSpacing="sm">
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th style={{ width: '60%' }}>Title</Table.Th>
+                        <Table.Th style={{ width: '25%' }}>Tags</Table.Th>
+                        <Table.Th style={{ width: '15%' }}>Last updated</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {documents.map((doc) => (
+                        <Table.Tr
+                          key={doc.id}
+                          onClick={() => {
+                            void navigate(`/documents/${doc.id}`);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <Table.Td>
+                            <ContentLink to={`/documents/${doc.id}`} style={{ fontWeight: 500 }}>
+                              {doc.title}
+                            </ContentLink>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap="xs">
+                              {doc.documentTags.map((dt) => (
+                                <Badge key={dt.tag.id} size="sm" variant="light" color="gray">
+                                  {dt.tag.name}
+                                </Badge>
+                              ))}
+                            </Group>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" c="dimmed">
+                              {new Date(doc.updatedAt).toLocaleDateString()}
+                            </Text>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
                 )}
               </Box>
-            )}
-          </Stack>
-        </Box>
-      </Flex>
+
+              {type === 'project' && (
+                <Box>
+                  <Group justify="space-between" wrap="nowrap" mb="sm">
+                    <Text tt="uppercase" fz="xs" fw={600} c="dimmed">
+                      Unterkontexte
+                    </Text>
+                    {data.canWriteContext && (
+                      <Button variant="light" size="xs" onClick={openNewSubcontext}>
+                        Unterkontext anlegen
+                      </Button>
+                    )}
+                  </Group>
+                  {((data as ProjectResponse).subcontexts?.length ?? 0) === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      No subcontexts yet.
+                    </Text>
+                  ) : (
+                    <Stack gap={4}>
+                      {((data as ProjectResponse).subcontexts ?? []).map((sub) => (
+                        <ContentLink
+                          key={sub.id}
+                          to={`/subcontexts/${sub.id}`}
+                          style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                        >
+                          {sub.name}
+                        </ContentLink>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+              )}
+            </Stack>
+          </Card>
+        </Flex>
+      </Paper>
 
       <Modal
         opened={newSubcontextOpened}
