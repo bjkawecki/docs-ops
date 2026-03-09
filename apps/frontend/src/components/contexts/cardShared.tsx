@@ -55,7 +55,7 @@ export function BaseCard({
 }: BaseCardProps) {
   return (
     <Card {...contentCardProps} className={className}>
-      <Stack gap="xs" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+      <Stack gap="sm" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
         <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
           <Group gap="xs" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
             {titleIcon}
@@ -132,11 +132,19 @@ export function ScopeCard({
 
   const viewMore = viewMoreProp ?? (isContextListMode && href ? { to: href } : undefined);
 
+  const docCount = documents?.length ?? 0;
+  const hasMetaLine = isContextListMode && docCount > 0;
+
   const body =
     children !== undefined ? (
       children
     ) : isContextListMode ? (
-      <>
+      <Stack gap="xs">
+        {hasMetaLine && (
+          <Text size="xs" c="dimmed">
+            {docCount === 1 ? '1 document' : `${docCount} documents`}
+          </Text>
+        )}
         {documents && documents.length > 0 && (
           <Stack gap={4} align="flex-start">
             {documents.map((doc) => (
@@ -151,11 +159,24 @@ export function ScopeCard({
           </Stack>
         )}
         {subcontexts && subcontexts.length > 0 && (
-          <Text size="xs" c="dimmed">
-            Subcontexts: {subcontexts.map((s) => s.name).join(', ')}
-          </Text>
+          <Stack gap={4} mt="sm" align="flex-start">
+            <Text size="xs" c="dimmed" fw={500}>
+              Subcontexts
+            </Text>
+            <Stack gap={4} align="flex-start">
+              {subcontexts.map((s) => (
+                <ContentLink
+                  key={s.id}
+                  to={`/subcontexts/${s.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-xs)' }}
+                >
+                  {s.name}
+                </ContentLink>
+              ))}
+            </Stack>
+          </Stack>
         )}
-      </>
+      </Stack>
     ) : isContextMetadataMode ? (
       <>{metadata}</>
     ) : null;

@@ -34,6 +34,15 @@ a.mantine-Button-root:visited,
   color: var(--mantine-primary-color-4);
 }
 
+/* "View more" in cards: always primary color on all tabs (Overview, Processes, Projects). */
+.mantine-Card-root a.mantine-Button-root,
+.mantine-Card-root a.mantine-Button-root:visited {
+  color: var(--mantine-primary-color-4);
+}
+.mantine-Card-root a.mantine-Button-root:hover {
+  color: var(--mantine-primary-color-3);
+}
+
 /* Card text links (not in tables): hover = one shade lighter */
 .mantine-Card-root a:hover,
 .mantine-Card-root .mantine-Anchor-root:hover {
