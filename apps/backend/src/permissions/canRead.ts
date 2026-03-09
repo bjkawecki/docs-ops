@@ -8,9 +8,14 @@ type UserForPermission = {
   id: string;
   isAdmin: boolean;
   deletedAt: Date | null;
-  teamMemberships: { team: { id: string; departmentId: string } }[];
-  leadOfTeams: { teamId: string; team: { departmentId: string } }[];
-  departmentLeads: { departmentId: string }[];
+  teamMemberships: {
+    team: { id: string; departmentId: string; department: { companyId: string } };
+  }[];
+  leadOfTeams: {
+    teamId: string;
+    team: { departmentId: string; department: { companyId: string } };
+  }[];
+  departmentLeads: { departmentId: string; department: { companyId: string } }[];
   companyLeads: { companyId: string }[];
 };
 
@@ -25,11 +30,21 @@ export async function loadUser(
       id: true,
       isAdmin: true,
       deletedAt: true,
-      teamMemberships: { include: { team: { select: { id: true, departmentId: true } } } },
-      leadOfTeams: {
-        include: { team: { select: { departmentId: true } } },
+      teamMemberships: {
+        include: {
+          team: {
+            select: { id: true, departmentId: true, department: { select: { companyId: true } } },
+          },
+        },
       },
-      departmentLeads: { select: { departmentId: true } },
+      leadOfTeams: {
+        include: {
+          team: { select: { departmentId: true, department: { select: { companyId: true } } } },
+        },
+      },
+      departmentLeads: {
+        select: { departmentId: true, department: { select: { companyId: true } } },
+      },
       companyLeads: { select: { companyId: true } },
     },
   });

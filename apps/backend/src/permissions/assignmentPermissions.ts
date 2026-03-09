@@ -114,6 +114,10 @@ export async function canViewDepartment(
 
   if (user.isAdmin) return true;
   if (user.departmentLeads.some((d) => d.departmentId === departmentId)) return true;
+  const isTeamLeadInDept = user.leadOfTeams.some((l) => l.team.departmentId === departmentId);
+  if (isTeamLeadInDept) return true;
+  const isMemberInDept = user.teamMemberships.some((m) => m.team.departmentId === departmentId);
+  if (isMemberInDept) return true;
   return false;
 }
 
@@ -158,5 +162,17 @@ export async function canViewCompany(
 
   if (user.isAdmin) return true;
   if (user.companyLeads.some((c) => c.companyId === companyId)) return true;
+  const isDeptLeadInCompany = user.departmentLeads.some(
+    (d) => d.department.companyId === companyId
+  );
+  if (isDeptLeadInCompany) return true;
+  const isTeamLeadInCompany = user.leadOfTeams.some(
+    (l) => l.team.department.companyId === companyId
+  );
+  if (isTeamLeadInCompany) return true;
+  const isMemberInCompany = user.teamMemberships.some(
+    (m) => m.team.department.companyId === companyId
+  );
+  if (isMemberInCompany) return true;
   return false;
 }

@@ -235,10 +235,26 @@ export async function canReadContext(
   if (companyId) {
     const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
     if (isCompanyLead) return true;
+    const isDeptLeadInCompany = user.departmentLeads.some(
+      (d) => d.department.companyId === companyId
+    );
+    if (isDeptLeadInCompany) return true;
+    const isTeamLeadInCompany = user.leadOfTeams.some(
+      (l) => l.team.department.companyId === companyId
+    );
+    if (isTeamLeadInCompany) return true;
+    const isMemberInCompany = user.teamMemberships.some(
+      (m) => m.team.department.companyId === companyId
+    );
+    if (isMemberInCompany) return true;
   }
   if (departmentId) {
     const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
     if (isDeptLead) return true;
+    const isTeamLeadInDept = user.leadOfTeams.some((l) => l.team.departmentId === departmentId);
+    if (isTeamLeadInDept) return true;
+    const isMemberInDept = user.teamMemberships.some((m) => m.team.departmentId === departmentId);
+    if (isMemberInDept) return true;
   }
   if (teamId) {
     const isMember = user.teamMemberships.some((m) => m.team.id === teamId);
@@ -299,9 +315,15 @@ export async function canReadScopeForOwner(
   if (opts.ownerUserId === userId) return true;
   if (opts.companyId) {
     if (user.companyLeads.some((c) => c.companyId === opts.companyId)) return true;
+    if (user.departmentLeads.some((d) => d.department.companyId === opts.companyId)) return true;
+    if (user.leadOfTeams.some((l) => l.team.department.companyId === opts.companyId)) return true;
+    if (user.teamMemberships.some((m) => m.team.department.companyId === opts.companyId))
+      return true;
   }
   if (opts.departmentId) {
     if (user.departmentLeads.some((d) => d.departmentId === opts.departmentId)) return true;
+    if (user.leadOfTeams.some((l) => l.team.departmentId === opts.departmentId)) return true;
+    if (user.teamMemberships.some((m) => m.team.departmentId === opts.departmentId)) return true;
   }
   if (opts.teamId) {
     if (user.teamMemberships.some((m) => m.team.id === opts.teamId)) return true;
