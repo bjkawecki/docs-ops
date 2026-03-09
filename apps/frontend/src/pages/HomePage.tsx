@@ -233,7 +233,7 @@ export function HomePage() {
               will appear here.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {pinnedItems.map((item) => (
                 <Group key={item.id} gap="xs" wrap="nowrap">
                   <Badge size="sm" variant="light">

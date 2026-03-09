@@ -125,7 +125,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
                         The list fills as you browse contexts and documents.
                       </Text>
                     ) : (
-                      <Stack gap={4}>
+                      <Stack gap={4} align="flex-start">
                         {items.map((item) => {
                           const href =
                             item.type === 'document'

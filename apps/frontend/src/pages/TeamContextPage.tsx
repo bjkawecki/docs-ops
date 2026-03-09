@@ -1,8 +1,8 @@
 import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, Fragment } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useState, useEffect, Fragment, useCallback } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { apiFetch } from '../api/client';
@@ -213,13 +213,27 @@ export function TeamContextPage() {
   ];
   const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+
+  const setActiveTab = useCallback(
+    (tab: string) => {
+      setSearchParams(
+        (prev) => {
+          prev.set('tab', tab);
+          return prev;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
       setActiveTab('overview');
     }
-  }, [canWrite, activeTab]);
+  }, [canWrite, activeTab, setActiveTab]);
 
   const processes = processesData ?? [];
   const projects = projectsData ?? [];
@@ -239,7 +253,7 @@ export function TeamContextPage() {
               No processes yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {processesPreview.map((p) => (
                 <Link
                   key={p.id}
@@ -262,7 +276,7 @@ export function TeamContextPage() {
               No projects yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {projectsPreview.map((p) => (
                 <Link
                   key={p.id}
@@ -285,7 +299,7 @@ export function TeamContextPage() {
               No documents yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {teamDocs.slice(0, 5).map((d) => (
                 <Link
                   key={d.id}

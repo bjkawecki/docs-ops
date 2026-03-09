@@ -74,6 +74,16 @@ export function ViewMoreLink({ to }: { to: string }) {
 }
 
 /** Wrapper: Card mit einheitlichem Design für alle Kontext-/Sektions-Karten. */
-export function ContentCardWrapper({ children }: { children: React.ReactNode }) {
-  return <Card {...contentCardProps}>{children}</Card>;
+export function ContentCardWrapper({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card {...contentCardProps} className={className}>
+      {children}
+    </Card>
+  );
 }

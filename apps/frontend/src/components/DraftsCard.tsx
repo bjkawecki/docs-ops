@@ -25,7 +25,7 @@ function DraftPreviewLinks({
 }) {
   if (items.length === 0) return null;
   return (
-    <Stack gap={4}>
+    <Stack gap={4} align="flex-start">
       {items.map((d) => (
         <Link key={d.id} to={to(d.id)} style={{ fontSize: 'var(--mantine-font-size-sm)' }}>
           {d.title || d.id}
@@ -82,7 +82,7 @@ export function DraftsCard({
                     <Text size="xs" c="dimmed" fw={500} mt={draftDocuments.length > 0 ? 'xs' : 0}>
                       Pending review
                     </Text>
-                    <Stack gap={4}>
+                    <Stack gap={4} align="flex-start">
                       {openDraftRequests.map((dr: OpenDraftRequestItem) => (
                         <Link
                           key={dr.id}

@@ -9,19 +9,21 @@ import {
   TextInput,
   Textarea,
   MultiSelect,
+  Title,
+  Flex,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
 import { useRecentItemsActions, type RecentScope } from '../hooks/useRecentItems';
-import { PageHeader } from '../components/PageHeader';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import { EditContextNameModal } from '../components/contexts/EditContextNameModal';
 import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import { Modal } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { IconArrowLeft } from '@tabler/icons-react';
 
 type ContextType = 'process' | 'project';
 
@@ -320,31 +322,28 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
       </Text>
     );
 
-  const typeLabel = type === 'process' ? 'Process' : 'Project';
+  const typeLabel = type === 'process' ? 'Processes' : 'Projects';
+  const typeTab = type === 'process' ? 'processes' : 'projects';
   const scope = ownerToScopeForBreadcrumb(data.owner);
-  const metadata =
-    scope != null ? (
-      <Group gap={4}>
-        <Anchor component={Link} to={scopeToUrl(scope)} size="sm" c="dimmed">
-          {scopeToLabel(scope)}
-        </Anchor>
-        <Text size="sm" c="dimmed" span>
-          {' · '}
-          {typeLabel}
-        </Text>
-      </Group>
-    ) : (
-      <Text size="sm" c="dimmed">
-        {typeLabel}
-      </Text>
-    );
+
+  const scopeUrlWithTab = scope ? `${scopeToUrl(scope)}?tab=${typeTab}` : `/?tab=${typeTab}`;
+  const scopeName = scope ? scopeToLabel(scope) : 'Overview';
 
   return (
     <Box>
-      <PageHeader
-        title={data.name}
-        metadata={metadata}
-        actions={
+      <Stack gap="lg" mb="xl">
+        <Anchor
+          component={Link}
+          to={scopeUrlWithTab}
+          c="dimmed"
+          size="sm"
+          style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <IconArrowLeft size={16} />
+          Zurück zu {scopeName} / {typeLabel}
+        </Anchor>
+        <Flex justify="space-between" align="flex-start" wrap="wrap" gap="md">
+          <Title order={1}>{data.name}</Title>
           <Group gap="xs">
             {data.canWriteContext && (
               <Button variant="light" size="sm" onClick={openNewDoc}>
@@ -365,8 +364,8 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
               </>
             )}
           </Group>
-        }
-      />
+        </Flex>
+      </Stack>
 
       <Stack gap="md">
         <Card withBorder padding="md">

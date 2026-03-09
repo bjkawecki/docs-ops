@@ -2,7 +2,7 @@ import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@manti
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
 import { ArchiveTabContent } from '../components/ArchiveTabContent';
@@ -168,7 +168,18 @@ export function PersonalPage() {
     { value: 'trash', label: 'Trash' },
     { value: 'archive', label: 'Archive' },
   ];
-  const [activeTab, setActiveTab] = useState(tabs[0].value);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+
+  const setActiveTab = (tab: string) => {
+    setSearchParams(
+      (prev) => {
+        prev.set('tab', tab);
+        return prev;
+      },
+      { replace: true }
+    );
+  };
 
   const overviewPanel = (
     <Stack gap="md">
@@ -183,7 +194,7 @@ export function PersonalPage() {
               No processes yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {processesPreview.map((p) => (
                 <Link
                   key={p.id}
@@ -206,7 +217,7 @@ export function PersonalPage() {
               No projects yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {projectsPreview.map((p) => (
                 <Link
                   key={p.id}
@@ -229,7 +240,7 @@ export function PersonalPage() {
               No documents yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {docsPreview.map((d) => (
                 <Link
                   key={d.id}

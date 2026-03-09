@@ -1,9 +1,10 @@
-import { Badge, Group, Menu, Stack, Text } from '@mantine/core';
+import { Badge, Group, Menu, Stack, Text, Box } from '@mantine/core';
 import { ActionIcon } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { IconDotsVertical } from '@tabler/icons-react';
 import { ContentCardWrapper } from './cardShared';
+import classes from './ContextCard.module.css';
 
 export interface ContextCardProps {
   /** Context name */
@@ -36,10 +37,11 @@ export function ContextCard({
   const typeLabel = type === 'process' ? 'Process' : 'Project';
 
   return (
-    <ContentCardWrapper>
+    <ContentCardWrapper className={classes.card}>
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
         <Link
           to={href}
+          className={classes.stretchedLink}
           style={{
             flex: 1,
             minWidth: 0,
@@ -60,27 +62,29 @@ export function ContextCard({
           </Stack>
         </Link>
         {canManage && (
-          <Menu shadow="md" position="bottom-end">
-            <Menu.Target>
-              <ActionIcon
-                variant="subtle"
-                size="md"
-                aria-label="Context actions"
-                onClick={(e) => e.preventDefault()}
-              >
-                <IconDotsVertical size={18} stroke={3} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {onEdit != null && <Menu.Item onClick={onEdit}>Edit</Menu.Item>}
-              {onArchive != null && <Menu.Item onClick={onArchive}>Archive</Menu.Item>}
-              {onDelete != null && (
-                <Menu.Item color="red" onClick={onDelete}>
-                  Move to trash
-                </Menu.Item>
-              )}
-            </Menu.Dropdown>
-          </Menu>
+          <Box className={classes.menuContainer}>
+            <Menu shadow="md" position="bottom-end">
+              <Menu.Target>
+                <ActionIcon
+                  variant="subtle"
+                  size="md"
+                  aria-label="Context actions"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <IconDotsVertical size={18} stroke={3} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {onEdit != null && <Menu.Item onClick={onEdit}>Edit</Menu.Item>}
+                {onArchive != null && <Menu.Item onClick={onArchive}>Archive</Menu.Item>}
+                {onDelete != null && (
+                  <Menu.Item color="red" onClick={onDelete}>
+                    Move to trash
+                  </Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          </Box>
         )}
       </Group>
     </ContentCardWrapper>

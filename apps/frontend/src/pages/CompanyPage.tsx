@@ -1,8 +1,8 @@
 import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, Fragment } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, Fragment, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
@@ -202,13 +202,27 @@ export function CompanyPage() {
   ];
   const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+
+  const setActiveTab = useCallback(
+    (tab: string) => {
+      setSearchParams(
+        (prev) => {
+          prev.set('tab', tab);
+          return prev;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
       setActiveTab('overview');
     }
-  }, [canWrite, activeTab]);
+  }, [canWrite, activeTab, setActiveTab]);
   const companyScope = effectiveCompanyId
     ? { type: 'company' as const, id: effectiveCompanyId }
     : null;
@@ -237,7 +251,7 @@ export function CompanyPage() {
               No processes yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {processesPreview.map((p) => (
                 <Link
                   key={p.id}
@@ -264,7 +278,7 @@ export function CompanyPage() {
               No projects yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {projectsPreview.map((p) => (
                 <Link
                   key={p.id}
@@ -295,7 +309,7 @@ export function CompanyPage() {
               No documents yet.
             </Text>
           ) : (
-            <Stack gap={4}>
+            <Stack gap={4} align="flex-start">
               {docsPreview.map((d) => (
                 <Link
                   key={d.id}

@@ -52,7 +52,7 @@ export function SharedPage() {
                   No documents shared with you yet.
                 </Text>
               ) : (
-                <Stack gap={4}>
+                <Stack gap={4} align="flex-start">
                   {docsPreview.map((d) => (
                     <Link
                       key={d.id}

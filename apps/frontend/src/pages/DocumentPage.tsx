@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Box,
   Button,
@@ -36,21 +37,17 @@ import { notifications } from '@mantine/notifications';
 import {
   IconArchive,
   IconArchiveOff,
-  IconBuildingSkyscraper,
-  IconListCheck,
   IconPencil,
   IconRefresh,
-  IconSitemap,
-  IconSubtask,
   IconTarget,
   IconTrash,
-  IconUser,
-  IconUsersGroup,
   IconCloudUpload,
   IconHistory,
   IconSend,
   IconCheck,
   IconX,
+  IconArrowLeft,
+  IconChevronRight,
 } from '@tabler/icons-react';
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
@@ -871,17 +868,6 @@ export function DocumentPage() {
     ...(data.writers?.teams?.map((t) => t.name) ?? []),
     ...(data.writers?.departments?.map((d) => d.name) ?? []),
   ].filter(Boolean);
-  const scopeIcon =
-    scope?.type === 'personal'
-      ? IconUser
-      : scope?.type === 'company'
-        ? IconBuildingSkyscraper
-        : scope?.type === 'department'
-          ? IconSitemap
-          : scope?.type === 'team'
-            ? IconUsersGroup
-            : null;
-  const ScopeIcon = scopeIcon ?? IconUser;
 
   const metadataItems: ReactNode[] = [];
   if (data.publishedAt) {
@@ -900,61 +886,6 @@ export function DocumentPage() {
       <Group key="status" gap="xs" align="center">
         <Badge size="sm" variant="light" color="gray">
           Draft
-        </Badge>
-      </Group>
-    );
-  }
-  if (scope) {
-    metadataItems.push(
-      <Group key="owner" gap="xs" align="center">
-        <Text size="sm" c="dimmed" span>
-          Owner:{' '}
-        </Text>
-        <Badge
-          size="sm"
-          variant="light"
-          component={Link}
-          to={scopeToUrl(scope)}
-          style={{ textDecoration: 'none', fontWeight: 500 }}
-          leftSection={scopeIcon ? <ScopeIcon size={12} /> : undefined}
-        >
-          {scopeToLabel(scope)}
-        </Badge>
-      </Group>
-    );
-  }
-  if (hasNoContext) {
-    metadataItems.push(
-      <Group key="context" gap="xs" align="center">
-        <Text size="sm" c="dimmed" span>
-          Context:{' '}
-        </Text>
-        <Badge size="sm" variant="light" color="gray">
-          No context (ungrouped)
-        </Badge>
-      </Group>
-    );
-  } else if (contextMeta) {
-    const ContextIcon =
-      contextMeta.typeLabel === 'Process'
-        ? IconListCheck
-        : contextMeta.typeLabel === 'Project'
-          ? IconTarget
-          : IconSubtask;
-    metadataItems.push(
-      <Group key="context" gap="xs" align="center">
-        <Text size="sm" c="dimmed" span>
-          {contextMeta.typeLabel}:{' '}
-        </Text>
-        <Badge
-          size="sm"
-          variant="light"
-          component={Link}
-          to={contextMeta.to}
-          style={{ textDecoration: 'none', fontWeight: 500 }}
-          leftSection={<ContextIcon size={12} />}
-        >
-          {contextMeta.name}
         </Badge>
       </Group>
     );
@@ -996,130 +927,175 @@ export function DocumentPage() {
     );
   }
 
+  const backLink =
+    hasNoContext && scope ? `${scopeToUrl(scope)}?tab=documents` : contextMeta?.to || '/catalog';
+  const scopeName = scope ? scopeToLabel(scope) : 'Overview';
+
   return (
     <>
       <Box>
-        <PageHeader
-          title={docTitle}
-          description={mode === 'view' && data.description ? data.description : undefined}
-          metadata={
-            metadataItems.length > 0 ? (
-              <Group gap="sm" wrap="wrap" align="center">
-                {metadataItems}
-              </Group>
-            ) : undefined
-          }
-          actions={
-            <Group gap="xs">
-              {mode === 'edit' && (
-                <>
-                  <Button variant="default" size="sm" onClick={() => setMode('view')}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
-                    Save
-                  </Button>
-                  {hasConflictMarkers && data?.currentPublishedVersionId && (
-                    <Button
-                      size="sm"
-                      variant="light"
-                      color="green"
-                      loading={saveLoading}
-                      onClick={() => void handleSaveAndMarkUpToDate()}
-                    >
-                      Save and mark as up to date
+        <Stack gap="lg" mb="xl">
+          <Group gap={4} wrap="wrap" mt="md">
+            <Anchor
+              component={Link}
+              to={backLink}
+              c="dimmed"
+              size="sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <IconArrowLeft size={16} />
+              Zurück zum Kontext
+            </Anchor>
+            <Text size="sm" c="dimmed" mx="xs">
+              ·
+            </Text>
+            {scope && (
+              <>
+                <Anchor component={Link} to={scopeToUrl(scope)} c="dimmed" size="sm">
+                  {scopeName}
+                </Anchor>
+                <IconChevronRight size={14} color="var(--mantine-color-dimmed)" />
+              </>
+            )}
+            {contextMeta && (
+              <>
+                <Text size="sm" c="dimmed">
+                  {contextMeta.typeLabel}
+                </Text>
+                <IconChevronRight size={14} color="var(--mantine-color-dimmed)" />
+                <Anchor component={Link} to={contextMeta.to} c="dimmed" size="sm">
+                  {contextMeta.name}
+                </Anchor>
+              </>
+            )}
+            {hasNoContext && (
+              <Text size="sm" c="dimmed">
+                No context
+              </Text>
+            )}
+          </Group>
+          <PageHeader
+            title={docTitle}
+            description={mode === 'view' && data.description ? data.description : undefined}
+            metadata={
+              metadataItems.length > 0 ? (
+                <Group gap="sm" wrap="wrap" align="center">
+                  {metadataItems}
+                </Group>
+              ) : undefined
+            }
+            actions={
+              <Group gap="xs">
+                {mode === 'edit' && (
+                  <>
+                    <Button variant="default" size="sm" onClick={() => setMode('view')}>
+                      Cancel
                     </Button>
-                  )}
-                </>
-              )}
-              {data.canWrite && mode === 'view' && (
+                    <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
+                      Save
+                    </Button>
+                    {hasConflictMarkers && data?.currentPublishedVersionId && (
+                      <Button
+                        size="sm"
+                        variant="light"
+                        color="green"
+                        loading={saveLoading}
+                        onClick={() => void handleSaveAndMarkUpToDate()}
+                      >
+                        Save and mark as up to date
+                      </Button>
+                    )}
+                  </>
+                )}
+                {data.canWrite && mode === 'view' && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    leftSection={<IconPencil size={14} />}
+                    onClick={() => void handleEditClick()}
+                  >
+                    Edit
+                  </Button>
+                )}
+                {data.canWrite && data.publishedAt && mode === 'edit' && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    leftSection={<IconSend size={14} />}
+                    loading={submitReviewLoading}
+                    onClick={() => void handleSubmitForReview()}
+                  >
+                    Submit for review
+                  </Button>
+                )}
+                {data.canWrite && !data.archivedAt && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    leftSection={<IconArchive size={14} />}
+                    loading={archiveLoading}
+                    onClick={() => void handleArchive()}
+                  >
+                    Archive
+                  </Button>
+                )}
+                {data.canWrite && data.archivedAt && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    leftSection={<IconArchiveOff size={14} />}
+                    loading={archiveLoading}
+                    onClick={() => void handleUnarchive()}
+                  >
+                    Unarchive
+                  </Button>
+                )}
+                {data.canDelete && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    color="red"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={openDelete}
+                  >
+                    Move to trash
+                  </Button>
+                )}
+                {hasNoContext && data.canWrite && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    leftSection={<IconTarget size={14} />}
+                    onClick={openAssignContext}
+                  >
+                    Assign to context
+                  </Button>
+                )}
+                {data.canPublish && !data.publishedAt && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    color="green"
+                    leftSection={<IconCloudUpload size={14} />}
+                    loading={publishLoading}
+                    onClick={() => void handlePublish()}
+                  >
+                    Publish
+                  </Button>
+                )}
                 <Button
                   variant="light"
                   size="sm"
-                  leftSection={<IconPencil size={14} />}
-                  onClick={() => void handleEditClick()}
+                  component={Link}
+                  to={`/documents/${documentId}/versions`}
+                  leftSection={<IconHistory size={14} />}
                 >
-                  Edit
+                  History
                 </Button>
-              )}
-              {data.canWrite && data.publishedAt && mode === 'edit' && (
-                <Button
-                  variant="light"
-                  size="sm"
-                  leftSection={<IconSend size={14} />}
-                  loading={submitReviewLoading}
-                  onClick={() => void handleSubmitForReview()}
-                >
-                  Submit for review
-                </Button>
-              )}
-              {data.canWrite && !data.archivedAt && (
-                <Button
-                  variant="light"
-                  size="sm"
-                  leftSection={<IconArchive size={14} />}
-                  loading={archiveLoading}
-                  onClick={() => void handleArchive()}
-                >
-                  Archive
-                </Button>
-              )}
-              {data.canWrite && data.archivedAt && (
-                <Button
-                  variant="light"
-                  size="sm"
-                  leftSection={<IconArchiveOff size={14} />}
-                  loading={archiveLoading}
-                  onClick={() => void handleUnarchive()}
-                >
-                  Unarchive
-                </Button>
-              )}
-              {data.canDelete && (
-                <Button
-                  variant="light"
-                  size="sm"
-                  color="red"
-                  leftSection={<IconTrash size={14} />}
-                  onClick={openDelete}
-                >
-                  Move to trash
-                </Button>
-              )}
-              {hasNoContext && data.canWrite && (
-                <Button
-                  variant="light"
-                  size="sm"
-                  leftSection={<IconTarget size={14} />}
-                  onClick={openAssignContext}
-                >
-                  Assign to context
-                </Button>
-              )}
-              {data.canPublish && !data.publishedAt && (
-                <Button
-                  variant="light"
-                  size="sm"
-                  color="green"
-                  leftSection={<IconCloudUpload size={14} />}
-                  loading={publishLoading}
-                  onClick={() => void handlePublish()}
-                >
-                  Publish
-                </Button>
-              )}
-              <Button
-                variant="light"
-                size="sm"
-                component={Link}
-                to={`/documents/${documentId}/versions`}
-                leftSection={<IconHistory size={14} />}
-              >
-                History
-              </Button>
-            </Group>
-          }
-        />
+              </Group>
+            }
+          />
+        </Stack>
 
         {data?.publishedAt &&
           mode === 'edit' &&
