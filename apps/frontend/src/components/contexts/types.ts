@@ -7,6 +7,8 @@ export interface ContextCardItem {
   name: string;
   type: 'process' | 'project';
   contextId: string;
+  updatedAt?: string;
+  documentCount?: number;
   owner?: {
     companyId: string | null;
     departmentId: string | null;

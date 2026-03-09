@@ -228,6 +228,60 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     });
     await setContextDisplayFromProject(prisma, ctx2.id, project.id);
     projectByScope.set(`company:${companyName}`, project.id);
+
+    // Additional company processes and projects for a more realistic seed
+    const extraProcesses: { name: string; docTitles: string[] }[] = [
+      {
+        name: 'Onboarding',
+        docTitles: ['Onboarding Guide', 'New Hire Checklist', 'Role Overview'],
+      },
+      {
+        name: 'Release Process',
+        docTitles: ['Release Checklist', 'Deployment Steps', 'Rollback Procedure'],
+      },
+      { name: 'Quality Assurance', docTitles: ['QA Guidelines', 'Test Scenarios', 'Bug Triage'] },
+      {
+        name: 'Documentation',
+        docTitles: ['Writing Guidelines', 'API Documentation', 'Changelog Template'],
+      },
+      { name: 'Support Process', docTitles: ['Escalation Matrix', 'SLA Overview', 'FAQ'] },
+    ];
+    for (const { name: processName, docTitles } of extraProcesses) {
+      const pCtx = await prisma.context.create({ data: {} });
+      const p = await prisma.process.create({
+        data: { name: processName, contextId: pCtx.id, ownerId: companyOwnerId },
+      });
+      await setContextDisplayFromProcess(prisma, pCtx.id, p.id);
+      for (const title of docTitles) {
+        await prisma.document.create({
+          data: {
+            title,
+            content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
+            contextId: pCtx.id,
+          },
+        });
+      }
+    }
+    const extraProjects: { name: string; docTitles: string[] }[] = [
+      { name: 'Product Roadmap 2026', docTitles: ['Q1 Goals', 'Q2 Priorities', 'Feature Backlog'] },
+      { name: 'Internal Wiki', docTitles: ['Getting Started', 'Tools & Access', 'Meeting Notes'] },
+    ];
+    for (const { name: projectName, docTitles } of extraProjects) {
+      const projCtx = await prisma.context.create({ data: {} });
+      const proj = await prisma.project.create({
+        data: { name: projectName, contextId: projCtx.id, ownerId: companyOwnerId },
+      });
+      await setContextDisplayFromProject(prisma, projCtx.id, proj.id);
+      for (const title of docTitles) {
+        await prisma.document.create({
+          data: {
+            title,
+            content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
+            contextId: projCtx.id,
+          },
+        });
+      }
+    }
   }
 
   for (const row of departments) {
