@@ -527,13 +527,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const contextOwnerId = owner?.id ?? null;
       const scope =
         owner?.ownerUserId != null
-          ? { type: 'personal' as const }
+          ? { type: 'personal' as const, name: owner.displayName }
           : owner?.companyId != null
-            ? { type: 'company' as const, id: owner.companyId }
+            ? { type: 'company' as const, id: owner.companyId, name: owner.displayName }
             : owner?.departmentId != null
-              ? { type: 'department' as const, id: owner.departmentId }
+              ? { type: 'department' as const, id: owner.departmentId, name: owner.displayName }
               : owner?.teamId != null
-                ? { type: 'team' as const, id: owner.teamId }
+                ? { type: 'team' as const, id: owner.teamId, name: owner.displayName }
                 : null;
 
       let contextType: 'process' | 'project' = 'process';

@@ -17,6 +17,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
               departmentId: true,
               teamId: true,
               ownerUserId: true,
+              displayName: true,
               team: { select: { departmentId: true } },
             },
           },
@@ -31,6 +32,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
               departmentId: true,
               teamId: true,
               ownerUserId: true,
+              displayName: true,
               team: { select: { departmentId: true } },
             },
           },
@@ -47,6 +49,7 @@ export const DOCUMENT_FOR_PERMISSION_INCLUDE = {
                   departmentId: true,
                   teamId: true,
                   ownerUserId: true,
+                  displayName: true,
                   team: { select: { departmentId: true } },
                 },
               },
@@ -67,6 +70,7 @@ type OwnerFragment = {
   departmentId: string | null;
   teamId: string | null;
   ownerUserId: string | null;
+  displayName: string | null;
   team: { departmentId: string } | null;
 };
 

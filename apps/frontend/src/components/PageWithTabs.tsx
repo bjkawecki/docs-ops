@@ -1,4 +1,4 @@
-import { Box, Flex, Tabs } from '@mantine/core';
+import { Box, Flex, Tabs, Container } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RecentScope } from '../hooks/useRecentItems';
@@ -101,7 +101,7 @@ export function PageWithTabs({
   const showRecentColumn = recentScope != null;
 
   return (
-    <>
+    <Container fluid maw={1600} px="md" mb="xl">
       <PageHeader title={title} titleIcon={titleIcon} description={description} actions={actions} />
       <Tabs
         {...(isControlled
@@ -144,6 +144,6 @@ export function PageWithTabs({
           panels
         )}
       </Tabs>
-    </>
+    </Container>
   );
 }

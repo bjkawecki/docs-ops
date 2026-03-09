@@ -1,4 +1,4 @@
-import { Badge, Group, Menu, Stack, Text, Box } from '@mantine/core';
+import { Group, Menu, Stack, Text, Box } from '@mantine/core';
 import { ActionIcon } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -26,7 +26,6 @@ export interface ContextCardProps {
 
 export function ContextCard({
   title,
-  type,
   href,
   metadata,
   canManage,
@@ -34,8 +33,6 @@ export function ContextCard({
   onDelete,
   onArchive,
 }: ContextCardProps) {
-  const typeLabel = type === 'process' ? 'Process' : 'Project';
-
   return (
     <ContentCardWrapper className={classes.card}>
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
@@ -54,9 +51,6 @@ export function ContextCard({
               <Text fw={600} size="md" truncate>
                 {title}
               </Text>
-              <Badge size="sm" variant="light">
-                {typeLabel}
-              </Badge>
             </Group>
             {metadata != null && <>{metadata}</>}
           </Stack>

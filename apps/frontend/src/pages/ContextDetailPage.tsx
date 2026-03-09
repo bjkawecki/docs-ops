@@ -1,8 +1,6 @@
 import {
   Anchor,
-  Box,
   Button,
-  Card,
   Group,
   Stack,
   Text,
@@ -11,6 +9,14 @@ import {
   MultiSelect,
   Title,
   Flex,
+  Container,
+  Breadcrumbs,
+  Menu,
+  ActionIcon,
+  Table,
+  NavLink,
+  Badge,
+  Box,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -23,7 +29,19 @@ import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import { Modal } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft } from '@tabler/icons-react';
+import {
+  IconChevronRight,
+  IconDotsVertical,
+  IconPencil,
+  IconArchive,
+  IconTrash,
+  IconBuildingSkyscraper,
+  IconSitemap,
+  IconUsersGroup,
+  IconUser,
+  IconRoute,
+  IconBriefcase,
+} from '@tabler/icons-react';
 
 type ContextType = 'process' | 'project';
 
@@ -32,6 +50,7 @@ type OwnerResponse = {
   departmentId: string | null;
   teamId: string | null;
   ownerUserId?: string | null;
+  displayName?: string | null;
 };
 type ProcessResponse = {
   id: string;
@@ -143,6 +162,27 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
 
   const documents = documentsData?.items ?? [];
   const tagOptions = (tagsData ?? []).map((t) => ({ value: t.id, label: t.name }));
+
+  const scopeParam = data?.owner?.companyId
+    ? `companyId=${data.owner.companyId}`
+    : data?.owner?.departmentId
+      ? `departmentId=${data.owner.departmentId}`
+      : data?.owner?.teamId
+        ? `teamId=${data.owner.teamId}`
+        : data?.owner?.ownerUserId
+          ? `ownerUserId=${data.owner.ownerUserId}`
+          : '';
+
+  const { data: siblingsData } = useQuery({
+    queryKey: [type, 'siblings', scopeParam],
+    queryFn: async () => {
+      const res = await apiFetch(`${endpoint}?limit=100&offset=0&${scopeParam}`);
+      if (!res.ok) throw new Error('Failed to load siblings');
+      return res.json() as Promise<{ items: { id: string; name: string }[] }>;
+    },
+    enabled: !!scopeParam,
+  });
+  const siblings = siblingsData?.items ?? [];
 
   useEffect(() => {
     if (data && recentActions) {
@@ -327,23 +367,39 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
   const scope = ownerToScopeForBreadcrumb(data.owner);
 
   const scopeUrlWithTab = scope ? `${scopeToUrl(scope)}?tab=${typeTab}` : `/?tab=${typeTab}`;
-  const scopeName = scope ? scopeToLabel(scope) : 'Overview';
+  const scopeName = data.owner.displayName ?? (scope ? scopeToLabel(scope) : 'Overview');
+  const ScopeIcon =
+    scope?.type === 'company'
+      ? IconBuildingSkyscraper
+      : scope?.type === 'department'
+        ? IconSitemap
+        : scope?.type === 'team'
+          ? IconUsersGroup
+          : IconUser;
 
   return (
-    <Box>
-      <Stack gap="lg" mb="xl">
-        <Anchor
-          component={Link}
-          to={scopeUrlWithTab}
-          c="dimmed"
-          size="sm"
-          style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-        >
-          <IconArrowLeft size={16} />
-          Zurück zu {scopeName} / {typeLabel}
-        </Anchor>
+    <Container fluid maw={1600} px="md" mb="xl">
+      <Stack gap="lg" mb="xl" mt="md">
+        <Breadcrumbs separator={<IconChevronRight size={14} color="var(--mantine-color-dimmed)" />}>
+          <Anchor component={Link} to={scopeUrlWithTab} c="dimmed" size="sm">
+            <Group gap={4} align="center" wrap="nowrap">
+              <ScopeIcon size={14} />
+              <span>{scopeName}</span>
+            </Group>
+          </Anchor>
+          <Text size="sm" c="dimmed">
+            {typeLabel}
+          </Text>
+        </Breadcrumbs>
         <Flex justify="space-between" align="flex-start" wrap="wrap" gap="md">
-          <Title order={1}>{data.name}</Title>
+          <Group gap="sm" align="center">
+            {type === 'process' ? (
+              <IconRoute size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+            ) : (
+              <IconBriefcase size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+            )}
+            <Title order={1}>{data.name}</Title>
+          </Group>
           <Group gap="xs">
             {data.canWriteContext && (
               <Button variant="light" size="sm" onClick={openNewDoc}>
@@ -352,92 +408,165 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
             )}
             {canManage && (
               <>
-                <Button variant="light" size="sm" onClick={handleEditClick}>
-                  Edit
-                </Button>
-                <Button variant="light" size="sm" onClick={() => void handleArchive()}>
-                  Archive
-                </Button>
-                <Button variant="light" size="sm" color="red" onClick={openDelete}>
-                  Move to trash
-                </Button>
+                <ActionIcon
+                  variant="light"
+                  size="36"
+                  aria-label="Edit context"
+                  onClick={handleEditClick}
+                >
+                  <IconPencil size={18} />
+                </ActionIcon>
+                <Menu shadow="md" position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon variant="default" size="36" aria-label="More actions">
+                      <IconDotsVertical size={18} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<IconArchive size={14} />}
+                      onClick={() => void handleArchive()}
+                    >
+                      Archive
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item
+                      color="red"
+                      leftSection={<IconTrash size={14} />}
+                      onClick={openDelete}
+                    >
+                      Move to trash
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
               </>
             )}
           </Group>
         </Flex>
       </Stack>
 
-      <Stack gap="md">
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Documents
-            </Text>
-            {documents.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No documents yet.
-              </Text>
-            ) : (
-              <Stack gap={4}>
-                {documents.map((doc) => (
-                  <Group key={doc.id} justify="space-between" wrap="nowrap">
-                    <Link
-                      to={`/documents/${doc.id}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)', textDecoration: 'none' }}
-                    >
-                      {doc.title}
-                    </Link>
-                    <Group gap="xs" wrap="nowrap">
-                      {doc.documentTags.map((dt) => (
-                        <Text key={dt.tag.id} size="xs" c="dimmed" span>
-                          {dt.tag.name}
-                        </Text>
-                      ))}
-                      <Text size="xs" c="dimmed">
-                        {new Date(doc.updatedAt).toLocaleDateString()}
-                      </Text>
-                    </Group>
-                  </Group>
-                ))}
-              </Stack>
-            )}
+      <Flex
+        direction={{ base: 'column', lg: 'row' }}
+        gap={{ base: 'xl', lg: 80 }}
+        align="flex-start"
+      >
+        <Box w={{ base: '100%', lg: 280 }} style={{ flexShrink: 0 }}>
+          <Text
+            tt="uppercase"
+            fz="xs"
+            fw={600}
+            c="dimmed"
+            mb="sm"
+            style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
+          >
+            {type === 'process' ? 'All Processes' : 'All Projects'}
+          </Text>
+          <Stack component="nav" gap={2}>
+            {siblings.map((sibling) => (
+              <NavLink
+                key={sibling.id}
+                component={Link}
+                to={`/${type === 'process' ? 'processes' : 'projects'}/${sibling.id}`}
+                label={sibling.name}
+                active={sibling.id === id}
+                variant="light"
+                style={{ borderRadius: 'var(--mantine-radius-sm)' }}
+              />
+            ))}
           </Stack>
-        </Card>
+        </Box>
 
-        {type === 'project' && (
-          <Card withBorder padding="md">
-            <Stack gap="xs">
-              <Group justify="space-between" wrap="nowrap">
-                <Text fw={600} size="sm">
-                  Unterkontexte
-                </Text>
-                {data.canWriteContext && (
-                  <Button variant="light" size="xs" onClick={openNewSubcontext}>
-                    Unterkontext anlegen
-                  </Button>
-                )}
-              </Group>
-              {((data as ProjectResponse).subcontexts?.length ?? 0) === 0 ? (
+        <Box style={{ flex: 1, minWidth: 0, width: '100%' }}>
+          <Stack gap="xl">
+            <Box>
+              <Text fw={600} size="lg" mb="md">
+                Documents
+              </Text>
+              {documents.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  No subcontexts yet.
+                  No documents yet.
                 </Text>
               ) : (
-                <Stack gap={4}>
-                  {((data as ProjectResponse).subcontexts ?? []).map((sub) => (
-                    <Link
-                      key={sub.id}
-                      to={`/subcontexts/${sub.id}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)', textDecoration: 'none' }}
-                    >
-                      {sub.name}
-                    </Link>
-                  ))}
-                </Stack>
+                <Table highlightOnHover verticalSpacing="sm">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th style={{ width: '60%' }}>Title</Table.Th>
+                      <Table.Th style={{ width: '25%' }}>Tags</Table.Th>
+                      <Table.Th style={{ width: '15%' }}>Last updated</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {documents.map((doc) => (
+                      <Table.Tr
+                        key={doc.id}
+                        onClick={() => {
+                          void navigate(`/documents/${doc.id}`);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <Table.Td>
+                          <Text fw={500}>{doc.title}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs">
+                            {doc.documentTags.map((dt) => (
+                              <Badge key={dt.tag.id} size="sm" variant="light" color="gray">
+                                {dt.tag.name}
+                              </Badge>
+                            ))}
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(doc.updatedAt).toLocaleDateString()}
+                          </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
               )}
-            </Stack>
-          </Card>
-        )}
-      </Stack>
+            </Box>
+
+            {type === 'project' && (
+              <Box>
+                <Group justify="space-between" wrap="nowrap" mb="md">
+                  <Text fw={600} size="lg">
+                    Unterkontexte
+                  </Text>
+                  {data.canWriteContext && (
+                    <Button variant="light" size="xs" onClick={openNewSubcontext}>
+                      Unterkontext anlegen
+                    </Button>
+                  )}
+                </Group>
+                {((data as ProjectResponse).subcontexts?.length ?? 0) === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    No subcontexts yet.
+                  </Text>
+                ) : (
+                  <Stack gap={4}>
+                    {((data as ProjectResponse).subcontexts ?? []).map((sub) => (
+                      <Link
+                        key={sub.id}
+                        to={`/subcontexts/${sub.id}`}
+                        style={{
+                          fontSize: 'var(--mantine-font-size-sm)',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                          color: 'inherit',
+                        }}
+                      >
+                        {sub.name}
+                      </Link>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+            )}
+          </Stack>
+        </Box>
+      </Flex>
 
       <Modal
         opened={newSubcontextOpened}
@@ -529,6 +658,6 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           </Button>
         </Group>
       </Modal>
-    </Box>
+    </Container>
   );
 }

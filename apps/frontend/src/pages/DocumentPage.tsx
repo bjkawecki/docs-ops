@@ -19,6 +19,10 @@ import {
   MultiSelect,
   ActionIcon,
   Typography,
+  Menu,
+  Container,
+  Flex,
+  Breadcrumbs,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -46,8 +50,16 @@ import {
   IconSend,
   IconCheck,
   IconX,
-  IconArrowLeft,
   IconChevronRight,
+  IconDotsVertical,
+  IconFileText,
+  IconBuildingSkyscraper,
+  IconSitemap,
+  IconUsersGroup,
+  IconUser,
+  IconRoute,
+  IconBriefcase,
+  IconSubtask,
 } from '@tabler/icons-react';
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
@@ -94,10 +106,10 @@ function getTextFromChildren(children: ReactNode): string {
 }
 
 type DocumentScope =
-  | { type: 'personal' }
-  | { type: 'company'; id: string }
-  | { type: 'department'; id: string }
-  | { type: 'team'; id: string };
+  | { type: 'personal'; name?: string | null }
+  | { type: 'company'; id: string; name?: string | null }
+  | { type: 'department'; id: string; name?: string | null }
+  | { type: 'team'; id: string; name?: string | null };
 
 type WritersResponse = {
   users: { userId: string; name: string }[];
@@ -147,7 +159,6 @@ export function DocumentPage() {
   const recentActions = useRecentItemsActions();
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [archiveLoading, setArchiveLoading] = useState(false);
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -360,74 +371,64 @@ export function DocumentPage() {
 
   const handleArchive = async () => {
     if (!documentId) return;
-    setArchiveLoading(true);
-    try {
-      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivedAt: new Date().toISOString() }),
+    });
+    if (res.ok) {
+      void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+      void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+      if (data?.contextId)
+        void queryClient.invalidateQueries({
+          queryKey: ['contexts', data.contextId, 'documents'],
+        });
+      notifications.show({
+        title: 'Archived',
+        message: 'Document was archived.',
+        color: 'green',
       });
-      if (res.ok) {
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
-        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-        if (data?.contextId)
-          void queryClient.invalidateQueries({
-            queryKey: ['contexts', data.contextId, 'documents'],
-          });
-        notifications.show({
-          title: 'Archived',
-          message: 'Document was archived.',
-          color: 'green',
-        });
-        const scope = data?.scope;
-        const target = scope != null ? scopeToUrl(scope) : '/catalog';
-        void navigate(target, { replace: true });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setArchiveLoading(false);
+      const scope = data?.scope;
+      const target = scope != null ? scopeToUrl(scope) : '/catalog';
+      void navigate(target, { replace: true });
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      notifications.show({
+        title: 'Error',
+        message: body?.error ?? res.statusText,
+        color: 'red',
+      });
     }
   };
 
   const handleUnarchive = async () => {
     if (!documentId) return;
-    setArchiveLoading(true);
-    try {
-      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archivedAt: null }),
+    const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivedAt: null }),
+    });
+    if (res.ok) {
+      void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
+      void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+      if (data?.contextId)
+        void queryClient.invalidateQueries({
+          queryKey: ['contexts', data.contextId, 'documents'],
+        });
+      notifications.show({
+        title: 'Unarchived',
+        message: 'Document was restored to active.',
+        color: 'green',
       });
-      if (res.ok) {
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
-        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-        if (data?.contextId)
-          void queryClient.invalidateQueries({
-            queryKey: ['contexts', data.contextId, 'documents'],
-          });
-        notifications.show({
-          title: 'Unarchived',
-          message: 'Document was restored to active.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setArchiveLoading(false);
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      notifications.show({
+        title: 'Error',
+        message: body?.error ?? res.statusText,
+        color: 'red',
+      });
     }
   };
 
@@ -849,18 +850,21 @@ export function DocumentPage() {
           typeLabel: 'Process',
           name: data.contextName ?? 'Process',
           to: `/processes/${data.contextProcessId}`,
+          icon: IconRoute,
         }
       : data.subcontextId != null
         ? {
             typeLabel: 'Subcontext',
             name: data.subcontextName ?? data.contextName ?? 'Subcontext',
             to: `/subcontexts/${data.subcontextId}`,
+            icon: IconSubtask,
           }
         : data.contextProjectId != null
           ? {
               typeLabel: 'Project',
               name: data.contextProjectName ?? data.contextName ?? 'Project',
               to: `/projects/${data.contextProjectId}`,
+              icon: IconBriefcase,
             }
           : null;
   const writerNames = [
@@ -883,11 +887,9 @@ export function DocumentPage() {
     );
   } else {
     metadataItems.push(
-      <Group key="status" gap="xs" align="center">
-        <Badge size="sm" variant="light" color="gray">
-          Draft
-        </Badge>
-      </Group>
+      <Badge key="status" size="sm" variant="light" color="yellow">
+        Draft
+      </Badge>
     );
   }
   if (data.createdByName) {
@@ -915,67 +917,57 @@ export function DocumentPage() {
     );
   }
   if (data.documentTags.length > 0) {
-    metadataItems.push(
-      <Group key="tags" gap="xs" align="center">
-        <Text size="sm" c="dimmed" span>
-          Tags:{' '}
-        </Text>
-        <Badge size="sm" variant="light">
-          {data.documentTags.map((dt) => dt.tag.name).join(', ')}
+    data.documentTags.forEach((dt) => {
+      metadataItems.push(
+        <Badge key={`tag-${dt.tag.id}`} size="sm" variant="light" color="gray">
+          {dt.tag.name}
         </Badge>
-      </Group>
-    );
+      );
+    });
   }
 
-  const backLink =
-    hasNoContext && scope ? `${scopeToUrl(scope)}?tab=documents` : contextMeta?.to || '/catalog';
-  const scopeName = scope ? scopeToLabel(scope) : 'Overview';
+  const scopeName = data.scope?.name ?? (scope ? scopeToLabel(scope) : 'Overview');
+  const ScopeIcon =
+    scope?.type === 'company'
+      ? IconBuildingSkyscraper
+      : scope?.type === 'department'
+        ? IconSitemap
+        : scope?.type === 'team'
+          ? IconUsersGroup
+          : IconUser;
 
   return (
     <>
-      <Box>
-        <Stack gap="lg" mb="xl">
-          <Group gap={4} wrap="wrap" mt="md">
-            <Anchor
-              component={Link}
-              to={backLink}
-              c="dimmed"
-              size="sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <IconArrowLeft size={16} />
-              Zurück zum Kontext
-            </Anchor>
-            <Text size="sm" c="dimmed" mx="xs">
-              ·
-            </Text>
+      <Container fluid maw={1600} px="md" mb="xl">
+        <Stack gap="lg" mb="xl" mt="md">
+          <Breadcrumbs
+            separator={<IconChevronRight size={14} color="var(--mantine-color-dimmed)" />}
+          >
             {scope && (
-              <>
-                <Anchor component={Link} to={scopeToUrl(scope)} c="dimmed" size="sm">
-                  {scopeName}
-                </Anchor>
-                <IconChevronRight size={14} color="var(--mantine-color-dimmed)" />
-              </>
+              <Anchor component={Link} to={scopeToUrl(scope)} c="dimmed" size="sm">
+                <Group gap={4} align="center" wrap="nowrap">
+                  <ScopeIcon size={14} />
+                  <span>{scopeName}</span>
+                </Group>
+              </Anchor>
             )}
             {contextMeta && (
-              <>
-                <Text size="sm" c="dimmed">
-                  {contextMeta.typeLabel}
-                </Text>
-                <IconChevronRight size={14} color="var(--mantine-color-dimmed)" />
-                <Anchor component={Link} to={contextMeta.to} c="dimmed" size="sm">
-                  {contextMeta.name}
-                </Anchor>
-              </>
+              <Anchor component={Link} to={contextMeta.to} c="dimmed" size="sm">
+                <Group gap={4} align="center" wrap="nowrap">
+                  <contextMeta.icon size={14} />
+                  <span>{contextMeta.name}</span>
+                </Group>
+              </Anchor>
             )}
             {hasNoContext && (
               <Text size="sm" c="dimmed">
                 No context
               </Text>
             )}
-          </Group>
+          </Breadcrumbs>
           <PageHeader
             title={docTitle}
+            titleIcon={<IconFileText size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />}
             description={mode === 'view' && data.description ? data.description : undefined}
             metadata={
               metadataItems.length > 0 ? (
@@ -1008,14 +1000,14 @@ export function DocumentPage() {
                   </>
                 )}
                 {data.canWrite && mode === 'view' && (
-                  <Button
+                  <ActionIcon
                     variant="light"
-                    size="sm"
-                    leftSection={<IconPencil size={14} />}
+                    size="36"
+                    aria-label="Edit document"
                     onClick={() => void handleEditClick()}
                   >
-                    Edit
-                  </Button>
+                    <IconPencil size={18} />
+                  </ActionIcon>
                 )}
                 {data.canWrite && data.publishedAt && mode === 'edit' && (
                   <Button
@@ -1028,50 +1020,7 @@ export function DocumentPage() {
                     Submit for review
                   </Button>
                 )}
-                {data.canWrite && !data.archivedAt && (
-                  <Button
-                    variant="light"
-                    size="sm"
-                    leftSection={<IconArchive size={14} />}
-                    loading={archiveLoading}
-                    onClick={() => void handleArchive()}
-                  >
-                    Archive
-                  </Button>
-                )}
-                {data.canWrite && data.archivedAt && (
-                  <Button
-                    variant="light"
-                    size="sm"
-                    leftSection={<IconArchiveOff size={14} />}
-                    loading={archiveLoading}
-                    onClick={() => void handleUnarchive()}
-                  >
-                    Unarchive
-                  </Button>
-                )}
-                {data.canDelete && (
-                  <Button
-                    variant="light"
-                    size="sm"
-                    color="red"
-                    leftSection={<IconTrash size={14} />}
-                    onClick={openDelete}
-                  >
-                    Move to trash
-                  </Button>
-                )}
-                {hasNoContext && data.canWrite && (
-                  <Button
-                    variant="light"
-                    size="sm"
-                    leftSection={<IconTarget size={14} />}
-                    onClick={openAssignContext}
-                  >
-                    Assign to context
-                  </Button>
-                )}
-                {data.canPublish && !data.publishedAt && (
+                {mode === 'edit' && data.canPublish && !data.publishedAt && (
                   <Button
                     variant="light"
                     size="sm"
@@ -1083,117 +1032,182 @@ export function DocumentPage() {
                     Publish
                   </Button>
                 )}
-                <Button
-                  variant="light"
-                  size="sm"
-                  component={Link}
-                  to={`/documents/${documentId}/versions`}
-                  leftSection={<IconHistory size={14} />}
-                >
-                  History
-                </Button>
+                <Menu shadow="md" position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon variant="default" size="36" aria-label="More actions">
+                      <IconDotsVertical size={18} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      component={Link}
+                      to={`/documents/${documentId}/versions`}
+                      leftSection={<IconHistory size={14} />}
+                    >
+                      History
+                    </Menu.Item>
+                    {hasNoContext && data.canWrite && (
+                      <Menu.Item leftSection={<IconTarget size={14} />} onClick={openAssignContext}>
+                        Assign to context
+                      </Menu.Item>
+                    )}
+                    {data.canWrite && !data.archivedAt && (
+                      <Menu.Item
+                        leftSection={<IconArchive size={14} />}
+                        onClick={() => void handleArchive()}
+                      >
+                        Archive
+                      </Menu.Item>
+                    )}
+                    {data.canWrite && data.archivedAt && (
+                      <Menu.Item
+                        leftSection={<IconArchiveOff size={14} />}
+                        onClick={() => void handleUnarchive()}
+                      >
+                        Unarchive
+                      </Menu.Item>
+                    )}
+                    {data.canDelete && <Menu.Divider />}
+                    {data.canDelete && (
+                      <Menu.Item
+                        color="red"
+                        leftSection={<IconTrash size={14} />}
+                        onClick={openDelete}
+                      >
+                        Move to trash
+                      </Menu.Item>
+                    )}
+                  </Menu.Dropdown>
+                </Menu>
               </Group>
             }
           />
         </Stack>
 
-        {data?.publishedAt &&
-          mode === 'edit' &&
-          draftBasedOnVersionId != null &&
-          data.currentPublishedVersionId != null &&
-          draftBasedOnVersionId !== data.currentPublishedVersionId && (
-            <Alert
-              variant="light"
-              color="yellow"
-              title="Editing based on older version"
-              style={{ marginBottom: 'var(--mantine-spacing-md)' }}
+        <Flex
+          direction={{ base: 'column', lg: 'row' }}
+          gap={{ base: 'xl', lg: 80 }}
+          align="flex-start"
+        >
+          {mode === 'view' && headings.length > 0 && (
+            <Box
+              w={{ base: '100%', lg: 280 }}
+              style={{ flexShrink: 0, position: 'sticky', top: 'var(--mantine-spacing-xl)' }}
             >
-              <Text size="sm" mb="xs">
-                You are editing based on an older version. Update to the latest published version to
-                avoid conflicts.
-              </Text>
-              <Button
-                size="xs"
-                variant="light"
-                leftSection={<IconRefresh size={14} />}
-                loading={updateToLatestLoading}
-                onClick={() => void handleUpdateToLatest()}
+              <Text
+                tt="uppercase"
+                fz="xs"
+                ls={1}
+                fw={600}
+                c="dimmed"
+                mb="sm"
+                style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
               >
-                Update to latest version
-              </Button>
-            </Alert>
+                Table of Contents
+              </Text>
+              <Stack component="nav" gap={2}>
+                {headings.map((h) => (
+                  <NavLink
+                    key={h.id}
+                    href={`#${h.id}`}
+                    label={h.text}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{
+                      paddingLeft: `calc(var(--mantine-spacing-xs) + ${(h.level - 1) * 10}px)`,
+                      paddingTop: 'var(--mantine-spacing-xs)',
+                      paddingBottom: 'var(--mantine-spacing-xs)',
+                      paddingRight: 'var(--mantine-spacing-xs)',
+                      fontSize: h.level >= 4 ? 'var(--mantine-font-size-xs)' : undefined,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Box>
           )}
 
-        {openDraftRequests.length > 0 && (
-          <Card withBorder padding="md" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
-            <Text size="sm" fw={500} mb="xs">
-              Pending review
-            </Text>
-            <Stack gap="xs">
-              {openDraftRequests.map((pr) => (
-                <Group key={pr.id} justify="space-between" wrap="nowrap">
-                  <Text size="sm">
-                    PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
+          <Box style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            {data?.publishedAt &&
+              mode === 'edit' &&
+              draftBasedOnVersionId != null &&
+              data.currentPublishedVersionId != null &&
+              draftBasedOnVersionId !== data.currentPublishedVersionId && (
+                <Alert
+                  variant="light"
+                  color="yellow"
+                  title="Editing based on older version"
+                  style={{ marginBottom: 'var(--mantine-spacing-md)' }}
+                >
+                  <Text size="sm" mb="xs">
+                    You are editing based on an older version. Update to the latest published
+                    version to avoid conflicts.
                   </Text>
-                  {data.canPublish && (
-                    <Group gap="xs">
-                      <Button
-                        variant="light"
-                        size="compact-xs"
-                        color="green"
-                        leftSection={<IconCheck size={12} />}
-                        loading={mergingRequestId === pr.id}
-                        onClick={() => void handleMergeReject(pr.id, 'merge')}
-                      >
-                        Merge
-                      </Button>
-                      <Button
-                        variant="light"
-                        size="compact-xs"
-                        color="red"
-                        leftSection={<IconX size={12} />}
-                        loading={mergingRequestId === pr.id}
-                        onClick={() => void handleMergeReject(pr.id, 'reject')}
-                      >
-                        Reject
-                      </Button>
-                    </Group>
-                  )}
-                </Group>
-              ))}
-            </Stack>
-          </Card>
-        )}
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconRefresh size={14} />}
+                    loading={updateToLatestLoading}
+                    onClick={() => void handleUpdateToLatest()}
+                  >
+                    Update to latest version
+                  </Button>
+                </Alert>
+              )}
 
-        <Stack gap="lg">
-          {mode === 'view' ? (
-            <Box
-              style={{
-                display: 'flex',
-                gap: 0,
-                alignItems: 'flex-start',
-                flexWrap: 'nowrap',
-              }}
-            >
-              <Box style={{ flex: 1, minWidth: 0 }} />
-              <Box style={{ width: 'var(--mantine-spacing-md)', flexShrink: 0 }} />
-              <Card
-                variant="subtle"
-                withBorder
-                padding="xl"
-                style={{
-                  width: 'min(720px, 90vw)',
-                  minWidth: 'min(720px, 90vw)',
-                  maxWidth: 'min(720px, 90vw)',
-                  flexShrink: 0,
-                }}
-              >
+            {openDraftRequests.length > 0 && (
+              <Card withBorder padding="md" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
+                <Text size="sm" fw={500} mb="xs">
+                  Pending review
+                </Text>
+                <Stack gap="xs">
+                  {openDraftRequests.map((pr) => (
+                    <Group key={pr.id} justify="space-between" wrap="nowrap">
+                      <Text size="sm">
+                        PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
+                      </Text>
+                      {data.canPublish && (
+                        <Group gap="xs">
+                          <Button
+                            variant="light"
+                            size="compact-xs"
+                            color="green"
+                            leftSection={<IconCheck size={12} />}
+                            loading={mergingRequestId === pr.id}
+                            onClick={() => void handleMergeReject(pr.id, 'merge')}
+                          >
+                            Merge
+                          </Button>
+                          <Button
+                            variant="light"
+                            size="compact-xs"
+                            color="red"
+                            leftSection={<IconX size={12} />}
+                            loading={mergingRequestId === pr.id}
+                            onClick={() => void handleMergeReject(pr.id, 'reject')}
+                          >
+                            Reject
+                          </Button>
+                        </Group>
+                      )}
+                    </Group>
+                  ))}
+                </Stack>
+              </Card>
+            )}
+
+            <Stack gap="lg">
+              {mode === 'view' ? (
                 <Box
                   className="document-content"
                   style={{
-                    maxWidth: '65ch',
-                    margin: '0 auto',
-                    padding: 'var(--mantine-spacing-xl)',
+                    paddingBottom: 'var(--mantine-spacing-xl)',
+                    maxWidth: '80ch',
+                    marginLeft: 0,
                   }}
                 >
                   {(() => {
@@ -1209,179 +1223,139 @@ export function DocumentPage() {
                     </ReactMarkdown>
                   </Typography>
                 </Box>
-              </Card>
-              <Box style={{ width: 'var(--mantine-spacing-md)', flexShrink: 0 }} />
-              {headings.length > 0 ? (
-                <Box
-                  px="lg"
-                  py="lg"
-                  pos="sticky"
-                  top={0}
-                  style={{
-                    width: 260,
-                    zIndex: 1000,
-                  }}
-                >
-                  <Text
-                    size="sm"
-                    fw={600}
-                    c="dimmed"
-                    mb="sm"
-                    style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
-                  >
-                    Table of Contents
-                  </Text>
-                  <Stack component="nav" gap={2}>
-                    {headings.map((h) => (
-                      <NavLink
-                        key={h.id}
-                        href={`#${h.id}`}
-                        label={h.text}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' });
-                        }}
-                        style={{
-                          paddingLeft: `calc(var(--mantine-spacing-xs) + ${(h.level - 1) * 10}px)`,
-                          paddingTop: 'var(--mantine-spacing-xs)',
-                          paddingBottom: 'var(--mantine-spacing-xs)',
-                          paddingRight: 'var(--mantine-spacing-xs)',
-                          fontSize: h.level >= 4 ? 'var(--mantine-font-size-xs)' : undefined,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      />
-                    ))}
-                  </Stack>
-                </Box>
-              ) : null}
-              <Box style={{ flex: 1, minWidth: 0 }} />
-            </Box>
-          ) : (
-            <Card withBorder padding="lg">
-              <Tabs defaultValue="content">
-                <Tabs.List>
-                  <Tabs.Tab value="content">Content</Tabs.Tab>
-                  <Tabs.Tab value="settings">Settings</Tabs.Tab>
-                </Tabs.List>
-                <Tabs.Panel value="content" pt="lg">
-                  <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
-                    <SimpleGrid
-                      cols={{ base: 1, md: 2 }}
-                      spacing="xl"
-                      style={{ alignItems: 'stretch' }}
-                    >
-                      <Box
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          height: 'max(400px, calc(100vh - 360px))',
-                        }}
-                      >
-                        <Textarea
-                          ref={editContentTextareaRef}
-                          label="Markdown"
-                          placeholder="Content (Markdown)"
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.currentTarget.value)}
-                          styles={{
-                            root: {
-                              flex: 1,
+              ) : (
+                <Card withBorder padding="lg">
+                  <Tabs defaultValue="content">
+                    <Tabs.List>
+                      <Tabs.Tab value="content">Content</Tabs.Tab>
+                      <Tabs.Tab value="settings">Settings</Tabs.Tab>
+                    </Tabs.List>
+                    <Tabs.Panel value="content" pt="lg">
+                      <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
+                        <SimpleGrid
+                          cols={{ base: 1, md: 2 }}
+                          spacing="xl"
+                          style={{ alignItems: 'stretch' }}
+                        >
+                          <Box
+                            style={{
                               display: 'flex',
                               flexDirection: 'column',
-                              minHeight: 0,
-                            },
-                            input: {
-                              fontFamily: 'monospace',
-                              height: '100%',
-                              minHeight: 200,
-                              boxSizing: 'border-box',
-                            },
-                            wrapper: {
-                              flex: 1,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              minHeight: 0,
-                            },
-                          }}
-                        />
-                        {hasConflictMarkers && (
-                          <Alert variant="light" color="yellow" mt="sm" title="Conflict markers">
-                            <Text size="sm">
-                              The text contains conflict markers (
-                              <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>,{' '}
-                              <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot; is your
-                              draft, &quot;Theirs&quot; is the current published version. Resolve by
-                              editing the text (keep one version or combine), then click &quot;Save
-                              and mark as up to date&quot;.
-                            </Text>
-                          </Alert>
-                        )}
-                      </Box>
-                      <Box
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          height: 'max(400px, calc(100vh - 360px))',
-                        }}
-                      >
-                        <Text size="sm" c="dimmed" fw={500} mb="sm">
-                          Preview
-                        </Text>
-                        <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                          <Box style={{ maxWidth: '65ch', padding: 'var(--mantine-spacing-md)' }}>
-                            <Typography>
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {editContent || ''}
-                              </ReactMarkdown>
-                            </Typography>
+                              height: 'max(400px, calc(100vh - 360px))',
+                            }}
+                          >
+                            <Textarea
+                              ref={editContentTextareaRef}
+                              label="Markdown"
+                              placeholder="Content (Markdown)"
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.currentTarget.value)}
+                              styles={{
+                                root: {
+                                  flex: 1,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  minHeight: 0,
+                                },
+                                input: {
+                                  fontFamily: 'monospace',
+                                  height: '100%',
+                                  minHeight: 200,
+                                  boxSizing: 'border-box',
+                                },
+                                wrapper: {
+                                  flex: 1,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  minHeight: 0,
+                                },
+                              }}
+                            />
+                            {hasConflictMarkers && (
+                              <Alert
+                                variant="light"
+                                color="yellow"
+                                mt="sm"
+                                title="Conflict markers"
+                              >
+                                <Text size="sm">
+                                  The text contains conflict markers (
+                                  <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>,{' '}
+                                  <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot; is
+                                  your draft, &quot;Theirs&quot; is the current published version.
+                                  Resolve by editing the text (keep one version or combine), then
+                                  click &quot;Save and mark as up to date&quot;.
+                                </Text>
+                              </Alert>
+                            )}
                           </Box>
-                        </Box>
+                          <Box
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              height: 'max(400px, calc(100vh - 360px))',
+                            }}
+                          >
+                            <Text size="sm" c="dimmed" fw={500} mb="sm">
+                              Preview
+                            </Text>
+                            <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                              <Box
+                                style={{ maxWidth: '65ch', padding: 'var(--mantine-spacing-md)' }}
+                              >
+                                <Typography>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {editContent || ''}
+                                  </ReactMarkdown>
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </SimpleGrid>
                       </Box>
-                    </SimpleGrid>
-                  </Box>
-                </Tabs.Panel>
-                <Tabs.Panel value="settings" pt="lg">
-                  <Stack gap="md">
-                    <TextInput
-                      label="Title"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.currentTarget.value)}
-                      maxLength={500}
-                    />
-                    <TextInput
-                      label="Description"
-                      placeholder="Short description (optional)"
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.currentTarget.value)}
-                      maxLength={500}
-                    />
-                    <Group align="flex-end" gap="xs">
-                      <MultiSelect
-                        label="Tags"
-                        placeholder="Select or add tags"
-                        data={tagOptions}
-                        value={editTagIds}
-                        onChange={setEditTagIds}
-                        searchable
-                        clearable
-                        style={{ flex: 1 }}
-                      />
-                      <Button variant="light" size="sm" onClick={openCreateTag}>
-                        Create tag
-                      </Button>
-                      <Button variant="subtle" size="sm" onClick={openManageTags}>
-                        Manage tags
-                      </Button>
-                    </Group>
-                  </Stack>
-                </Tabs.Panel>
-              </Tabs>
-            </Card>
-          )}
-        </Stack>
-      </Box>
+                    </Tabs.Panel>
+                    <Tabs.Panel value="settings" pt="lg">
+                      <Stack gap="md">
+                        <TextInput
+                          label="Title"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.currentTarget.value)}
+                          maxLength={500}
+                        />
+                        <TextInput
+                          label="Description"
+                          placeholder="Short description (optional)"
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.currentTarget.value)}
+                          maxLength={500}
+                        />
+                        <Group align="flex-end" gap="xs">
+                          <MultiSelect
+                            label="Tags"
+                            placeholder="Select or add tags"
+                            data={tagOptions}
+                            value={editTagIds}
+                            onChange={setEditTagIds}
+                            searchable
+                            clearable
+                            style={{ flex: 1 }}
+                          />
+                          <Button variant="light" size="sm" onClick={openCreateTag}>
+                            Create tag
+                          </Button>
+                          <Button variant="subtle" size="sm" onClick={openManageTags}>
+                            Manage tags
+                          </Button>
+                        </Group>
+                      </Stack>
+                    </Tabs.Panel>
+                  </Tabs>
+                </Card>
+              )}
+            </Stack>
+          </Box>
+        </Flex>
+      </Container>
 
       <Modal opened={deleteOpened} onClose={closeDelete} title="Move to trash" centered>
         <Text size="sm" c="dimmed" mb="md">
