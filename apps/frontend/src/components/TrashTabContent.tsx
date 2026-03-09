@@ -1,11 +1,25 @@
-import { Button, Group, Select, Stack, Table, Text } from '@mantine/core';
+import {
+  Button,
+  Card,
+  Group,
+  Pagination,
+  Select,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+} from '@mantine/core';
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { IconRefresh } from '@tabler/icons-react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { apiFetch } from '../api/client';
+import { formatTableDate } from '../lib/formatDate';
+import { SortableTableTh } from './SortableTableTh';
 
 export interface TrashTabContentProps {
   scope: 'personal' | 'company' | 'department' | 'team';
@@ -36,29 +50,20 @@ function itemHref(item: TrashArchiveItem): string {
   return `/projects/${item.id}`;
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
-
 export function TrashTabContent({ scope, companyId, departmentId, teamId }: TrashTabContentProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const typeFilter = searchParams.get('type') ?? '';
+  const trashSearch = searchParams.get('trashSearch') ?? '';
   const sortBy = searchParams.get('sortBy') ?? 'deletedAt';
   const sortOrder = searchParams.get('sortOrder') ?? 'desc';
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
-  const limit = 25;
+  const limitParam = searchParams.get('trashLimit');
+  const limit = limitParam
+    ? Math.min(100, Math.max(1, parseInt(limitParam, 10) || DEFAULT_PAGE_SIZE))
+    : DEFAULT_PAGE_SIZE;
   const offset = (page - 1) * limit;
 
   const params = new URLSearchParams({
@@ -136,6 +141,18 @@ export function TrashTabContent({ scope, companyId, departmentId, teamId }: Tras
     [setSearchParams]
   );
 
+  const setTrashLimit = useCallback(
+    (value: number) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('trashLimit', String(value));
+        next.delete('page');
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
   const handleRestore = async (item: TrashArchiveItem) => {
     let res: Response;
     if (item.type === 'document') {
@@ -165,76 +182,148 @@ export function TrashTabContent({ scope, companyId, departmentId, teamId }: Tras
     }
   };
 
-  const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / limit) || 1;
 
+  const sortedItems = useMemo(() => {
+    const list = data?.items ?? [];
+    if (sortBy === 'type') {
+      return [...list].sort((a, b) => {
+        const c = (a.type ?? '').localeCompare(b.type ?? '');
+        return sortOrder === 'asc' ? c : -c;
+      });
+    }
+    if (sortBy === 'contextName') {
+      return [...list].sort((a, b) => {
+        const va = (a.contextName ?? '').toLowerCase();
+        const vb = (b.contextName ?? '').toLowerCase();
+        const c = va.localeCompare(vb);
+        return sortOrder === 'asc' ? c : -c;
+      });
+    }
+    return list;
+  }, [data?.items, sortBy, sortOrder]);
+
+  const searchLower = trashSearch.trim().toLowerCase();
+  const filteredItems = useMemo(
+    () =>
+      searchLower
+        ? sortedItems.filter(
+            (item) =>
+              (item.displayTitle ?? '').toLowerCase().includes(searchLower) ||
+              (item.contextName ?? '').toLowerCase().includes(searchLower)
+          )
+        : sortedItems,
+    [sortedItems, searchLower]
+  );
+
   if (isPending) {
     return (
-      <Stack gap="md">
+      <Card withBorder padding="md">
         <Text size="sm" c="dimmed">
-          Loading…
+          Loading trash…
         </Text>
-      </Stack>
+      </Card>
     );
   }
 
   return (
     <Stack gap="md">
-      <Select
-        label="Type"
-        placeholder="All"
-        data={[
-          { value: '', label: 'All' },
-          { value: 'document', label: 'Document' },
-          { value: 'process', label: 'Process' },
-          { value: 'project', label: 'Project' },
-        ]}
-        value={typeFilter || null}
-        onChange={(v) => setFilter('type', v ?? '')}
-        clearable
-        style={{ maxWidth: 160 }}
-      />
+      <Group gap="md" wrap="wrap" align="flex-end">
+        <TextInput
+          label="Search"
+          placeholder="Search by name"
+          value={trashSearch}
+          onChange={(e) => setFilter('trashSearch', e.currentTarget.value)}
+          style={{ minWidth: 200 }}
+        />
+        <Select
+          label="Type"
+          placeholder="All"
+          data={[
+            { value: '', label: 'All' },
+            { value: 'document', label: 'Document' },
+            { value: 'process', label: 'Process' },
+            { value: 'project', label: 'Project' },
+          ]}
+          value={typeFilter || null}
+          onChange={(v) => setFilter('type', v ?? '')}
+          clearable
+          style={{ minWidth: 140 }}
+        />
+        <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+          {trashSearch.trim()
+            ? `${filteredItems.length} of ${total} item${total !== 1 ? 's' : ''}`
+            : `${total} item${total !== 1 ? 's' : ''}`}
+        </Text>
+        <Select
+          label="Per page"
+          data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+          value={String(limit)}
+          onChange={(v) => v && setTrashLimit(parseInt(v, 10))}
+          style={{ width: 90 }}
+        />
+      </Group>
 
-      <Table withTableBorder withColumnBorders striped>
+      <Table withTableBorder withColumnBorders>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Type</Table.Th>
-            <Table.Th style={{ cursor: 'pointer' }} onClick={() => setSort('title')}>
-              Title {sortBy === 'title' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </Table.Th>
-            <Table.Th>Context</Table.Th>
-            <Table.Th style={{ cursor: 'pointer' }} onClick={() => setSort('deletedAt')}>
-              Deleted at {sortBy === 'deletedAt' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </Table.Th>
+            <SortableTableTh
+              label="Type"
+              column="type"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onClick={() => setSort('type')}
+            />
+            <SortableTableTh
+              label="Title"
+              column="title"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onClick={() => setSort('title')}
+            />
+            <SortableTableTh
+              label="Context"
+              column="contextName"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onClick={() => setSort('contextName')}
+            />
+            <SortableTableTh
+              label="Deleted at"
+              column="deletedAt"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onClick={() => setSort('deletedAt')}
+            />
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {items.length === 0 ? (
+          {filteredItems.length === 0 ? (
             <Table.Tr>
               <Table.Td colSpan={5}>
                 <Text size="sm" c="dimmed">
-                  No items in trash.
+                  {sortedItems.length === 0 ? 'No items in trash.' : 'No items match the search.'}
                 </Text>
               </Table.Td>
             </Table.Tr>
           ) : (
-            items.map((item) => (
-              <Table.Tr key={`${item.type}-${item.id}`}>
+            filteredItems.map((item) => (
+              <Table.Tr
+                key={`${item.type}-${item.id}`}
+                data-clickable-table-row
+                onClick={() => {
+                  void navigate(itemHref(item));
+                }}
+              >
                 <Table.Td>
                   <Text size="sm" tt="capitalize">
                     {item.type}
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text
-                    component={Link}
-                    to={itemHref(item)}
-                    fw={500}
-                    size="sm"
-                    style={{ textDecoration: 'none', color: 'inherit' }}
-                  >
+                  <Text fw={500} size="sm">
                     {item.displayTitle || item.id}
                   </Text>
                 </Table.Td>
@@ -244,14 +333,19 @@ export function TrashTabContent({ scope, companyId, departmentId, teamId }: Tras
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm">{item.deletedAt ? formatDate(item.deletedAt) : '—'}</Text>
+                  <Text size="sm">
+                    {item.deletedAt ? formatTableDate(item.deletedAt, { withTime: true }) : '—'}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
                   <Button
                     variant="light"
                     size="xs"
                     leftSection={<IconRefresh size={14} />}
-                    onClick={() => void handleRestore(item)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleRestore(item);
+                    }}
                   >
                     Restore
                   </Button>
@@ -262,24 +356,9 @@ export function TrashTabContent({ scope, companyId, departmentId, teamId }: Tras
         </Table.Tbody>
       </Table>
 
-      {totalPages > 1 && (
-        <Group gap="xs">
-          <Button variant="subtle" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            Previous
-          </Button>
-          <Text size="sm" c="dimmed">
-            Page {page} of {totalPages} ({total} items)
-          </Text>
-          <Button
-            variant="subtle"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
-          </Button>
-        </Group>
-      )}
+      <Group justify="flex-end">
+        <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
+      </Group>
     </Stack>
   );
 }

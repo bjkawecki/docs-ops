@@ -1,8 +1,21 @@
-import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import {
+  Box,
+  Button,
+  Card,
+  Group,
+  Modal,
+  Pagination,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, Fragment, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
@@ -10,7 +23,9 @@ import { TrashTabContent } from '../components/TrashTabContent';
 import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
 import { canShowWriteTabs } from '../lib/canShowWriteTabs';
+import { formatTableDate } from '../lib/formatDate';
 import { PageWithTabs } from '../components/PageWithTabs';
+import { SortableTableTh } from '../components/SortableTableTh';
 import {
   ContextGrid,
   CreateContextMenu,
@@ -123,18 +138,55 @@ export function CompanyPage() {
     enabled: effectiveCompanyId != null,
   });
 
-  const companyDocumentsParams = `companyId=${effectiveCompanyId ?? ''}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`;
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const docsSortBy = searchParams.get('docsSortBy') ?? 'updatedAt';
+  const docsSortOrder = searchParams.get('docsSortOrder') ?? 'desc';
+  const docsPage = Math.max(1, parseInt(searchParams.get('docsPage') ?? '1', 10));
+  const docsLimitParam = searchParams.get('docsLimit');
+  const docsLimit = docsLimitParam
+    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 25))
+    : 25;
+  const docsOffset = (docsPage - 1) * docsLimit;
+  const docsSearch = searchParams.get('docsSearch') ?? '';
+  const docsContextType = searchParams.get('docsContextType') ?? '';
+
+  const companyDocumentsParams = [
+    `companyId=${effectiveCompanyId ?? ''}`,
+    `limit=${docsLimit}`,
+    `offset=${docsOffset}`,
+    `sortBy=${docsSortBy}`,
+    `sortOrder=${docsSortOrder}`,
+    docsSearch && `search=${encodeURIComponent(docsSearch)}`,
+    docsContextType &&
+      ['process', 'project'].includes(docsContextType) &&
+      `contextType=${docsContextType}`,
+  ]
+    .filter(Boolean)
+    .join('&');
   const { data: companyDocsRes, isPending: docsPending } = useQuery({
     queryKey: ['catalog-documents', companyDocumentsParams],
     queryFn: async () => {
-      const res = await apiFetch(
-        `/api/v1/documents?companyId=${effectiveCompanyId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
-      );
+      const params = new URLSearchParams({
+        companyId: effectiveCompanyId!,
+        limit: String(docsLimit),
+        offset: String(docsOffset),
+        sortBy: docsSortBy,
+        sortOrder: docsSortOrder,
+      });
+      if (docsSearch.trim()) params.set('search', docsSearch.trim());
+      if (docsContextType === 'process' || docsContextType === 'project')
+        params.set('contextType', docsContextType);
+      const res = await apiFetch(`/api/v1/documents?${params}`);
       if (!res.ok) throw new Error('Failed to load documents');
       return (await res.json()) as { items: CompanyDocItem[]; total: number };
     },
     enabled: effectiveCompanyId != null,
   });
+
+  const docsTotal = companyDocsRes?.total ?? 0;
+  const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
 
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({ queryKey: ['processes', effectiveCompanyId ?? ''] });
@@ -194,8 +246,56 @@ export function CompanyPage() {
   ];
   const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'overview';
+  const setDocsSort = useCallback(
+    (col: string) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const order = docsSortBy === col && docsSortOrder === 'desc' ? 'asc' : 'desc';
+        next.set('docsSortBy', col);
+        next.set('docsSortOrder', order);
+        next.delete('docsPage');
+        return next;
+      });
+    },
+    [setSearchParams, docsSortBy, docsSortOrder]
+  );
+
+  const setDocsPage = useCallback(
+    (p: number) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (p <= 1) next.delete('docsPage');
+        else next.set('docsPage', String(p));
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const setDocsLimit = useCallback(
+    (value: number) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('docsLimit', String(value));
+        next.delete('docsPage');
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const setDocsFilter = useCallback(
+    (key: string, value: string | null) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (value == null || value === '') next.delete(key);
+        else next.set(key, value);
+        next.delete('docsPage');
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
 
   const setActiveTab = useCallback(
     (tab: string) => {
@@ -410,28 +510,118 @@ export function CompanyPage() {
             Loading documents…
           </Text>
         </Card>
-      ) : companyDocs.length === 0 ? (
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            No documents in this company yet. Create a process or project and add documents, or
-            publish drafts from the Drafts tab.
-          </Text>
-        </Card>
       ) : (
-        <Stack gap="xs">
-          {companyDocs.map((d) => (
-            <Card key={d.id} withBorder padding="sm" component={Link} to={`/documents/${d.id}`}>
-              <Text fw={500} size="sm">
-                {d.title || d.id}
-              </Text>
-              {d.contextName ? (
-                <Text size="xs" c="dimmed" mt={4}>
-                  {d.contextName}
-                </Text>
-              ) : null}
-            </Card>
-          ))}
-        </Stack>
+        <>
+          <Group gap="md" wrap="wrap" align="flex-end">
+            <TextInput
+              label="Search"
+              placeholder="Search by name"
+              value={docsSearch}
+              onChange={(e) => setDocsFilter('docsSearch', e.currentTarget.value)}
+              style={{ minWidth: 200 }}
+            />
+            <Select
+              label="Context type"
+              placeholder="All"
+              data={[
+                { value: '', label: 'All' },
+                { value: 'process', label: 'Process' },
+                { value: 'project', label: 'Project' },
+              ]}
+              value={docsContextType || null}
+              onChange={(v) => setDocsFilter('docsContextType', v ?? '')}
+              clearable
+              style={{ minWidth: 140 }}
+            />
+            <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+              {docsTotal} document{docsTotal !== 1 ? 's' : ''}
+            </Text>
+            <Select
+              label="Per page"
+              data={[
+                { value: '10', label: '10' },
+                { value: '25', label: '25' },
+                { value: '50', label: '50' },
+                { value: '100', label: '100' },
+              ]}
+              value={String(docsLimit)}
+              onChange={(v) => v && setDocsLimit(parseInt(v, 10))}
+              style={{ width: 90 }}
+            />
+          </Group>
+          <Table withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <SortableTableTh
+                  label="Title"
+                  column="title"
+                  sortBy={docsSortBy}
+                  sortOrder={docsSortOrder}
+                  onClick={() => setDocsSort('title')}
+                />
+                <SortableTableTh
+                  label="Context"
+                  column="contextName"
+                  sortBy={docsSortBy}
+                  sortOrder={docsSortOrder}
+                  onClick={() => setDocsSort('contextName')}
+                />
+                <SortableTableTh
+                  label="Last updated"
+                  column="updatedAt"
+                  sortBy={docsSortBy}
+                  sortOrder={docsSortOrder}
+                  onClick={() => setDocsSort('updatedAt')}
+                />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {companyDocs.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={3}>
+                    <Text size="sm" c="dimmed">
+                      No documents.
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                companyDocs.map((d) => (
+                  <Table.Tr
+                    key={d.id}
+                    data-clickable-table-row
+                    onClick={() => {
+                      void navigate(`/documents/${d.id}`);
+                    }}
+                  >
+                    <Table.Td>
+                      <Text fw={500} size="sm">
+                        {d.title || d.id}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {d.contextName || '—'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{formatTableDate(d.updatedAt)}</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              )}
+            </Table.Tbody>
+          </Table>
+          {effectiveCompanyId != null && !docsPending && (
+            <Group justify="flex-end">
+              <Pagination
+                total={docsTotalPages}
+                value={docsPage}
+                onChange={setDocsPage}
+                size="sm"
+              />
+            </Group>
+          )}
+        </>
       )}
     </Stack>
   );

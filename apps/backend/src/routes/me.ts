@@ -797,30 +797,34 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           }
         : null;
 
-    const draftDocumentsRaw = draftDocWhere
-      ? await prisma.document.findMany({
-          where: draftDocWhere,
-          select: {
-            id: true,
-            title: true,
-            contextId: true,
-            updatedAt: true,
-            createdAt: true,
-            context: {
+    const [draftDocumentsRaw, totalDrafts] =
+      draftDocWhere != null
+        ? await Promise.all([
+            prisma.document.findMany({
+              where: draftDocWhere,
               select: {
-                process: { select: { owner: { select: ownerScopeSelect } } },
-                project: { select: { owner: { select: ownerScopeSelect } } },
-                subcontext: {
-                  select: { project: { select: { owner: { select: ownerScopeSelect } } } },
+                id: true,
+                title: true,
+                contextId: true,
+                updatedAt: true,
+                createdAt: true,
+                context: {
+                  select: {
+                    process: { select: { owner: { select: ownerScopeSelect } } },
+                    project: { select: { owner: { select: ownerScopeSelect } } },
+                    subcontext: {
+                      select: { project: { select: { owner: { select: ownerScopeSelect } } } },
+                    },
+                  },
                 },
               },
-            },
-          },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { updatedAt: 'desc' },
-        })
-      : [];
+              take: query.limit,
+              skip: query.offset,
+              orderBy: { updatedAt: 'desc' },
+            }),
+            prisma.document.count({ where: draftDocWhere }),
+          ])
+        : [[], 0];
     const draftDocuments = draftDocumentsRaw.map((d) => {
       const owner =
         d.context?.process?.owner ??
@@ -913,6 +917,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     return reply.send({
       draftDocuments,
       openDraftRequests,
+      total: totalDrafts,
       limit: query.limit,
       offset: query.offset,
     });

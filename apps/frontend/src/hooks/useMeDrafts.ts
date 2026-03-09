@@ -38,6 +38,7 @@ export type OpenDraftRequestItem = {
 export type MeDraftsResponse = {
   draftDocuments: DraftDocumentItem[];
   openDraftRequests: OpenDraftRequestItem[];
+  total: number;
   limit: number;
   offset: number;
 };

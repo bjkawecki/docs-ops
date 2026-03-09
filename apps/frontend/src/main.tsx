@@ -10,6 +10,7 @@ import { appTheme, appCssVariablesResolver } from './theme';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles/links.css';
+import './styles/table-rows.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

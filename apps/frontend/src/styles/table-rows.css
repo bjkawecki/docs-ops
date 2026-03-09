@@ -1,0 +1,7 @@
+/* Clickable table rows (Documents, Drafts, Trash, Archive): hover feedback. */
+[data-clickable-table-row] {
+  cursor: pointer;
+}
+[data-clickable-table-row]:hover {
+  background-color: var(--mantine-color-default-hover);
+}
