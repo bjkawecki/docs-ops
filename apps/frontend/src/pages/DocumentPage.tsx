@@ -22,6 +22,7 @@ import {
   Menu,
   Container,
   Flex,
+  Paper,
   Breadcrumbs,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -967,7 +968,15 @@ export function DocumentPage() {
           </Breadcrumbs>
           <PageHeader
             title={docTitle}
-            titleIcon={<IconFileText size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />}
+            titleOrder={1}
+            noBottomMargin
+            titleIcon={
+              data?.publishedAt ? (
+                <IconFileText size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+              ) : (
+                <IconPencil size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+              )
+            }
             description={mode === 'view' && data.description ? data.description : undefined}
             metadata={
               metadataItems.length > 0 ? (
@@ -1084,277 +1093,281 @@ export function DocumentPage() {
           />
         </Stack>
 
-        <Flex
-          direction={{ base: 'column', lg: 'row' }}
-          gap={{ base: 'xl', lg: 80 }}
-          align="flex-start"
-        >
-          {mode === 'view' && headings.length > 0 && (
-            <Box
-              w={{ base: '100%', lg: 280 }}
-              style={{ flexShrink: 0, position: 'sticky', top: 'var(--mantine-spacing-xl)' }}
-            >
-              <Text
-                tt="uppercase"
-                fz="xs"
-                ls={1}
-                fw={600}
-                c="dimmed"
-                mb="sm"
-                style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
+        <Paper withBorder={false} p="lg" radius="md">
+          <Flex
+            direction={{ base: 'column', lg: 'row' }}
+            gap={{ base: 'xl', lg: 48 }}
+            align="flex-start"
+          >
+            {mode === 'view' && headings.length > 0 && (
+              <Box
+                w={{ base: '100%', lg: 280 }}
+                style={{ flexShrink: 0, position: 'sticky', top: 'var(--mantine-spacing-xl)' }}
               >
-                Table of Contents
-              </Text>
-              <Stack component="nav" gap={2}>
-                {headings.map((h) => (
-                  <NavLink
-                    key={h.id}
-                    href={`#${h.id}`}
-                    label={h.text}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    style={{
-                      paddingLeft: `calc(var(--mantine-spacing-xs) + ${(h.level - 1) * 10}px)`,
-                      paddingTop: 'var(--mantine-spacing-xs)',
-                      paddingBottom: 'var(--mantine-spacing-xs)',
-                      paddingRight: 'var(--mantine-spacing-xs)',
-                      fontSize: h.level >= 4 ? 'var(--mantine-font-size-xs)' : undefined,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  />
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          <Box style={{ flex: 1, minWidth: 0, width: '100%' }}>
-            {data?.publishedAt &&
-              mode === 'edit' &&
-              draftBasedOnVersionId != null &&
-              data.currentPublishedVersionId != null &&
-              draftBasedOnVersionId !== data.currentPublishedVersionId && (
-                <Alert
-                  variant="light"
-                  color="yellow"
-                  title="Editing based on older version"
-                  style={{ marginBottom: 'var(--mantine-spacing-md)' }}
+                <Text
+                  tt="uppercase"
+                  fz="xs"
+                  ls={1}
+                  fw={600}
+                  c="dimmed"
+                  mb="sm"
+                  style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
                 >
-                  <Text size="sm" mb="xs">
-                    You are editing based on an older version. Update to the latest published
-                    version to avoid conflicts.
-                  </Text>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconRefresh size={14} />}
-                    loading={updateToLatestLoading}
-                    onClick={() => void handleUpdateToLatest()}
-                  >
-                    Update to latest version
-                  </Button>
-                </Alert>
-              )}
-
-            {openDraftRequests.length > 0 && (
-              <Card withBorder padding="md" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
-                <Text size="sm" fw={500} mb="xs">
-                  Pending review
+                  Table of Contents
                 </Text>
-                <Stack gap="xs">
-                  {openDraftRequests.map((pr) => (
-                    <Group key={pr.id} justify="space-between" wrap="nowrap">
-                      <Text size="sm">
-                        PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
-                      </Text>
-                      {data.canPublish && (
-                        <Group gap="xs">
-                          <Button
-                            variant="light"
-                            size="compact-xs"
-                            color="green"
-                            leftSection={<IconCheck size={12} />}
-                            loading={mergingRequestId === pr.id}
-                            onClick={() => void handleMergeReject(pr.id, 'merge')}
-                          >
-                            Merge
-                          </Button>
-                          <Button
-                            variant="light"
-                            size="compact-xs"
-                            color="red"
-                            leftSection={<IconX size={12} />}
-                            loading={mergingRequestId === pr.id}
-                            onClick={() => void handleMergeReject(pr.id, 'reject')}
-                          >
-                            Reject
-                          </Button>
-                        </Group>
-                      )}
-                    </Group>
+                <Stack component="nav" gap={2}>
+                  {headings.map((h) => (
+                    <NavLink
+                      key={h.id}
+                      href={`#${h.id}`}
+                      label={h.text}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      style={{
+                        paddingLeft: `calc(var(--mantine-spacing-xs) + ${(h.level - 1) * 10}px)`,
+                        paddingTop: 'var(--mantine-spacing-xs)',
+                        paddingBottom: 'var(--mantine-spacing-xs)',
+                        paddingRight: 'var(--mantine-spacing-xs)',
+                        fontSize: h.level >= 4 ? 'var(--mantine-font-size-xs)' : undefined,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    />
                   ))}
                 </Stack>
-              </Card>
+              </Box>
             )}
 
-            <Stack gap="lg">
-              {mode === 'view' ? (
-                <Box
-                  className="document-content"
-                  style={{
-                    paddingBottom: 'var(--mantine-spacing-xl)',
-                    maxWidth: '80ch',
-                    marginLeft: 0,
-                  }}
-                >
-                  {(() => {
-                    slugCountsRef.current = {};
-                    return null;
-                  })()}
-                  <Typography>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownHeadingComponents}
+            <Box style={{ flex: 1, minWidth: 0, width: '100%' }}>
+              {data?.publishedAt &&
+                mode === 'edit' &&
+                draftBasedOnVersionId != null &&
+                data.currentPublishedVersionId != null &&
+                draftBasedOnVersionId !== data.currentPublishedVersionId && (
+                  <Alert
+                    variant="light"
+                    color="yellow"
+                    title="Editing based on older version"
+                    style={{ marginBottom: 'var(--mantine-spacing-md)' }}
+                  >
+                    <Text size="sm" mb="xs">
+                      You are editing based on an older version. Update to the latest published
+                      version to avoid conflicts.
+                    </Text>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconRefresh size={14} />}
+                      loading={updateToLatestLoading}
+                      onClick={() => void handleUpdateToLatest()}
                     >
-                      {data.content || ''}
-                    </ReactMarkdown>
-                  </Typography>
-                </Box>
-              ) : (
-                <Card withBorder padding="lg">
-                  <Tabs defaultValue="content">
-                    <Tabs.List>
-                      <Tabs.Tab value="content">Content</Tabs.Tab>
-                      <Tabs.Tab value="settings">Settings</Tabs.Tab>
-                    </Tabs.List>
-                    <Tabs.Panel value="content" pt="lg">
-                      <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
-                        <SimpleGrid
-                          cols={{ base: 1, md: 2 }}
-                          spacing="xl"
-                          style={{ alignItems: 'stretch' }}
-                        >
-                          <Box
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              height: 'max(400px, calc(100vh - 360px))',
-                            }}
-                          >
-                            <Textarea
-                              ref={editContentTextareaRef}
-                              label="Markdown"
-                              placeholder="Content (Markdown)"
-                              value={editContent}
-                              onChange={(e) => setEditContent(e.currentTarget.value)}
-                              styles={{
-                                root: {
-                                  flex: 1,
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  minHeight: 0,
-                                },
-                                input: {
-                                  fontFamily: 'monospace',
-                                  height: '100%',
-                                  minHeight: 200,
-                                  boxSizing: 'border-box',
-                                },
-                                wrapper: {
-                                  flex: 1,
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  minHeight: 0,
-                                },
-                              }}
-                            />
-                            {hasConflictMarkers && (
-                              <Alert
-                                variant="light"
-                                color="yellow"
-                                mt="sm"
-                                title="Conflict markers"
-                              >
-                                <Text size="sm">
-                                  The text contains conflict markers (
-                                  <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>,{' '}
-                                  <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot; is
-                                  your draft, &quot;Theirs&quot; is the current published version.
-                                  Resolve by editing the text (keep one version or combine), then
-                                  click &quot;Save and mark as up to date&quot;.
-                                </Text>
-                              </Alert>
-                            )}
-                          </Box>
-                          <Box
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              height: 'max(400px, calc(100vh - 360px))',
-                            }}
-                          >
-                            <Text size="sm" c="dimmed" fw={500} mb="sm">
-                              Preview
-                            </Text>
-                            <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                              <Box
-                                style={{ maxWidth: '65ch', padding: 'var(--mantine-spacing-md)' }}
-                              >
-                                <Typography>
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {editContent || ''}
-                                  </ReactMarkdown>
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </Box>
-                        </SimpleGrid>
-                      </Box>
-                    </Tabs.Panel>
-                    <Tabs.Panel value="settings" pt="lg">
-                      <Stack gap="md">
-                        <TextInput
-                          label="Title"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.currentTarget.value)}
-                          maxLength={500}
-                        />
-                        <TextInput
-                          label="Description"
-                          placeholder="Short description (optional)"
-                          value={editDescription}
-                          onChange={(e) => setEditDescription(e.currentTarget.value)}
-                          maxLength={500}
-                        />
-                        <Group align="flex-end" gap="xs">
-                          <MultiSelect
-                            label="Tags"
-                            placeholder="Select or add tags"
-                            data={tagOptions}
-                            value={editTagIds}
-                            onChange={setEditTagIds}
-                            searchable
-                            clearable
-                            style={{ flex: 1 }}
-                          />
-                          <Button variant="light" size="sm" onClick={openCreateTag}>
-                            Create tag
-                          </Button>
-                          <Button variant="subtle" size="sm" onClick={openManageTags}>
-                            Manage tags
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Tabs.Panel>
-                  </Tabs>
+                      Update to latest version
+                    </Button>
+                  </Alert>
+                )}
+
+              {openDraftRequests.length > 0 && (
+                <Card withBorder padding="md" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
+                  <Text size="sm" fw={500} mb="xs">
+                    Pending review
+                  </Text>
+                  <Stack gap="xs">
+                    {openDraftRequests.map((pr) => (
+                      <Group key={pr.id} justify="space-between" wrap="nowrap">
+                        <Text size="sm">
+                          PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
+                        </Text>
+                        {data.canPublish && (
+                          <Group gap="xs">
+                            <Button
+                              variant="light"
+                              size="compact-xs"
+                              color="green"
+                              leftSection={<IconCheck size={12} />}
+                              loading={mergingRequestId === pr.id}
+                              onClick={() => void handleMergeReject(pr.id, 'merge')}
+                            >
+                              Merge
+                            </Button>
+                            <Button
+                              variant="light"
+                              size="compact-xs"
+                              color="red"
+                              leftSection={<IconX size={12} />}
+                              loading={mergingRequestId === pr.id}
+                              onClick={() => void handleMergeReject(pr.id, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </Group>
+                        )}
+                      </Group>
+                    ))}
+                  </Stack>
                 </Card>
               )}
-            </Stack>
-          </Box>
-        </Flex>
+
+              <Stack gap="lg">
+                {mode === 'view' ? (
+                  <Card withBorder padding="lg" style={{ maxWidth: '75ch' }}>
+                    <Box
+                      className="document-content"
+                      style={{
+                        paddingBottom: 'var(--mantine-spacing-xl)',
+                        maxWidth: '100%',
+                        marginLeft: 0,
+                      }}
+                    >
+                      {(() => {
+                        slugCountsRef.current = {};
+                        return null;
+                      })()}
+                      <Typography>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownHeadingComponents}
+                        >
+                          {data.content || ''}
+                        </ReactMarkdown>
+                      </Typography>
+                    </Box>
+                  </Card>
+                ) : (
+                  <Card withBorder padding="lg">
+                    <Tabs defaultValue="content">
+                      <Tabs.List>
+                        <Tabs.Tab value="content">Content</Tabs.Tab>
+                        <Tabs.Tab value="settings">Settings</Tabs.Tab>
+                      </Tabs.List>
+                      <Tabs.Panel value="content" pt="lg">
+                        <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
+                          <SimpleGrid
+                            cols={{ base: 1, md: 2 }}
+                            spacing="xl"
+                            style={{ alignItems: 'stretch' }}
+                          >
+                            <Box
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: 'max(400px, calc(100vh - 360px))',
+                              }}
+                            >
+                              <Textarea
+                                ref={editContentTextareaRef}
+                                label="Markdown"
+                                placeholder="Content (Markdown)"
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.currentTarget.value)}
+                                styles={{
+                                  root: {
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    minHeight: 0,
+                                  },
+                                  input: {
+                                    fontFamily: 'monospace',
+                                    height: '100%',
+                                    minHeight: 200,
+                                    boxSizing: 'border-box',
+                                  },
+                                  wrapper: {
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    minHeight: 0,
+                                  },
+                                }}
+                              />
+                              {hasConflictMarkers && (
+                                <Alert
+                                  variant="light"
+                                  color="yellow"
+                                  mt="sm"
+                                  title="Conflict markers"
+                                >
+                                  <Text size="sm">
+                                    The text contains conflict markers (
+                                    <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>,{' '}
+                                    <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot; is
+                                    your draft, &quot;Theirs&quot; is the current published version.
+                                    Resolve by editing the text (keep one version or combine), then
+                                    click &quot;Save and mark as up to date&quot;.
+                                  </Text>
+                                </Alert>
+                              )}
+                            </Box>
+                            <Box
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: 'max(400px, calc(100vh - 360px))',
+                              }}
+                            >
+                              <Text size="sm" c="dimmed" fw={500} mb="sm">
+                                Preview
+                              </Text>
+                              <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                                <Box
+                                  style={{ maxWidth: '65ch', padding: 'var(--mantine-spacing-md)' }}
+                                >
+                                  <Typography>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {editContent || ''}
+                                    </ReactMarkdown>
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Box>
+                          </SimpleGrid>
+                        </Box>
+                      </Tabs.Panel>
+                      <Tabs.Panel value="settings" pt="lg">
+                        <Stack gap="md">
+                          <TextInput
+                            label="Title"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.currentTarget.value)}
+                            maxLength={500}
+                          />
+                          <TextInput
+                            label="Description"
+                            placeholder="Short description (optional)"
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.currentTarget.value)}
+                            maxLength={500}
+                          />
+                          <Group align="flex-end" gap="xs">
+                            <MultiSelect
+                              label="Tags"
+                              placeholder="Select or add tags"
+                              data={tagOptions}
+                              value={editTagIds}
+                              onChange={setEditTagIds}
+                              searchable
+                              clearable
+                              style={{ flex: 1 }}
+                            />
+                            <Button variant="light" size="sm" onClick={openCreateTag}>
+                              Create tag
+                            </Button>
+                            <Button variant="subtle" size="sm" onClick={openManageTags}>
+                              Manage tags
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </Tabs.Panel>
+                    </Tabs>
+                  </Card>
+                )}
+              </Stack>
+            </Box>
+          </Flex>
+        </Paper>
       </Container>
 
       <Modal opened={deleteOpened} onClose={closeDelete} title="Move to trash" centered>
