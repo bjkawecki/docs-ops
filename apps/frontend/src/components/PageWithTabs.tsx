@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RecentScope } from '../hooks/useRecentItems';
 import { useMe, meQueryKey } from '../hooks/useMe';
 import { apiFetch } from '../api/client';
+import type { MeResponse } from '../api/me-types';
 import { PageHeader } from './PageHeader';
 import { ScopeRecentColumn } from './ScopeRecentColumn';
 
@@ -69,7 +70,30 @@ export function PageWithTabs({
       if (!res.ok) throw new Error('Failed to save preferences');
       return res.json() as Promise<{ scopeRecentPanelOpen?: boolean }>;
     },
-    onSuccess: () => {
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: meQueryKey });
+      const previousMe = queryClient.getQueryData(meQueryKey);
+
+      // Optimistic update
+      queryClient.setQueryData(meQueryKey, (old: MeResponse | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          preferences: {
+            ...old.preferences,
+            scopeRecentPanelOpen: variables.scopeRecentPanelOpen,
+          },
+        };
+      });
+
+      return { previousMe };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousMe) {
+        queryClient.setQueryData(meQueryKey, context.previousMe);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: meQueryKey });
     },
   });

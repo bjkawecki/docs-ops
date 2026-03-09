@@ -1,5 +1,5 @@
 import './ScopeRecentColumn.css';
-import { Box, Button, Group, ScrollArea, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Group, ScrollArea, Stack, Text } from '@mantine/core';
 import { useMantineTheme } from '@mantine/core';
 import {
   IconClock,
@@ -46,6 +46,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
         alignSelf: 'stretch',
         display: 'flex',
         flexDirection: 'row',
+        transition: 'width 0.2s ease, min-width 0.2s ease',
       }}
     >
       {/* Toggle strip: left of the sidebar */}
@@ -62,21 +63,26 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
           background: 'var(--mantine-color-body)',
         }}
       >
-        <Button
-          color={primaryColor}
+        <ActionIcon
           variant="subtle"
-          size="xs"
-          p={4}
+          size="md"
           onClick={onToggle}
-          aria-label={open ? 'Collapse recently viewed' : 'Expand recently viewed'}
-          title={open ? 'Collapse' : 'Recently viewed'}
+          /* Optional: Das color Prop auf dem ActionIcon sorgt noch für den richtigen Hover-Hintergrund */
+          color={primaryColor}
         >
           {open ? (
-            <IconLayoutSidebarRightCollapse size={16} />
+            <IconLayoutSidebarRightCollapse
+              size={16}
+              /* Zwingt das SVG, die Mantine CSS Variable für die Primärfarbe zu nutzen */
+              color={`var(--mantine-color-${primaryColor}-filled)`}
+            />
           ) : (
-            <IconLayoutSidebarRightExpand size={16} />
+            <IconLayoutSidebarRightExpand
+              size={16}
+              color={`var(--mantine-color-${primaryColor}-filled)`}
+            />
           )}
-        </Button>
+        </ActionIcon>
       </Box>
       {/* Sidebar content: right of the toggle */}
       <Box
@@ -89,6 +95,8 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
           flexDirection: 'column',
           borderLeft: '1px solid var(--mantine-color-default-border)',
           background: 'var(--mantine-color-body)',
+          transition: 'width 0.2s ease, min-width 0.2s ease',
+          overflow: 'hidden',
         }}
       >
         {open ? (
