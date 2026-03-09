@@ -20,11 +20,20 @@ import {
   NewDocumentModal,
   OverviewCard,
 } from '../components/contexts';
-import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
+import { IconBriefcase, IconFileText, IconRoute, IconSitemap } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 
 type ProcessItem = { id: string; name: string; contextId: string };
 type ProjectItem = { id: string; name: string; contextId: string };
+
+type DepartmentDocItem = {
+  id: string;
+  title: string;
+  contextId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  contextName: string;
+};
 
 type DepartmentRes = { id: string; name: string; companyId?: string; company?: { id: string } };
 
@@ -100,6 +109,24 @@ export function DepartmentContextPage() {
 
   const departmentScope =
     departmentId != null ? { type: 'department' as const, id: departmentId } : null;
+
+  const departmentDocumentsParams =
+    departmentId != null
+      ? `departmentId=${departmentId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
+      : '';
+  const { data: departmentDocsRes, isPending: docsPending } = useQuery({
+    queryKey: ['catalog-documents', departmentDocumentsParams],
+    queryFn: async () => {
+      if (!departmentId) throw new Error('Missing departmentId');
+      const res = await apiFetch(
+        `/api/v1/documents?departmentId=${departmentId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
+      );
+      if (!res.ok) throw new Error('Failed to load documents');
+      return (await res.json()) as { items: DepartmentDocItem[]; total: number };
+    },
+    enabled: !!departmentId,
+  });
+
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({
       queryKey: ['processes', 'department', departmentId ?? ''],
@@ -107,6 +134,7 @@ export function DepartmentContextPage() {
     void queryClient.invalidateQueries({
       queryKey: ['projects', 'department', departmentId ?? ''],
     });
+    void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
   };
 
   const handleEditSuccess = () => {
@@ -190,6 +218,7 @@ export function DepartmentContextPage() {
   const projects = projectsData ?? [];
   const processesPreview = processes.slice(0, 5);
   const projectsPreview = projects.slice(0, 5);
+  const departmentDocs = departmentDocsRes?.items ?? [];
 
   const overviewPanel = (
     <Stack gap="md">
@@ -245,9 +274,23 @@ export function DepartmentContextPage() {
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
           onViewMore={() => setActiveTab('documents')}
         >
-          <Text size="sm" c="dimmed">
-            Documents – content to follow.
-          </Text>
+          {departmentDocs.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No documents yet.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {departmentDocs.slice(0, 5).map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/documents/${d.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                >
+                  {d.title || d.id}
+                </Link>
+              ))}
+            </Stack>
+          )}
         </OverviewCard>
         {canWrite && (
           <DraftsCard
@@ -328,11 +371,37 @@ export function DepartmentContextPage() {
   );
 
   const documentsPanel = (
-    <Card withBorder padding="md">
-      <Text size="sm" c="dimmed">
-        Documents – content to follow.
-      </Text>
-    </Card>
+    <Stack gap="md">
+      {docsPending ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            Loading documents…
+          </Text>
+        </Card>
+      ) : departmentDocs.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No documents in this department yet. Create a process or project and add documents, or
+            publish drafts from the Drafts tab.
+          </Text>
+        </Card>
+      ) : (
+        <Stack gap="xs">
+          {departmentDocs.map((d) => (
+            <Card key={d.id} withBorder padding="sm" component={Link} to={`/documents/${d.id}`}>
+              <Text fw={500} size="sm">
+                {d.title || d.id}
+              </Text>
+              {d.contextName ? (
+                <Text size="xs" c="dimmed" mt={4}>
+                  {d.contextName}
+                </Text>
+              ) : null}
+            </Card>
+          ))}
+        </Stack>
+      )}
+    </Stack>
   );
 
   if (!departmentId) return null;
@@ -353,6 +422,7 @@ export function DepartmentContextPage() {
     <Box>
       <PageWithTabs
         title={department.name}
+        titleIcon={<IconSitemap size={28} style={{ flexShrink: 0 }} aria-hidden />}
         description="Contexts and content for the department."
         actions={
           departmentId && canManage ? (

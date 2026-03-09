@@ -20,7 +20,7 @@ import {
   NewDocumentModal,
   OverviewCard,
 } from '../components/contexts';
-import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
+import { IconBriefcase, IconFileText, IconRoute, IconUsersGroup } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 
 type ProcessItem = { id: string; name: string; contextId: string };
@@ -31,6 +31,15 @@ type TeamRes = {
   name: string;
   departmentId?: string;
   department?: { id: string; companyId?: string; company?: { id: string } };
+};
+
+type TeamDocItem = {
+  id: string;
+  title: string;
+  contextId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  contextName: string;
 };
 
 type EditTarget = { id: string; name: string; type: 'process' | 'project' };
@@ -110,9 +119,27 @@ export function TeamContextPage() {
 
   const teamScope = teamId != null ? { type: 'team' as const, id: teamId } : null;
 
+  const teamDocumentsParams =
+    teamId != null ? `teamId=${teamId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc` : '';
+  const { data: teamDocsRes, isPending: docsPending } = useQuery({
+    queryKey: ['catalog-documents', teamDocumentsParams],
+    queryFn: async () => {
+      if (!teamId) throw new Error('Missing teamId');
+      const res = await apiFetch(
+        `/api/v1/documents?teamId=${teamId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
+      );
+      if (!res.ok) throw new Error('Failed to load documents');
+      return (await res.json()) as { items: TeamDocItem[]; total: number };
+    },
+    enabled: !!teamId,
+  });
+
+  const teamDocs = teamDocsRes?.items ?? [];
+
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({ queryKey: ['processes', 'team', teamId ?? ''] });
     void queryClient.invalidateQueries({ queryKey: ['projects', 'team', teamId ?? ''] });
+    void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
   };
 
   const handleEditSuccess = () => {
@@ -136,6 +163,7 @@ export function TeamContextPage() {
       invalidateContexts();
       void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
       void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
+      setActiveTab('overview');
       notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
     } else {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -252,9 +280,23 @@ export function TeamContextPage() {
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
           onViewMore={() => setActiveTab('documents')}
         >
-          <Text size="sm" c="dimmed">
-            Documents – content to follow.
-          </Text>
+          {teamDocs.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No documents yet.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {teamDocs.slice(0, 5).map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/documents/${d.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                >
+                  {d.title || d.id}
+                </Link>
+              ))}
+            </Stack>
+          )}
         </OverviewCard>
         {canWrite && (
           <DraftsCard
@@ -335,11 +377,37 @@ export function TeamContextPage() {
   );
 
   const documentsPanel = (
-    <Card withBorder padding="md">
-      <Text size="sm" c="dimmed">
-        Documents – content to follow.
-      </Text>
-    </Card>
+    <Stack gap="md">
+      {docsPending ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            Loading documents…
+          </Text>
+        </Card>
+      ) : teamDocs.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No documents in this team yet. Create a process or project and add documents, or publish
+            drafts from the Drafts tab.
+          </Text>
+        </Card>
+      ) : (
+        <Stack gap="xs">
+          {teamDocs.map((d) => (
+            <Card key={d.id} withBorder padding="sm" component={Link} to={`/documents/${d.id}`}>
+              <Text fw={500} size="sm">
+                {d.title || d.id}
+              </Text>
+              {d.contextName ? (
+                <Text size="xs" c="dimmed" mt={4}>
+                  {d.contextName}
+                </Text>
+              ) : null}
+            </Card>
+          ))}
+        </Stack>
+      )}
+    </Stack>
   );
 
   if (!teamId) return null;
@@ -360,6 +428,7 @@ export function TeamContextPage() {
     <Box>
       <PageWithTabs
         title={team.name}
+        titleIcon={<IconUsersGroup size={28} style={{ flexShrink: 0 }} aria-hidden />}
         description="Contexts and content for the team."
         actions={
           teamId && canManage ? (

@@ -115,6 +115,7 @@ export function PersonalPage() {
       invalidateContexts();
       void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
       void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
+      setActiveTab('overview');
       notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
     } else {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -132,6 +133,7 @@ export function PersonalPage() {
         invalidateContexts();
         void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         setDeleteTarget(null);
+        setActiveTab('overview');
         notifications.show({
           title: 'Moved to trash',
           message: 'Context can be restored from the Trash tab.',

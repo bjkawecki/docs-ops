@@ -155,3 +155,13 @@ export const meCanWriteInScopeResponseSchema = z.object({
   canWrite: z.boolean(),
 });
 export type MeCanWriteInScopeResponse = z.infer<typeof meCanWriteInScopeResponseSchema>;
+
+/** Unified trash/archive item for table (type, displayTitle, date). Used by GET /me/trash and GET /me/archive. */
+export type MeTrashArchiveItem = {
+  type: 'document' | 'process' | 'project';
+  id: string;
+  displayTitle: string;
+  contextName: string;
+  deletedAt?: string;
+  archivedAt?: string;
+};

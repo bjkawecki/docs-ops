@@ -50,7 +50,7 @@ export function SettingsGeneralTab() {
 
   // Sync Mantine scheme to stored preference when preferences load (fixes selector vs layout mismatch)
   useEffect(() => {
-    const preferred = data?.preferences?.theme ?? 'light';
+    const preferred = data?.preferences?.theme ?? 'auto';
     setColorScheme(preferred);
   }, [data?.preferences?.theme, setColorScheme]);
 
@@ -170,7 +170,7 @@ export function SettingsGeneralTab() {
   }
 
   const { user, identity, preferences } = data;
-  const theme = preferences?.theme ?? 'light';
+  const theme = preferences?.theme ?? 'auto';
   const sidebarPinned = preferences?.sidebarPinned ?? false;
   const primaryColor: PrimaryColorPreset = preferences?.primaryColor ?? 'blue';
   const locale = preferences?.locale ?? 'en';

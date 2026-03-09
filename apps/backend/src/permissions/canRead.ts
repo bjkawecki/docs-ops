@@ -1,5 +1,6 @@
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { GrantRole } from '../../generated/prisma/client.js';
+import { canViewCompany, canViewDepartment, canViewTeam } from './assignmentPermissions.js';
 import { DOCUMENT_FOR_PERMISSION_INCLUDE, type DocumentForPermission } from './documentLoad.js';
 
 /** User mit Relationen für Rechteprüfung (canRead/canWrite). */
@@ -165,5 +166,32 @@ export async function canRead(
   )
     return true;
 
+  return false;
+}
+
+/**
+ * Whether the user can see this document in trash (any scope: personal, company, department, team).
+ * Used to allow opening trashed documents for read-only view / restore.
+ */
+export async function canSeeDocumentInTrash(
+  prisma: PrismaClient,
+  userId: string,
+  doc: DocumentForPermission & { deletedAt: Date | null }
+): Promise<boolean> {
+  if (doc.deletedAt == null) return false;
+  const owner =
+    doc.context?.process?.owner ??
+    doc.context?.project?.owner ??
+    doc.context?.subcontext?.project?.owner ??
+    null;
+  if (!owner) {
+    return doc.createdById === userId;
+  }
+  if (owner.ownerUserId === userId) return true;
+  if (owner.companyId != null && (await canViewCompany(prisma, userId, owner.companyId)))
+    return true;
+  if (owner.departmentId != null && (await canViewDepartment(prisma, userId, owner.departmentId)))
+    return true;
+  if (owner.teamId != null && (await canViewTeam(prisma, userId, owner.teamId))) return true;
   return false;
 }

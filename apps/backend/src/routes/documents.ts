@@ -14,6 +14,7 @@ import {
   canMergeDraftRequest,
   DOCUMENT_FOR_PERMISSION_INCLUDE,
 } from '../permissions/index.js';
+import { canSeeDocumentInTrash } from '../permissions/canRead.js';
 import {
   canReadContext,
   canWriteContext,
@@ -102,12 +103,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         ? [{ id: { in: writableDocumentIdsFromCreator } }]
         : []),
     ];
-    const baseWhere: Record<string, unknown> = {
-      deletedAt: null,
-      archivedAt: null,
-      AND: [{ OR: readableOr }, { OR: draftVisibleOr }],
-    };
-
+    const scopeFilter = query.companyId ?? query.departmentId ?? query.teamId;
     const contextConditions: Record<string, unknown>[] = [];
     if (query.contextType === 'process') {
       contextConditions.push({ process: { isNot: null } });
@@ -141,9 +137,26 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         ],
       });
     }
-    if (contextConditions.length > 0) {
-      baseWhere.context =
-        contextConditions.length === 1 ? contextConditions[0] : { AND: contextConditions };
+    const scopeContextCond =
+      contextConditions.length === 1 ? contextConditions[0] : { AND: contextConditions };
+    const baseAnd: unknown[] = [
+      { OR: readableOr },
+      scopeFilter != null
+        ? {
+            OR: [
+              { publishedAt: { not: null }, context: scopeContextCond },
+              { contextId: null, createdById: userId },
+            ],
+          }
+        : { OR: draftVisibleOr },
+    ];
+    const baseWhere: Record<string, unknown> = {
+      deletedAt: null,
+      archivedAt: null,
+      AND: baseAnd,
+    };
+    if (contextConditions.length > 0 && scopeFilter == null) {
+      baseWhere.context = scopeContextCond;
     }
 
     if (query.tagIds.length > 0) {
@@ -361,8 +374,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const { documentId } = documentIdParamSchema.parse(request.params);
+      // Allow trashed documents when user has trash read access (enforced by preHandler).
       const doc = await prisma.document.findFirst({
-        where: { id: documentId, deletedAt: null },
+        where: { id: documentId },
         select: { pdfUrl: true },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
@@ -469,7 +483,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** GET Einzeldokument – nur wenn deletedAt null. Liefert canWrite/canDelete für UI. */
+  /** GET Einzeldokument. Erlaubt auch gelöschte (Trash), wenn Nutzer sie im Trash sehen darf. */
   app.get<{
     Params: { documentId: string };
   }>(
@@ -482,7 +496,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const doc = await prisma.document.findFirst({
-        where: { id: documentId, deletedAt: null },
+        where: { id: documentId },
         include: {
           ...DOCUMENT_FOR_PERMISSION_INCLUDE,
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
@@ -493,7 +507,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      if (doc.publishedAt == null) {
+      const isTrashed = doc.deletedAt != null;
+      if (!isTrashed && doc.publishedAt == null) {
         const writeAllowedForDraft = await canWrite(prisma, userId, doc);
         if (!writeAllowedForDraft) {
           return reply
@@ -502,9 +517,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         }
       }
       const [writeAllowed, deleteAllowed, canPublish] = await Promise.all([
-        canWrite(prisma, userId, doc),
+        isTrashed ? Promise.resolve(false) : canWrite(prisma, userId, doc),
         canDeleteDocument(prisma, userId, documentId),
-        canPublishDocument(prisma, userId, documentId),
+        isTrashed ? Promise.resolve(false) : canPublishDocument(prisma, userId, documentId),
       ]);
       const ctx = doc.context;
       const owner =
@@ -573,6 +588,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextId: doc.contextId,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
+        deletedAt: doc.deletedAt?.toISOString() ?? null,
         publishedAt: doc.publishedAt,
         currentPublishedVersionId: doc.currentPublishedVersionId ?? null,
         description: doc.description,
@@ -661,8 +677,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const prisma = request.server.prisma;
       const { documentId } = documentIdParamSchema.parse(request.params);
 
+      // Allow trashed documents when user has trash read access (enforced by preHandler).
       const doc = await prisma.document.findUnique({
-        where: { id: documentId, deletedAt: null },
+        where: { id: documentId },
         select: { id: true },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
@@ -915,8 +932,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const query = draftRequestsQuerySchema.parse(request.query ?? {});
 
+      // Allow trashed documents when user has trash read access (enforced by preHandler).
       const doc = await prisma.document.findUnique({
-        where: { id: documentId, deletedAt: null },
+        where: { id: documentId },
         select: { id: true },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
@@ -1071,6 +1089,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       ]);
       if (!readAllowed) return reply.status(403).send({ error: 'No access to this context' });
 
+      /** Writers see all documents (drafts + published); readers only published, so published drafts appear under Documents. */
       const documentWhere = {
         contextId,
         deletedAt: null,
@@ -1360,13 +1379,15 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const doc = await prisma.document.findUnique({
         where: { id: documentId },
-        select: { id: true, deletedAt: true, contextId: true },
+        include: DOCUMENT_FOR_PERMISSION_INCLUDE,
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
       if (doc.deletedAt == null) {
         return reply.status(400).send({ error: 'Not in trash' });
       }
-      const allowed = await canDeleteDocument(prisma, userId, documentId);
+      const allowed =
+        (await canDeleteDocument(prisma, userId, documentId)) ||
+        (await canSeeDocumentInTrash(prisma, userId, doc));
       if (!allowed) {
         return reply.status(403).send({ error: 'Permission denied to restore this document' });
       }

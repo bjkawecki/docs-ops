@@ -27,3 +27,5 @@ export {
   getVisiblePinnedScopeIds,
   type VisiblePinnedScopes,
 } from './pinnedPermissions.js';
+export { getContextIdsForScope, type ScopeRef } from './scopeResolution.js';
+export { getScopeLead } from './scopeLead.js';

@@ -183,10 +183,31 @@ export async function canWriteContext(
   if (departmentId) {
     const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
     if (isDeptLead) return true;
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { companyId: true },
+    });
+    if (department?.companyId) {
+      const isCompanyLead = user.companyLeads.some((c) => c.companyId === department.companyId);
+      if (isCompanyLead) return true;
+    }
   }
   if (teamId) {
     const isTeamLead = user.leadOfTeams.some((l) => l.teamId === teamId);
     if (isTeamLead) return true;
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { department: { select: { id: true, companyId: true } } },
+    });
+    if (team?.department) {
+      const dept = team.department;
+      const isDeptLead = user.departmentLeads.some((d) => d.departmentId === dept.id);
+      if (isDeptLead) return true;
+      if (dept.companyId) {
+        const isCompanyLead = user.companyLeads.some((c) => c.companyId === dept.companyId);
+        if (isCompanyLead) return true;
+      }
+    }
   }
   return false;
 }

@@ -151,6 +151,7 @@ export function TrashTabContent({ scope, companyId, departmentId, teamId }: Tras
       void queryClient.invalidateQueries({ queryKey: ['me', 'personal-documents'] });
       void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
       void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+      void queryClient.invalidateQueries({ queryKey: ['contexts'] });
       void queryClient.invalidateQueries({ queryKey: ['processes'] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
       notifications.show({ title: 'Restored', message: 'Item was restored.', color: 'green' });

@@ -20,13 +20,27 @@ import {
   NewDocumentModal,
   OverviewCard,
 } from '../components/contexts';
-import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
+import {
+  IconBriefcase,
+  IconBuildingSkyscraper,
+  IconFileText,
+  IconRoute,
+} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 
 type ProcessItem = { id: string; name: string; contextId: string };
 type ProjectItem = { id: string; name: string; contextId: string };
 
 type CompanyRes = { id: string; name: string };
+
+type CompanyDocItem = {
+  id: string;
+  title: string;
+  contextId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  contextName: string;
+};
 
 type EditTarget = { id: string; name: string; type: 'process' | 'project' };
 type DeleteTarget = { id: string; type: 'process' | 'project' };
@@ -99,9 +113,23 @@ export function CompanyPage() {
     enabled: effectiveCompanyId != null,
   });
 
+  const companyDocumentsParams = `companyId=${effectiveCompanyId ?? ''}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`;
+  const { data: companyDocsRes, isPending: docsPending } = useQuery({
+    queryKey: ['catalog-documents', companyDocumentsParams],
+    queryFn: async () => {
+      const res = await apiFetch(
+        `/api/v1/documents?companyId=${effectiveCompanyId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
+      );
+      if (!res.ok) throw new Error('Failed to load documents');
+      return (await res.json()) as { items: CompanyDocItem[]; total: number };
+    },
+    enabled: effectiveCompanyId != null,
+  });
+
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({ queryKey: ['processes', effectiveCompanyId ?? ''] });
     void queryClient.invalidateQueries({ queryKey: ['projects', effectiveCompanyId ?? ''] });
+    void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
   };
 
   const handleEditSuccess = () => {
@@ -189,6 +217,8 @@ export function CompanyPage() {
   const projects = projectsData ?? [];
   const processesPreview = processes.slice(0, 5);
   const projectsPreview = projects.slice(0, 5);
+  const companyDocs = companyDocsRes?.items ?? [];
+  const docsPreview = companyDocs.slice(0, 5);
 
   const overviewPanel = (
     <Stack gap="md">
@@ -252,9 +282,31 @@ export function CompanyPage() {
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
           onViewMore={() => setActiveTab('documents')}
         >
-          <Text size="sm" c="dimmed">
-            Documents – content to follow.
-          </Text>
+          {effectiveCompanyId == null ? (
+            <Text size="sm" c="dimmed">
+              No company selected.
+            </Text>
+          ) : docsPending ? (
+            <Text size="sm" c="dimmed">
+              Loading documents…
+            </Text>
+          ) : docsPreview.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No documents yet.
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {docsPreview.map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/documents/${d.id}`}
+                  style={{ fontSize: 'var(--mantine-font-size-sm)' }}
+                >
+                  {d.title || d.id}
+                </Link>
+              ))}
+            </Stack>
+          )}
         </OverviewCard>
         {effectiveCompanyId != null && (
           <DraftsCard
@@ -346,11 +398,43 @@ export function CompanyPage() {
   );
 
   const documentsPanel = (
-    <Card withBorder padding="md">
-      <Text size="sm" c="dimmed">
-        Documents – content to follow.
-      </Text>
-    </Card>
+    <Stack gap="md">
+      {effectiveCompanyId == null ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No company selected.
+          </Text>
+        </Card>
+      ) : docsPending ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            Loading documents…
+          </Text>
+        </Card>
+      ) : companyDocs.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No documents in this company yet. Create a process or project and add documents, or
+            publish drafts from the Drafts tab.
+          </Text>
+        </Card>
+      ) : (
+        <Stack gap="xs">
+          {companyDocs.map((d) => (
+            <Card key={d.id} withBorder padding="sm" component={Link} to={`/documents/${d.id}`}>
+              <Text fw={500} size="sm">
+                {d.title || d.id}
+              </Text>
+              {d.contextName ? (
+                <Text size="xs" c="dimmed" mt={4}>
+                  {d.contextName}
+                </Text>
+              ) : null}
+            </Card>
+          ))}
+        </Stack>
+      )}
+    </Stack>
   );
 
   if (effectiveCompanyId != null && mePending)
@@ -364,6 +448,7 @@ export function CompanyPage() {
     <Box>
       <PageWithTabs
         title={company?.name ?? 'Company'}
+        titleIcon={<IconBuildingSkyscraper size={28} style={{ flexShrink: 0 }} aria-hidden />}
         description="Contexts and content for the company."
         actions={
           effectiveCompanyId && canManage ? (

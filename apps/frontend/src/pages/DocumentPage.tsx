@@ -25,6 +25,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './DocumentContent.css';
 import { apiFetch } from '../api/client';
+import { meQueryKey } from '../hooks/useMe';
 import { PageHeader } from '../components/PageHeader';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import type { RecentScope } from '../hooks/useRecentItems';
@@ -333,6 +334,10 @@ export function DocumentPage() {
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
         void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+        if (data?.contextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', data.contextId, 'documents'],
+          });
         void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         closeDelete();
         notifications.show({
@@ -340,7 +345,9 @@ export function DocumentPage() {
           message: 'Document can be restored from the Trash tab.',
           color: 'green',
         });
-        void navigate('/catalog', { replace: true });
+        const scope = data?.scope;
+        const target = scope != null ? scopeToUrl(scope) : '/catalog';
+        void navigate(target, { replace: true });
       } else {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
@@ -367,11 +374,18 @@ export function DocumentPage() {
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+        if (data?.contextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', data.contextId, 'documents'],
+          });
         notifications.show({
           title: 'Archived',
           message: 'Document was archived.',
           color: 'green',
         });
+        const scope = data?.scope;
+        const target = scope != null ? scopeToUrl(scope) : '/catalog';
+        void navigate(target, { replace: true });
       } else {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
@@ -398,6 +412,10 @@ export function DocumentPage() {
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+        if (data?.contextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', data.contextId, 'documents'],
+          });
         notifications.show({
           title: 'Unarchived',
           message: 'Document was restored to active.',
@@ -457,6 +475,10 @@ export function DocumentPage() {
           void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
           void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
           void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+          if (data?.contextId)
+            void queryClient.invalidateQueries({
+              queryKey: ['contexts', data.contextId, 'documents'],
+            });
           setMode('view');
           notifications.show({
             title: 'Saved',
@@ -532,6 +554,16 @@ export function DocumentPage() {
       if (res.ok) {
         void queryClient.invalidateQueries({ queryKey: ['document-draft-requests', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        if (action === 'merge') {
+          void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+          void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+          if (data?.contextId)
+            void queryClient.invalidateQueries({
+              queryKey: ['contexts', data.contextId, 'documents'],
+            });
+          void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
+          void queryClient.invalidateQueries({ queryKey: [...meQueryKey, 'personal-documents'] });
+        }
         notifications.show({
           title: action === 'merge' ? 'Merged' : 'Rejected',
           message: `Draft request ${action === 'merge' ? 'merged' : 'rejected'}.`,
@@ -561,6 +593,12 @@ export function DocumentPage() {
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
         void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+        if (data?.contextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', data.contextId, 'documents'],
+          });
+        void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
+        void queryClient.invalidateQueries({ queryKey: [...meQueryKey, 'personal-documents'] });
         notifications.show({
           title: 'Published',
           message: 'Document was published.',
@@ -590,6 +628,14 @@ export function DocumentPage() {
       });
       if (res.ok) {
         closeAssignContext();
+        if (data?.contextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', data.contextId, 'documents'],
+          });
+        if (assignContextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', assignContextId, 'documents'],
+          });
         setAssignContextId(null);
         void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });

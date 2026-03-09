@@ -42,7 +42,7 @@ export function ThemeFromPreferences({ children }: { children: ReactNode }) {
     return null;
   }
 
-  const colorScheme = preferences.theme ?? 'light';
+  const colorScheme = preferences.theme ?? 'auto';
 
   return (
     <MantineProvider

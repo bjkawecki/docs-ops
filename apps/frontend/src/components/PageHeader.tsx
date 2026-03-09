@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 
 interface PageHeaderProps {
   title: string;
+  /** Optional icon shown before the title (e.g. scope icon on Company/Department/Team pages). */
+  titleIcon?: ReactNode;
   description?: string;
   /** Optional metadata row (e.g. scope, parent, published, author) rendered under title. */
   metadata?: ReactNode;
@@ -13,6 +15,7 @@ interface PageHeaderProps {
 
 export function PageHeader({
   title,
+  titleIcon,
   description,
   metadata,
   actions,
@@ -22,7 +25,14 @@ export function PageHeader({
     <Stack gap="md" mb="xl">
       {breadcrumbs != null && breadcrumbs}
       <Group justify="space-between" align="flex-start">
-        <Title order={2}>{title}</Title>
+        {titleIcon != null ? (
+          <Group gap="xs" wrap="nowrap">
+            {titleIcon}
+            <Title order={2}>{title}</Title>
+          </Group>
+        ) : (
+          <Title order={2}>{title}</Title>
+        )}
         {actions}
       </Group>
       {description != null && (

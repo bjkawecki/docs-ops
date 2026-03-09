@@ -26,13 +26,13 @@ const colorSchemeManager = localStorageColorSchemeManager({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ColorSchemeScript defaultColorScheme="light" localStorageKey={COLOR_SCHEME_STORAGE_KEY} />
+    <ColorSchemeScript defaultColorScheme="auto" localStorageKey={COLOR_SCHEME_STORAGE_KEY} />
     <QueryClientProvider client={queryClient}>
       <MantineProvider
         theme={appTheme}
         cssVariablesResolver={appCssVariablesResolver}
         colorSchemeManager={colorSchemeManager}
-        defaultColorScheme="light"
+        defaultColorScheme="auto"
       >
         <Notifications position="bottom-right" />
         <BrowserRouter>

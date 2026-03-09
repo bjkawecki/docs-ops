@@ -14,6 +14,8 @@ export interface TabItem {
 
 export interface PageWithTabsProps {
   title: string;
+  /** Optional icon shown before the page title (e.g. scope icon). */
+  titleIcon?: ReactNode;
   description?: string;
   actions?: ReactNode;
   /** Tabs to show under the header. Default: single "Overview" tab. */
@@ -34,6 +36,7 @@ const defaultTabs: TabItem[] = [{ value: 'overview', label: 'Overview' }];
 
 export function PageWithTabs({
   title,
+  titleIcon,
   description,
   actions,
   tabs = defaultTabs,
@@ -75,7 +78,7 @@ export function PageWithTabs({
 
   return (
     <>
-      <PageHeader title={title} description={description} actions={actions} />
+      <PageHeader title={title} titleIcon={titleIcon} description={description} actions={actions} />
       <Tabs
         {...(isControlled
           ? { value: activeTab, onChange: (v) => onTabChange(v ?? defaultVal) }

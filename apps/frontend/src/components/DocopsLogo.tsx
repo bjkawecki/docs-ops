@@ -1,4 +1,5 @@
-import { useMantineColorScheme, useMantineTheme } from '@mantine/core';
+import { useMantineTheme } from '@mantine/core';
+import { useResolvedColorScheme } from '../hooks/useResolvedColorScheme';
 
 /** Secondary (document shapes): contrast to background, not theme-driven */
 const LOGO_SECONDARY = {
@@ -17,18 +18,19 @@ interface DocopsLogoProps {
 /**
  * DocsOps logo as inline SVG. Primary (accent) uses theme primary color;
  * secondary (document shapes) uses contrast color for light/dark.
+ * Uses resolved scheme so "auto" follows system (dark → light doc color).
  */
 export function DocopsLogo({ width = 40, height = 40, style, className }: DocopsLogoProps) {
-  const { colorScheme } = useMantineColorScheme();
+  const resolvedScheme = useResolvedColorScheme();
   const theme = useMantineTheme();
   const shade =
     typeof theme.primaryShade === 'number'
       ? theme.primaryShade
-      : colorScheme === 'dark'
+      : resolvedScheme === 'dark'
         ? theme.primaryShade.dark
         : theme.primaryShade.light;
   const primary = theme.colors[theme.primaryColor]?.[shade] ?? theme.colors.blue?.[4] ?? '#5e82ff';
-  const secondary = LOGO_SECONDARY[colorScheme === 'dark' ? 'dark' : 'light'];
+  const secondary = LOGO_SECONDARY[resolvedScheme];
 
   return (
     <svg

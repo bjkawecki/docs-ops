@@ -18,16 +18,37 @@ import {
   meArchiveQuerySchema,
   meCanWriteInScopeQuerySchema,
   type MeDraftsQuery,
+  type MeTrashArchiveItem,
 } from './schemas/me.js';
+export type { MeTrashArchiveItem } from './schemas/me.js';
 import { canPinForScope } from '../permissions/pinnedPermissions.js';
-import { canViewCompany, canViewDepartment } from '../permissions/assignmentPermissions.js';
 import { paginationQuerySchema, type PaginationQuery } from './schemas/organisation.js';
 import {
   getReadableCatalogScope,
   getWritableCatalogScope,
 } from '../permissions/catalogPermissions.js';
+import { getContextIdsForScope, type ScopeRef } from '../permissions/scopeResolution.js';
+import { getScopeLead } from '../permissions/scopeLead.js';
+import {
+  getTrashOrArchiveItems,
+  contextNameFromDoc,
+  trashArchiveContextSelect,
+} from './meTrashArchive.js';
 import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
 import type { PrismaClient } from '../../generated/prisma/client.js';
+
+function scopeRefFromQuery(q: {
+  scope: string;
+  companyId?: string | null;
+  departmentId?: string | null;
+  teamId?: string | null;
+}): ScopeRef | null {
+  if (q.scope === 'company' && q.companyId) return { type: 'company', companyId: q.companyId };
+  if (q.scope === 'department' && q.departmentId)
+    return { type: 'department', departmentId: q.departmentId };
+  if (q.scope === 'team' && q.teamId) return { type: 'team', teamId: q.teamId };
+  return null;
+}
 
 /** Ein Eintrag in „Zuletzt angesehene“ (process/project/document). */
 export type RecentPreferencesItem = {
@@ -188,90 +209,6 @@ async function getDraftsScope(
   return { scopeContextIds, scopeDocumentIds: [] };
 }
 
-/** All context IDs belonging to a company (process + project + subcontext). */
-async function getCompanyContextIds(prisma: PrismaClient, companyId: string): Promise<string[]> {
-  const [processContexts, projectContexts] = await Promise.all([
-    prisma.process.findMany({
-      where: { owner: { companyId } },
-      select: { contextId: true },
-    }),
-    prisma.project.findMany({
-      where: { owner: { companyId } },
-      select: { contextId: true },
-      include: { subcontexts: { select: { contextId: true } } },
-    }),
-  ]);
-  return [
-    ...processContexts.map((p) => p.contextId),
-    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
-  ];
-}
-
-/** All context IDs belonging to a department (process + project + subcontext). */
-async function getDepartmentContextIds(
-  prisma: PrismaClient,
-  departmentId: string
-): Promise<string[]> {
-  const [processContexts, projectContexts] = await Promise.all([
-    prisma.process.findMany({
-      where: { owner: { departmentId } },
-      select: { contextId: true },
-    }),
-    prisma.project.findMany({
-      where: { owner: { departmentId } },
-      select: { contextId: true },
-      include: { subcontexts: { select: { contextId: true } } },
-    }),
-  ]);
-  return [
-    ...processContexts.map((p) => p.contextId),
-    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
-  ];
-}
-
-/** All context IDs belonging to a team (process + project + subcontext). */
-async function getTeamContextIds(prisma: PrismaClient, teamId: string): Promise<string[]> {
-  const [processContexts, projectContexts] = await Promise.all([
-    prisma.process.findMany({
-      where: { owner: { teamId } },
-      select: { contextId: true },
-    }),
-    prisma.project.findMany({
-      where: { owner: { teamId } },
-      select: { contextId: true },
-      include: { subcontexts: { select: { contextId: true } } },
-    }),
-  ]);
-  return [
-    ...processContexts.map((p) => p.contextId),
-    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
-  ];
-}
-
-/** Unified trash/archive item for table (type, displayTitle, date). */
-export type MeTrashArchiveItem = {
-  type: 'document' | 'process' | 'project';
-  id: string;
-  displayTitle: string;
-  contextName: string;
-  deletedAt?: string;
-  archivedAt?: string;
-};
-
-function contextNameFromDoc(doc: {
-  context?: {
-    process: { name: string } | null;
-    project: { name: string } | null;
-    subcontext: { name: string } | null;
-  } | null;
-}): string {
-  if (!doc.context) return 'No context';
-  if (doc.context.process) return doc.context.process.name;
-  if (doc.context.project) return doc.context.project.name;
-  if (doc.context.subcontext) return doc.context.subcontext.name;
-  return 'No context';
-}
-
 /** Ein Team-Eintrag in der Identity (mit Rolle). */
 export type MeIdentityTeam = {
   teamId: string;
@@ -399,7 +336,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     return reply.send(response);
   });
 
-  /** GET /api/v1/me/personal-documents – Documents in the user's personal processes/projects (paginated). */
+  /** GET /api/v1/me/personal-documents – Documents in the user's personal processes/projects (paginated). Includes both drafts and published. */
   app.get(
     '/me/personal-documents',
     { preHandler: requireAuthPreHandler },
@@ -474,16 +411,6 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const query = meTrashQuerySchema.parse(request.query);
 
-    const contextInclude = {
-      context: {
-        include: {
-          process: { select: { name: true } },
-          project: { select: { name: true } },
-          subcontext: { select: { name: true } },
-        },
-      },
-    };
-
     const allItems: MeTrashArchiveItem[] = [];
 
     if (query.scope === 'personal') {
@@ -502,7 +429,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             id: true,
             title: true,
             deletedAt: true,
-            ...contextInclude,
+            ...trashArchiveContextSelect,
           },
         }),
         prisma.process.findMany({
@@ -541,313 +468,19 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           deletedAt: p.deletedAt?.toISOString() ?? '',
         });
       }
-    } else if (query.scope === 'company') {
-      const companyId = query.companyId!;
-      const [writable, companyLead, trashedProcs, trashedProjs, allCompanyContextIdsRows] =
-        await Promise.all([
-          getWritableCatalogScope(prisma, userId),
-          canViewCompany(prisma, userId, companyId),
-          prisma.process.findMany({
-            where: { deletedAt: { not: null }, owner: { companyId } },
-            select: { id: true, name: true, contextId: true, deletedAt: true },
-          }),
-          prisma.project.findMany({
-            where: { deletedAt: { not: null }, owner: { companyId } },
-            select: { id: true, name: true, contextId: true, deletedAt: true },
-          }),
-          Promise.all([
-            prisma.process.findMany({
-              where: { owner: { companyId } },
-              select: { contextId: true },
-            }),
-            prisma.project.findMany({
-              where: { owner: { companyId } },
-              select: { contextId: true },
-              include: { subcontexts: { select: { contextId: true } } },
-            }),
-          ]),
-        ]);
-      const companyContextIds = [
-        ...allCompanyContextIdsRows[0].map((p) => p.contextId),
-        ...allCompanyContextIdsRows[1].flatMap((p) => [
-          p.contextId,
-          ...p.subcontexts.map((s) => s.contextId),
-        ]),
-      ];
-      const writableCtxSet = new Set(writable.contextIds);
-      const writableDocSet = new Set(writable.documentIdsFromGrants);
-
-      const hasContextAccess =
-        trashedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
-        trashedProjs.some((p) => writableCtxSet.has(p.contextId));
-      const trashedDocIds =
-        companyContextIds.length > 0
-          ? await prisma.document
-              .findMany({
-                where: { deletedAt: { not: null }, contextId: { in: companyContextIds } },
-                select: { id: true },
-              })
-              .then((r) => r.map((d) => d.id))
-          : [];
-      const hasDocAccess = companyLead || trashedDocIds.some((id) => writableDocSet.has(id));
-      if (!companyLead && !hasContextAccess && !hasDocAccess) {
+    } else {
+      // Schema guarantees companyId/departmentId/teamId when scope is company/department/team
+      const scopeRef: ScopeRef =
+        query.scope === 'company'
+          ? { type: 'company', companyId: query.companyId! }
+          : query.scope === 'department'
+            ? { type: 'department', departmentId: query.departmentId! }
+            : { type: 'team', teamId: query.teamId! };
+      const result = await getTrashOrArchiveItems(prisma, userId, scopeRef, 'trash');
+      if ('emptyReason' in result) {
         return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
       }
-
-      for (const p of trashedProcs) {
-        if (companyLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'process',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            deletedAt: p.deletedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      for (const p of trashedProjs) {
-        if (companyLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'project',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            deletedAt: p.deletedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      const writableDocIds = [...writableDocSet];
-      const trashedDocs = await prisma.document.findMany({
-        where: {
-          deletedAt: { not: null },
-          ...(companyLead
-            ? companyContextIds.length > 0
-              ? { contextId: { in: companyContextIds } }
-              : { id: { in: [] } }
-            : {
-                OR: [
-                  ...(companyContextIds.length > 0
-                    ? [{ contextId: { in: companyContextIds } }]
-                    : []),
-                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
-                ].filter(Boolean),
-              }),
-        },
-        select: { id: true, title: true, contextId: true, deletedAt: true, ...contextInclude },
-      });
-      for (const d of trashedDocs) {
-        allItems.push({
-          type: 'document',
-          id: d.id,
-          displayTitle: d.title,
-          contextName: contextNameFromDoc(d),
-          deletedAt: d.deletedAt?.toISOString() ?? '',
-        });
-      }
-    } else if (query.scope === 'department' && query.departmentId != null) {
-      const departmentId = query.departmentId;
-      const department = await prisma.department.findUnique({
-        where: { id: departmentId },
-        select: { companyId: true },
-      });
-      if (!department) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      const [
-        writable,
-        scopeLeadDept,
-        scopeLeadCompany,
-        trashedProcs,
-        trashedProjs,
-        scopeContextIds,
-      ] = await Promise.all([
-        getWritableCatalogScope(prisma, userId),
-        canViewDepartment(prisma, userId, departmentId),
-        canViewCompany(prisma, userId, department.companyId ?? ''),
-        prisma.process.findMany({
-          where: { deletedAt: { not: null }, owner: { departmentId } },
-          select: { id: true, name: true, contextId: true, deletedAt: true },
-        }),
-        prisma.project.findMany({
-          where: { deletedAt: { not: null }, owner: { departmentId } },
-          select: { id: true, name: true, contextId: true, deletedAt: true },
-        }),
-        getDepartmentContextIds(prisma, departmentId),
-      ]);
-      const scopeLead = scopeLeadDept || (department.companyId != null && scopeLeadCompany);
-      const writableCtxSet = new Set(writable.contextIds);
-      const writableDocSet = new Set(writable.documentIdsFromGrants);
-      const hasContextAccess =
-        trashedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
-        trashedProjs.some((p) => writableCtxSet.has(p.contextId));
-      const trashedDocIds =
-        scopeContextIds.length > 0
-          ? await prisma.document
-              .findMany({
-                where: { deletedAt: { not: null }, contextId: { in: scopeContextIds } },
-                select: { id: true },
-              })
-              .then((r) => r.map((d) => d.id))
-          : [];
-      const hasDocAccess = scopeLead || trashedDocIds.some((id) => writableDocSet.has(id));
-      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      for (const p of trashedProcs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'process',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            deletedAt: p.deletedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      for (const p of trashedProjs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'project',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            deletedAt: p.deletedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      const writableDocIds = [...writableDocSet];
-      const trashedDocs = await prisma.document.findMany({
-        where: {
-          deletedAt: { not: null },
-          ...(scopeLead
-            ? scopeContextIds.length > 0
-              ? { contextId: { in: scopeContextIds } }
-              : { id: { in: [] } }
-            : {
-                OR: [
-                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
-                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
-                ].filter(Boolean),
-              }),
-        },
-        select: { id: true, title: true, contextId: true, deletedAt: true, ...contextInclude },
-      });
-      for (const d of trashedDocs) {
-        allItems.push({
-          type: 'document',
-          id: d.id,
-          displayTitle: d.title,
-          contextName: contextNameFromDoc(d),
-          deletedAt: d.deletedAt?.toISOString() ?? '',
-        });
-      }
-    } else if (query.scope === 'team' && query.teamId != null) {
-      const teamId = query.teamId;
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-        select: { departmentId: true, department: { select: { companyId: true } } },
-      });
-      if (!team) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      const companyId = team.department?.companyId ?? null;
-      const [
-        writable,
-        scopeLeadDept,
-        scopeLeadCompany,
-        isTeamLead,
-        trashedProcs,
-        trashedProjs,
-        scopeContextIds,
-      ] = await Promise.all([
-        getWritableCatalogScope(prisma, userId),
-        team.departmentId != null
-          ? canViewDepartment(prisma, userId, team.departmentId)
-          : Promise.resolve(false),
-        companyId != null ? canViewCompany(prisma, userId, companyId) : Promise.resolve(false),
-        prisma.teamLead
-          .findUnique({
-            where: { teamId_userId: { teamId, userId } },
-            select: { userId: true },
-          })
-          .then((r) => r != null),
-        prisma.process.findMany({
-          where: { deletedAt: { not: null }, owner: { teamId } },
-          select: { id: true, name: true, contextId: true, deletedAt: true },
-        }),
-        prisma.project.findMany({
-          where: { deletedAt: { not: null }, owner: { teamId } },
-          select: { id: true, name: true, contextId: true, deletedAt: true },
-        }),
-        getTeamContextIds(prisma, teamId),
-      ]);
-      const scopeLead = scopeLeadDept || scopeLeadCompany || isTeamLead;
-      const writableCtxSet = new Set(writable.contextIds);
-      const writableDocSet = new Set(writable.documentIdsFromGrants);
-      const hasContextAccess =
-        trashedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
-        trashedProjs.some((p) => writableCtxSet.has(p.contextId));
-      const trashedDocIds =
-        scopeContextIds.length > 0
-          ? await prisma.document
-              .findMany({
-                where: { deletedAt: { not: null }, contextId: { in: scopeContextIds } },
-                select: { id: true },
-              })
-              .then((r) => r.map((d) => d.id))
-          : [];
-      const hasDocAccess = scopeLead || trashedDocIds.some((id) => writableDocSet.has(id));
-      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      for (const p of trashedProcs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'process',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            deletedAt: p.deletedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      for (const p of trashedProjs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'project',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            deletedAt: p.deletedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      const writableDocIds = [...writableDocSet];
-      const trashedDocs = await prisma.document.findMany({
-        where: {
-          deletedAt: { not: null },
-          ...(scopeLead
-            ? scopeContextIds.length > 0
-              ? { contextId: { in: scopeContextIds } }
-              : { id: { in: [] } }
-            : {
-                OR: [
-                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
-                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
-                ].filter(Boolean),
-              }),
-        },
-        select: { id: true, title: true, contextId: true, deletedAt: true, ...contextInclude },
-      });
-      for (const d of trashedDocs) {
-        allItems.push({
-          type: 'document',
-          id: d.id,
-          displayTitle: d.title,
-          contextName: contextNameFromDoc(d),
-          deletedAt: d.deletedAt?.toISOString() ?? '',
-        });
-      }
+      allItems.push(...result.items);
     }
 
     const sortKey = query.sortBy === 'title' ? 'displayTitle' : 'deletedAt';
@@ -871,16 +504,6 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const query = meArchiveQuerySchema.parse(request.query);
 
-    const archiveContextInclude = {
-      context: {
-        include: {
-          process: { select: { name: true } },
-          project: { select: { name: true } },
-          subcontext: { select: { name: true } },
-        },
-      },
-    };
-
     const allItems: MeTrashArchiveItem[] = [];
 
     if (query.scope === 'personal') {
@@ -896,7 +519,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
               { contextId: null, createdById: userId },
             ],
           },
-          select: { id: true, title: true, archivedAt: true, ...archiveContextInclude },
+          select: { id: true, title: true, archivedAt: true, ...trashArchiveContextSelect },
         }),
         prisma.process.findMany({
           where: { archivedAt: { not: null }, owner: { ownerUserId: userId } },
@@ -934,346 +557,19 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           archivedAt: p.archivedAt?.toISOString() ?? '',
         });
       }
-    } else if (query.scope === 'company') {
-      const companyId = query.companyId!;
-      const [writable, companyLead, archivedProcs, archivedProjs, allCompanyContextIdsRows] =
-        await Promise.all([
-          getWritableCatalogScope(prisma, userId),
-          canViewCompany(prisma, userId, companyId),
-          prisma.process.findMany({
-            where: { archivedAt: { not: null }, deletedAt: null, owner: { companyId } },
-            select: { id: true, name: true, contextId: true, archivedAt: true },
-          }),
-          prisma.project.findMany({
-            where: { archivedAt: { not: null }, deletedAt: null, owner: { companyId } },
-            select: { id: true, name: true, contextId: true, archivedAt: true },
-          }),
-          Promise.all([
-            prisma.process.findMany({
-              where: { owner: { companyId } },
-              select: { contextId: true },
-            }),
-            prisma.project.findMany({
-              where: { owner: { companyId } },
-              select: { contextId: true },
-              include: { subcontexts: { select: { contextId: true } } },
-            }),
-          ]),
-        ]);
-      const companyContextIds = [
-        ...allCompanyContextIdsRows[0].map((p) => p.contextId),
-        ...allCompanyContextIdsRows[1].flatMap((p) => [
-          p.contextId,
-          ...p.subcontexts.map((s) => s.contextId),
-        ]),
-      ];
-      const writableCtxSet = new Set(writable.contextIds);
-      const writableDocSet = new Set(writable.documentIdsFromGrants);
-
-      const hasContextAccess =
-        archivedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
-        archivedProjs.some((p) => writableCtxSet.has(p.contextId));
-      const archivedDocIds =
-        companyContextIds.length > 0
-          ? await prisma.document
-              .findMany({
-                where: {
-                  deletedAt: null,
-                  archivedAt: { not: null },
-                  contextId: { in: companyContextIds },
-                },
-                select: { id: true },
-              })
-              .then((r) => r.map((d) => d.id))
-          : [];
-      const hasDocAccess = companyLead || archivedDocIds.some((id) => writableDocSet.has(id));
-      if (!companyLead && !hasContextAccess && !hasDocAccess) {
+    } else {
+      // Schema guarantees companyId/departmentId/teamId when scope is company/department/team
+      const scopeRef: ScopeRef =
+        query.scope === 'company'
+          ? { type: 'company', companyId: query.companyId! }
+          : query.scope === 'department'
+            ? { type: 'department', departmentId: query.departmentId! }
+            : { type: 'team', teamId: query.teamId! };
+      const result = await getTrashOrArchiveItems(prisma, userId, scopeRef, 'archive');
+      if ('emptyReason' in result) {
         return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
       }
-
-      for (const p of archivedProcs) {
-        if (companyLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'process',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            archivedAt: p.archivedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      for (const p of archivedProjs) {
-        if (companyLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'project',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            archivedAt: p.archivedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      const writableDocIds = [...writableDocSet];
-      const archivedDocs = await prisma.document.findMany({
-        where: {
-          deletedAt: null,
-          archivedAt: { not: null },
-          ...(companyLead
-            ? companyContextIds.length > 0
-              ? { contextId: { in: companyContextIds } }
-              : { id: { in: [] } }
-            : {
-                OR: [
-                  ...(companyContextIds.length > 0
-                    ? [{ contextId: { in: companyContextIds } }]
-                    : []),
-                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
-                ].filter(Boolean),
-              }),
-        },
-        select: {
-          id: true,
-          title: true,
-          contextId: true,
-          archivedAt: true,
-          ...archiveContextInclude,
-        },
-      });
-      for (const d of archivedDocs) {
-        allItems.push({
-          type: 'document',
-          id: d.id,
-          displayTitle: d.title,
-          contextName: contextNameFromDoc(d),
-          archivedAt: d.archivedAt?.toISOString() ?? '',
-        });
-      }
-    } else if (query.scope === 'department' && query.departmentId != null) {
-      const departmentId = query.departmentId;
-      const department = await prisma.department.findUnique({
-        where: { id: departmentId },
-        select: { companyId: true },
-      });
-      if (!department) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      const [
-        writable,
-        scopeLeadDept,
-        scopeLeadCompany,
-        archivedProcs,
-        archivedProjs,
-        scopeContextIds,
-      ] = await Promise.all([
-        getWritableCatalogScope(prisma, userId),
-        canViewDepartment(prisma, userId, departmentId),
-        canViewCompany(prisma, userId, department.companyId ?? ''),
-        prisma.process.findMany({
-          where: { archivedAt: { not: null }, deletedAt: null, owner: { departmentId } },
-          select: { id: true, name: true, contextId: true, archivedAt: true },
-        }),
-        prisma.project.findMany({
-          where: { archivedAt: { not: null }, deletedAt: null, owner: { departmentId } },
-          select: { id: true, name: true, contextId: true, archivedAt: true },
-        }),
-        getDepartmentContextIds(prisma, departmentId),
-      ]);
-      const scopeLead = scopeLeadDept || (department.companyId != null && scopeLeadCompany);
-      const writableCtxSet = new Set(writable.contextIds);
-      const writableDocSet = new Set(writable.documentIdsFromGrants);
-      const hasContextAccess =
-        archivedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
-        archivedProjs.some((p) => writableCtxSet.has(p.contextId));
-      const archivedDocIds =
-        scopeContextIds.length > 0
-          ? await prisma.document
-              .findMany({
-                where: {
-                  deletedAt: null,
-                  archivedAt: { not: null },
-                  contextId: { in: scopeContextIds },
-                },
-                select: { id: true },
-              })
-              .then((r) => r.map((d) => d.id))
-          : [];
-      const hasDocAccess = scopeLead || archivedDocIds.some((id) => writableDocSet.has(id));
-      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      for (const p of archivedProcs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'process',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            archivedAt: p.archivedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      for (const p of archivedProjs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'project',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            archivedAt: p.archivedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      const writableDocIds = [...writableDocSet];
-      const archivedDocs = await prisma.document.findMany({
-        where: {
-          deletedAt: null,
-          archivedAt: { not: null },
-          ...(scopeLead
-            ? scopeContextIds.length > 0
-              ? { contextId: { in: scopeContextIds } }
-              : { id: { in: [] } }
-            : {
-                OR: [
-                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
-                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
-                ].filter(Boolean),
-              }),
-        },
-        select: {
-          id: true,
-          title: true,
-          contextId: true,
-          archivedAt: true,
-          ...archiveContextInclude,
-        },
-      });
-      for (const d of archivedDocs) {
-        allItems.push({
-          type: 'document',
-          id: d.id,
-          displayTitle: d.title,
-          contextName: contextNameFromDoc(d),
-          archivedAt: d.archivedAt?.toISOString() ?? '',
-        });
-      }
-    } else if (query.scope === 'team' && query.teamId != null) {
-      const teamId = query.teamId;
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-        select: { departmentId: true, department: { select: { companyId: true } } },
-      });
-      if (!team) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      const companyId = team.department?.companyId ?? null;
-      const [
-        writable,
-        scopeLeadDept,
-        scopeLeadCompany,
-        isTeamLead,
-        archivedProcs,
-        archivedProjs,
-        scopeContextIds,
-      ] = await Promise.all([
-        getWritableCatalogScope(prisma, userId),
-        team.departmentId != null
-          ? canViewDepartment(prisma, userId, team.departmentId)
-          : Promise.resolve(false),
-        companyId != null ? canViewCompany(prisma, userId, companyId) : Promise.resolve(false),
-        prisma.teamLead
-          .findUnique({
-            where: { teamId_userId: { teamId, userId } },
-            select: { userId: true },
-          })
-          .then((r) => r != null),
-        prisma.process.findMany({
-          where: { archivedAt: { not: null }, deletedAt: null, owner: { teamId } },
-          select: { id: true, name: true, contextId: true, archivedAt: true },
-        }),
-        prisma.project.findMany({
-          where: { archivedAt: { not: null }, deletedAt: null, owner: { teamId } },
-          select: { id: true, name: true, contextId: true, archivedAt: true },
-        }),
-        getTeamContextIds(prisma, teamId),
-      ]);
-      const scopeLead = scopeLeadDept || scopeLeadCompany || isTeamLead;
-      const writableCtxSet = new Set(writable.contextIds);
-      const writableDocSet = new Set(writable.documentIdsFromGrants);
-      const hasContextAccess =
-        archivedProcs.some((p) => writableCtxSet.has(p.contextId)) ||
-        archivedProjs.some((p) => writableCtxSet.has(p.contextId));
-      const archivedDocIds =
-        scopeContextIds.length > 0
-          ? await prisma.document
-              .findMany({
-                where: {
-                  deletedAt: null,
-                  archivedAt: { not: null },
-                  contextId: { in: scopeContextIds },
-                },
-                select: { id: true },
-              })
-              .then((r) => r.map((d) => d.id))
-          : [];
-      const hasDocAccess = scopeLead || archivedDocIds.some((id) => writableDocSet.has(id));
-      if (!scopeLead && !hasContextAccess && !hasDocAccess) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
-      }
-      for (const p of archivedProcs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'process',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            archivedAt: p.archivedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      for (const p of archivedProjs) {
-        if (scopeLead || writableCtxSet.has(p.contextId)) {
-          allItems.push({
-            type: 'project',
-            id: p.id,
-            displayTitle: p.name,
-            contextName: '-',
-            archivedAt: p.archivedAt?.toISOString() ?? '',
-          });
-        }
-      }
-      const writableDocIds = [...writableDocSet];
-      const archivedDocs = await prisma.document.findMany({
-        where: {
-          deletedAt: null,
-          archivedAt: { not: null },
-          ...(scopeLead
-            ? scopeContextIds.length > 0
-              ? { contextId: { in: scopeContextIds } }
-              : { id: { in: [] } }
-            : {
-                OR: [
-                  ...(scopeContextIds.length > 0 ? [{ contextId: { in: scopeContextIds } }] : []),
-                  ...(writableDocIds.length > 0 ? [{ id: { in: writableDocIds } }] : []),
-                ].filter(Boolean),
-              }),
-        },
-        select: {
-          id: true,
-          title: true,
-          contextId: true,
-          archivedAt: true,
-          ...archiveContextInclude,
-        },
-      });
-      for (const d of archivedDocs) {
-        allItems.push({
-          type: 'document',
-          id: d.id,
-          displayTitle: d.title,
-          contextName: contextNameFromDoc(d),
-          archivedAt: d.archivedAt?.toISOString() ?? '',
-        });
-      }
+      allItems.push(...result.items);
     }
 
     const sortKey = query.sortBy === 'title' ? 'displayTitle' : 'archivedAt';
@@ -1301,10 +597,10 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const query = meCanWriteInScopeQuerySchema.parse(request.query);
 
       if (query.scope === 'company' && query.companyId != null) {
-        const companyId = query.companyId;
+        const scopeRef = scopeRefFromQuery(query)!;
         const [scopeLead, scopeContextIds, writable] = await Promise.all([
-          canViewCompany(prisma, userId, companyId),
-          getCompanyContextIds(prisma, companyId),
+          getScopeLead(prisma, userId, scopeRef),
+          getContextIdsForScope(prisma, scopeRef),
           getWritableCatalogScope(prisma, userId),
         ]);
         if (scopeLead) return reply.send({ canWrite: true });
@@ -1331,13 +627,12 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           select: { companyId: true },
         });
         if (!department) return reply.send({ canWrite: false });
-        const [scopeLeadDept, scopeLeadCompany, scopeContextIds, writable] = await Promise.all([
-          canViewDepartment(prisma, userId, departmentId),
-          canViewCompany(prisma, userId, department.companyId ?? ''),
-          getDepartmentContextIds(prisma, departmentId),
+        const scopeRef = scopeRefFromQuery(query)!;
+        const [scopeLead, scopeContextIds, writable] = await Promise.all([
+          getScopeLead(prisma, userId, scopeRef),
+          getContextIdsForScope(prisma, scopeRef),
           getWritableCatalogScope(prisma, userId),
         ]);
-        const scopeLead = scopeLeadDept || (department.companyId != null && scopeLeadCompany);
         if (scopeLead) return reply.send({ canWrite: true });
         const writableCtxSet = new Set(writable.contextIds);
         if (scopeContextIds.some((id) => writableCtxSet.has(id)))
@@ -1362,23 +657,12 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           select: { departmentId: true, department: { select: { companyId: true } } },
         });
         if (!team) return reply.send({ canWrite: false });
-        const companyId = team.department?.companyId ?? null;
-        const [scopeLeadDept, scopeLeadCompany, isTeamLead, scopeContextIds, writable] =
-          await Promise.all([
-            team.departmentId != null
-              ? canViewDepartment(prisma, userId, team.departmentId)
-              : Promise.resolve(false),
-            companyId != null ? canViewCompany(prisma, userId, companyId) : Promise.resolve(false),
-            prisma.teamLead
-              .findUnique({
-                where: { teamId_userId: { teamId, userId } },
-                select: { userId: true },
-              })
-              .then((r) => r != null),
-            getTeamContextIds(prisma, teamId),
-            getWritableCatalogScope(prisma, userId),
-          ]);
-        const scopeLead = scopeLeadDept || scopeLeadCompany || isTeamLead;
+        const scopeRef = scopeRefFromQuery(query)!;
+        const [scopeLead, scopeContextIds, writable] = await Promise.all([
+          getScopeLead(prisma, userId, scopeRef),
+          getContextIdsForScope(prisma, scopeRef),
+          getWritableCatalogScope(prisma, userId),
+        ]);
         if (scopeLead) return reply.send({ canWrite: true });
         const writableCtxSet = new Set(writable.contextIds);
         if (scopeContextIds.some((id) => writableCtxSet.has(id)))

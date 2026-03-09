@@ -152,6 +152,7 @@ export function ArchiveTabContent({
       void queryClient.invalidateQueries({ queryKey: ['me', 'personal-documents'] });
       void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
       void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+      void queryClient.invalidateQueries({ queryKey: ['contexts'] });
       void queryClient.invalidateQueries({ queryKey: ['processes'] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
       notifications.show({

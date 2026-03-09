@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { getEffectiveUserId, type RequestWithUser } from '../auth/middleware.js';
-import { canRead } from './canRead.js';
+import { canRead, canSeeDocumentInTrash } from './canRead.js';
 import { canWrite } from './canWrite.js';
 import { DOCUMENT_FOR_PERMISSION_INCLUDE } from './documentLoad.js';
 
@@ -32,10 +32,14 @@ export function requireDocumentAccess(
     if (!doc) {
       return reply.status(404).send({ error: 'Dokument nicht gefunden' });
     }
-    if (mode === 'read' && doc.deletedAt != null) {
-      return reply.status(404).send({ error: 'Dokument nicht gefunden' });
-    }
     const userId = getEffectiveUserId(request as RequestWithUser);
+    if (mode === 'read' && doc.deletedAt != null) {
+      const canSeeInTrash = await canSeeDocumentInTrash(prisma, userId, doc);
+      if (!canSeeInTrash) {
+        return reply.status(404).send({ error: 'Dokument nicht gefunden' });
+      }
+      return;
+    }
     const allowed =
       mode === 'read' ? await canRead(prisma, userId, doc) : await canWrite(prisma, userId, doc);
     if (!allowed) {
