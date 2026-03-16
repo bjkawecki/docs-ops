@@ -17,7 +17,7 @@ import {
   Badge,
   Divider,
 } from '@mantine/core';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import {
   IconChevronDown,
@@ -101,6 +101,7 @@ export function AppShell() {
   const isDepartmentLead = (me?.identity?.departmentLeads?.length ?? 0) > 0;
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;
   const departmentId = me?.identity?.departmentLeads?.[0]?.id;
+  const userTeamId = me?.identity?.teams?.[0]?.teamId;
 
   const { data: firstCompany } = useQuery({
     queryKey: ['companies', 'first'],
@@ -217,6 +218,119 @@ export function AppShell() {
     },
   });
 
+  const scopeIdsForCounts = useMemo(() => {
+    const deptIds: string[] = [];
+    const teamIds: string[] = [];
+    if (companyDepartments?.items) {
+      for (const d of companyDepartments.items) {
+        deptIds.push(d.id);
+        for (const t of d.teams ?? []) teamIds.push(t.id);
+      }
+    } else if (departmentTeams?.items && departmentId) {
+      deptIds.push(departmentId);
+      for (const t of departmentTeams.items) teamIds.push(t.id);
+    } else if (userTeamId) {
+      teamIds.push(userTeamId);
+    }
+    return { departmentIds: deptIds, teamIds };
+  }, [companyDepartments?.items, departmentTeams?.items, departmentId, userTeamId]);
+
+  const { data: companyCount } = useQuery({
+    queryKey: ['catalog-documents', 'count', 'company', effectiveCompanyId],
+    queryFn: async (): Promise<number> => {
+      const res = await apiFetch(
+        `/api/v1/documents?companyId=${effectiveCompanyId}&publishedOnly=true&limit=1&offset=0`
+      );
+      if (!res.ok) throw new Error('Failed to load count');
+      const data = (await res.json()) as { total: number };
+      return data.total;
+    },
+    enabled: !!me?.identity && !!effectiveCompanyId,
+  });
+
+  const { data: catalogCount } = useQuery({
+    queryKey: ['catalog-documents', 'count', 'catalog'],
+    queryFn: async (): Promise<number> => {
+      const res = await apiFetch('/api/v1/documents?publishedOnly=true&limit=1&offset=0');
+      if (!res.ok) throw new Error('Failed to load count');
+      const data = (await res.json()) as { total: number };
+      return data.total;
+    },
+    enabled: !!me?.identity,
+  });
+
+  const { data: personalCount } = useQuery({
+    queryKey: ['me', 'personal-documents', 'count'],
+    queryFn: async (): Promise<number> => {
+      const res = await apiFetch(
+        '/api/v1/me/personal-documents?limit=1&offset=0&publishedOnly=true'
+      );
+      if (!res.ok) throw new Error('Failed to load count');
+      const data = (await res.json()) as { total: number };
+      return data.total;
+    },
+    enabled: !!me?.identity,
+  });
+
+  const { data: sharedCount } = useQuery({
+    queryKey: ['me', 'shared-documents', 'count'],
+    queryFn: async (): Promise<number> => {
+      const res = await apiFetch('/api/v1/me/shared-documents?limit=1&offset=0&publishedOnly=true');
+      if (!res.ok) throw new Error('Failed to load count');
+      const data = (await res.json()) as { total: number };
+      return data.total;
+    },
+    enabled: !!me?.identity,
+  });
+
+  const scopeCountQueries = useQueries({
+    queries: [
+      ...scopeIdsForCounts.departmentIds.map((id) => ({
+        queryKey: ['catalog-documents', 'count', 'department', id] as const,
+        queryFn: async (): Promise<number> => {
+          const res = await apiFetch(
+            `/api/v1/documents?departmentId=${id}&publishedOnly=true&limit=1&offset=0`
+          );
+          if (!res.ok) throw new Error('Failed to load count');
+          const data = (await res.json()) as { total: number };
+          return data.total;
+        },
+        enabled: !!me?.identity,
+      })),
+      ...scopeIdsForCounts.teamIds.map((id) => ({
+        queryKey: ['catalog-documents', 'count', 'team', id] as const,
+        queryFn: async (): Promise<number> => {
+          const res = await apiFetch(
+            `/api/v1/documents?teamId=${id}&publishedOnly=true&limit=1&offset=0`
+          );
+          if (!res.ok) throw new Error('Failed to load count');
+          const data = (await res.json()) as { total: number };
+          return data.total;
+        },
+        enabled: !!me?.identity,
+      })),
+    ],
+  });
+
+  const departmentCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    scopeIdsForCounts.departmentIds.forEach((id, i) => {
+      const result = scopeCountQueries[i]?.data;
+      if (typeof result === 'number') map[id] = result;
+    });
+    return map;
+  }, [scopeIdsForCounts.departmentIds, scopeCountQueries]);
+
+  const teamCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    const offset = scopeIdsForCounts.departmentIds.length;
+    scopeIdsForCounts.teamIds.forEach((id, i) => {
+      const result = scopeCountQueries[offset + i]?.data;
+      if (typeof result === 'number') map[id] = result;
+    });
+    return map;
+  }, [scopeIdsForCounts.teamIds, scopeIdsForCounts.departmentIds.length, scopeCountQueries]);
+
   function renderRoleBasedNav() {
     if (!me?.identity) {
       return (
@@ -228,6 +342,13 @@ export function AppShell() {
             label="Company"
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
+            rightSection={
+              companyCount !== undefined ? (
+                <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                  {companyCount}
+                </Text>
+              ) : null
+            }
             fw={600}
             styles={navLinkStyles}
           />
@@ -265,6 +386,13 @@ export function AppShell() {
             label="Company"
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
+            rightSection={
+              companyCount !== undefined ? (
+                <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                  {companyCount}
+                </Text>
+              ) : null
+            }
             fw={600}
             styles={navLinkStyles}
           />
@@ -332,6 +460,13 @@ export function AppShell() {
                     to={`/department/${dept.id}`}
                     label={dept.name}
                     active={isActive(`/department/${dept.id}`, location.pathname)}
+                    rightSection={
+                      departmentCounts[dept.id] !== undefined ? (
+                        <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                          {departmentCounts[dept.id]}
+                        </Text>
+                      ) : null
+                    }
                     style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                     styles={navLinkStyles}
                   />
@@ -408,6 +543,17 @@ export function AppShell() {
                         to={`/team/${team.id}`}
                         label={team.name}
                         active={location.pathname === `/team/${team.id}`}
+                        rightSection={
+                          teamCounts[team.id] !== undefined ? (
+                            <Text
+                              size="xs"
+                              c="var(--mantine-primary-color-filled)"
+                              component="span"
+                            >
+                              {teamCounts[team.id]}
+                            </Text>
+                          ) : null
+                        }
                         pl="sm"
                         style={{
                           whiteSpace: 'nowrap',
@@ -437,15 +583,30 @@ export function AppShell() {
             label="Company"
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
+            rightSection={
+              companyCount !== undefined ? (
+                <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                  {companyCount}
+                </Text>
+              ) : null
+            }
             fw={600}
             styles={navLinkStyles}
           />
           <NavLink
+            data-sidebar-link
             component={Link}
             to={`/department/${departmentId}`}
             label="Department"
             active={isActive(`/department/${departmentId}`, location.pathname)}
             leftSection={<IconSitemap size={18} />}
+            rightSection={
+              departmentCounts[departmentId] !== undefined ? (
+                <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                  {departmentCounts[departmentId]}
+                </Text>
+              ) : null
+            }
             fw={600}
             styles={navLinkStyles}
           />
@@ -527,6 +688,13 @@ export function AppShell() {
                     to={`/team/${team.id}`}
                     label={team.name}
                     active={location.pathname === `/team/${team.id}`}
+                    rightSection={
+                      teamCounts[team.id] !== undefined ? (
+                        <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                          {teamCounts[team.id]}
+                        </Text>
+                      ) : null
+                    }
                     pl="sm"
                     style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                     styles={navLinkStyles}
@@ -540,20 +708,28 @@ export function AppShell() {
     }
 
     const userDepartmentId = me?.identity?.teams?.[0]?.departmentId;
-    const userTeamId = me?.identity?.teams?.[0]?.teamId;
 
     return (
       <>
         <NavLink
+          data-sidebar-link
           component={Link}
           to="/company"
           label="Company"
           active={isActive('/company', location.pathname)}
           leftSection={<IconBuildingSkyscraper size={18} />}
+          rightSection={
+            companyCount !== undefined ? (
+              <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                {companyCount}
+              </Text>
+            ) : null
+          }
           fw={600}
           styles={navLinkStyles}
         />
         <NavLink
+          data-sidebar-link
           component={Link}
           to={userDepartmentId ? `/department/${userDepartmentId}` : '/department'}
           label="Department"
@@ -567,6 +743,7 @@ export function AppShell() {
           styles={navLinkStyles}
         />
         <NavLink
+          data-sidebar-link
           component={Link}
           to={userTeamId ? `/team/${userTeamId}` : '/team'}
           label="Team"
@@ -576,6 +753,13 @@ export function AppShell() {
               : isActive('/team', location.pathname)
           }
           leftSection={<IconUsersGroup size={18} />}
+          rightSection={
+            userTeamId && teamCounts[userTeamId] !== undefined ? (
+              <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                {teamCounts[userTeamId]}
+              </Text>
+            ) : null
+          }
           fw={600}
           styles={navLinkStyles}
         />
@@ -701,6 +885,13 @@ export function AppShell() {
                   label="Catalog"
                   active={isActive('/catalog', location.pathname)}
                   leftSection={<IconListSearch size={18} />}
+                  rightSection={
+                    catalogCount !== undefined ? (
+                      <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                        {catalogCount}
+                      </Text>
+                    ) : null
+                  }
                   fw={600}
                   styles={navLinkStyles}
                 />
@@ -718,6 +909,13 @@ export function AppShell() {
                   label="Personal"
                   active={isActive('/personal', location.pathname)}
                   leftSection={<IconUser size={18} />}
+                  rightSection={
+                    personalCount !== undefined ? (
+                      <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                        {personalCount}
+                      </Text>
+                    ) : null
+                  }
                   fw={600}
                   styles={navLinkStyles}
                 />
@@ -728,6 +926,13 @@ export function AppShell() {
                   label="Shared"
                   active={isActive('/shared', location.pathname)}
                   leftSection={<IconShare size={18} />}
+                  rightSection={
+                    sharedCount !== undefined ? (
+                      <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                        {sharedCount}
+                      </Text>
+                    ) : null
+                  }
                   fw={600}
                   styles={navLinkStyles}
                 />

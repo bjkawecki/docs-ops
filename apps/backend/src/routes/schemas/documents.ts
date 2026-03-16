@@ -19,6 +19,8 @@ export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
   teamId: z.string().cuid().optional(),
   tagIds: cuidArray.optional().default([]),
   search: z.string().min(1).optional(),
+  /** If true, only return documents that have been published (publishedAt set). */
+  publishedOnly: z.coerce.boolean().optional().default(false),
   sortBy: z
     .enum(['title', 'updatedAt', 'createdAt', 'contextName', 'contextType', 'ownerDisplay'])
     .optional(),

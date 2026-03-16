@@ -177,6 +177,7 @@ export function PersonalPage() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         <ScopeCard
           title="Processes"
+          titleCount={processes.length}
           titleIcon={<IconRoute size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('processes') }}
         >
@@ -200,6 +201,7 @@ export function PersonalPage() {
         </ScopeCard>
         <ScopeCard
           title="Projects"
+          titleCount={projects.length}
           titleIcon={<IconBriefcase size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('projects') }}
         >
@@ -223,6 +225,7 @@ export function PersonalPage() {
         </ScopeCard>
         <ScopeCard
           title="Documents"
+          titleCount={personalDocsRes?.total ?? personalDocs.length}
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('documents') }}
         >

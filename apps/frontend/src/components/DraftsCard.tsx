@@ -56,7 +56,7 @@ export function DraftsCard({
             <Group gap="xs" wrap="nowrap">
               <IconPencil size={18} style={{ flexShrink: 0 }} />
               <Text fw={600} size="md">
-                Drafts
+                {data?.total !== undefined ? `Drafts (${data.total})` : 'Drafts'}
               </Text>
             </Group>
             {isPending ? (

@@ -96,6 +96,8 @@ export interface ScopeCardViewMore {
 export interface ScopeCardProps {
   /** Card title (always plain text, not a link). */
   title: string;
+  /** Optional count shown in parentheses after the title (e.g. "Processes (5)"). */
+  titleCount?: number;
   titleIcon?: ReactNode;
   /** View more: link and/or click handler. For context list mode with href, can be omitted and will be set to { to: href }. */
   viewMore?: ScopeCardViewMore;
@@ -117,6 +119,7 @@ export interface ScopeCardProps {
 /** Unified card for scope Overview tab (children + viewMore.onClick) and Processes/Projects tabs (href + documents/subcontexts). Title is always plain text. Link styling via CSS only. */
 export function ScopeCard({
   title,
+  titleCount,
   titleIcon,
   viewMore: viewMoreProp,
   children,
@@ -125,6 +128,7 @@ export function ScopeCard({
   subcontexts,
   metadata,
 }: ScopeCardProps) {
+  const displayTitle = titleCount !== undefined ? `${title} (${titleCount})` : title;
   const isContextListMode =
     children === undefined && (documents !== undefined || subcontexts !== undefined);
   const isContextMetadataMode =
@@ -182,7 +186,7 @@ export function ScopeCard({
     ) : null;
 
   return (
-    <BaseCard title={title} titleIcon={titleIcon} viewMore={viewMore ?? undefined}>
+    <BaseCard title={displayTitle} titleIcon={titleIcon} viewMore={viewMore ?? undefined}>
       {body ?? null}
     </BaseCard>
   );

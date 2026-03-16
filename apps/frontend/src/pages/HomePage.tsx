@@ -345,7 +345,11 @@ export function HomePage() {
         </SectionCard>
 
         <SectionCard
-          title="Drafts / Pending review"
+          title={
+            draftsData?.total !== undefined
+              ? `Drafts / Pending review (${draftsData.total})`
+              : 'Drafts / Pending review'
+          }
           titleIcon={<IconPencil size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
           viewMoreHref="/personal"
         >

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   requireAuthPreHandler,
   getEffectiveUserId,
@@ -22,7 +23,7 @@ import {
 } from './schemas/me.js';
 export type { MeTrashArchiveItem } from './schemas/me.js';
 import { canPinForScope } from '../permissions/pinnedPermissions.js';
-import { paginationQuerySchema, type PaginationQuery } from './schemas/organisation.js';
+import { paginationQuerySchema } from './schemas/organisation.js';
 import {
   getReadableCatalogScope,
   getWritableCatalogScope,
@@ -343,7 +344,9 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const query: PaginationQuery = paginationQuerySchema.parse(request.query);
+      const query = paginationQuerySchema
+        .extend({ publishedOnly: z.coerce.boolean().optional().default(false) })
+        .parse(request.query);
 
       const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
         prisma.process.findMany({
@@ -374,13 +377,16 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         });
       }
 
+      const documentWhere = {
+        contextId: { in: personalContextIds },
+        deletedAt: null,
+        archivedAt: null,
+        ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
+      };
+
       const [items, total] = await Promise.all([
         prisma.document.findMany({
-          where: {
-            contextId: { in: personalContextIds },
-            deletedAt: null,
-            archivedAt: null,
-          },
+          where: documentWhere,
           select: {
             id: true,
             title: true,
@@ -394,11 +400,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           orderBy: { updatedAt: 'desc' },
         }),
         prisma.document.count({
-          where: {
-            contextId: { in: personalContextIds },
-            deletedAt: null,
-            archivedAt: null,
-          },
+          where: documentWhere,
         }),
       ]);
       return reply.send({ items, total, limit: query.limit, offset: query.offset });
@@ -623,7 +625,9 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   app.get('/me/shared-documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
-    const query: PaginationQuery = paginationQuerySchema.parse(request.query);
+    const query = paginationQuerySchema
+      .extend({ publishedOnly: z.coerce.boolean().optional().default(false) })
+      .parse(request.query);
 
     const [userGrantDocIds, teamGrantDocIds, deptGrantDocIds] = await Promise.all([
       prisma.documentGrantUser
@@ -665,13 +669,16 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       });
     }
 
+    const sharedDocumentWhere = {
+      id: { in: documentIds },
+      deletedAt: null,
+      archivedAt: null,
+      ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
+    };
+
     const [items, total] = await Promise.all([
       prisma.document.findMany({
-        where: {
-          id: { in: documentIds },
-          deletedAt: null,
-          archivedAt: null,
-        },
+        where: sharedDocumentWhere,
         select: {
           id: true,
           title: true,
@@ -685,11 +692,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         orderBy: { updatedAt: 'desc' },
       }),
       prisma.document.count({
-        where: {
-          id: { in: documentIds },
-          deletedAt: null,
-          archivedAt: null,
-        },
+        where: sharedDocumentWhere,
       }),
     ]);
     return reply.send({ items, total, limit: query.limit, offset: query.offset });

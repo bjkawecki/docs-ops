@@ -1,16 +1,31 @@
-import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import {
+  Box,
+  Button,
+  Card,
+  Group,
+  Modal,
+  Pagination,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, Fragment, useCallback } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { apiFetch } from '../api/client';
 import { ArchiveTabContent } from '../components/ArchiveTabContent';
 import { TrashTabContent } from '../components/TrashTabContent';
 import { canShowWriteTabs } from '../lib/canShowWriteTabs';
+import { formatTableDate } from '../lib/formatDate';
 import { useMe } from '../hooks/useMe';
 import { PageWithTabs } from '../components/PageWithTabs';
+import { SortableTableTh } from '../components/SortableTableTh';
 import {
   ContextGrid,
   CreateContextMenu,
@@ -120,22 +135,103 @@ export function DepartmentContextPage() {
   const departmentScope =
     departmentId != null ? { type: 'department' as const, id: departmentId } : null;
 
-  const departmentDocumentsParams =
-    departmentId != null
-      ? `departmentId=${departmentId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
-      : '';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const docsSortBy = searchParams.get('docsSortBy') ?? 'updatedAt';
+  const docsSortOrder = searchParams.get('docsSortOrder') ?? 'desc';
+  const docsPage = Math.max(1, parseInt(searchParams.get('docsPage') ?? '1', 10));
+  const docsLimitParam = searchParams.get('docsLimit');
+  const docsLimit = docsLimitParam
+    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 25))
+    : 25;
+  const docsOffset = (docsPage - 1) * docsLimit;
+  const docsSearch = searchParams.get('docsSearch') ?? '';
+  const docsContextType = searchParams.get('docsContextType') ?? '';
+
+  const departmentDocumentsParams = [
+    departmentId ?? '',
+    String(docsLimit),
+    String(docsOffset),
+    docsSortBy,
+    docsSortOrder,
+    docsSearch,
+    docsContextType,
+  ];
   const { data: departmentDocsRes, isPending: docsPending } = useQuery({
-    queryKey: ['catalog-documents', departmentDocumentsParams],
+    queryKey: ['catalog-documents', 'department', departmentDocumentsParams],
     queryFn: async () => {
       if (!departmentId) throw new Error('Missing departmentId');
-      const res = await apiFetch(
-        `/api/v1/documents?departmentId=${departmentId}&limit=50&offset=0&sortBy=updatedAt&sortOrder=desc`
-      );
+      const params = new URLSearchParams({
+        departmentId,
+        limit: String(docsLimit),
+        offset: String(docsOffset),
+        sortBy: docsSortBy,
+        sortOrder: docsSortOrder,
+      });
+      if (docsSearch.trim()) params.set('search', docsSearch.trim());
+      if (docsContextType === 'process' || docsContextType === 'project')
+        params.set('contextType', docsContextType);
+      const res = await apiFetch(`/api/v1/documents?${params}`);
       if (!res.ok) throw new Error('Failed to load documents');
       return (await res.json()) as { items: DepartmentDocItem[]; total: number };
     },
     enabled: !!departmentId,
   });
+
+  const docsTotal = departmentDocsRes?.total ?? 0;
+  const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
+  const departmentDocs = departmentDocsRes?.items ?? [];
+
+  const setDocsFilter = useCallback(
+    (key: string, value: string | null) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (value == null || value === '') next.delete(key);
+        else next.set(key, value);
+        next.delete('docsPage');
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const setDocsSort = useCallback(
+    (col: string) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const order = docsSortBy === col && docsSortOrder === 'desc' ? 'asc' : 'desc';
+        next.set('docsSortBy', col);
+        next.set('docsSortOrder', order);
+        next.delete('docsPage');
+        return next;
+      });
+    },
+    [docsSortBy, docsSortOrder, setSearchParams]
+  );
+
+  const setDocsPage = useCallback(
+    (p: number) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('docsPage', String(p));
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const setDocsLimit = useCallback(
+    (value: number) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('docsLimit', String(value));
+        next.delete('docsPage');
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const navigate = useNavigate();
 
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({
@@ -199,7 +295,6 @@ export function DepartmentContextPage() {
   ];
   const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
 
-  const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
 
   const setActiveTab = useCallback(
@@ -224,13 +319,13 @@ export function DepartmentContextPage() {
   const projects = projectsData ?? [];
   const processesPreview = processes.slice(0, 5);
   const projectsPreview = projects.slice(0, 5);
-  const departmentDocs = departmentDocsRes?.items ?? [];
 
   const overviewPanel = (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         <ScopeCard
           title="Processes"
+          titleCount={processes.length}
           titleIcon={<IconRoute size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('processes') }}
         >
@@ -254,6 +349,7 @@ export function DepartmentContextPage() {
         </ScopeCard>
         <ScopeCard
           title="Projects"
+          titleCount={projects.length}
           titleIcon={<IconBriefcase size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('projects') }}
         >
@@ -277,6 +373,7 @@ export function DepartmentContextPage() {
         </ScopeCard>
         <ScopeCard
           title="Documents"
+          titleCount={docsTotal}
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('documents') }}
         >
@@ -377,28 +474,119 @@ export function DepartmentContextPage() {
             Loading documents…
           </Text>
         </Card>
-      ) : departmentDocs.length === 0 ? (
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            No documents in this department yet. Create a process or project and add documents, or
-            publish drafts from the Drafts tab.
-          </Text>
-        </Card>
       ) : (
-        <Stack gap="xs">
-          {departmentDocs.map((d) => (
-            <Card key={d.id} withBorder padding="sm" component={Link} to={`/documents/${d.id}`}>
-              <Text fw={500} size="sm">
-                {d.title || d.id}
-              </Text>
-              {d.contextName ? (
-                <Text size="xs" c="dimmed" mt={4}>
-                  {d.contextName}
-                </Text>
-              ) : null}
-            </Card>
-          ))}
-        </Stack>
+        <>
+          <Group gap="md" wrap="wrap" align="flex-end">
+            <TextInput
+              label="Search"
+              placeholder="Search by name"
+              value={docsSearch}
+              onChange={(e) => setDocsFilter('docsSearch', e.currentTarget.value)}
+              style={{ minWidth: 200 }}
+            />
+            <Select
+              label="Context type"
+              placeholder="All"
+              data={[
+                { value: '', label: 'All' },
+                { value: 'process', label: 'Process' },
+                { value: 'project', label: 'Project' },
+              ]}
+              value={docsContextType || null}
+              onChange={(v) => setDocsFilter('docsContextType', v ?? '')}
+              clearable
+              style={{ minWidth: 140 }}
+            />
+            <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+              {docsTotal} document{docsTotal !== 1 ? 's' : ''}
+            </Text>
+            <Select
+              label="Per page"
+              data={[
+                { value: '10', label: '10' },
+                { value: '25', label: '25' },
+                { value: '50', label: '50' },
+                { value: '100', label: '100' },
+              ]}
+              value={String(docsLimit)}
+              onChange={(v) => v && setDocsLimit(parseInt(v, 10))}
+              style={{ width: 90 }}
+            />
+          </Group>
+          <Table withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <SortableTableTh
+                  label="Title"
+                  column="title"
+                  sortBy={docsSortBy}
+                  sortOrder={docsSortOrder}
+                  onClick={() => setDocsSort('title')}
+                />
+                <SortableTableTh
+                  label="Context"
+                  column="contextName"
+                  sortBy={docsSortBy}
+                  sortOrder={docsSortOrder}
+                  onClick={() => setDocsSort('contextName')}
+                />
+                <SortableTableTh
+                  label="Last updated"
+                  column="updatedAt"
+                  sortBy={docsSortBy}
+                  sortOrder={docsSortOrder}
+                  onClick={() => setDocsSort('updatedAt')}
+                />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {departmentDocs.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={3}>
+                    <Text size="sm" c="dimmed">
+                      No documents in this department yet. Create a process or project and add
+                      documents, or publish drafts from the Drafts tab.
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                departmentDocs.map((d) => (
+                  <Table.Tr
+                    key={d.id}
+                    data-clickable-table-row
+                    onClick={() => {
+                      void navigate(`/documents/${d.id}`);
+                    }}
+                  >
+                    <Table.Td>
+                      <Text fw={500} size="sm">
+                        {d.title || d.id}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {d.contextName || '—'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{formatTableDate(d.updatedAt)}</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              )}
+            </Table.Tbody>
+          </Table>
+          {departmentId != null && !docsPending && (
+            <Group justify="flex-end">
+              <Pagination
+                total={docsTotalPages}
+                value={docsPage}
+                onChange={setDocsPage}
+                size="sm"
+              />
+            </Group>
+          )}
+        </>
       )}
     </Stack>
   );

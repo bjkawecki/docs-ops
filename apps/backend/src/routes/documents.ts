@@ -194,6 +194,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     if (query.search?.trim()) {
       baseWhere.title = { contains: query.search.trim(), mode: 'insensitive' };
     }
+    if (query.publishedOnly) {
+      baseWhere.publishedAt = { not: null };
+    }
 
     const select = {
       id: true,

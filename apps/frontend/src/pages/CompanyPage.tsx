@@ -331,6 +331,7 @@ export function CompanyPage() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         <ScopeCard
           title="Processes"
+          titleCount={processes.length}
           titleIcon={<IconRoute size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('processes') }}
         >
@@ -358,6 +359,7 @@ export function CompanyPage() {
         </ScopeCard>
         <ScopeCard
           title="Projects"
+          titleCount={projects.length}
           titleIcon={<IconBriefcase size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('projects') }}
         >
@@ -385,6 +387,7 @@ export function CompanyPage() {
         </ScopeCard>
         <ScopeCard
           title="Documents"
+          titleCount={docsTotal}
           titleIcon={<IconFileText size={18} style={{ flexShrink: 0 }} />}
           viewMore={{ onClick: () => setActiveTab('documents') }}
         >
