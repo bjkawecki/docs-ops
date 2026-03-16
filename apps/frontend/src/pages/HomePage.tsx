@@ -2,6 +2,7 @@ import { Badge, Box, Button, Group, SimpleGrid, Stack, Text, TextInput } from '@
 import {
   IconBuildingSkyscraper,
   IconCalendar,
+  IconClipboardCheck,
   IconClock,
   IconFileText,
   IconPin,
@@ -169,7 +170,15 @@ export function HomePage() {
   );
   const draftDocuments = draftsData?.draftDocuments ?? [];
   const openDraftRequests = draftsData?.openDraftRequests ?? [];
-  const hasDrafts = draftDocuments.length > 0 || openDraftRequests.length > 0;
+
+  const isAdmin = me?.user?.isAdmin === true;
+  const isCompanyLead = (me?.identity?.companyLeads?.length ?? 0) > 0;
+  const isDepartmentLead = (me?.identity?.departmentLeads?.length ?? 0) > 0;
+  const hasReviewRights =
+    isAdmin ||
+    isDepartmentLead ||
+    isCompanyLead ||
+    (me?.identity?.teams?.some((t) => t.role === 'leader') ?? false);
 
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -230,176 +239,195 @@ export function HomePage() {
         </Box>
       </Stack>
 
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-        <SectionCard
-          title="Pinned"
-          titleIcon={<IconPin size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
-        >
-          {pinnedPending ? (
-            <Text size="sm" c="dimmed">
-              Loading…
-            </Text>
-          ) : pinnedError ? (
-            <Text size="sm" c="red">
-              Failed to load pinned documents.
-            </Text>
-          ) : pinnedItems.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Scope leads can pin documents for their team, department or company. Pinned documents
-              will appear here.
-            </Text>
-          ) : (
-            <Stack gap={4} align="flex-start">
-              {pinnedItems.map((item) => (
-                <Group key={item.id} gap="xs" wrap="nowrap">
-                  <Badge size="sm" variant="light">
-                    {scopeTypeLabel(item.scopeType)}
-                  </Badge>
-                  <Link
-                    to={item.documentHref}
-                    style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
-                  >
-                    {item.documentTitle}
-                    {item.scopeName != null && item.scopeName !== '' && (
-                      <Text component="span" size="xs" c="dimmed" ml={4}>
-                        ({item.scopeName})
-                      </Text>
-                    )}
-                  </Link>
-                </Group>
-              ))}
-            </Stack>
-          )}
-        </SectionCard>
+      <Box maw={1300} mx="auto" w="100%" p="sm">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          <SectionCard
+            title="Pinned"
+            titleIcon={<IconPin size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+          >
+            {pinnedPending ? (
+              <Text size="sm" c="dimmed">
+                Loading…
+              </Text>
+            ) : pinnedError ? (
+              <Text size="sm" c="red">
+                Failed to load pinned documents.
+              </Text>
+            ) : pinnedItems.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                Scope leads can pin documents for their team, department or company. Pinned
+                documents will appear here.
+              </Text>
+            ) : (
+              <Stack gap={4} align="flex-start">
+                {pinnedItems.map((item) => (
+                  <Group key={item.id} gap="xs" wrap="nowrap">
+                    <Badge size="sm" variant="light">
+                      {scopeTypeLabel(item.scopeType)}
+                    </Badge>
+                    <Link
+                      to={item.documentHref}
+                      style={{ fontSize: 'var(--mantine-font-size-sm)', flex: 1, minWidth: 0 }}
+                    >
+                      {item.documentTitle}
+                      {item.scopeName != null && item.scopeName !== '' && (
+                        <Text component="span" size="xs" c="dimmed" ml={4}>
+                          ({item.scopeName})
+                        </Text>
+                      )}
+                    </Link>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+          </SectionCard>
 
-        <RecentItemsCard
-          items={recentItems}
-          titleIcon={<IconClock size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
-        />
+          <RecentItemsCard
+            items={recentItems}
+            titleIcon={<IconClock size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+          />
 
-        <SectionCard
-          title="Latest documents"
-          titleIcon={<IconFileText size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
-          viewMoreHref="/catalog"
-        >
-          {latestPending ? (
-            <Text size="sm" c="dimmed">
-              Loading…
-            </Text>
-          ) : latestError ? (
-            <Text size="sm" c="red">
-              Failed to load documents.
-            </Text>
-          ) : latestItems.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              No documents yet.
-            </Text>
-          ) : (
-            <Box
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `${TITLE_COLUMN_WIDTH} auto auto`,
-                gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
-                alignItems: 'center',
-                width: 'fit-content',
-                minWidth: 0,
-              }}
+          <SectionCard
+            title="Latest documents"
+            titleIcon={<IconFileText size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+            viewMoreHref="/catalog"
+          >
+            {latestPending ? (
+              <Text size="sm" c="dimmed">
+                Loading…
+              </Text>
+            ) : latestError ? (
+              <Text size="sm" c="red">
+                Failed to load documents.
+              </Text>
+            ) : latestItems.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No documents yet.
+              </Text>
+            ) : (
+              <Box
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `${TITLE_COLUMN_WIDTH} auto auto`,
+                  gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
+                  alignItems: 'center',
+                  width: 'fit-content',
+                  minWidth: 0,
+                }}
+              >
+                {latestItems.flatMap((doc) => {
+                  const scopeType = doc.scopeType ?? 'personal';
+                  const scopeName = doc.scopeName ?? 'Personal';
+                  return [
+                    <Link
+                      key={`${doc.id}-t`}
+                      to={`/documents/${doc.id}`}
+                      style={{
+                        fontSize: 'var(--mantine-font-size-sm)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={doc.title}
+                    >
+                      {doc.title}
+                    </Link>,
+                    <ScopeSuffix key={`${doc.id}-s`} scopeType={scopeType} scopeName={scopeName} />,
+                    doc.updatedAt ? (
+                      <Group key={`${doc.id}-d`} gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                        <IconCalendar
+                          size={SCOPE_ICON_SIZE}
+                          style={{ flexShrink: 0 }}
+                          color="var(--mantine-color-dimmed)"
+                          aria-hidden
+                        />
+                        <Text size="xs" c="dimmed">
+                          {formatDate(doc.updatedAt)}
+                        </Text>
+                      </Group>
+                    ) : (
+                      <span key={`${doc.id}-d`} />
+                    ),
+                  ];
+                })}
+              </Box>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title={
+              draftsData?.total !== undefined ? `My drafts (${draftsData.total})` : 'My drafts'
+            }
+            titleIcon={<IconPencil size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
+            viewMoreHref="/personal"
+          >
+            {draftsPending ? (
+              <Text size="sm" c="dimmed">
+                Loading…
+              </Text>
+            ) : draftDocuments.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No drafts.
+              </Text>
+            ) : (
+              <Box
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `${TITLE_COLUMN_WIDTH} auto`,
+                  gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
+                  alignItems: 'center',
+                  width: 'fit-content',
+                  minWidth: 0,
+                }}
+              >
+                {draftDocuments.flatMap((d) => {
+                  const title = d.title || d.id;
+                  return [
+                    <Link
+                      key={`${d.id}-t`}
+                      to={`/documents/${d.id}`}
+                      style={{
+                        fontSize: 'var(--mantine-font-size-sm)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={title}
+                    >
+                      {title}
+                    </Link>,
+                    <ScopeSuffix
+                      key={`${d.id}-s`}
+                      scopeType={d.scopeType}
+                      scopeName={d.scopeName}
+                    />,
+                  ];
+                })}
+              </Box>
+            )}
+          </SectionCard>
+
+          {hasReviewRights && (
+            <SectionCard
+              title={
+                draftsData !== undefined
+                  ? `Pending review (${openDraftRequests.length})`
+                  : 'Pending review'
+              }
+              titleIcon={
+                <IconClipboardCheck size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />
+              }
+              viewMoreHref="/reviews"
             >
-              {latestItems.flatMap((doc) => {
-                const scopeType = doc.scopeType ?? 'personal';
-                const scopeName = doc.scopeName ?? 'Personal';
-                return [
-                  <Link
-                    key={`${doc.id}-t`}
-                    to={`/documents/${doc.id}`}
-                    style={{
-                      fontSize: 'var(--mantine-font-size-sm)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                    title={doc.title}
-                  >
-                    {doc.title}
-                  </Link>,
-                  <ScopeSuffix key={`${doc.id}-s`} scopeType={scopeType} scopeName={scopeName} />,
-                  doc.updatedAt ? (
-                    <Group key={`${doc.id}-d`} gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-                      <IconCalendar
-                        size={SCOPE_ICON_SIZE}
-                        style={{ flexShrink: 0 }}
-                        color="var(--mantine-color-dimmed)"
-                        aria-hidden
-                      />
-                      <Text size="xs" c="dimmed">
-                        {formatDate(doc.updatedAt)}
-                      </Text>
-                    </Group>
-                  ) : (
-                    <span key={`${doc.id}-d`} />
-                  ),
-                ];
-              })}
-            </Box>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title={
-            draftsData?.total !== undefined
-              ? `Drafts / Pending review (${draftsData.total})`
-              : 'Drafts / Pending review'
-          }
-          titleIcon={<IconPencil size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
-          viewMoreHref="/personal"
-        >
-          {draftsPending ? (
-            <Text size="sm" c="dimmed">
-              Loading…
-            </Text>
-          ) : !hasDrafts ? (
-            <Text size="sm" c="dimmed">
-              No drafts or pending review.
-            </Text>
-          ) : (
-            <Stack gap={DASHBOARD_ITEM_GAP}>
-              {draftDocuments.length > 0 && (
-                <Box
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: `${TITLE_COLUMN_WIDTH} auto`,
-                    gap: `${DASHBOARD_ITEM_GAP}px ${ROW_PADDING}px`,
-                    alignItems: 'center',
-                    width: 'fit-content',
-                    minWidth: 0,
-                  }}
-                >
-                  {draftDocuments.flatMap((d) => {
-                    const title = d.title || d.id;
-                    return [
-                      <Link
-                        key={`${d.id}-t`}
-                        to={`/documents/${d.id}`}
-                        style={{
-                          fontSize: 'var(--mantine-font-size-sm)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title={title}
-                      >
-                        {title}
-                      </Link>,
-                      <ScopeSuffix
-                        key={`${d.id}-s`}
-                        scopeType={d.scopeType}
-                        scopeName={d.scopeName}
-                      />,
-                    ];
-                  })}
-                </Box>
-              )}
-              {openDraftRequests.length > 0 && (
+              {draftsPending ? (
+                <Text size="sm" c="dimmed">
+                  Loading…
+                </Text>
+              ) : openDraftRequests.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No pending reviews.
+                </Text>
+              ) : (
                 <Box
                   style={{
                     display: 'grid',
@@ -438,10 +466,10 @@ export function HomePage() {
                   })}
                 </Box>
               )}
-            </Stack>
+            </SectionCard>
           )}
-        </SectionCard>
-      </SimpleGrid>
+        </SimpleGrid>
+      </Box>
     </Box>
   );
 }

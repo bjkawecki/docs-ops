@@ -9,6 +9,7 @@ import { DepartmentRedirectPage } from './pages/DepartmentRedirectPage';
 import { DepartmentContextPage } from './pages/DepartmentContextPage';
 import { PersonalPage } from './pages/PersonalPage';
 import { SharedPage } from './pages/SharedPage';
+import { ReviewsPage } from './pages/ReviewsPage';
 import { TeamContextPage } from './pages/TeamContextPage';
 import { ProcessContextPage } from './pages/ProcessContextPage';
 import { ProjectContextPage } from './pages/ProjectContextPage';
@@ -51,6 +52,7 @@ function App() {
           <Route path="company" element={<CompanyPage />} />
           <Route path="personal" element={<PersonalPage />} />
           <Route path="shared" element={<SharedPage />} />
+          <Route path="reviews" element={<ReviewsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="teams" element={<Navigate to="/team" replace />} />
           <Route path="repositories" element={<Navigate to="/catalog" replace />} />

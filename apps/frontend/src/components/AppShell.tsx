@@ -33,9 +33,11 @@ import {
   IconBuildingSkyscraper,
   IconSitemap,
   IconUsersGroup,
+  IconClipboardCheck,
 } from '@tabler/icons-react';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
+import { useMeDrafts } from '../hooks/useMeDrafts';
 import { useResolvedColorScheme } from '../hooks/useResolvedColorScheme';
 import { DocopsLogo } from './DocopsLogo';
 
@@ -49,8 +51,9 @@ function getNavLinkStyles(): { root: Record<string, unknown> } {
   return {
     root: {
       borderRadius: 'var(--mantine-radius-sm)',
-      minHeight: 'var(--mantine-nav-link-height, 44px)',
-      padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-sm)',
+      padding: '6px 12px',
+      fontWeight: 400,
+      fontSize: 'var(--mantine-font-size-md)',
     },
   };
 }
@@ -102,6 +105,11 @@ export function AppShell() {
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;
   const departmentId = me?.identity?.departmentLeads?.[0]?.id;
   const userTeamId = me?.identity?.teams?.[0]?.teamId;
+  const hasReviewRights =
+    isAdmin ||
+    isCompanyLead ||
+    isDepartmentLead ||
+    (me?.identity?.teams?.some((t) => t.role === 'leader') ?? false);
 
   const { data: firstCompany } = useQuery({
     queryKey: ['companies', 'first'],
@@ -283,6 +291,9 @@ export function AppShell() {
     enabled: !!me?.identity,
   });
 
+  const { data: draftsData } = useMeDrafts({}, { limit: 100, offset: 0, enabled: hasReviewRights });
+  const reviewsCount = draftsData?.openDraftRequests?.length ?? undefined;
+
   const scopeCountQueries = useQueries({
     queries: [
       ...scopeIdsForCounts.departmentIds.map((id) => ({
@@ -349,7 +360,6 @@ export function AppShell() {
                 </Text>
               ) : null
             }
-            fw={600}
             styles={navLinkStyles}
           />
           <NavLink
@@ -359,7 +369,6 @@ export function AppShell() {
             label="Department"
             active={isActive('/department', location.pathname)}
             leftSection={<IconSitemap size={18} />}
-            fw={600}
             styles={navLinkStyles}
           />
           <NavLink
@@ -369,7 +378,6 @@ export function AppShell() {
             label="Team"
             active={isActive('/team', location.pathname)}
             leftSection={<IconUsersGroup size={18} />}
-            fw={600}
             styles={navLinkStyles}
           />
         </>
@@ -393,7 +401,6 @@ export function AppShell() {
                 </Text>
               ) : null
             }
-            fw={600}
             styles={navLinkStyles}
           />
           <Box
@@ -424,7 +431,7 @@ export function AppShell() {
                 onClick={() => setDepartmentsSectionExpanded((v) => !v)}
               >
                 <IconSitemap size={18} style={{ flexShrink: 0 }} />
-                <Text size="sm" fw={600} truncate>
+                <Text size="sm" truncate>
                   Departments
                 </Text>
               </UnstyledButton>
@@ -502,7 +509,7 @@ export function AppShell() {
                 onClick={() => setTeamsSectionExpanded((v) => !v)}
               >
                 <IconUsersGroup size={18} style={{ flexShrink: 0 }} />
-                <Text size="sm" fw={600} truncate>
+                <Text size="sm" truncate>
                   Teams
                 </Text>
               </UnstyledButton>
@@ -590,7 +597,6 @@ export function AppShell() {
                 </Text>
               ) : null
             }
-            fw={600}
             styles={navLinkStyles}
           />
           <NavLink
@@ -607,7 +613,6 @@ export function AppShell() {
                 </Text>
               ) : null
             }
-            fw={600}
             styles={navLinkStyles}
           />
           <Box
@@ -645,7 +650,7 @@ export function AppShell() {
                 }
               >
                 <IconUsersGroup size={18} style={{ flexShrink: 0 }} />
-                <Text size="sm" fw={600} truncate>
+                <Text size="sm" truncate>
                   Teams
                 </Text>
               </UnstyledButton>
@@ -725,7 +730,6 @@ export function AppShell() {
               </Text>
             ) : null
           }
-          fw={600}
           styles={navLinkStyles}
         />
         <NavLink
@@ -739,7 +743,6 @@ export function AppShell() {
               : isActive('/department', location.pathname)
           }
           leftSection={<IconSitemap size={18} />}
-          fw={600}
           styles={navLinkStyles}
         />
         <NavLink
@@ -760,7 +763,6 @@ export function AppShell() {
               </Text>
             ) : null
           }
-          fw={600}
           styles={navLinkStyles}
         />
       </>
@@ -875,7 +877,6 @@ export function AppShell() {
                   label="Dashboard"
                   active={isActive('/', location.pathname)}
                   leftSection={<IconLayoutDashboard size={18} />}
-                  fw={600}
                   styles={navLinkStyles}
                 />
                 <NavLink
@@ -892,7 +893,6 @@ export function AppShell() {
                       </Text>
                     ) : null
                   }
-                  fw={600}
                   styles={navLinkStyles}
                 />
                 <Text size="xs" fw={500} c="dimmed" mt="xs" mb={4}>
@@ -916,9 +916,26 @@ export function AppShell() {
                       </Text>
                     ) : null
                   }
-                  fw={600}
                   styles={navLinkStyles}
                 />
+                {hasReviewRights && (
+                  <NavLink
+                    data-sidebar-link
+                    component={Link}
+                    to="/reviews"
+                    label="Reviews"
+                    active={isActive('/reviews', location.pathname)}
+                    leftSection={<IconClipboardCheck size={18} />}
+                    rightSection={
+                      reviewsCount !== undefined ? (
+                        <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                          {reviewsCount}
+                        </Text>
+                      ) : null
+                    }
+                    styles={navLinkStyles}
+                  />
+                )}
                 <NavLink
                   data-sidebar-link
                   component={Link}
@@ -933,7 +950,6 @@ export function AppShell() {
                       </Text>
                     ) : null
                   }
-                  fw={600}
                   styles={navLinkStyles}
                 />
               </Stack>
@@ -961,7 +977,7 @@ export function AppShell() {
                 >
                   <Group justify="space-between" wrap="nowrap" align="center" gap="xs">
                     <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-                      <Text size="sm" fw={600} truncate>
+                      <Text size="sm" truncate>
                         {me?.user?.name ?? 'Account'}
                       </Text>
                       {me?.user?.email && (
