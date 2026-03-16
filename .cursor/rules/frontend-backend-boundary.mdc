@@ -1,0 +1,23 @@
+---
+alwaysApply: true
+---
+
+# Frontend / Backend Boundary Rules
+
+Frontend must never implement security decisions.
+
+Frontend may only use permission flags returned by the backend.
+
+Examples:
+
+canWrite
+canDelete
+canPublish
+
+Forbidden patterns in frontend:
+
+if (document.ownerId === user.id)
+if (user.role === "admin")
+if (document.status === "draft")
+
+Security must always be enforced by the backend.

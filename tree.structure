@@ -1,0 +1,184 @@
+apps/
+├── backend
+│   ├── Dockerfile
+│   ├── Makefile
+│   ├── package.json
+│   ├── prisma
+│   │   └── schema.prisma
+│   ├── prisma.config.ts
+│   ├── scripts
+│   │   ├── create-admin.ts
+│   │   ├── load-env.ts
+│   │   ├── remove-failed-user-preferences-migration.sql
+│   │   ├── run-backfill-context-owner-display.ts
+│   │   └── run-seed.ts
+│   ├── src
+│   │   ├── api-types.ts
+│   │   ├── app.ts
+│   │   ├── auth
+│   │   │   ├── auth.test.ts
+│   │   │   ├── middleware.ts
+│   │   │   ├── password.ts
+│   │   │   ├── routes.ts
+│   │   │   ├── schemas.ts
+│   │   │   ├── session.ts
+│   │   │   └── types.ts
+│   │   ├── contextOwnerDisplay.ts
+│   │   ├── db.ts
+│   │   ├── index.ts
+│   │   ├── mergeThreeWay.ts
+│   │   ├── permissions
+│   │   │   ├── assignmentPermissions.ts
+│   │   │   ├── canDeleteDocument.ts
+│   │   │   ├── canMergeDraftRequest.ts
+│   │   │   ├── canPublishDocument.ts
+│   │   │   ├── canRead.ts
+│   │   │   ├── canWrite.ts
+│   │   │   ├── catalogPermissions.ts
+│   │   │   ├── contextPermissions.ts
+│   │   │   ├── documentLoad.ts
+│   │   │   ├── index.ts
+│   │   │   ├── middleware.ts
+│   │   │   ├── permissions.test.ts
+│   │   │   ├── pinnedPermissions.test.ts
+│   │   │   ├── pinnedPermissions.ts
+│   │   │   ├── scopeLead.ts
+│   │   │   └── scopeResolution.ts
+│   │   ├── routes
+│   │   │   ├── admin.test.ts
+│   │   │   ├── admin.ts
+│   │   │   ├── assignments.ts
+│   │   │   ├── contexts.ts
+│   │   │   ├── documents.test.ts
+│   │   │   ├── documents.ts
+│   │   │   ├── me.test.ts
+│   │   │   ├── meTrashArchive.ts
+│   │   │   ├── me.ts
+│   │   │   ├── organisation.test.ts
+│   │   │   ├── organisation.ts
+│   │   │   ├── pinned.test.ts
+│   │   │   ├── pinned.ts
+│   │   │   ├── schemas
+│   │   │   │   ├── admin.ts
+│   │   │   │   ├── assignments.ts
+│   │   │   │   ├── contexts.ts
+│   │   │   │   ├── documents.ts
+│   │   │   │   ├── me.ts
+│   │   │   │   ├── organisation.ts
+│   │   │   │   └── pinned.ts
+│   │   │   └── tags.test.ts
+│   │   ├── seed.ts
+│   │   ├── storage
+│   │   │   ├── index.ts
+│   │   │   └── s3.ts
+│   │   ├── test-globalSetup.ts
+│   │   └── types
+│   │       └── fastify.d.ts
+│   ├── tsconfig.build.json
+│   ├── tsconfig.json
+│   └── vitest.config.ts
+└── frontend
+    ├── index.html
+    ├── package.json
+    ├── public
+    │   ├── docops-dark.svg
+    │   └── docops.svg
+    ├── README.md
+    ├── src
+    │   ├── api
+    │   │   ├── client.ts
+    │   │   ├── me-types.ts
+    │   │   └── storage-types.ts
+    │   ├── App.tsx
+    │   ├── components
+    │   │   ├── AdminGuard.test.tsx
+    │   │   ├── AdminGuard.tsx
+    │   │   ├── AppShell.tsx
+    │   │   ├── ArchiveTabContent.tsx
+    │   │   ├── AuthGuard.tsx
+    │   │   ├── ContentLink.tsx
+    │   │   ├── contexts
+    │   │   │   ├── cardShared.tsx
+    │   │   │   ├── ContextGrid.tsx
+    │   │   │   ├── CreateContextMenu.tsx
+    │   │   │   ├── EditContextNameModal.tsx
+    │   │   │   ├── index.ts
+    │   │   │   ├── NewContextModal.tsx
+    │   │   │   ├── NewDocumentModal.tsx
+    │   │   │   ├── RecentItemsCard.tsx
+    │   │   │   ├── SectionCard.tsx
+    │   │   │   └── types.ts
+    │   │   ├── DocopsLogo.tsx
+    │   │   ├── DraftsCard.tsx
+    │   │   ├── DraftsTabContent.tsx
+    │   │   ├── ErrorBoundary.tsx
+    │   │   ├── PageHeader.tsx
+    │   │   ├── PageWithTabs.tsx
+    │   │   ├── ScopeRecentColumn.css
+    │   │   ├── ScopeRecentColumn.tsx
+    │   │   ├── SortableTableTh.tsx
+    │   │   ├── ThemeFromPreferences.tsx
+    │   │   └── TrashTabContent.tsx
+    │   ├── constants.ts
+    │   ├── hooks
+    │   │   ├── useMeDrafts.ts
+    │   │   ├── useMe.ts
+    │   │   ├── useRecentItems.tsx
+    │   │   └── useResolvedColorScheme.ts
+    │   ├── lib
+    │   │   ├── canShowWriteTabs.ts
+    │   │   ├── formatDate.ts
+    │   │   └── scopeNav.ts
+    │   ├── main.tsx
+    │   ├── pages
+    │   │   ├── admin
+    │   │   │   ├── AdminCompanyForm.tsx
+    │   │   │   ├── AdminCompanyTab.tsx
+    │   │   │   ├── AdminCompanyUserPickerModal.tsx
+    │   │   │   ├── AdminDepartmentsTab.tsx
+    │   │   │   ├── AdminPage.css
+    │   │   │   ├── AdminPage.tsx
+    │   │   │   ├── AdminTeamsTab.tsx
+    │   │   │   └── AdminUsersTab.tsx
+    │   │   ├── CatalogPage.css
+    │   │   ├── CatalogPage.tsx
+    │   │   ├── CompanyPage.tsx
+    │   │   ├── ContextDetailPage.tsx
+    │   │   ├── DepartmentContextPage.tsx
+    │   │   ├── DepartmentRedirectPage.tsx
+    │   │   ├── DocumentContent.css
+    │   │   ├── DocumentPage.tsx
+    │   │   ├── DocumentVersionsPage.tsx
+    │   │   ├── HomePage.tsx
+    │   │   ├── LoginPage.tsx
+    │   │   ├── NotFoundPage.tsx
+    │   │   ├── PersonalPage.tsx
+    │   │   ├── ProcessContextPage.tsx
+    │   │   ├── ProjectContextPage.tsx
+    │   │   ├── ProzessePage.tsx
+    │   │   ├── RepositoriesPage.tsx
+    │   │   ├── settings
+    │   │   │   ├── SettingsAccountTab.tsx
+    │   │   │   ├── SettingsGeneralTab.tsx
+    │   │   │   ├── SettingsNotificationsTab.tsx
+    │   │   │   ├── SettingsSecurityTab.tsx
+    │   │   │   └── SettingsStorageTab.tsx
+    │   │   ├── SettingsPage.tsx
+    │   │   ├── SharedPage.tsx
+    │   │   ├── SubcontextDetailPage.tsx
+    │   │   ├── TeamContextPage.tsx
+    │   │   ├── TeamRedirectPage.tsx
+    │   │   └── TemplatesPage.tsx
+    │   ├── styles
+    │   │   ├── links.css
+    │   │   └── table-rows.css
+    │   ├── test
+    │   │   └── setup.ts
+    │   ├── theme.ts
+    │   └── vite-env.d.ts
+    ├── tsconfig.json
+    ├── tsconfig.node.json
+    ├── tsconfig.tsbuildinfo
+    └── vite.config.ts
+
+24 directories, 158 files

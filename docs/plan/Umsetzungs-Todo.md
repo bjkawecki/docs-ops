@@ -2,7 +2,7 @@
 
 Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. Siehe [Technologie-Stack](Technologie-Stack.md), [Infrastruktur & Deployment](Infrastruktur-und-Deployment.md) und [Doc-Platform-Konzept](../platform/Doc-Platform-Konzept.md).
 
-**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–14 (Kern-API, Frontend, Layout, Settings, Admin-UI, Kontexte-Verwaltung, Company Page, Department/Team Pages, Dashboard, Catalog, Dokumente-UI). **Phase 2** (später): Abschnitte 15–20 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen). **Optional:** Abschnitt 21 (KI-Assistent / Dokumenten-Frage).
+**Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–14 (Kern-API, Frontend, Layout, Settings, Admin-UI, Kontexte-Verwaltung, Company Page, Department/Team Pages, Dashboard, Catalog, Dokumente-UI). **Phase 2** (später): Abschnitte 15–20 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen). **Optional:** Abschnitt 21 (KI-Assistent / Dokumenten-Frage), Abschnitt 22 (Kommentar-Sektion pro Dokument). **Referenz:** [Dokument-Lifecycle-Analyse](Dokument-Lifecycle-Analyse.md) – Zustandsmaschine, Events, Permissions, Seiteneffekte und Inkonsistenzen.
 
 ---
 
@@ -369,3 +369,15 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 - [ ] **Kosten/Betrieb:** LLM-API-Kosten und Latenz pro Anfrage; Konfiguration über Umgebungsvariablen (API-Key, Endpoint); **Admin: KI-Settings** (§9) für Feature-Flag und Konfiguration.
 
 **Ergebnis:** Nutzer können (Dashboard/Suchseite) im KI-Modus Fragen in natürlicher Sprache stellen und erhalten eine Antwort mit **Links zu den Quell-Dokumenten**, ausschließlich aus Dokumenten, die sie lesen dürfen. Admin hat Übersicht über KI-Settings, Chat-History und Token-Verbrauch pro User.
+
+---
+
+## 22. Optional: Kommentar-Sektion pro Dokument
+
+**Ziel:** Diskussion und Feedback direkt am Dokument. Kommentar-Rechte = Leserechte: Jeder mit Leserecht darf Kommentare lesen, anlegen sowie eigene bearbeiten/löschen; Scope-Lead/Admin dürfen beliebige Kommentare löschen (Moderation). Konzept: [Pseudocode §3b](../platform/datenmodell/Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant), [Rechtesystem §6c](../platform/datenmodell/Rechtesystem.md#6c-kommentare-geplant), [Prisma-Schema-Entwurf §9](Prisma-Schema-Entwurf.md#9-kommentar-sektion-geplant).
+
+- [ ] **Datenmodell:** Tabelle **DocumentComment** (id, documentId, authorId, text, parentId?, createdAt, updatedAt?); Indizes documentId, parentId. Migration.
+- [ ] **Rechte:** canReadComment / canCreateComment / canEditOwnComment / canDeleteOwnComment = canRead(documentId); canDeleteAnyComment = canWriteContext(contextId) oder isAdmin.
+- [ ] **Backend:** CRUD-API für Kommentare (z. B. GET/POST `/documents/:documentId/comments`, PATCH/DELETE `/documents/:documentId/comments/:commentId`); Pagination optional; Rechteprüfung bei jedem Zugriff.
+- [ ] **Frontend:** Auf der Dokument-Detailseite eine Kommentar-Sektion (unter dem Inhalt oder Sidebar): Liste, Formular zum Anlegen, Bearbeiten/Löschen eigener Kommentare; bei canDeleteAnyComment Löschen-Button für alle. Optional: Threads (Antworten via parentId).
+- [ ] **Später (optional):** Inline-/Absatz-Kommentare (Anker auf Block/Zeile); Benachrichtigungen bei neuen Kommentaren.

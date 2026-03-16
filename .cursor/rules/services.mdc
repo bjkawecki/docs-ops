@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+
+# Service Layer Rules
+
+All domain logic must live in services.
+
+Examples:
+
+documentService.publishDocument
+documentService.archiveDocument
+documentService.restoreDocument
+
+Services may:
+
+- modify lifecycle fields
+- enforce business rules
+- coordinate permissions
+- write to the database
+
+Routes must not modify lifecycle fields directly.

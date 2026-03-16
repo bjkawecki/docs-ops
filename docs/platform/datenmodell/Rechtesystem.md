@@ -114,6 +114,18 @@ Schreibrechte sind nicht vererbbar.
 
 ---
 
+### 6c. Kommentare (geplant)
+
+Eine **Kommentar-Sektion** pro Dokument ermöglicht Diskussion und Feedback am Dokument. Es gibt keine separaten Rollen für Kommentare; die Rechte leiten sich vom Dokument ab.
+
+- **Lesen:** Wer das Dokument lesen darf (`canRead`), darf alle Kommentare zu diesem Dokument lesen.
+- **Kommentieren (Anlegen, eigene bearbeiten/löschen):** Wer das Dokument lesen darf (`canRead`), darf Kommentare anlegen sowie **eigene** Kommentare bearbeiten und löschen. Kommentar-Rechte gelten damit überall dort, wo Leserechte gelten.
+- **Löschen (fremde Kommentare):** Nur **Scope-Lead** des Kontexts des Dokuments (Team Lead, Department Lead, Company Lead der Owner-Unit), Owner von persönlichem Prozess/Projekt (ownerUserId) und **Admin** dürfen beliebige Kommentare löschen (Moderation).
+
+Implementierung: `canReadComment(userId, documentId)` = canRead(documentId); `canCreateComment` / `canEditOwnComment` / `canDeleteOwnComment` = canRead(documentId); `canDeleteAnyComment` = canWriteContext(contextId) oder isAdmin. Datenmodell siehe [Pseudocode §3b](Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant) und [Prisma-Schema-Entwurf §9](../../plan/Prisma-Schema-Entwurf.md#9-kommentar-sektion-geplant).
+
+---
+
 ### 7. Company-Level (Governance)
 
 Company-Lead besitzt **Leserecht auf alle Kontexte** – mit Ausnahme von persönlichen Kontexten (Prozesse/Projekte mit ownerUserId), die standardmäßig privat sind.

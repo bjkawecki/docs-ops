@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+
+# Route Handler Rules
+
+Route handlers must stay thin.
+
+Allowed in routes:
+
+- request parsing
+- schema validation
+- calling services
+- returning responses
+
+Not allowed:
+
+- lifecycle logic
+- permission decisions
+- complex branching
+- database mutations for domain logic
+
+Bad:
+
+PATCH /documents/:id
+sets publishedAt directly
+
+Good:
+
+POST /documents/:id/publish
+-> documentService.publishDocument()

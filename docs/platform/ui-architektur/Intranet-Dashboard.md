@@ -42,6 +42,7 @@ Aktuelle Routen und Seiten der DocsOps-App. Details zu Layout und Sidebar: [Umse
 
 - **Breadcrumbs:** Auf den Detailseiten (Process/Project, Subcontext, Dokument) wird der Pfad als Breadcrumb angezeigt (Scope → Kontext → ggf. Subcontext → Dokument), mit klickbaren Links für jede Ebene.
 - **Kontext-Detailseiten** (Process/Project) sind bei Bedarf um Tabs erweiterbar (z. B. Documents | Subcontexts | Settings | History), sobald weitere Bereiche wie Mitglieder, Einstellungen oder Nutzung/History hinzukommen.
+- **Dokument-Detailseite (geplant: Kommentar-Sektion):** Unter dem Dokumentinhalt (oder in einer Sidebar) eine **Kommentar-Sektion** – Liste der Kommentare, Formular zum Anlegen, ggf. Threads (Antworten). Sichtbar, Anlegen und Bearbeiten/Löschen eigener Kommentare für alle mit Leserecht; Moderation (Löschen beliebiger Kommentare) für Scope-Lead/Admin. Siehe [Prisma-Schema-Entwurf §9](../../plan/Prisma-Schema-Entwurf.md#9-kommentar-sektion-geplant).
 
 ---
 

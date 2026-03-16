@@ -71,7 +71,7 @@ Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId
 - **Document:** title, content, pdfUrl?, contextId?, deletedAt?, archivedAt?; Tags über **Tag** + **DocumentTag** (n:m).
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
 - **Umgesetzt:** Pinned (§7) – DocumentPinnedInScope, nur Dokumente.
-- **Geplant (noch nicht umgesetzt):** Document-Status draft/published (§3), Versionierung & PR (§8).
+- **Geplant (noch nicht umgesetzt):** Document-Status draft/published (§3), Versionierung & PR (§8), Kommentar-Sektion (§9).
 
 Schema liegt in `apps/backend/prisma/schema.prisma`; Migrationen unter `apps/backend/prisma/migrations/`.
 
@@ -140,3 +140,26 @@ Snapshots nur bei Veröffentlichung und bei Merge; Pull-Request-Workflow für Do
 - **DocumentDraft (pro User):** Pro Nutzer eine Arbeitskopie pro Dokument (für Bearbeitung an veröffentlichten Dokumenten vor dem PR). id, documentId (→ Document), userId (→ User), **content** (Text), **basedOnVersionId** (→ DocumentVersion?, optional – die Version, auf der dieser Draft basiert), updatedAt. Unique (documentId, userId). Beim Anlegen/Öffnen: basedOnVersionId = currentPublishedVersionId. **„Auf neueste Version updaten“:** Basis = Inhalt von basedOnVersionId, Theirs = aktueller veröffentlichter Inhalt, Ours = draft.content → 3-Wege-Merge; Konflikte anzeigen und lösen; danach DocumentDraft.content = Merged-Ergebnis, basedOnVersionId = currentPublishedVersionId. Beim Einreichen eines PR: DraftRequest aus DocumentDraft.content anlegen.
 
 **Cascade:** Document löschen → DocumentVersion, DraftRequest und DocumentDraft (Cascade). User löschen → createdBy/submittedById auf null setzen oder Cascade je nach Anforderung; DocumentDraft (Cascade).
+
+---
+
+## 9. Kommentar-Sektion (geplant)
+
+Diskussion und Feedback direkt am Dokument. Noch nicht in `schema.prisma` umgesetzt. Konzept und Rechte: [Pseudocode §3b](../platform/datenmodell/Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant), [Rechtesystem §6c](../platform/datenmodell/Rechtesystem.md#6c-kommentare-geplant).
+
+**Vorschlag Tabelle DocumentComment:**
+
+| Spalte     | Typ       | Bedeutung                                                                                              |
+| ---------- | --------- | ------------------------------------------------------------------------------------------------------ |
+| id         | String    | PK (cuid)                                                                                              |
+| documentId | String    | FK → Document, onDelete: Cascade                                                                       |
+| authorId   | String    | FK → User, onDelete: Cascade (oder SetNull, wenn Kommentare beim User-Löschen erhalten bleiben sollen) |
+| text       | String    | Inhalt (Klartext oder Markdown; Entscheidung bei Umsetzung)                                            |
+| parentId   | String?   | FK → DocumentComment?, optional für Threads (Antworten)                                                |
+| createdAt  | DateTime  | Erstellzeitpunkt                                                                                       |
+| updatedAt  | DateTime? | optional; falls Bearbeitung unterstützt wird                                                           |
+
+- **Indizes:** documentId (für Abfrage „alle Kommentare zu Dokument“), parentId (für Thread-Struktur).
+- **Relationen:** document → Document; author → User; parent → DocumentComment?; children → DocumentComment[].
+- **Rechte:** Lesen, Anlegen und Bearbeiten/Löschen eigener Kommentare = canRead(documentId) (Kommentar-Rechte überall, wo Leserechte gelten); Löschen beliebiger = canWriteContext(contextId) oder isAdmin (Moderation).
+- **Optional später:** Anker/Referenz auf Absatz (z. B. blockId oder Zeilenbereich) für Inline-Kommentare; dann zusätzliche Spalte(n) anchorType, anchorValue oder ähnlich.

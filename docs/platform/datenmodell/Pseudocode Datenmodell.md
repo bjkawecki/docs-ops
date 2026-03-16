@@ -72,6 +72,7 @@ class Dokument:
 - status: 'draft' | 'published' # geplant; Draft nur für Schreiber/Scope-Lead sichtbar (vgl. Prisma-Schema-Entwurf §3)
 - zugriffsrechte: List[Zugriffsrecht]
 - tags: List[Tag]
+- kommentare: List[DokumentKommentar] # geplant (§3b)
 
 ---
 
@@ -80,6 +81,24 @@ class Dokument:
 Angepinnte Einträge pro Scope (Team, Abteilung, Firma) für Dashboard und Scope-Seiten. Konkrete Tabelle siehe [Prisma-Schema-Entwurf §7](../../plan/Prisma-Schema-Entwurf.md#7-pinned-geplant).
 
 - PinnedItem: scopeType (team | department | company), scopeId, targetType (document | process | project), targetId, order, pinnedBy (Nutzer)
+
+---
+
+## 3b. Kommentar-Sektion (geplant)
+
+Diskussion und Feedback direkt am Dokument. **Kommentar-Rechte folgen dem Leserecht:** Jeder Nutzer mit **Leserecht** auf das Dokument darf Kommentare lesen, Kommentare anlegen sowie **eigene** Kommentare bearbeiten und löschen. Fremde Kommentare löschen: nur Scope-Lead oder Admin (vgl. [Rechtesystem §6c](Rechtesystem.md#6c-kommentare-geplant)).
+
+class DokumentKommentar:
+
+- id
+- dokument: Dokument
+- autor: Nutzer
+- text: String # Klartext oder Markdown (nach Entscheidung)
+- createdAt, updatedAt?
+- parentId: DokumentKommentar? # optional, für Threads (Antworten)
+
+- Kommentare werden unter der Dokument-Ansicht (oder in einer Sidebar) angezeigt; optional später: Anker/Referenz auf einen Absatz (z. B. Zeilen- oder Block-ID).
+- Keine separaten Rollen für Kommentare: Lesen, Anlegen und Bearbeiten/Löschen eigener Kommentare = canRead(Dokument); Löschen fremder = Scope-Lead/Admin.
 
 ---
 

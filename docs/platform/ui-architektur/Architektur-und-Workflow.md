@@ -29,6 +29,7 @@ Kurzfassung: Wie die Plattform Inhalte und Rechte handhabt. Details zu Konzept u
 
 ## 4. Ausblick (optionale Erweiterungen)
 
+- **Kommentar-Sektion:** Pro Dokument eine Sektion für Kommentare (unter dem Inhalt oder in einer Sidebar). Lesen, Anlegen und Bearbeiten/Löschen eigener Kommentare für alle mit Leserecht (Kommentar-Rechte = Leserechte); Löschen fremder nur für Scope-Lead/Admin (Moderation). Optional: Threads (Antworten), später Inline-/Absatz-Kommentare. Datenmodell und Rechte: [Pseudocode §3b](../datenmodell/Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant), [Rechtesystem §6c](../datenmodell/Rechtesystem.md#6c-kommentare-geplant).
 - **Aggregation externer Quellen:** Markdown aus Git-Repos oder Netzlaufwerken könnte später angebunden werden; der Kern der Plattform bleibt die eigene DB und explizite Rechte.
 - **Statische Exporte / Deployment:** Optional z. B. Export zu MkDocs/Docusaurus oder PDF-Export (Pandoc) für bestimmte Kontexte; kein Ersatz für die zentrale App.
 

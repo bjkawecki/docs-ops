@@ -1,0 +1,32 @@
+---
+alwaysApply: true
+---
+
+# Document Lifecycle Rules
+
+Document lifecycle state transitions must use dedicated endpoints.
+
+Allowed lifecycle transitions:
+
+publish
+archive
+restore
+request-draft
+merge-draft
+delete
+
+Lifecycle fields must NOT be modified via generic PATCH routes.
+
+Forbidden in PATCH /documents/:id:
+
+publishedAt
+archivedAt
+deletedAt
+
+Lifecycle changes must use endpoints like:
+
+POST /documents/:id/publish
+POST /documents/:id/archive
+POST /documents/:id/restore
+
+These endpoints must call documentService lifecycle functions.

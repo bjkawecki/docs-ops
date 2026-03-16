@@ -1,0 +1,28 @@
+---
+alwaysApply: true
+---
+
+# Permission Rules
+
+All access control must go through the permissions layer.
+
+Never implement permission logic directly in routes or services.
+
+Do not use checks like:
+
+if (user.role === "admin")
+if (document.ownerId === user.id)
+
+Instead use permission functions:
+
+canReadDocument
+canWriteDocument
+canDeleteDocument
+canPublishDocument
+canMergeDraftRequest
+canWriteContext
+canReadContext
+
+Permissions must be centralized in:
+
+backend/src/permissions
