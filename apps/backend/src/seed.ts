@@ -258,6 +258,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
             title,
             content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
             contextId: pCtx.id,
+            publishedAt: new Date(),
           },
         });
       }
@@ -278,6 +279,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
             title,
             content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
             contextId: projCtx.id,
+            publishedAt: new Date(),
           },
         });
       }
@@ -401,6 +403,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
         title: seedDocTitle(scopeKey, 'process'),
         content: docContent,
         contextId: process.contextId,
+        publishedAt: new Date(),
       },
     });
     if (process.ownerId && scopeKey.startsWith('company:')) {
@@ -420,6 +423,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
         title: seedDocTitle(scopeKey, 'project'),
         content: docContent,
         contextId: project.contextId,
+        publishedAt: new Date(),
       },
     });
   }
@@ -438,6 +442,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
           title: subcontextTitles[sub.name] ?? sub.name,
           content: docContent,
           contextId: sub.contextId,
+          publishedAt: new Date(),
         },
       });
     }

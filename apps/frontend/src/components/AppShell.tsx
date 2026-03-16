@@ -354,7 +354,7 @@ export function AppShell() {
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
             rightSection={
-              companyCount !== undefined ? (
+              companyCount !== undefined && companyCount > 0 ? (
                 <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                   {companyCount}
                 </Text>
@@ -395,7 +395,7 @@ export function AppShell() {
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
             rightSection={
-              companyCount !== undefined ? (
+              companyCount !== undefined && companyCount > 0 ? (
                 <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                   {companyCount}
                 </Text>
@@ -468,7 +468,7 @@ export function AppShell() {
                     label={dept.name}
                     active={isActive(`/department/${dept.id}`, location.pathname)}
                     rightSection={
-                      departmentCounts[dept.id] !== undefined ? (
+                      departmentCounts[dept.id] !== undefined && departmentCounts[dept.id] > 0 ? (
                         <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                           {departmentCounts[dept.id]}
                         </Text>
@@ -551,7 +551,7 @@ export function AppShell() {
                         label={team.name}
                         active={location.pathname === `/team/${team.id}`}
                         rightSection={
-                          teamCounts[team.id] !== undefined ? (
+                          teamCounts[team.id] !== undefined && teamCounts[team.id] > 0 ? (
                             <Text
                               size="xs"
                               c="var(--mantine-primary-color-filled)"
@@ -591,7 +591,7 @@ export function AppShell() {
             active={isActive('/company', location.pathname)}
             leftSection={<IconBuildingSkyscraper size={18} />}
             rightSection={
-              companyCount !== undefined ? (
+              companyCount !== undefined && companyCount > 0 ? (
                 <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                   {companyCount}
                 </Text>
@@ -607,7 +607,7 @@ export function AppShell() {
             active={isActive(`/department/${departmentId}`, location.pathname)}
             leftSection={<IconSitemap size={18} />}
             rightSection={
-              departmentCounts[departmentId] !== undefined ? (
+              departmentCounts[departmentId] !== undefined && departmentCounts[departmentId] > 0 ? (
                 <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                   {departmentCounts[departmentId]}
                 </Text>
@@ -694,7 +694,7 @@ export function AppShell() {
                     label={team.name}
                     active={location.pathname === `/team/${team.id}`}
                     rightSection={
-                      teamCounts[team.id] !== undefined ? (
+                      teamCounts[team.id] !== undefined && teamCounts[team.id] > 0 ? (
                         <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                           {teamCounts[team.id]}
                         </Text>
@@ -724,7 +724,7 @@ export function AppShell() {
           active={isActive('/company', location.pathname)}
           leftSection={<IconBuildingSkyscraper size={18} />}
           rightSection={
-            companyCount !== undefined ? (
+            companyCount !== undefined && companyCount > 0 ? (
               <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                 {companyCount}
               </Text>
@@ -757,7 +757,7 @@ export function AppShell() {
           }
           leftSection={<IconUsersGroup size={18} />}
           rightSection={
-            userTeamId && teamCounts[userTeamId] !== undefined ? (
+            userTeamId && teamCounts[userTeamId] !== undefined && teamCounts[userTeamId] > 0 ? (
               <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                 {teamCounts[userTeamId]}
               </Text>
@@ -887,7 +887,7 @@ export function AppShell() {
                   active={isActive('/catalog', location.pathname)}
                   leftSection={<IconListSearch size={18} />}
                   rightSection={
-                    catalogCount !== undefined ? (
+                    catalogCount !== undefined && catalogCount > 0 ? (
                       <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                         {catalogCount}
                       </Text>
@@ -910,7 +910,7 @@ export function AppShell() {
                   active={isActive('/personal', location.pathname)}
                   leftSection={<IconUser size={18} />}
                   rightSection={
-                    personalCount !== undefined ? (
+                    personalCount !== undefined && personalCount > 0 ? (
                       <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                         {personalCount}
                       </Text>
@@ -927,7 +927,7 @@ export function AppShell() {
                     active={isActive('/reviews', location.pathname)}
                     leftSection={<IconClipboardCheck size={18} />}
                     rightSection={
-                      reviewsCount !== undefined ? (
+                      reviewsCount !== undefined && reviewsCount > 0 ? (
                         <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                           {reviewsCount}
                         </Text>
@@ -944,7 +944,7 @@ export function AppShell() {
                   active={isActive('/shared', location.pathname)}
                   leftSection={<IconShare size={18} />}
                   rightSection={
-                    sharedCount !== undefined ? (
+                    sharedCount !== undefined && sharedCount > 0 ? (
                       <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
                         {sharedCount}
                       </Text>
