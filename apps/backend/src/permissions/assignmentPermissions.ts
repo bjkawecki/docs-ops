@@ -176,3 +176,30 @@ export async function canViewCompany(
   if (isMemberInCompany) return true;
   return false;
 }
+
+/**
+ * Returns company IDs the user is allowed to view (for filtering GET /companies).
+ * Admin: all companies. Otherwise: companies where user is lead, dept lead, team lead, or member.
+ */
+export async function getVisibleCompanyIds(
+  prisma: PrismaClient,
+  userId: string
+): Promise<string[]> {
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return [];
+
+  if (user.isAdmin) {
+    const companies = await prisma.company.findMany({ select: { id: true } });
+    return companies.map((c) => c.id);
+  }
+
+  const ids = new Set<string>();
+  for (const c of user.companyLeads) if (c.companyId) ids.add(c.companyId);
+  for (const d of user.departmentLeads)
+    if (d.department?.companyId) ids.add(d.department.companyId);
+  for (const l of user.leadOfTeams)
+    if (l.team?.department?.companyId) ids.add(l.team.department.companyId);
+  for (const m of user.teamMemberships)
+    if (m.team?.department?.companyId) ids.add(m.team.department.companyId);
+  return [...ids];
+}

@@ -27,8 +27,8 @@ import {
   getReadableCatalogScope,
   getWritableCatalogScope,
 } from '../permissions/catalogPermissions.js';
-import { getContextIdsForScope, type ScopeRef } from '../permissions/scopeResolution.js';
-import { getScopeLead } from '../permissions/scopeLead.js';
+import { type ScopeRef } from '../permissions/scopeResolution.js';
+import { canWriteInScope } from '../permissions/scopeLead.js';
 import {
   getTrashOrArchiveItems,
   contextNameFromDoc,
@@ -596,91 +596,26 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
       const query = meCanWriteInScopeQuerySchema.parse(request.query);
 
-      if (query.scope === 'company' && query.companyId != null) {
-        const scopeRef = scopeRefFromQuery(query)!;
-        const [scopeLead, scopeContextIds, writable] = await Promise.all([
-          getScopeLead(prisma, userId, scopeRef),
-          getContextIdsForScope(prisma, scopeRef),
-          getWritableCatalogScope(prisma, userId),
-        ]);
-        if (scopeLead) return reply.send({ canWrite: true });
-        const writableCtxSet = new Set(writable.contextIds);
-        if (scopeContextIds.some((id) => writableCtxSet.has(id)))
-          return reply.send({ canWrite: true });
-        if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
-          const docInScope = await prisma.document.findFirst({
-            where: {
-              contextId: { in: scopeContextIds },
-              id: { in: writable.documentIdsFromGrants },
-            },
-            select: { id: true },
-          });
-          if (docInScope) return reply.send({ canWrite: true });
-        }
-        return reply.send({ canWrite: false });
-      }
+      const scopeRef = scopeRefFromQuery(query);
+      if (!scopeRef) return reply.send({ canWrite: false });
 
-      if (query.scope === 'department' && query.departmentId != null) {
-        const departmentId = query.departmentId;
-        const department = await prisma.department.findUnique({
-          where: { id: departmentId },
-          select: { companyId: true },
+      if (scopeRef.type === 'department') {
+        const dept = await prisma.department.findUnique({
+          where: { id: scopeRef.departmentId },
+          select: { id: true },
         });
-        if (!department) return reply.send({ canWrite: false });
-        const scopeRef = scopeRefFromQuery(query)!;
-        const [scopeLead, scopeContextIds, writable] = await Promise.all([
-          getScopeLead(prisma, userId, scopeRef),
-          getContextIdsForScope(prisma, scopeRef),
-          getWritableCatalogScope(prisma, userId),
-        ]);
-        if (scopeLead) return reply.send({ canWrite: true });
-        const writableCtxSet = new Set(writable.contextIds);
-        if (scopeContextIds.some((id) => writableCtxSet.has(id)))
-          return reply.send({ canWrite: true });
-        if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
-          const docInScope = await prisma.document.findFirst({
-            where: {
-              contextId: { in: scopeContextIds },
-              id: { in: writable.documentIdsFromGrants },
-            },
-            select: { id: true },
-          });
-          if (docInScope) return reply.send({ canWrite: true });
-        }
-        return reply.send({ canWrite: false });
+        if (!dept) return reply.send({ canWrite: false });
       }
-
-      if (query.scope === 'team' && query.teamId != null) {
-        const teamId = query.teamId;
+      if (scopeRef.type === 'team') {
         const team = await prisma.team.findUnique({
-          where: { id: teamId },
-          select: { departmentId: true, department: { select: { companyId: true } } },
+          where: { id: scopeRef.teamId },
+          select: { id: true },
         });
         if (!team) return reply.send({ canWrite: false });
-        const scopeRef = scopeRefFromQuery(query)!;
-        const [scopeLead, scopeContextIds, writable] = await Promise.all([
-          getScopeLead(prisma, userId, scopeRef),
-          getContextIdsForScope(prisma, scopeRef),
-          getWritableCatalogScope(prisma, userId),
-        ]);
-        if (scopeLead) return reply.send({ canWrite: true });
-        const writableCtxSet = new Set(writable.contextIds);
-        if (scopeContextIds.some((id) => writableCtxSet.has(id)))
-          return reply.send({ canWrite: true });
-        if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
-          const docInScope = await prisma.document.findFirst({
-            where: {
-              contextId: { in: scopeContextIds },
-              id: { in: writable.documentIdsFromGrants },
-            },
-            select: { id: true },
-          });
-          if (docInScope) return reply.send({ canWrite: true });
-        }
-        return reply.send({ canWrite: false });
       }
 
-      return reply.send({ canWrite: false });
+      const canWrite = await canWriteInScope(prisma, userId, scopeRef);
+      return reply.send({ canWrite });
     }
   );
 

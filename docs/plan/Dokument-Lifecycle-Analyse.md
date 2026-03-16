@@ -10,22 +10,22 @@ Diese Analyse rekonstruiert den vollständigen Lifecycle von Dokumenten im DocsO
 
 Erkannte Lifecycle-Events (mit Backend-Endpoint bzw. Ort):
 
-| Event                           | Endpoint / Ort                                                                                       | Implementiert | Anmerkung                                                                                              |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------ |
-| **Create document**             | `POST /api/v1/documents`                                                                             | ✅            | Mit oder ohne contextId; mit contextId optional publishedAt im Body                                    |
-| **Edit draft**                  | `PATCH /api/v1/documents/:documentId` (content/title) oder `PUT /api/v1/documents/:documentId/draft` | ✅            | Draft = Document mit publishedAt null; User-Draft = DocumentDraft (für published Docs)                 |
-| **Merge draft (PR)**            | `PATCH /api/v1/draft-requests/:draftRequestId` (action: merge)                                       | ✅            | Erstellt neue DocumentVersion, setzt Document.content und currentPublishedVersionId                    |
-| **Publish document**            | `POST /api/v1/documents/:documentId/publish`                                                         | ✅            | Erstellt DocumentVersion (Version 1), setzt publishedAt und currentPublishedVersionId                  |
-| **Update document**             | `PATCH /api/v1/documents/:documentId`                                                                | ✅            | title, content, description, tagIds, contextId, **publishedAt**, **archivedAt** – siehe Inkonsistenzen |
-| **Create new version**          | Implizit bei Publish (Version 1) und bei Merge (n+1)                                                 | ✅            | Kein eigener Endpoint; nur über Publish bzw. Merge                                                     |
-| **Assign document**             | `PATCH /api/v1/documents/:documentId` (contextId)                                                    | ✅            | Zuweisung zu anderem Kontext; canWriteContext auf Zielkontext                                          |
-| **Pin document**                | `POST /api/v1/pinned`                                                                                | ✅            | DocumentPinnedInScope; nur nicht gelöschte/nicht archivierte Docs                                      |
-| **Unpin document**              | `DELETE /api/v1/pinned/:id`                                                                          | ✅            | Löscht DocumentPinnedInScope-Eintrag                                                                   |
-| **Archive document**            | `PATCH /api/v1/documents/:documentId` (archivedAt: Date)                                             | ✅            | Nur canWrite; kein eigener Endpoint                                                                    |
-| **Unarchive document**          | `PATCH /api/v1/documents/:documentId` (archivedAt: null)                                             | ✅            | Ebenfalls über PATCH                                                                                   |
-| **Move to trash**               | `DELETE /api/v1/documents/:documentId`                                                               | ✅            | Soft-Delete: setzt deletedAt; entfernt alle Pins des Dokuments                                         |
-| **Restore document**            | `POST /api/v1/documents/:documentId/restore`                                                         | ✅            | deletedAt = null; wenn Kontext gelöscht: contextId = null (Draft)                                      |
-| **Permanently delete document** | —                                                                                                    | ❌            | Nicht implementiert; nur Soft-Delete (deletedAt)                                                       |
+| Event                           | Endpoint / Ort                                                                                       | Implementiert | Anmerkung                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| **Create document**             | `POST /api/v1/documents`                                                                             | ✅            | Immer als Draft (publishedAt null); mit oder ohne contextId                                           |
+| **Edit draft**                  | `PATCH /api/v1/documents/:documentId` (content/title) oder `PUT /api/v1/documents/:documentId/draft` | ✅            | Draft = Document mit publishedAt null; User-Draft = DocumentDraft (für published Docs)                |
+| **Merge draft (PR)**            | `PATCH /api/v1/draft-requests/:draftRequestId` (action: merge)                                       | ✅            | Erstellt neue DocumentVersion, setzt Document.content und currentPublishedVersionId                   |
+| **Publish document**            | `POST /api/v1/documents/:documentId/publish`                                                         | ✅            | Erstellt DocumentVersion (Version 1), setzt publishedAt und currentPublishedVersionId                 |
+| **Update document**             | `PATCH /api/v1/documents/:documentId`                                                                | ✅            | Nur Metadaten: title, content, description, tagIds, contextId; documentService.updateDocumentMetadata |
+| **Create new version**          | Implizit bei Publish (Version 1) und bei Merge (n+1)                                                 | ✅            | Kein eigener Endpoint; nur über Publish bzw. Merge                                                    |
+| **Assign document**             | `PATCH /api/v1/documents/:documentId` (contextId)                                                    | ✅            | Zuweisung zu anderem Kontext; canWriteContext auf Zielkontext                                         |
+| **Pin document**                | `POST /api/v1/pinned`                                                                                | ✅            | DocumentPinnedInScope; nur nicht gelöschte/nicht archivierte Docs                                     |
+| **Unpin document**              | `DELETE /api/v1/pinned/:id`                                                                          | ✅            | Löscht DocumentPinnedInScope-Eintrag                                                                  |
+| **Archive document**            | `POST /api/v1/documents/:documentId/archive`                                                         | ✅            | documentService.archiveDocument; requireDocumentAccess('write')                                       |
+| **Unarchive document**          | —                                                                                                    | —             | Derzeit kein dedizierter Endpoint                                                                     |
+| **Move to trash**               | `DELETE /api/v1/documents/:documentId`                                                               | ✅            | Soft-Delete: setzt deletedAt; entfernt alle Pins des Dokuments                                        |
+| **Restore document**            | `POST /api/v1/documents/:documentId/restore`                                                         | ✅            | deletedAt = null; wenn Kontext gelöscht: contextId = null (Draft)                                     |
+| **Permanently delete document** | —                                                                                                    | ❌            | Nicht implementiert; nur Soft-Delete (deletedAt)                                                      |
 
 Zusätzliche dokumentnahe Operationen (keine Zustandsänderung des Dokuments selbst):
 
@@ -62,15 +62,15 @@ Relevante Felder im Document-Modell: `publishedAt`, `deletedAt`, `archivedAt`, `
   │  PUBLISHED (publishedAt set, currentPublishedVersionId set)                        │
   │  - Update content: nur über Merge (DraftRequest); Document.content = Draft-Inhalt   │
   │  - User-Draft: PUT …/draft (DocumentDraft); PR: POST …/draft-requests → Merge/Reject│
-  │  - Archive: PATCH (archivedAt) → ARCHIVED                                          │
-  │  - Delete: DELETE → TRASH                                                          │
+  │  - Archive: POST …/archive → ARCHIVED                                               │
+  │  - Delete: DELETE → TRASH                                                           │
   └───────────────────────────────────────────────────────────────────────────────────┘
     │
-    │ PATCH (archivedAt: Date)
+    │ POST …/archive
     ▼
   ┌───────────────────────────────────────────────────────────────────────────────────┐
   │  ARCHIVED (archivedAt set)                                                         │
-  │  - Unarchive: PATCH (archivedAt: null) → PUBLISHED                                  │
+  │  - Unarchive: derzeit kein Endpoint                                                 │
   │  - Delete: DELETE → TRASH                                                          │
   └───────────────────────────────────────────────────────────────────────────────────┘
 
@@ -90,18 +90,18 @@ Relevante Felder im Document-Modell: `publishedAt`, `deletedAt`, `archivedAt`, `
 
 ## C. Event → betroffene Dateien
 
-| Event               | Backend-Dateien                                                                                                                                                             | Frontend (relevant)                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Create document     | `routes/documents.ts` (POST /documents), `routes/schemas/documents.ts`, `permissions/contextPermissions.ts` (canWriteContext), `permissions/documentLoad.ts` (nicht direkt) | `components/contexts/NewDocumentModal.tsx`, `pages/ContextDetailPage.tsx`, `pages/SubcontextDetailPage.tsx`  |
-| Edit draft          | `routes/documents.ts` (PATCH, PUT …/draft), `permissions/middleware.ts` (requireDocumentAccess('write'))                                                                    | `pages/DocumentPage.tsx` (Edit-Mode, Speichern Draft/PR)                                                     |
-| Merge draft         | `routes/documents.ts` (PATCH …/draft-requests/:id), `permissions/canMergeDraftRequest.ts`                                                                                   | `pages/DocumentPage.tsx` (handleMergeReject)                                                                 |
-| Publish document    | `routes/documents.ts` (POST …/publish), `permissions/canPublishDocument.ts`                                                                                                 | `pages/DocumentPage.tsx` (Publish-Button, canPublish)                                                        |
-| Update document     | `routes/documents.ts` (PATCH), `routes/schemas/documents.ts` (updateDocumentBodySchema)                                                                                     | `pages/DocumentPage.tsx` (Assign context, Archive/Unarchive, Titel/Inhalt bei Draft)                         |
-| Assign document     | `routes/documents.ts` (PATCH contextId), `permissions/contextPermissions.ts` (canWriteContext für Zielkontext)                                                              | `pages/DocumentPage.tsx` (Assign-Context-Modal)                                                              |
-| Pin / Unpin         | `routes/pinned.ts`, `permissions/pinnedPermissions.ts` (canPinForScope), `permissions/canRead.ts` (Pin: canRead Doc)                                                        | `pages/HomePage.tsx`, Pinned-Bereiche; Pin/Unpin-UI (z. B. Settings oder Kontext-Seiten)                     |
-| Archive / Unarchive | `routes/documents.ts` (PATCH archivedAt)                                                                                                                                    | `pages/DocumentPage.tsx` (Archive/Unarchive im Menu)                                                         |
-| Move to trash       | `routes/documents.ts` (DELETE), `permissions/canDeleteDocument.ts`                                                                                                          | `pages/DocumentPage.tsx`, `components/TrashTabContent.tsx` (Liste), Kontext-Löschen (contexts.ts kaskadiert) |
-| Restore document    | `routes/documents.ts` (POST …/restore), `permissions/canDeleteDocument.ts`, `permissions/canRead.ts` (canSeeDocumentInTrash)                                                | `components/TrashTabContent.tsx` (Restore-Button)                                                            |
+| Event            | Backend-Dateien                                                                                                                                                             | Frontend (relevant)                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Create document  | `routes/documents.ts` (POST /documents), `routes/schemas/documents.ts`, `permissions/contextPermissions.ts` (canWriteContext), `permissions/documentLoad.ts` (nicht direkt) | `components/contexts/NewDocumentModal.tsx`, `pages/ContextDetailPage.tsx`, `pages/SubcontextDetailPage.tsx`  |
+| Edit draft       | `routes/documents.ts` (PATCH, PUT …/draft), `permissions/middleware.ts` (requireDocumentAccess('write'))                                                                    | `pages/DocumentPage.tsx` (Edit-Mode, Speichern Draft/PR)                                                     |
+| Merge draft      | `routes/documents.ts` (PATCH …/draft-requests/:id), `permissions/canMergeDraftRequest.ts`                                                                                   | `pages/DocumentPage.tsx` (handleMergeReject)                                                                 |
+| Publish document | `routes/documents.ts` (POST …/publish), `permissions/canPublishDocument.ts`                                                                                                 | `pages/DocumentPage.tsx` (Publish-Button, canPublish)                                                        |
+| Update document  | `routes/documents.ts` (PATCH → documentService.updateDocumentMetadata), `routes/schemas/documents.ts`                                                                       | `pages/DocumentPage.tsx` (Assign context, Titel/Inhalt bei Draft)                                            |
+| Assign document  | `routes/documents.ts` (PATCH contextId), `permissions/contextPermissions.ts` (canWriteContext für Zielkontext)                                                              | `pages/DocumentPage.tsx` (Assign-Context-Modal)                                                              |
+| Pin / Unpin      | `routes/pinned.ts`, `permissions/pinnedPermissions.ts` (canPinForScope), `permissions/canRead.ts` (Pin: canRead Doc)                                                        | `pages/HomePage.tsx`, Pinned-Bereiche; Pin/Unpin-UI (z. B. Settings oder Kontext-Seiten)                     |
+| Archive          | `routes/documents.ts` (POST …/archive → documentService.archiveDocument)                                                                                                    | `pages/DocumentPage.tsx` (Archive im Menu)                                                                   |
+| Move to trash    | `routes/documents.ts` (DELETE), `permissions/canDeleteDocument.ts`                                                                                                          | `pages/DocumentPage.tsx`, `components/TrashTabContent.tsx` (Liste), Kontext-Löschen (contexts.ts kaskadiert) |
+| Restore document | `routes/documents.ts` (POST …/restore), `permissions/canDeleteDocument.ts`, `permissions/canRead.ts` (canSeeDocumentInTrash)                                                | `components/TrashTabContent.tsx` (Restore-Button)                                                            |
 
 Weitere beteiligte Backend-Dateien (keine direkten Lifecycle-Events, aber Logik):
 
@@ -122,32 +122,32 @@ Weitere beteiligte Backend-Dateien (keine direkten Lifecycle-Events, aber Logik)
 | Publish                    | canPublishDocument(prisma, userId, documentId)                                                  | documents.ts POST …/publish                     |
 | Merge PR                   | canMergeDraftRequest(prisma, userId, draftRequestId)                                            | documents.ts PATCH …/draft-requests/:id         |
 | Assign (PATCH contextId)   | requireDocumentAccess('write') + canWriteContext(userId, body.contextId) für neues contextId    | documents.ts PATCH                              |
-| Archive/Unarchive          | requireDocumentAccess('write')                                                                  | documents.ts PATCH (archivedAt)                 |
+| Archive                    | requireDocumentAccess('write')                                                                  | documents.ts POST …/archive                     |
 | Delete (trash)             | canDeleteDocument(prisma, userId, documentId)                                                   | documents.ts DELETE                             |
 | Restore                    | canDeleteDocument **oder** canSeeDocumentInTrash(prisma, userId, doc)                           | documents.ts POST …/restore                     |
 | Pin                        | canPinForScope(prisma, userId, scopeType, scopeId) + canRead(prisma, userId, documentId)        | pinned.ts POST /pinned                          |
 | Unpin                      | canPinForScope(prisma, userId, scopeType, scopeId)                                              | pinned.ts DELETE /pinned/:id                    |
 | GET document (inkl. Trash) | requireDocumentAccess('read') → canRead; bei deletedAt set: canSeeDocumentInTrash im Middleware | documents.ts GET …/documents/:id, middleware.ts |
 
-**Vollständigkeit:** Create mit Kontext prüft canWriteContext; Publish prüft canPublishDocument (Scope-Lead); Merge prüft canMergeDraftRequest; Delete/Restore und Pin/Unpin sind explizit geprüft. **Inkonsistenz:** PATCH erlaubt `publishedAt` und `archivedAt` mit nur requireDocumentAccess('write'), ohne canPublishDocument – siehe Abschnitt F.
+**Vollständigkeit:** Create mit Kontext prüft canWriteContext; Publish prüft canPublishDocument; Archive über POST …/archive mit canWrite; PATCH nur Metadaten (documentService). Lifecycle-Logik zentral in `services/documentService.ts`.
 
 ---
 
 ## E. Seiteneffekte pro Event
 
-| Event                      | Seiteneffekte                                                                                                                                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Create document            | DocumentTag bei tagIds; bei contextId: Tags validiert gegen Kontext-Owner. Keine Version, kein Pin, kein Recent (Backend).                                                                                      |
-| Edit draft (PATCH content) | updatedAt; keine neue DocumentVersion.                                                                                                                                                                          |
-| Merge draft (PR merge)     | DocumentVersion erstellt; Document.content und currentPublishedVersionId aktualisiert; DraftRequest.status = merged, mergedAt, mergedById. DocumentDraft wird **nicht** automatisch gelöscht oder aktualisiert. |
-| Publish                    | DocumentVersion (Version 1) erstellt; Document.publishedAt, currentPublishedVersionId gesetzt.                                                                                                                  |
-| Update document (PATCH)    | Optional tagIds: DocumentTag deleteMany + createMany. contextId-Änderung: nur DB-Update; Context-Display (contextOwnerDisplay) wird **nicht** aufgerufen (Kontext existiert bereits).                           |
-| Assign document            | Nur contextId-Update. Kein Aufruf von contextOwnerDisplay (wird nur bei Process/Project/Subcontext Create/Update aufgerufen).                                                                                   |
-| Pin                        | DocumentPinnedInScope erstellt; pinnedById = userId.                                                                                                                                                            |
-| Unpin                      | DocumentPinnedInScope gelöscht.                                                                                                                                                                                 |
-| Archive                    | Document.archivedAt gesetzt. Pinned-Einträge bleiben (GET /pinned filtert bereits auf archivedAt: null).                                                                                                        |
-| Move to trash              | DocumentPinnedInScope.deleteMany({ documentId }); Document.deletedAt = new Date().                                                                                                                              |
-| Restore                    | Document.deletedAt = null; wenn Kontext gelöscht (Process/Project deletedAt): contextId = null (Draft). Pins werden **nicht** wiederhergestellt.                                                                |
+| Event                      | Seiteneffekte                                                                                                                                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create document            | DocumentTag bei tagIds; bei contextId: Tags validiert gegen Kontext-Owner. Keine Version, kein Pin, kein Recent (Backend).                                                                                                       |
+| Edit draft (PATCH content) | updatedAt; keine neue DocumentVersion.                                                                                                                                                                                           |
+| Merge draft (PR merge)     | DocumentVersion erstellt; Document.content und currentPublishedVersionId aktualisiert; DraftRequest.status = merged, mergedAt, mergedById. Optional: DocumentDraft des Submitters wird auf neue Version angepasst oder gelöscht. |
+| Publish                    | DocumentVersion (Version 1) erstellt; Document.publishedAt, currentPublishedVersionId gesetzt.                                                                                                                                   |
+| Update document (PATCH)    | Optional tagIds: DocumentTag deleteMany + createMany. contextId-Änderung: nur DB-Update; Context-Display (contextOwnerDisplay) wird **nicht** aufgerufen (Kontext existiert bereits).                                            |
+| Assign document            | Nur contextId-Update. Kein Aufruf von contextOwnerDisplay (wird nur bei Process/Project/Subcontext Create/Update aufgerufen).                                                                                                    |
+| Pin                        | DocumentPinnedInScope erstellt; pinnedById = userId.                                                                                                                                                                             |
+| Unpin                      | DocumentPinnedInScope gelöscht.                                                                                                                                                                                                  |
+| Archive                    | documentService.archiveDocument setzt Document.archivedAt. Pinned-Einträge bleiben (GET /pinned filtert auf archivedAt: null).                                                                                                   |
+| Move to trash              | DocumentPinnedInScope.deleteMany({ documentId }); Document.deletedAt = new Date().                                                                                                                                               |
+| Restore                    | Document.deletedAt = null; wenn Kontext gelöscht (Process/Project deletedAt): contextId = null (Draft). Pins werden **nicht** wiederhergestellt.                                                                                 |
 
 **Recent Items:** Werden nur im Frontend bzw. über PATCH /me/preferences (recentItemsByScope) gepflegt; kein Backend-Seiteneffekt bei Lifecycle-Events.
 
@@ -157,20 +157,14 @@ Weitere beteiligte Backend-Dateien (keine direkten Lifecycle-Events, aber Logik)
 
 ## F. Gefundene Inkonsistenzen
 
-1. **PATCH erlaubt publishedAt/archivedAt mit nur canWrite**
-   - `updateDocumentBodySchema` erlaubt `publishedAt` und `archivedAt`.
-   - PATCH verwendet nur `requireDocumentAccess('write')`.
-   - **Risiko:** Ein Nutzer mit Writer-Grant (ohne Scope-Lead) kann theoretisch `publishedAt` setzen und damit „publizieren“, ohne dass eine DocumentVersion angelegt wird (POST /publish legt Version 1 an).
-   - **Empfehlung:** Entweder publishedAt/archivedAt aus dem PATCH-Body entfernen und nur über dedizierte Endpoints (POST …/publish, ggf. POST …/archive) setzen, oder im PATCH bei Änderung von publishedAt canPublishDocument prüfen und bei Setzen von publishedAt dieselbe Versionierungslogik wie bei POST …/publish ausführen.
+1. **PATCH / Lifecycle** – Erledigt: publishedAt/archivedAt aus PATCH entfernt; Lifecycle nur über POST …/publish, POST …/archive, POST …/restore, DELETE; documentService zentralisiert Logik.
 
 2. **Kein permanentes Löschen**
    - Nur Soft-Delete (deletedAt). Weder API noch Schema sehen physisches Löschen vor.
    - Attachments und DocumentVersion/DraftRequest/DocumentDraft bleiben erhalten.
    - Für Compliance/Audit kann das gewollt sein; für Speicherbereinigung fehlt eine definierte Strategie.
 
-3. **Merge: DocumentDraft nicht bereinigt**
-   - Nach Merge eines DraftRequest wird die User-Draft (DocumentDraft) nicht gelöscht oder angepasst. Der Nutzer könnte weiter mit veralteter basedOnVersionId arbeiten.
-   - Akzeptables Verhalten („Draft bleibt lokal“), aber dokumentieren oder optional nach Merge DocumentDraft zurücksetzen/löschen.
+3. **Merge: DocumentDraft** – Optional umgesetzt: Nach Merge kann DocumentDraft des Submitters auf neue Version angepasst werden.
 
 4. **Restore: Pins nicht wiederhergestellt**
    - Beim Move to trash werden Pins gelöscht; beim Restore werden sie nicht wiederhergestellt. Konsistent mit „Trash löscht Pins“, aber Nutzer müssen erneut pinnen.
@@ -187,22 +181,18 @@ Weitere beteiligte Backend-Dateien (keine direkten Lifecycle-Events, aber Logik)
 7. **canSeeDocumentInTrash nur für Restore und GET**
    - Restore erlaubt canDeleteDocument **oder** canSeeDocumentInTrash. GET document verwendet requireDocumentAccess('read'), das bei deletedAt auf canSeeDocumentInTrash umschaltet. Konsistent.
 
-8. **Catalog filtert nicht nach Kontext-Status (Process/Project deletedAt)**
-   - GET /documents (Catalog) filtert mit `deletedAt: null`, `archivedAt: null` auf dem Document. Es wird nicht geprüft, ob der zugehörige Process/Project soft-gelöscht (deletedAt gesetzt) ist. Dokumente in einem „gelöschten“ Kontext könnten damit weiter im Catalog erscheinen, sofern die Scope-Logik sie trifft. GET /contexts/:contextId/documents und Trash/Archive-Listen berücksichtigen Kontext-Status anders (Kontext-Listen liefern nur Dokumente des Kontexts; Trash listet Dokumente mit deletedAt).
+8. **Catalog filtert nach Kontext-Status** – Optional umgesetzt: GET /documents (Catalog) kann so erweitert werden, dass Dokumente in soft-gelöschten Process/Project (deletedAt) nicht erscheinen.
 
 ---
 
 ## G. Empfohlene Minimalverbesserungen
 
-1. **PATCH publishedAt/archivedAt absichern**
-   - Option A: `publishedAt` und `archivedAt` aus updateDocumentBodySchema entfernen; Publish nur über POST …/publish; Archive/Unarchive über dedizierte Endpoints (z. B. POST …/archive, DELETE …/archive) mit canWrite und ggf. klarer Semantik.
-   - Option B: Im PATCH bei `body.publishedAt !== undefined` canPublishDocument prüfen und bei erstmaligem Setzen dieselbe Transaktion wie bei POST …/publish ausführen (DocumentVersion anlegen, dann publishedAt/currentPublishedVersionId setzen). Bei archivedAt nur canWrite beibehalten.
+1. **PATCH / Lifecycle** – Umgesetzt: Lifecycle nur über documentService und dedizierte Endpoints (POST …/publish, POST …/archive, POST …/restore, DELETE).
 
 2. **Lifecycle in einer Übersicht dokumentieren**
    - In `docs/platform/` oder `docs/plan/` einen kurzen Abschnitt „Dokument-Lifecycle“ pflegen (Zustandsübergänge, welche Endpoints welchen Zustand ändern), Verweis auf dieses Analyse-Dokument. Verhindert versehentliche Doppel- oder Schattenlogik.
 
-3. **Nach Merge: DocumentDraft optional bereinigen**
-   - Beim Merge (PATCH draft-request merge) optional den DocumentDraft des Submitters (falls vorhanden) auf basedOnVersionId = neue Version setzen oder löschen, damit „Update to latest“ keine veraltete Basis mehr hat. Kein Muss, aber klarer für Nutzer.
+3. **Nach Merge: DocumentDraft** – Optional umgesetzt: Beim Merge wird DocumentDraft des Submitters auf die neue Version angepasst oder gelöscht.
 
 4. **Permanentes Löschen (optional)**
    - Falls gewünscht: Eigenen Endpoint (z. B. DELETE …/documents/:id/permanent) nur für Admin oder Scope-Lead, der deletedAt prüft, dann Attachments (Storage + DB), DocumentVersion, DraftRequest, DocumentDraft, DocumentGrant\*, DocumentTag, DocumentPinnedInScope und zuletzt Document löscht. Ohne Anforderung nicht umsetzen.
@@ -228,21 +218,21 @@ Folgende Abschnitte prüfen die Lifecycle-Events systematisch auf Permission, St
 
 Alle **realen dokumentbezogenen Aktionen** im Backend (aus `documents.ts`, `pinned.ts`; `assignments.ts` und `meTrashArchive.ts` ändern keine Dokumentzustände, `contexts.ts` löscht Kontexte, nicht einzelne Dokumente):
 
-| #   | Event              | Endpoint / Aktion                                       | Datei               |
-| --- | ------------------ | ------------------------------------------------------- | ------------------- |
-| 1   | Create document    | POST /documents                                         | documents.ts        |
-| 2   | Edit draft         | PATCH /documents/:id (content/title/…) oder PUT …/draft | documents.ts        |
-| 3   | Merge draft (PR)   | PATCH /draft-requests/:id (action: merge)               | documents.ts        |
-| 4   | Publish document   | POST /documents/:id/publish                             | documents.ts        |
-| 5   | Update document    | PATCH /documents/:id (inkl. tagIds, description)        | documents.ts        |
-| 6   | Assign document    | PATCH /documents/:id (contextId)                        | documents.ts        |
-| 7   | Pin document       | POST /pinned                                            | pinned.ts           |
-| 8   | Unpin document     | DELETE /pinned/:id                                      | pinned.ts           |
-| 9   | Archive document   | PATCH /documents/:id (archivedAt: Date)                 | documents.ts        |
-| 10  | Unarchive document | PATCH /documents/:id (archivedAt: null)                 | documents.ts        |
-| 11  | Move to trash      | DELETE /documents/:id                                   | documents.ts        |
-| 12  | Restore document   | POST /documents/:id/restore                             | documents.ts        |
-| —   | (Permanent delete) | —                                                       | nicht implementiert |
+| #   | Event              | Endpoint / Aktion                                       | Datei                         |
+| --- | ------------------ | ------------------------------------------------------- | ----------------------------- |
+| 1   | Create document    | POST /documents                                         | documents.ts                  |
+| 2   | Edit draft         | PATCH /documents/:id (content/title/…) oder PUT …/draft | documents.ts                  |
+| 3   | Merge draft (PR)   | PATCH /draft-requests/:id (action: merge)               | documents.ts                  |
+| 4   | Publish document   | POST /documents/:id/publish                             | documents.ts                  |
+| 5   | Update document    | PATCH /documents/:id (inkl. tagIds, description)        | documents.ts                  |
+| 6   | Assign document    | PATCH /documents/:id (contextId)                        | documents.ts                  |
+| 7   | Pin document       | POST /pinned                                            | pinned.ts                     |
+| 8   | Unpin document     | DELETE /pinned/:id                                      | pinned.ts                     |
+| 9   | Archive document   | POST /documents/:id/archive                             | documents.ts, documentService |
+| 10  | Unarchive document | —                                                       | nicht implementiert           |
+| 11  | Move to trash      | DELETE /documents/:id                                   | documents.ts                  |
+| 12  | Restore document   | POST /documents/:id/restore                             | documents.ts                  |
+| —   | (Permanent delete) | —                                                       | nicht implementiert           |
 
 ---
 

@@ -1,5 +1,4 @@
 import { createTheme } from '@mantine/core';
-import { camelToKebabCase } from '@mantine/core';
 
 /** User-selectable primary color preset names. */
 export type PrimaryColorPreset =
@@ -237,32 +236,8 @@ export function createAppTheme(primaryColor: PrimaryColorPreset) {
         defaultProps: { color: primaryColor },
       },
     },
-    other: {
-      sidebarBg: 'var(--mantine-color-dark-6)',
-      sidebarBgLight: 'var(--mantine-color-gray-0)',
-      sidebarHover: 'var(--mantine-color-dark-4)',
-      sidebarHoverLight: 'var(--mantine-color-gray-1)',
-      sidebarActive: 'var(--mantine-color-dark-4)',
-      sidebarActiveLight: 'var(--mantine-color-gray-2)',
-    },
   });
 }
 
 /** Default theme for unauthenticated shell (e.g. main.tsx, login). */
 export const appTheme = createAppTheme('blue');
-
-type CssVariablesResolverTheme = { other?: Record<string, string> };
-
-/** Nimmt theme.other und schreibt sie als --mantine-other-<kebab-key> in variables. */
-export function appCssVariablesResolver(theme: CssVariablesResolverTheme) {
-  const variables: Record<string, string> = {};
-  const other = theme.other;
-  if (other && typeof other === 'object') {
-    for (const [key, value] of Object.entries(other)) {
-      if (typeof value === 'string') {
-        variables[`--mantine-other-${camelToKebabCase(key)}`] = value;
-      }
-    }
-  }
-  return { variables, light: {}, dark: {} };
-}

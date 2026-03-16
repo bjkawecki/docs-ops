@@ -19,6 +19,7 @@ export {
   canViewTeam,
   canViewDepartment,
   canViewCompany,
+  getVisibleCompanyIds,
 } from './assignmentPermissions.js';
 export { requireDocumentAccess, DOCUMENT_ID_PARAM } from './middleware.js';
 export { DOCUMENT_FOR_PERMISSION_INCLUDE, type DocumentForPermission } from './documentLoad.js';
@@ -28,4 +29,4 @@ export {
   type VisiblePinnedScopes,
 } from './pinnedPermissions.js';
 export { getContextIdsForScope, type ScopeRef } from './scopeResolution.js';
-export { getScopeLead } from './scopeLead.js';
+export { getScopeLead, canWriteInScope } from './scopeLead.js';

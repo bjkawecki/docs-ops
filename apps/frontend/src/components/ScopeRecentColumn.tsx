@@ -60,8 +60,8 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
           alignItems: 'center',
           justifyContent: 'flex-start',
           paddingTop: 'var(--mantine-spacing-sm)',
-          background: 'var(--mantine-color-body)',
         }}
+        bg="body"
       >
         <ActionIcon
           variant="subtle"
@@ -94,10 +94,10 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
           display: 'flex',
           flexDirection: 'column',
           borderLeft: '1px solid var(--mantine-color-default-border)',
-          background: 'var(--mantine-color-body)',
           transition: 'width 0.2s ease, min-width 0.2s ease',
           overflow: 'hidden',
         }}
+        bg="body"
       >
         {open ? (
           <>
@@ -110,11 +110,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
                   data-recent-viewed-list
                 >
                   <Group gap="xs" mb="xs" wrap="nowrap">
-                    <IconClock
-                      size={18}
-                      style={{ color: 'var(--mantine-color-dimmed)' }}
-                      aria-hidden
-                    />
+                    <IconClock size={18} color="var(--mantine-color-dimmed)" aria-hidden />
                     <Text id="recently-viewed-heading" size="sm" fw={500}>
                       Recently viewed
                     </Text>
@@ -167,7 +163,7 @@ export function ScopeRecentColumn({ open, onToggle, scope }: ScopeRecentColumnPr
               paddingTop: 'var(--mantine-spacing-md)',
             }}
           >
-            <IconClock size={20} style={{ color: 'var(--mantine-color-dimmed)' }} aria-hidden />
+            <IconClock size={20} color="var(--mantine-color-dimmed)" aria-hidden />
           </Box>
         )}
       </Box>

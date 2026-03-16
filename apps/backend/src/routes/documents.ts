@@ -28,6 +28,20 @@ import {
   getReadableCatalogOwnerIds,
   getWritableCatalogScope,
 } from '../permissions/catalogPermissions.js';
+import {
+  publishDocument,
+  archiveDocument,
+  restoreDocument,
+  deleteDocument,
+  updateDocumentMetadata,
+  type DocumentMetadataUpdateResult,
+  DocumentNotFoundError,
+  DocumentNotPublishableError,
+  DocumentAlreadyPublishedError,
+  DocumentDeletedError,
+  DocumentNotInTrashError,
+  DocumentBusinessError,
+} from '../services/documentService.js';
 import { mergeThreeWay } from '../mergeThreeWay.js';
 import {
   paginationQuerySchema,
@@ -139,8 +153,23 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
     const scopeContextCond =
       contextConditions.length === 1 ? contextConditions[0] : { AND: contextConditions };
+    const contextNotDeletedCond = {
+      OR: [
+        { contextId: null },
+        {
+          context: {
+            OR: [
+              { process: { deletedAt: null } },
+              { project: { deletedAt: null } },
+              { subcontext: { project: { deletedAt: null } } },
+            ],
+          },
+        },
+      ],
+    };
     const baseAnd: unknown[] = [
       { OR: readableOr },
+      contextNotDeletedCond,
       scopeFilter != null
         ? {
             OR: [
@@ -627,43 +656,62 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to publish this document' });
 
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId, deletedAt: null },
-        select: { id: true, contextId: true, publishedAt: true, content: true },
-      });
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      if (doc.contextId == null)
-        return reply
-          .status(400)
-          .send({ error: 'Document must be assigned to a context before publishing' });
-      if (doc.publishedAt != null)
-        return reply.status(409).send({ error: 'Document is already published' });
-
-      await prisma.$transaction(async (tx) => {
-        const v = await tx.documentVersion.create({
-          data: {
-            documentId,
-            content: doc.content,
-            versionNumber: 1,
-            createdById: userId,
-          },
-          select: { id: true },
-        });
-        await tx.document.update({
+      try {
+        await publishDocument(prisma, documentId, userId);
+        const doc = await prisma.document.findUnique({
           where: { id: documentId },
-          data: { publishedAt: new Date(), currentPublishedVersionId: v.id },
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            pdfUrl: true,
+            contextId: true,
+            createdAt: true,
+            updatedAt: true,
+            publishedAt: true,
+            currentPublishedVersionId: true,
+            description: true,
+            archivedAt: true,
+            createdById: true,
+            createdBy: { select: { name: true } },
+            documentTags: { include: { tag: { select: { id: true, name: true } } } },
+          },
         });
-      });
+        if (!doc)
+          return reply.status(500).send({ error: 'Publish succeeded but document not found' });
+        return reply.send({
+          ...doc,
+          createdByName: doc.createdBy?.name ?? null,
+        });
+      } catch (err) {
+        if (err instanceof DocumentNotFoundError)
+          return reply.status(404).send({ error: 'Document not found' });
+        if (err instanceof DocumentNotPublishableError)
+          return reply.status(400).send({ error: err.message });
+        if (err instanceof DocumentAlreadyPublishedError)
+          return reply.status(409).send({ error: 'Document is already published' });
+        throw err;
+      }
+    }
+  );
 
-      const updated = await prisma.document.findUnique({
-        where: { id: documentId },
-        select: {
-          id: true,
-          publishedAt: true,
-          currentPublishedVersionId: true,
-        },
-      });
-      return reply.send(updated);
+  /** POST Archive – Dokument archivieren (archivedAt setzen). requireDocumentAccess('write'). */
+  app.post(
+    '/documents/:documentId/archive',
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      try {
+        await archiveDocument(prisma, documentId);
+        return reply.status(204).send();
+      } catch (err) {
+        if (err instanceof DocumentNotFoundError)
+          return reply.status(404).send({ error: 'Document not found' });
+        if (err instanceof DocumentDeletedError)
+          return reply.status(400).send({ error: 'Document is deleted' });
+        throw err;
+      }
     }
   );
 
@@ -999,6 +1047,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           documentId: true,
           draftContent: true,
           status: true,
+          submittedById: true,
         },
       });
       if (!draftRequest) return reply.status(404).send({ error: 'Draft request not found' });
@@ -1046,6 +1095,14 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
               mergedById: userId,
               comment: body.comment ?? undefined,
             },
+          });
+
+          await tx.documentDraft.updateMany({
+            where: {
+              documentId: draftRequest.documentId,
+              userId: draftRequest.submittedById,
+            },
+            data: { basedOnVersionId: newVersion.id },
           });
         });
       } else {
@@ -1201,7 +1258,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         content,
         contextId: body.contextId,
         description: body.description ?? null,
-        publishedAt: body.publishedAt ?? null,
+        publishedAt: null,
         createdById: userId,
       },
     });
@@ -1235,117 +1292,76 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     });
   });
 
-  /** PATCH Dokument – requireDocumentAccess('write'), optional title, content, tagIds. */
+  /** PATCH Dokument – nur Metadaten (title, content, contextId, description, tagIds). Lifecycle über dedizierte Endpoints. */
   app.patch(
     '/documents/:documentId',
     { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const body = updateDocumentBodySchema.parse(request.body);
 
-      const updateData: {
-        title?: string;
-        content?: string;
-        contextId?: string | null;
-        description?: string | null;
-        publishedAt?: Date | null;
-        archivedAt?: Date | null;
-      } = {};
-      if (body.title != null) updateData.title = body.title;
-      if (body.content != null) updateData.content = body.content;
-      if (body.description !== undefined) updateData.description = body.description;
-      if (body.publishedAt !== undefined) updateData.publishedAt = body.publishedAt;
-      if (body.archivedAt !== undefined) updateData.archivedAt = body.archivedAt;
-
-      if (body.contextId !== undefined) {
-        const currentDoc = await prisma.document.findUnique({
-          where: { id: documentId },
-          select: { contextId: true, publishedAt: true },
+      if (body.contextId !== undefined && body.contextId !== null) {
+        const ctx = await prisma.context.findUnique({
+          where: { id: body.contextId },
+          select: { id: true },
         });
-        if (!currentDoc) return reply.status(404).send({ error: 'Document not found' });
-        if (body.contextId === null) {
-          if (currentDoc.publishedAt != null)
-            return reply
-              .status(400)
-              .send({ error: 'Published document cannot be set to no context' });
-          updateData.contextId = null;
-        } else {
-          const ctx = await prisma.context.findUnique({
-            where: { id: body.contextId },
-            select: { id: true },
-          });
-          if (!ctx) return reply.status(404).send({ error: 'Context not found' });
-          const userId = getEffectiveUserId(request as RequestWithUser);
-          const allowed = await canWriteContext(prisma, userId, body.contextId);
-          if (!allowed)
-            return reply
-              .status(403)
-              .send({ error: 'Permission denied to assign document to this context' });
-          updateData.contextId = body.contextId;
-        }
+        if (!ctx) return reply.status(404).send({ error: 'Context not found' });
+        const allowed = await canWriteContext(prisma, userId, body.contextId);
+        if (!allowed)
+          return reply
+            .status(403)
+            .send({ error: 'Permission denied to assign document to this context' });
       }
 
-      if (body.tagIds !== undefined) {
-        if (body.tagIds.length > 0) {
-          const doc = await prisma.document.findUnique({
-            where: { id: documentId },
-            select: { contextId: true },
-          });
-          if (!doc) return reply.status(404).send({ error: 'Document not found' });
-          if (doc.contextId == null)
-            return reply
-              .status(400)
-              .send({ error: 'Document has no context; tags require a context' });
-          const contextOwnerId = await getContextOwnerId(prisma, doc.contextId);
-          if (!contextOwnerId)
-            return reply
-              .status(400)
-              .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
-          const tags = await prisma.tag.findMany({
-            where: { id: { in: body.tagIds } },
-            select: { id: true, ownerId: true },
-          });
-          const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
-          if (invalid || tags.length !== body.tagIds.length) {
-            return reply.status(400).send({
-              error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.',
-            });
-          }
-        }
-        await prisma.documentTag.deleteMany({ where: { documentId } });
-        if (body.tagIds.length > 0) {
-          await prisma.documentTag.createMany({
-            data: body.tagIds.map((tagId) => ({ documentId, tagId })),
-            skipDuplicates: true,
+      if (body.tagIds !== undefined && body.tagIds.length > 0) {
+        const doc = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { contextId: true },
+        });
+        if (!doc) return reply.status(404).send({ error: 'Document not found' });
+        if (doc.contextId == null)
+          return reply
+            .status(400)
+            .send({ error: 'Document has no context; tags require a context' });
+        const contextOwnerId = await getContextOwnerId(prisma, doc.contextId);
+        if (!contextOwnerId)
+          return reply
+            .status(400)
+            .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
+        const tags = await prisma.tag.findMany({
+          where: { id: { in: body.tagIds } },
+          select: { id: true, ownerId: true },
+        });
+        const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
+        if (invalid || tags.length !== body.tagIds.length) {
+          return reply.status(400).send({
+            error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.',
           });
         }
       }
 
-      const doc = await prisma.document.update({
-        where: { id: documentId },
-        data: updateData,
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          pdfUrl: true,
-          contextId: true,
-          archivedAt: true,
-          createdAt: true,
-          updatedAt: true,
-          publishedAt: true,
-          description: true,
-          createdById: true,
-          createdBy: { select: { name: true } },
-          documentTags: { include: { tag: { select: { id: true, name: true } } } },
-        },
-      });
-      return reply.send({
-        ...doc,
-        createdByName: doc.createdBy?.name ?? null,
-        writers: { users: [], teams: [], departments: [] },
-      });
+      try {
+        const doc: DocumentMetadataUpdateResult = await updateDocumentMetadata(prisma, documentId, {
+          title: body.title,
+          content: body.content,
+          contextId: body.contextId,
+          description: body.description,
+          tagIds: body.tagIds,
+        });
+        return reply.send({
+          ...doc,
+          createdByName: doc.createdBy?.name ?? null,
+          writers: { users: [], teams: [], departments: [] },
+        });
+      } catch (err) {
+        if (err instanceof DocumentNotFoundError)
+          return reply.status(404).send({ error: 'Document not found' });
+        if (err instanceof DocumentBusinessError)
+          return reply.status(400).send({ error: err.message });
+        throw err;
+      }
     }
   );
 
@@ -1360,11 +1376,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const allowed = await canDeleteDocument(prisma, userId, documentId);
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to delete this document' });
-      await prisma.documentPinnedInScope.deleteMany({ where: { documentId } });
-      await prisma.document.update({
-        where: { id: documentId },
-        data: { deletedAt: new Date() },
-      });
+      await deleteDocument(prisma, documentId);
       return reply.status(204).send();
     }
   );
@@ -1391,25 +1403,16 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!allowed) {
         return reply.status(403).send({ error: 'Permission denied to restore this document' });
       }
-      let contextTrashed = false;
-      if (doc.contextId) {
-        const [process, project] = await Promise.all([
-          prisma.process.findFirst({
-            where: { contextId: doc.contextId },
-            select: { deletedAt: true },
-          }),
-          prisma.project.findFirst({
-            where: { contextId: doc.contextId },
-            select: { deletedAt: true },
-          }),
-        ]);
-        contextTrashed = process?.deletedAt != null || project?.deletedAt != null;
+      try {
+        await restoreDocument(prisma, documentId);
+        return reply.status(204).send();
+      } catch (err) {
+        if (err instanceof DocumentNotFoundError)
+          return reply.status(404).send({ error: 'Document not found' });
+        if (err instanceof DocumentNotInTrashError)
+          return reply.status(400).send({ error: 'Not in trash' });
+        throw err;
       }
-      await prisma.document.update({
-        where: { id: documentId },
-        data: contextTrashed ? { deletedAt: null, contextId: null } : { deletedAt: null },
-      });
-      return reply.status(204).send();
     }
   );
 
@@ -1575,21 +1578,21 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const canCreate = await canCreateTagForOwner(prisma, userId, ownerId);
     if (!canCreate)
       return reply.status(403).send({ error: 'No permission to create tags in this scope' });
-    try {
-      const tag = await prisma.tag.create({
-        data: { name: body.name, ownerId },
-        select: { id: true, name: true },
+
+    const existing = await prisma.tag.findUnique({
+      where: { ownerId_name: { ownerId, name: body.name } },
+      select: { id: true },
+    });
+    if (existing)
+      return reply.status(409).send({
+        error: 'Tag mit diesem Namen existiert bereits in diesem Scope.',
       });
-      return reply.status(201).send(tag);
-    } catch (err: unknown) {
-      const prismaErr = err as { code?: string };
-      if (prismaErr.code === 'P2002') {
-        return reply.status(409).send({
-          error: 'Tag mit diesem Namen existiert bereits in diesem Scope.',
-        });
-      }
-      throw err;
-    }
+
+    const tag = await prisma.tag.create({
+      data: { name: body.name, ownerId },
+      select: { id: true, name: true },
+    });
+    return reply.status(201).send(tag);
   });
 
   /** DELETE Tag – canCreateTagForOwner(tag.ownerId). DocumentTag wird per Cascade entfernt. */

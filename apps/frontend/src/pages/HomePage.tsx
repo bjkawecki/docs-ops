@@ -17,6 +17,7 @@ import { DocopsLogo } from '../components/DocopsLogo';
 import { RecentItemsCard, SectionCard } from '../components/contexts';
 import { useMe } from '../hooks/useMe';
 import { useMeDrafts, type DraftScopeType } from '../hooks/useMeDrafts';
+import { useResolvedColorScheme } from '../hooks/useResolvedColorScheme';
 import { getAggregatedRecentItems } from '../hooks/useRecentItems';
 import { apiFetch } from '../api/client';
 
@@ -90,7 +91,8 @@ function ScopeSuffix({ scopeType, scopeName }: { scopeType: DraftScopeType; scop
     >
       <ScopeIcon
         size={SCOPE_ICON_SIZE}
-        style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)', display: 'block' }}
+        style={{ flexShrink: 0, display: 'block' }}
+        color="var(--mantine-color-dimmed)"
         aria-hidden
       />
       <span
@@ -122,6 +124,7 @@ function formatDate(iso: string): string {
 
 export function HomePage() {
   const navigate = useNavigate();
+  const resolvedColorScheme = useResolvedColorScheme();
   const [searchQuery, setSearchQuery] = useState('');
   const { data: me } = useMe();
   const recentItems = getAggregatedRecentItems(
@@ -183,9 +186,22 @@ export function HomePage() {
       <Stack align="center" mb="md" gap="md" py="xl" pt="3rem" pb="2rem">
         <Group gap="lg" justify="center">
           <DocopsLogo width={112} height={112} />
-          <Text fw={600} style={{ fontSize: '2.5rem' }}>
-            DocsOps
-          </Text>
+          <Box component="span">
+            <Text
+              component="span"
+              c={resolvedColorScheme === 'dark' ? 'white' : 'dimmed'}
+              style={{ fontSize: '2.7rem', fontWeight: 600 }}
+            >
+              Docs
+            </Text>
+            <Text
+              component="span"
+              c="var(--mantine-primary-color-filled)"
+              style={{ fontSize: '2.7rem', fontWeight: 600 }}
+            >
+              Ops
+            </Text>
+          </Box>
         </Group>
       </Stack>
 
@@ -311,7 +327,8 @@ export function HomePage() {
                     <Group key={`${doc.id}-d`} gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
                       <IconCalendar
                         size={SCOPE_ICON_SIZE}
-                        style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)' }}
+                        style={{ flexShrink: 0 }}
+                        color="var(--mantine-color-dimmed)"
                         aria-hidden
                       />
                       <Text size="xs" c="dimmed">

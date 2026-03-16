@@ -93,9 +93,9 @@ export function PageWithTabs({
         queryClient.setQueryData(meQueryKey, context.previousMe);
       }
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: meQueryKey });
-    },
+    // Do not invalidate meQueryKey here: it would refetch ['me'], ['me', 'preferences'],
+    // ['me', 'drafts'], ['me', 'archive'], ['me', 'trash'] etc. and cause jank during the
+    // panel width animation. The optimistic update is sufficient; we only persist to the server.
   });
 
   const showRecentColumn = recentScope != null;

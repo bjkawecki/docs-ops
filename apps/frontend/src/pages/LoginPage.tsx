@@ -47,8 +47,8 @@ export function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--mantine-color-default-hover)',
       }}
+      bg="var(--mantine-color-default-hover)"
     >
       <Paper
         p="xl"

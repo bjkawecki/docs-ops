@@ -32,14 +32,12 @@ type VersionDetail = VersionItem & {
 type DiffTuple = [number, string];
 
 function DiffView({ fromContent, toContent }: { fromContent: string; toContent: string }) {
-  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- diff-match-patch has no types */
   const dmp = useMemo(() => new DiffMatchPatch(), []);
   const diffs = useMemo((): DiffTuple[] => {
     const d = dmp.diff_main(fromContent, toContent) as DiffTuple[];
     dmp.diff_cleanupSemantic(d);
     return d;
   }, [dmp, fromContent, toContent]);
-  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 
   return (
     <Box
@@ -51,9 +49,9 @@ function DiffView({ fromContent, toContent }: { fromContent: string; toContent: 
         fontSize: 'var(--mantine-font-size-sm)',
         padding: 'var(--mantine-spacing-md)',
         borderRadius: 'var(--mantine-radius-md)',
-        backgroundColor: 'var(--mantine-color-dark-6)',
         overflow: 'auto',
       }}
+      bg="dark.6"
     >
       {diffs.map(([op, text], i) => {
         if (op === 0) return <span key={i}>{text}</span>;
@@ -286,9 +284,9 @@ export function DocumentVersionsPage() {
                       fontSize: 'var(--mantine-font-size-sm)',
                       padding: 'var(--mantine-spacing-md)',
                       borderRadius: 'var(--mantine-radius-md)',
-                      backgroundColor: 'var(--mantine-color-dark-6)',
                       overflow: 'auto',
                     }}
+                    bg="dark.6"
                   >
                     {viewDetail.content}
                   </Box>

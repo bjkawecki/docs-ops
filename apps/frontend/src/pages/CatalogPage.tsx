@@ -10,6 +10,7 @@ import {
   MultiSelect,
   Pagination,
   Anchor,
+  type MantineTheme,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -305,14 +306,14 @@ export function CatalogPage() {
 
         <Box
           style={{ overflowX: 'auto' }}
-          sx={{
+          sx={(theme: MantineTheme) => ({
             '& mark': {
-              backgroundColor: 'var(--mantine-color-yellow-3)',
-              color: 'var(--mantine-color-yellow-9)',
+              backgroundColor: theme.colors.yellow[3],
+              color: theme.colors.yellow[9],
               padding: '0 2px',
               borderRadius: 2,
             },
-          }}
+          })}
         >
           <Table withTableBorder withColumnBorders className="catalog-table-hover">
             <Table.Thead>

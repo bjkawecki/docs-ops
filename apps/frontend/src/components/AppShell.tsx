@@ -16,7 +16,6 @@ import {
   Button,
   Badge,
   Divider,
-  useMantineTheme,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -90,16 +89,8 @@ export function AppShell() {
   const [teamsSectionExpanded, setTeamsSectionExpanded] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const resolvedColorScheme = useResolvedColorScheme();
-  const theme = useMantineTheme();
   const navLinkStyles = useMemo(() => getNavLinkStyles(), []);
-  const sidebarOther = (theme as { other?: Record<string, string> }).other;
-  const sidebarCss = useMemo(() => {
-    const hoverDark = sidebarOther?.sidebarHover ?? 'var(--mantine-color-dark-6)';
-    const hoverLight = sidebarOther?.sidebarHoverLight ?? 'var(--mantine-color-gray-1)';
-    const activeDark = sidebarOther?.sidebarActive ?? 'var(--mantine-color-dark-4)';
-    const activeLight = sidebarOther?.sidebarActiveLight ?? 'var(--mantine-color-gray-2)';
-    return `[data-mantine-color-scheme="dark"] [data-sidebar-parent]:hover, [data-mantine-color-scheme="dark"] [data-user-menu-trigger]:hover, [data-mantine-color-scheme="dark"] [data-sidebar-nav] [data-sidebar-link]:hover { background-color: ${hoverDark}; border-radius: var(--mantine-radius-sm); } [data-mantine-color-scheme="light"] [data-sidebar-parent]:hover, [data-mantine-color-scheme="light"] [data-user-menu-trigger]:hover, [data-mantine-color-scheme="light"] [data-sidebar-nav] [data-sidebar-link]:hover { background-color: ${hoverLight}; border-radius: var(--mantine-radius-sm); } [data-mantine-color-scheme="dark"] [data-sidebar-nav] [data-active] { background-color: ${activeDark}; border-radius: var(--mantine-radius-sm); } [data-mantine-color-scheme="light"] [data-sidebar-nav] [data-active] { background-color: ${activeLight}; border-radius: var(--mantine-radius-sm); }`;
-  }, [sidebarOther]);
+
   const { data: me } = useMe();
   const isAdmin = me?.user?.isAdmin === true;
   const isImpersonating =
@@ -657,16 +648,7 @@ export function AppShell() {
         </Box>
       )}
 
-      <MantineAppShell.Navbar
-        p="md"
-        style={{
-          backgroundColor:
-            resolvedColorScheme === 'dark'
-              ? (sidebarOther?.sidebarBg ?? 'var(--mantine-color-dark-8)')
-              : (sidebarOther?.sidebarBgLight ?? 'var(--mantine-color-gray-0)'),
-        }}
-      >
-        <style>{sidebarCss}</style>
+      <MantineAppShell.Navbar p="md">
         <Stack justify="space-between" style={{ height: '100%' }}>
           <Box data-sidebar-nav>
             <MantineAppShell.Section>
@@ -681,7 +663,22 @@ export function AppShell() {
                 }}
               >
                 <DocopsLogo width={40} height={40} />
-                <span style={{ fontWeight: 600 }}>DocsOps</span>
+                <Text component="span">
+                  <Text
+                    component="span"
+                    c={resolvedColorScheme === 'dark' ? 'white' : 'dimmed'}
+                    style={{ fontWeight: 500, fontSize: '1.5rem', letterSpacing: '-0.05em' }}
+                  >
+                    Docs
+                  </Text>
+                  <Text
+                    component="span"
+                    c="var(--mantine-primary-color-filled)"
+                    style={{ fontWeight: 500, fontSize: '1.5rem', letterSpacing: '-0.05em' }}
+                  >
+                    Ops
+                  </Text>
+                </Text>
               </Link>
               <Divider my="sm" />
             </MantineAppShell.Section>
@@ -828,15 +825,12 @@ export function AppShell() {
                 maxWidth: 650,
                 borderRadius: 'var(--mantine-radius-sm)',
                 boxShadow: 'var(--mantine-shadow-md)',
-                background:
-                  resolvedColorScheme === 'dark'
-                    ? 'var(--mantine-color-dark-6)'
-                    : 'var(--mantine-color-yellow-2)',
                 border:
                   resolvedColorScheme === 'dark'
                     ? '1px solid var(--mantine-color-dark-5)'
                     : '1px solid var(--mantine-color-yellow-4)',
               }}
+              bg={resolvedColorScheme === 'dark' ? 'dark.6' : 'yellow.2'}
             >
               <Group justify="space-between" wrap="nowrap">
                 <Text size="sm" c={resolvedColorScheme === 'dark' ? 'gray.3' : 'dark.7'}>

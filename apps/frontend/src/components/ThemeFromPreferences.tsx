@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo } from 'react';
 import { MantineProvider, useMantineColorScheme } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
-import { appCssVariablesResolver, createAppTheme, type PrimaryColorPreset } from '../theme';
+import { createAppTheme, type PrimaryColorPreset } from '../theme';
 import { RecentItemsProvider } from '../hooks/useRecentItems';
 
 export type UserPreferences = {
@@ -45,11 +45,7 @@ export function ThemeFromPreferences({ children }: { children: ReactNode }) {
   const colorScheme = preferences.theme ?? 'auto';
 
   return (
-    <MantineProvider
-      theme={theme}
-      cssVariablesResolver={appCssVariablesResolver}
-      defaultColorScheme={colorScheme}
-    >
+    <MantineProvider theme={theme} defaultColorScheme={colorScheme}>
       <SyncColorScheme preferredScheme={colorScheme} />
       <RecentItemsProvider>{children}</RecentItemsProvider>
     </MantineProvider>

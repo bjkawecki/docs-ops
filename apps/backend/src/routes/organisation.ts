@@ -1,6 +1,17 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { requireAuthPreHandler, requireAdminPreHandler } from '../auth/middleware.js';
+import {
+  requireAuthPreHandler,
+  requireAdminPreHandler,
+  getEffectiveUserId,
+  type RequestWithUser,
+} from '../auth/middleware.js';
 import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
+import {
+  canViewCompany,
+  canViewDepartment,
+  canViewTeam,
+  getVisibleCompanyIds,
+} from '../permissions/assignmentPermissions.js';
 import {
   paginationQuerySchema,
   createCompanyBodySchema,
@@ -17,9 +28,16 @@ import {
 const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- Companies ---
   app.get('/companies', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const query = paginationQuerySchema.parse(request.query);
+    const visibleCompanyIds = await getVisibleCompanyIds(prisma, userId);
+    if (visibleCompanyIds.length === 0) {
+      return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+    }
     const [companies, total] = await Promise.all([
-      request.server.prisma.company.findMany({
+      prisma.company.findMany({
+        where: { id: { in: visibleCompanyIds } },
         include: {
           departments: {
             include: {
@@ -32,7 +50,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         skip: query.offset,
         orderBy: { name: 'asc' },
       }),
-      request.server.prisma.company.count(),
+      prisma.company.count({ where: { id: { in: visibleCompanyIds } } }),
     ]);
     return reply.send({ items: companies, total, limit: query.limit, offset: query.offset });
   });
@@ -57,8 +75,13 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     '/companies/:companyId',
     { preHandler: requireAuthPreHandler },
     async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const { companyId } = companyIdParamSchema.parse(request.params);
-      const company = await request.server.prisma.company.findUniqueOrThrow({
+      const allowed = await canViewCompany(prisma, userId, companyId);
+      if (!allowed)
+        return reply.status(403).send({ error: 'Permission denied to view this company' });
+      const company = await prisma.company.findUniqueOrThrow({
         where: { id: companyId },
         include: { departments: true },
       });
@@ -118,17 +141,22 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     '/companies/:companyId/departments',
     { preHandler: requireAuthPreHandler },
     async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const { companyId } = companyIdParamSchema.parse(request.params);
+      const allowed = await canViewCompany(prisma, userId, companyId);
+      if (!allowed)
+        return reply.status(403).send({ error: 'Permission denied to view this company' });
       const query = paginationQuerySchema.parse(request.query);
       const [items, total] = await Promise.all([
-        request.server.prisma.department.findMany({
+        prisma.department.findMany({
           where: { companyId },
           include: { teams: true },
           take: query.limit,
           skip: query.offset,
           orderBy: { name: 'asc' },
         }),
-        request.server.prisma.department.count({ where: { companyId } }),
+        prisma.department.count({ where: { companyId } }),
       ]);
       return reply.send({ items, total, limit: query.limit, offset: query.offset });
     }
@@ -152,8 +180,13 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     '/departments/:departmentId',
     { preHandler: requireAuthPreHandler },
     async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const { departmentId } = departmentIdParamSchema.parse(request.params);
-      const department = await request.server.prisma.department.findUniqueOrThrow({
+      const allowed = await canViewDepartment(prisma, userId, departmentId);
+      if (!allowed)
+        return reply.status(403).send({ error: 'Permission denied to view this department' });
+      const department = await prisma.department.findUniqueOrThrow({
         where: { id: departmentId },
         include: { company: true, teams: true },
       });
@@ -213,17 +246,22 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     '/departments/:departmentId/teams',
     { preHandler: requireAuthPreHandler },
     async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
       const { departmentId } = departmentIdParamSchema.parse(request.params);
+      const allowed = await canViewDepartment(prisma, userId, departmentId);
+      if (!allowed)
+        return reply.status(403).send({ error: 'Permission denied to view this department' });
       const query = paginationQuerySchema.parse(request.query);
       const [items, total] = await Promise.all([
-        request.server.prisma.team.findMany({
+        prisma.team.findMany({
           where: { departmentId },
           include: { department: true },
           take: query.limit,
           skip: query.offset,
           orderBy: { name: 'asc' },
         }),
-        request.server.prisma.team.count({ where: { departmentId } }),
+        prisma.team.count({ where: { departmentId } }),
       ]);
       return reply.send({ items, total, limit: query.limit, offset: query.offset });
     }
@@ -244,8 +282,12 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
 
   // --- Teams (top-level by id) ---
   app.get('/teams/:teamId', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const prisma = request.server.prisma;
+    const userId = getEffectiveUserId(request as RequestWithUser);
     const { teamId } = teamIdParamSchema.parse(request.params);
-    const team = await request.server.prisma.team.findUniqueOrThrow({
+    const allowed = await canViewTeam(prisma, userId, teamId);
+    if (!allowed) return reply.status(403).send({ error: 'Permission denied to view this team' });
+    const team = await prisma.team.findUniqueOrThrow({
       where: { id: teamId },
       include: { department: { include: { company: true } } },
     });

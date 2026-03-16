@@ -161,7 +161,8 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 | GET /documents                                                               | getReadableCatalogScope (Where)                               | catalog                 | implizit in Where | low                             |
 | GET /documents/:id                                                           | requireDocumentAccess('read'), canSeeDocumentInTrash          | document                | canRead(doc)      | low                             |
 | POST /documents                                                              | canWriteContext / nur Auth (kontextfrei)                      | context / —             | —                 | low                             |
-| PATCH /documents/:id                                                         | requireDocumentAccess('write'), canWriteContext bei contextId | document                | canWrite(doc)     | medium (publishedAt/archivedAt) |
+| PATCH /documents/:id                                                         | requireDocumentAccess('write'), canWriteContext bei contextId | document                | canWrite(doc)     | low (nur Metadaten)             |
+| POST /documents/:id/archive                                                  | requireDocumentAccess('write')                                | document                | canWrite(doc)     | low                             |
 | DELETE /documents/:id                                                        | canDeleteDocument                                             | document/context        | canWriteContext   | low                             |
 | POST /documents/:id/restore                                                  | canDeleteDocument oder canSeeDocumentInTrash                  | document                | Owner/Lead        | low                             |
 | POST /documents/:id/publish                                                  | canPublishDocument                                            | document/context        | canWriteContext   | low                             |
@@ -173,10 +174,10 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 | PATCH/DELETE /processes/:id, /projects/:id                                   | canWriteContext                                               | context                 | —                 | low                             |
 | POST …/restore (process/project)                                             | canWriteContext                                               | context                 | —                 | low                             |
 | Subcontexts                                                                  | canReadContext, canWriteContext (Project)                     | context                 | —                 | low                             |
-| GET /companies, /companies/:id                                               | nur Auth                                                      | —                       | —                 | medium (jeder sieht Struktur)   |
-| GET /companies/:id/departments                                               | nur Auth                                                      | —                       | —                 | medium                          |
-| GET /departments/:id, /departments/:id/teams                                 | nur Auth                                                      | —                       | —                 | medium                          |
-| GET /teams/:id                                                               | nur Auth                                                      | —                       | —                 | medium                          |
+| GET /companies, /companies/:id                                               | canViewCompany (optional) / nur Auth                          | company                 | —                 | low (mit Check) / medium (ohne) |
+| GET /companies/:id/departments                                               | canViewCompany (optional)                                     | company                 | —                 | low / medium                    |
+| GET /departments/:id, /departments/:id/teams                                 | canViewDepartment (optional)                                  | department              | —                 | low / medium                    |
+| GET /teams/:id                                                               | canViewTeam (optional)                                        | team                    | —                 | low / medium                    |
 | POST/PATCH/DELETE Organisation                                               | requireAdminPreHandler                                        | —                       | —                 | low                             |
 | GET/POST/DELETE …/company-leads, …/members, …/team-leads, …/department-leads | canView*, canManage*                                          | company/department/team | —                 | low                             |
 | GET /pinned                                                                  | getVisiblePinnedScopeIds                                      | scope                   | —                 | low                             |
@@ -196,11 +197,8 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 
 ## C. Routen ohne oder mit schwachen Checks
 
-- **Nur Auth, kein Ressourcen-Check (Organisation):**  
-  **GET /companies**, **GET /companies/:companyId**, **GET /companies/:companyId/departments**, **GET /departments/:departmentId**, **GET /departments/:departmentId/teams**, **GET /teams/:teamId** haben ausschließlich `requireAuthPreHandler`. Jeder angemeldete Nutzer kann die komplette Organisationsstruktur (eine Firma, alle Abteilungen, alle Teams) lesen. Das kann gewollt sein (Single-Tenant, Transparenz); wenn nicht, sollten z. B. **canViewCompany**, **canViewDepartment**, **canViewTeam** vor der Datenauslieferung geprüft werden.
-
-- **PATCH /documents/:documentId mit publishedAt/archivedAt:**  
-  Es wird nur **requireDocumentAccess('write')** verwendet. Ein reiner Writer-Grant kann damit theoretisch `publishedAt` setzen (ohne Version) oder `archivedAt` setzen. Siehe [Dokument-Lifecycle-Analyse](Dokument-Lifecycle-Analyse.md): Empfehlung canPublishDocument bei publishedAt oder Entfernen von publishedAt/archivedAt aus PATCH.
+- **Organisation GET (optional mit Scope-Permissions):**  
+  **GET /companies**, **GET /companies/:companyId**, **GET /companies/:companyId/departments**, **GET /departments/:departmentId**, **GET /departments/:departmentId/teams**, **GET /teams/:teamId** können mit **canViewCompany**, **canViewDepartment**, **canViewTeam** abgesichert werden (bei false 403); GET /companies kann auf sichtbare Companies gefiltert werden. Ohne diese Prüfung sieht jeder angemeldete Nutzer die komplette Struktur (oft gewollt bei Single-Tenant).
 
 - **POST /documents ohne contextId:**  
   Nur Auth; jeder angemeldete User kann kontextfreie Drafts anlegen. Kein canWriteContext (weil kein Kontext). Akzeptabel (Drafts sind erstmal nur für Ersteller sichtbar).
@@ -212,7 +210,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 
 ## D. Duplizierte Permission-Logik
 
-- **can-write-in-scope (me.ts):** Die Logik „Scope-Lead oder writable Kontext/Grants“ ist in **GET /me/can-write-in-scope** für company/department/team dreimal nahezu identisch (getScopeLead + getContextIdsForScope + getWritableCatalogScope). Keine Duplikation in anderen Dateien, aber innerhalb der Route wiederholt. Könnte in eine Hilfsfunktion (z. B. `canWriteInScope(prisma, userId, scopeRef)`) ausgelagert werden.
+- **can-write-in-scope:** Die Logik ist in eine Hilfsfunktion **canWriteInScope(prisma, userId, scopeRef)** (permissions) ausgelagert; GET /me/can-write-in-scope ruft sie für company/department/team auf.
 
 - **Routen:** Es gibt **keine** Inline-Checks der Form `if (user.isAdmin) …` oder `if (user.id === ownerId)` für Zugriffsentscheidungen in den Route-Handlern (außer in me.ts für „eigenes Profil“ und deactivate). Alle dokument- und kontextbezogenen Entscheidungen laufen über Funktionen in `permissions/`.
 
@@ -255,27 +253,22 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 
 ## G. Sicherheitsrisiken
 
-1. **Organisation: Jeder sieht ganze Struktur**  
-   GET /companies, /companies/:id, /companies/:id/departments, /departments/:id, /departments/:id/teams, /teams/:id haben keinen canViewCompany/canViewDepartment/canViewTeam. In einer Single-Tenant-App oft gewollt; wenn Abteilungen/Teams nur für berechtigte Nutzer sichtbar sein sollen, fehlen Scope-Checks.
+1. **Organisation: Optional Scope-Checks**  
+   GET /companies, /companies/:id, … können mit canViewCompany/canViewDepartment/canViewTeam abgesichert werden (siehe H.2). Ohne diese Prüfung sieht jeder angemeldete Nutzer die Struktur (Single-Tenant oft gewollt).
 
-2. **PATCH documents erlaubt publishedAt/archivedAt mit nur canWrite**  
-   Ein Writer ohne Scope-Lead kann publishedAt setzen (ohne DocumentVersion) oder archivieren. Risiko: inkonsistenter Lifecycle, „Publish“ ohne Version.
-
-3. **Keine weiteren kritischen Lücken**  
+2. **Keine weiteren kritischen Lücken**  
    Alle mutierenden Aktionen (POST/PUT/PATCH/DELETE) auf Dokumenten, Kontexten, Assignments, Pinned, Tags und Admin sind durch Auth + entweder requireDocumentAccess, canWriteContext, canDeleteDocument, canPublishDocument, canMergeDraftRequest, canPinForScope, canView*/canManage*, canReadScopeForOwner/canCreateTagForOwner oder requireAdmin abgesichert. Me-Routen operieren auf effectiveUserId/request.user.id (eigene Ressourcen).
 
 ---
 
 ## H. Empfohlene Minimalverbesserungen
 
-1. **PATCH /documents/:id bei publishedAt/archivedAt**  
-   Entweder: `publishedAt` und `archivedAt` aus dem PATCH-Body entfernen und nur über POST …/publish bzw. dedizierte Archive-Endpoints setzen. Oder: bei `body.publishedAt !== undefined` **canPublishDocument** prüfen und bei Setzen dieselbe Versionierungslogik wie bei POST …/publish ausführen; bei archivedAt nur canWrite beibehalten.
+1. **PATCH /documents/:id** – Erledigt: Lifecycle-Felder (publishedAt, archivedAt) aus PATCH entfernt; nur über POST …/publish, POST …/archive, POST …/restore. documentService zentralisiert Lifecycle-Logik.
 
-2. **Organisation GET optional absichern**  
+2. **Organisation GET optional absichern** (umgesetzt bei Bedarf)  
    Falls die Organisationsstruktur nicht für alle sichtbar sein soll: Vor Auslieferung von GET /companies/:id, GET /companies/:id/departments, GET /departments/:id, GET /departments/:id/teams, GET /teams/:id **canViewCompany**, **canViewDepartment**, **canViewTeam** aufrufen und bei false 403 zurückgeben. GET /companies (Liste) ggf. auf Einträge filtern, die der User sehen darf (canViewCompany pro Company).
 
-3. **can-write-in-scope entduplizieren**  
-   Die dreifach gleiche Logik in GET /me/can-write-in-scope (company/department/team) in eine gemeinsame Hilfsfunktion z. B. in `permissions/` oder `me.ts` auslagern: `canWriteInScope(prisma, userId, scopeRef)` → nutzt getScopeLead, getContextIdsForScope, getWritableCatalogScope. Reduziert Duplikation und erleichtert spätere Änderungen.
+3. **can-write-in-scope** – Erledigt: Hilfsfunktion `canWriteInScope` in permissions; GET /me/can-write-in-scope nutzt sie.
 
 4. **Keine weiteren Änderungen**  
    Keine zentrale „Permission-Service“-Schicht oder Neuarchitektur; Ownership und Scope werden bereits in `permissions/` und documentLoad/contextPermissions konsistent genutzt. Frontend weiterhin nur Backend-Flags für Sichtbarkeit nutzen.

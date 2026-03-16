@@ -6,11 +6,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { COLOR_SCHEME_STORAGE_KEY } from './constants';
-import { appTheme, appCssVariablesResolver } from './theme';
+import { appTheme } from './theme';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles/links.css';
 import './styles/table-rows.css';
+import './styles/theme-dark.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,7 +32,6 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <MantineProvider
         theme={appTheme}
-        cssVariablesResolver={appCssVariablesResolver}
         colorSchemeManager={colorSchemeManager}
         defaultColorScheme="auto"
       >

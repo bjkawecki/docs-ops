@@ -85,7 +85,7 @@ export const updateToLatestResponseSchema = z.discriminatedUnion('upToDate', [
   }),
 ]);
 
-/** Body: Dokument anlegen. contextId optional = context-free draft (only creator visible). */
+/** Body: Dokument anlegen (immer als Draft). contextId optional = context-free draft (only creator visible). */
 export const createDocumentBodySchema = z
   .object({
     title: z.string().min(1).max(500),
@@ -93,24 +93,18 @@ export const createDocumentBodySchema = z
     contextId: z.string().cuid().optional(),
     tagIds: z.array(z.cuid()).optional().default([]),
     description: z.string().max(500).trim().optional(),
-    publishedAt: z.coerce.date().optional(),
   })
   .refine((data) => data.contextId != null || data.tagIds.length === 0, {
     message: 'tagIds not allowed when creating a context-free draft (no contextId)',
-  })
-  .refine((data) => data.contextId != null || data.publishedAt == null, {
-    message: 'publishedAt not allowed when creating a context-free draft (no contextId)',
   });
 
-/** Body: Dokument aktualisieren. contextId setzbar (null → Kontext für Veröffentlichung). archivedAt: setzen = archivieren, null = entarchivieren. */
+/** Body: Dokument-Metadaten aktualisieren (title, content, contextId, description, tagIds). Lifecycle nur über dedizierte Endpoints. */
 export const updateDocumentBodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
   content: z.string().optional(),
   contextId: z.string().cuid().optional().nullable(),
   tagIds: z.array(z.cuid()).optional(),
   description: z.string().max(500).trim().optional().nullable(),
-  publishedAt: z.coerce.date().optional().nullable(),
-  archivedAt: z.coerce.date().optional().nullable(),
 });
 
 /** Grant-Rolle (API: String). */

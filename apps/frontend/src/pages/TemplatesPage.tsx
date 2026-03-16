@@ -1,4 +1,4 @@
-import { Card } from '@mantine/core';
+import { Card, Text } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 
 export function TemplatesPage() {
@@ -6,9 +6,9 @@ export function TemplatesPage() {
     <>
       <PageHeader title="Templates" description="Templates – content to follow." />
       <Card withBorder padding="md">
-        <span style={{ fontSize: 14, color: 'var(--mantine-color-dimmed)' }}>
+        <Text size="sm" c="dimmed">
           Content to follow.
-        </span>
+        </Text>
       </Card>
     </>
   );

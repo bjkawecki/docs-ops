@@ -1,5 +1,7 @@
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import type { ScopeRef } from './scopeResolution.js';
+import { getContextIdsForScope } from './scopeResolution.js';
+import { getWritableCatalogScope } from './catalogPermissions.js';
 import { canViewDepartment, canViewCompany } from './assignmentPermissions.js';
 
 /**
@@ -53,4 +55,34 @@ export async function getScopeLead(
     default:
       return false;
   }
+}
+
+/**
+ * Returns whether the user has write access in the given scope (§4b: scope lead or writable context/document in scope).
+ * Used by GET /me/can-write-in-scope.
+ */
+export async function canWriteInScope(
+  prisma: PrismaClient,
+  userId: string,
+  scope: ScopeRef
+): Promise<boolean> {
+  const [scopeLead, scopeContextIds, writable] = await Promise.all([
+    getScopeLead(prisma, userId, scope),
+    getContextIdsForScope(prisma, scope),
+    getWritableCatalogScope(prisma, userId),
+  ]);
+  if (scopeLead) return true;
+  const writableCtxSet = new Set(writable.contextIds);
+  if (scopeContextIds.some((id) => writableCtxSet.has(id))) return true;
+  if (scopeContextIds.length > 0 && writable.documentIdsFromGrants.length > 0) {
+    const docInScope = await prisma.document.findFirst({
+      where: {
+        contextId: { in: scopeContextIds },
+        id: { in: writable.documentIdsFromGrants },
+      },
+      select: { id: true },
+    });
+    if (docInScope) return true;
+  }
+  return false;
 }
