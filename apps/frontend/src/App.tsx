@@ -19,6 +19,12 @@ import { SubcontextRedirectPage } from './pages/SubcontextRedirectPage';
 import { DocumentPage } from './pages/DocumentPage';
 import { DocumentVersionsPage } from './pages/DocumentVersionsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HelpLayout } from './pages/help/HelpLayout';
+import { HelpOverviewPage } from './pages/help/HelpOverviewPage';
+import { HelpOrganisationPage } from './pages/help/HelpOrganisationPage';
+import { HelpPermissionsPage } from './pages/help/HelpPermissionsPage';
+import { HelpWorkflowPage } from './pages/help/HelpWorkflowPage';
+import { HelpCollaborationPage } from './pages/help/HelpCollaborationPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AuthGuard } from './components/AuthGuard';
 import { AdminGuard } from './components/AdminGuard';
@@ -56,6 +62,14 @@ function App() {
           <Route path="shared" element={<SharedPage />} />
           <Route path="reviews" element={<ReviewsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="help" element={<HelpLayout />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<HelpOverviewPage />} />
+            <Route path="organisation" element={<HelpOrganisationPage />} />
+            <Route path="permissions" element={<HelpPermissionsPage />} />
+            <Route path="workflow" element={<HelpWorkflowPage />} />
+            <Route path="collaboration" element={<HelpCollaborationPage />} />
+          </Route>
           <Route path="teams" element={<Navigate to="/team" replace />} />
           <Route path="repositories" element={<Navigate to="/catalog" replace />} />
           <Route path="processes">

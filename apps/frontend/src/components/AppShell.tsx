@@ -34,6 +34,7 @@ import {
   IconSitemap,
   IconUsersGroup,
   IconClipboardCheck,
+  IconHelp,
 } from '@tabler/icons-react';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
@@ -1010,6 +1011,13 @@ export function AppShell() {
                     Admin
                   </Menu.Item>
                 )}
+                <Menu.Item
+                  component={Link}
+                  to="/help/overview"
+                  leftSection={<IconHelp size={14} />}
+                >
+                  Help
+                </Menu.Item>
                 <Menu.Item component={Link} to="/settings" leftSection={<IconSettings size={14} />}>
                   Settings
                 </Menu.Item>
