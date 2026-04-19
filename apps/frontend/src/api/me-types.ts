@@ -38,6 +38,7 @@ export type MeResponse = {
       | 'rose'
       | 'orange'
       | 'fuchsia';
+    textSize?: 'default' | 'large' | 'larger';
     recentItemsByScope?: Record<
       string,
       { type: 'process' | 'project' | 'document'; id: string; name?: string }[]

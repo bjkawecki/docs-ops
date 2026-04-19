@@ -33,6 +33,7 @@ export const patchPreferencesBodySchema = z.object({
       'fuchsia',
     ])
     .optional(),
+  textSize: z.enum(['default', 'large', 'larger']).optional(),
   recentItemsByScope: z.record(z.string(), z.array(recentItemSchema).max(8)).optional(),
 });
 

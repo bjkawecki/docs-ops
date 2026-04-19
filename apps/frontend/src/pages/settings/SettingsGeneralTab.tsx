@@ -31,6 +31,7 @@ import {
   PRIMARY_COLOR_PRESETS,
   PRIMARY_COLOR_PRESET_LABELS,
   type PrimaryColorPreset,
+  type TextSizePreference,
 } from '../../theme';
 
 export function SettingsGeneralTab() {
@@ -149,6 +150,13 @@ export function SettingsGeneralTab() {
           color: 'green',
         });
       }
+      if (variables.textSize !== undefined) {
+        notifications.show({
+          title: 'Text size updated',
+          message: 'Interface text scale has been updated.',
+          color: 'green',
+        });
+      }
     },
     onError: (err: Error) => {
       notifications.show({ title: 'Save failed', message: err.message, color: 'red' });
@@ -173,6 +181,7 @@ export function SettingsGeneralTab() {
   const theme = preferences?.theme ?? 'auto';
   const sidebarPinned = preferences?.sidebarPinned ?? false;
   const primaryColor: PrimaryColorPreset = preferences?.primaryColor ?? 'blue';
+  const textSize: TextSizePreference = preferences?.textSize ?? 'default';
   const locale = preferences?.locale ?? 'en';
 
   return (
@@ -304,6 +313,28 @@ export function SettingsGeneralTab() {
                     disabled={patchPreferences.isPending}
                     w={200}
                     styles={{ option: { whiteSpace: 'nowrap' } }}
+                  />
+                </Group>
+                <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+                  <Stack gap={2}>
+                    <Text size="sm" fw={500}>
+                      Text size
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Improves readability; applies across the app.
+                    </Text>
+                  </Stack>
+                  <SegmentedControl
+                    value={textSize}
+                    onChange={(value) =>
+                      patchPreferences.mutate({ textSize: value as TextSizePreference })
+                    }
+                    data={[
+                      { label: 'Default', value: 'default' },
+                      { label: 'Large', value: 'large' },
+                      { label: 'Larger', value: 'larger' },
+                    ]}
+                    disabled={patchPreferences.isPending}
                   />
                 </Group>
                 <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">

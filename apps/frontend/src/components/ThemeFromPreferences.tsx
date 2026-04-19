@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo } from 'react';
 import { MantineProvider, useMantineColorScheme } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
-import { createAppTheme, type PrimaryColorPreset } from '../theme';
+import { createAppTheme, type PrimaryColorPreset, type TextSizePreference } from '../theme';
 import { RecentItemsProvider } from '../hooks/useRecentItems';
 
 export type UserPreferences = {
@@ -10,6 +10,7 @@ export type UserPreferences = {
   sidebarPinned?: boolean;
   locale?: 'en' | 'de';
   primaryColor?: PrimaryColorPreset;
+  textSize?: TextSizePreference;
   recentItemsByScope?: Record<
     string,
     { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
@@ -36,7 +37,8 @@ export function ThemeFromPreferences({ children }: { children: ReactNode }) {
   });
 
   const primaryColor: PrimaryColorPreset = preferences?.primaryColor ?? 'blue';
-  const theme = useMemo(() => createAppTheme(primaryColor), [primaryColor]);
+  const textSize: TextSizePreference = preferences?.textSize ?? 'default';
+  const theme = useMemo(() => createAppTheme(primaryColor, textSize), [primaryColor, textSize]);
 
   if (isPending || preferences === undefined) {
     return null;

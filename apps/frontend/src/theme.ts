@@ -1,5 +1,14 @@
 import { createTheme } from '@mantine/core';
 
+/** User-selectable UI text scale (Mantine `theme.scale`). */
+export type TextSizePreference = 'default' | 'large' | 'larger';
+
+function textSizeToScale(textSize: TextSizePreference | undefined): number {
+  if (textSize === 'large') return 1.125;
+  if (textSize === 'larger') return 1.25;
+  return 1;
+}
+
 /** User-selectable primary color preset names. */
 export type PrimaryColorPreset =
   | 'blue'
@@ -209,12 +218,17 @@ export const PRIMARY_COLOR_PALETTES: Record<PrimaryColorPreset, ColorScale> = {
 };
 
 /**
- * Builds the app theme with the given primary color preset.
+ * Builds the app theme with the given primary color preset and optional text scale.
  * Used by ThemeFromPreferences; main.tsx keeps createAppTheme('blue') for login/unauthenticated.
  */
-export function createAppTheme(primaryColor: PrimaryColorPreset) {
+export function createAppTheme(
+  primaryColor: PrimaryColorPreset,
+  textSize: TextSizePreference = 'default'
+) {
+  const scale = textSizeToScale(textSize);
   return createTheme({
     primaryColor,
+    ...(scale !== 1 ? { scale } : {}),
     primaryShade: 4 /* Cornflower primary = #5e82ff at index 4 */,
     colors: {
       blue: [...PRIMARY_COLOR_PALETTES.blue],
