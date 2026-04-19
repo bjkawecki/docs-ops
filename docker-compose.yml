@@ -60,6 +60,11 @@ services:
     restart: unless-stopped
     user: '${UID:-1000}:${GID:-1000}'
     working_dir: /app
+    ports:
+      - '5173:5173'
+    environment:
+      # Vite-Proxy im Container: /api → Backend-Service (nicht 127.0.0.1)
+      VITE_DEV_PROXY_API: http://app:8080
     volumes:
       - .:/app
     # --ignore-scripts avoids backend prepare (prisma generate) in this container;

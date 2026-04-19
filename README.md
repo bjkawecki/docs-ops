@@ -18,9 +18,9 @@ Interne Dokumentationsplattform .
 ./install.sh
 ```
 
-Startet den Stack. App nach kurzer Startzeit unter **http://localhost:5000** (Health: http://localhost:5000/health).
+Startet den Stack. App nach kurzer Startzeit unter **http://localhost:5000** (Health: http://localhost:5000/health). Optional: Vite direkt unter **http://localhost:5173** (gleiches Repo; API per Proxy zum Backend).
 
-Manuell: `docker compose up -d`.
+Manuell: `make up` oder `docker compose up -d`.
 
 ## Entwicklung
 

@@ -272,7 +272,7 @@ export function SubcontextDetailPage() {
     metadataParts.push(
       metadataParts.length > 0 ? ' · ' : null,
       <Anchor key="project" component={Link} to={`/projects/${projectId}`} size="sm" c="dimmed">
-        Projekt: {projectName}
+        Project: {projectName}
       </Anchor>
     );
   }

@@ -538,11 +538,11 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
                 <Box>
                   <Group justify="space-between" wrap="nowrap" mb="sm">
                     <Text tt="uppercase" fz="xs" fw={600} c="dimmed">
-                      Unterkontexte
+                      Subcontexts
                     </Text>
                     {data.canWriteContext && (
                       <Button variant="light" size="xs" onClick={openNewSubcontext}>
-                        Unterkontext anlegen
+                        Create subcontext
                       </Button>
                     )}
                   </Group>
@@ -573,7 +573,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
       <Modal
         opened={newSubcontextOpened}
         onClose={closeNewSubcontext}
-        title="Unterkontext anlegen"
+        title="Create subcontext"
         size="sm"
       >
         <Stack gap="md">
@@ -581,7 +581,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
             label="Name"
             value={newSubcontextName}
             onChange={(e) => setNewSubcontextName(e.currentTarget.value)}
-            placeholder="z. B. Protokolle, Meilensteine"
+            placeholder="e.g. meeting notes, milestones"
             required
           />
           <Group justify="flex-end" gap="xs">

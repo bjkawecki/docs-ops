@@ -1,7 +1,7 @@
 # docs-ops – Makefile
 # Nutzung: make [Ziel]. Ohne Ziel: make help
 
-.PHONY: help install lint format format-check check clean dev build start test docker-up docker-up-fg docker-down docker-dev migrate admin-create
+.PHONY: help install lint format format-check check clean dev build start test up up-fg down infra migrate admin-create
 
 # Standard-Ziel: Hilfe anzeigen
 help:
@@ -16,10 +16,10 @@ help:
 	@echo "  make build        Backend bauen"
 	@echo "  make start        Backend starten (nach build)"
 	@echo "  make test         Backend-Tests ausführen (Vitest)"
-	@echo "  make docker-up    Stack starten (docker compose up -d)"
-	@echo "  make docker-up-fg Stack starten im Vordergrund (docker compose up)"
-	@echo "  make docker-down  Stack stoppen"
-	@echo "  make docker-dev   Nur Postgres + MinIO (Schnell-Dev)"
+	@echo "  make up           Stack starten (docker compose up -d)"
+	@echo "  make up-fg        Stack starten im Vordergrund (docker compose up)"
+	@echo "  make down         Stack stoppen"
+	@echo "  make infra        Nur Postgres + MinIO (Schnell-Dev; docker-compose.dev.yml)"
 	@echo "  make migrate      Prisma-Migrationen anwenden (DB-Schema); vor admin-create nötig"
 	@echo "  make admin-create Admin anlegen (falls noch keiner); ADMIN_EMAIL/ADMIN_PASSWORD in .env"
 	@echo "  make clean        node_modules und Build-Artefakte entfernen"
@@ -52,16 +52,16 @@ start:
 test:
 	pnpm --filter backend test
 
-docker-up:
+up:
 	docker compose up -d
 
-docker-up-fg:
+up-fg:
 	docker compose up
 
-docker-down:
+down:
 	docker compose down
 
-docker-dev:
+infra:
 	docker compose -f docker-compose.dev.yml up -d
 
 migrate:

@@ -19,7 +19,7 @@ make install
 
 | Wo                        | Wann nutzen                                                                                                                                                         |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Makefile (Repo-Root)**  | Standard für den Alltag: install, lint, format, check, dev, docker-\* – immer aus dem Root arbeiten.                                                                |
+| **Makefile (Repo-Root)**  | Standard für den Alltag: install, lint, format, check, dev, up, down, infra, … – immer aus dem Root arbeiten.                                                       |
 | **apps/backend/Makefile** | Nur wenn du dich gezielt im Backend-Ordner aufhältst und dort `make dev` / `make build` / `make start` ausführen willst. Entspricht `pnpm run dev` etc. im Backend. |
 
 **Empfehlung:** Im Repo-Root arbeiten und `make …` aus dem Root-Makefile nutzen. Das Root-Makefile ruft intern `pnpm --filter backend …` auf.
@@ -28,7 +28,7 @@ make install
 
 **Was läuft wo?**
 
-| Komponente        | Schnell-Dev (`make docker-dev` + `make dev`)     | Vollständiger Stack (`make docker-up`)      |
+| Komponente        | Schnell-Dev (`make infra` + `make dev`)          | Vollständiger Stack (`make up`)             |
 | ----------------- | ------------------------------------------------ | ------------------------------------------- |
 | **PostgreSQL 18** | ✅ in Docker (`postgres:18-alpine`)              | ✅ in Docker                                |
 | **MinIO**         | ✅ in Docker                                     | ✅ in Docker                                |
@@ -41,7 +41,7 @@ Schnell-Dev heißt: **Nur** die Datenbanken (Postgres, MinIO) laufen in Docker. 
 1. Ablauf:
 
    ```bash
-   make docker-dev   # startet nur Postgres + MinIO
+   make infra         # startet nur Postgres + MinIO
    make dev          # startet Backend auf dem Host (tsx watch)
    ```
 
@@ -68,12 +68,12 @@ docker compose up
 
 Dabei wird `docker-compose.override.yml` automatisch geladen: Die App (Backend) läuft als Node-Container mit gemountetem Quellcode und `pnpm --filter backend run dev` – Änderungen am Backend werden also live nachgeladen.
 
-- **URL:** **http://localhost:5000** (Caddy auf Port 5000; routet `/` → Frontend, `/api` → Backend)
+- **URL:** **http://localhost:5000** (Caddy auf Port 5000; routet `/` → Frontend, `/api` → Backend). Optional direkt Vite: **http://localhost:5173** (Port ist auf den Host gemappt; `/api` wird per Proxy zum Backend-Container weitergeleitet).
 - **Läuft:** Postgres, MinIO, Backend (mit Watch), Frontend (Vite-Dev-Server), Caddy
 
-**Mit Makefile:** `make docker-up` startet den Stack im Hintergrund (`-d`); ohne `-d` siehst du die Logs im Vordergrund (z. B. Backend-Watch). Für Entwicklung oft praktisch: `docker compose up` (ohne `-d`) in einem Terminal, dann siehst du Caddy- und Backend-Logs.
+**Mit Makefile:** `make up` startet den Stack im Hintergrund (`-d`); im Vordergrund: `make up-fg` oder `docker compose up` (ohne `-d`), dann siehst du Caddy- und Backend-Logs.
 
-**Frontend (Abschnitt 6 – Szenario B):** Ab Abschnitt 6 gilt **eine Origin**: Caddy routet `/api/*` zum Backend und `/` zum Frontend. Das Frontend läuft als eigener Service im Stack (Vite-Dev-Server oder Build). Du erreichst die gesamte App unter **http://localhost:5000** – HTML/JS vom Frontend, API unter `http://localhost:5000/api/v1/...`. Session-Cookie gilt für eine Domain, CORS ist nicht nötig. Optional für reine Host-Entwicklung: Frontend auf dem Host mit `pnpm --filter frontend dev` (dann CORS im Backend für `http://localhost:5173`).
+**Frontend (Abschnitt 6 – Szenario B):** Ab Abschnitt 6 gilt **eine Origin**: Caddy routet `/api/*` zum Backend und `/` zum Frontend. Das Frontend läuft als eigener Service im Stack (Vite-Dev-Server oder Build). Du erreichst die gesamte App unter **http://localhost:5000** – HTML/JS vom Frontend, API unter `http://localhost:5000/api/v1/...`. Session-Cookie gilt für eine Domain, CORS ist nicht nötig. **Nicht** nur `http://localhost:5173` im Browser nutzen, wenn du den Stack über Caddy fährst — ohne Caddy würde `/api` vom Vite-Server nicht bedient (Fehler „Failed to fetch“). Nur Frontend auf dem Host: `pnpm --filter frontend dev` und Backend separat (`make dev`, Port 8080); Vite leitet `/api` per Proxy an `http://127.0.0.1:8080` (override mit `VITE_DEV_PROXY_API`).
 
 **Kurz:** Vollständiger Stack = `docker compose up`; danach **http://localhost:5000** für App und API (Caddy leitet nach Pfad weiter). Beim Start werden automatisch die Migrationen ausgeführt und – falls in der `.env` `ADMIN_EMAIL` und `ADMIN_PASSWORD` gesetzt sind – ein Admin angelegt (falls noch keiner existiert).
 
@@ -107,14 +107,15 @@ make format
 | `make dev`          | Backend im Dev-Modus (tsx watch)                                                          |
 | `make build`        | Backend bauen                                                                             |
 | `make start`        | Backend starten (nach build)                                                              |
-| `make docker-up`    | Vollständiger Stack (`docker compose up -d`)                                              |
-| `make docker-down`  | Stack stoppen                                                                             |
-| `make docker-dev`   | Nur Postgres + MinIO in Docker (Backend/Frontend startest du mit `make dev` auf dem Host) |
+| `make up`           | Vollständiger Stack (`docker compose up -d`)                                              |
+| `make up-fg`        | Vollständiger Stack im Vordergrund (`docker compose up`)                                  |
+| `make down`         | Stack stoppen                                                                             |
+| `make infra`        | Nur Postgres + MinIO in Docker (Backend/Frontend startest du mit `make dev` auf dem Host) |
 | `make clean`        | node_modules und Build-Artefakte entfernen                                                |
 
 ## Prod-nah testen (vor Release)
 
-Gleicher Stack wie im Abschnitt **Caddy + Backend in der Entwicklung starten**: `make docker-up` oder `docker compose up`. Zugriff über **http://localhost:5000**.
+Gleicher Stack wie im Abschnitt **Caddy + Backend in der Entwicklung starten**: `make up` oder `docker compose up`. Zugriff über **http://localhost:5000**.
 
 ## Ohne Makefile (pnpm direkt)
 

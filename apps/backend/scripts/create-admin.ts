@@ -57,7 +57,7 @@ main()
     const err = e as { code?: string; message?: string };
     if (err?.code === 'ECONNREFUSED') {
       console.error(
-        'Fehler: Keine Verbindung zur Datenbank. Ist Postgres gestartet? (z. B. make docker-dev oder docker compose up -d postgres). DATABASE_URL prüfen.'
+        'Fehler: Keine Verbindung zur Datenbank. Ist Postgres gestartet? (z. B. make infra oder docker compose up -d postgres). DATABASE_URL prüfen.'
       );
     } else if (err?.code === 'P2021') {
       console.error(

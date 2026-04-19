@@ -28,7 +28,15 @@ export function LoginPage() {
     },
     onSuccess: () => void navigate(from, { replace: true }),
     onError: (err) => {
-      notifications.show({ title: 'Login failed', message: err.message, color: 'red' });
+      const raw = err instanceof Error ? err.message : String(err);
+      const isNetwork =
+        raw === 'Failed to fetch' ||
+        raw.includes('NetworkError') ||
+        raw.toLowerCase().includes('load failed');
+      const message = isNetwork
+        ? 'Cannot reach the server. With the Docker stack, open the app at http://localhost:5000 (Caddy proxies /api). Vite on the host only: start the backend separately (e.g. `make dev` on port 8080) or set `VITE_DEV_PROXY_API`.'
+        : raw;
+      notifications.show({ title: 'Login failed', message, color: 'red' });
     },
   });
 
