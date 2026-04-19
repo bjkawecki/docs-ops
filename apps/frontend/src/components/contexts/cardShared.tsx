@@ -112,6 +112,8 @@ export interface ScopeCardProps {
   documents?: { id: string; title: string }[];
   /** Context mode: subcontexts line (e.g. "Subcontexts: A, B"). */
   subcontexts?: { id: string; name: string }[];
+  /** When set with subcontexts, links go to `/projects/:projectId/subcontexts/:id`. */
+  projectId?: string;
   /** Context mode: custom body when no documents/subcontexts (e.g. metadata). */
   metadata?: ReactNode;
 }
@@ -126,6 +128,7 @@ export function ScopeCard({
   href,
   documents,
   subcontexts,
+  projectId,
   metadata,
 }: ScopeCardProps) {
   const displayTitle = titleCount !== undefined ? `${title} (${titleCount})` : title;
@@ -171,7 +174,11 @@ export function ScopeCard({
               {subcontexts.map((s) => (
                 <ContentLink
                   key={s.id}
-                  to={`/subcontexts/${s.id}`}
+                  to={
+                    projectId != null
+                      ? `/projects/${projectId}/subcontexts/${s.id}`
+                      : `/subcontexts/${s.id}`
+                  }
                   style={{ fontSize: 'var(--mantine-font-size-xs)' }}
                 >
                   {s.name}

@@ -857,7 +857,10 @@ export function DocumentPage() {
         ? {
             typeLabel: 'Subcontext',
             name: data.subcontextName ?? data.contextName ?? 'Subcontext',
-            to: `/subcontexts/${data.subcontextId}`,
+            to:
+              data.contextProjectId != null
+                ? `/projects/${data.contextProjectId}/subcontexts/${data.subcontextId}`
+                : `/subcontexts/${data.subcontextId}`,
             icon: IconSubtask,
           }
         : data.contextProjectId != null

@@ -13,7 +13,9 @@ import { ReviewsPage } from './pages/ReviewsPage';
 import { TeamContextPage } from './pages/TeamContextPage';
 import { ProcessContextPage } from './pages/ProcessContextPage';
 import { ProjectContextPage } from './pages/ProjectContextPage';
+import { ProjectWorkspaceOutlet } from './pages/ProjectWorkspaceOutlet';
 import { SubcontextDetailPage } from './pages/SubcontextDetailPage';
+import { SubcontextRedirectPage } from './pages/SubcontextRedirectPage';
 import { DocumentPage } from './pages/DocumentPage';
 import { DocumentVersionsPage } from './pages/DocumentVersionsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -62,9 +64,12 @@ function App() {
           </Route>
           <Route path="projects">
             <Route index element={<Navigate to="/catalog" replace />} />
-            <Route path=":projectId" element={<ProjectContextPage />} />
+            <Route path=":projectId" element={<ProjectWorkspaceOutlet />}>
+              <Route index element={<ProjectContextPage />} />
+              <Route path="subcontexts/:subcontextId" element={<SubcontextDetailPage />} />
+            </Route>
           </Route>
-          <Route path="subcontexts/:subcontextId" element={<SubcontextDetailPage />} />
+          <Route path="subcontexts/:subcontextId" element={<SubcontextRedirectPage />} />
           <Route path="documents/:documentId" element={<DocumentPage />} />
           <Route path="documents/:documentId/versions" element={<DocumentVersionsPage />} />
           <Route path="templates" element={<Navigate to="/" replace />} />

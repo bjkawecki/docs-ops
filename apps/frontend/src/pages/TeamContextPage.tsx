@@ -465,6 +465,7 @@ export function TeamContextPage() {
               href={`/projects/${p.id}`}
               documents={p.documents}
               subcontexts={p.subcontexts}
+              projectId={p.id}
             />
           ))}
         </ContextGrid>

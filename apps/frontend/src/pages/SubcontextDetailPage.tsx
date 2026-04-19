@@ -10,16 +10,30 @@ import {
   Textarea,
   MultiSelect,
   Modal,
+  Title,
+  Flex,
+  Container,
+  Breadcrumbs,
+  Paper,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useRecentItemsActions, type RecentScope } from '../hooks/useRecentItems';
-import { PageHeader } from '../components/PageHeader';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import { useDisclosure } from '@mantine/hooks';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { notifications } from '@mantine/notifications';
+import {
+  IconChevronRight,
+  IconBuildingSkyscraper,
+  IconSitemap,
+  IconUsersGroup,
+  IconUser,
+  IconSubtask,
+} from '@tabler/icons-react';
+import { ContextDocumentsTable } from '../components/contexts/ContextDocumentsTable';
+import { ProjectSiblingSubnav } from '../components/contexts/ProjectSiblingSubnav';
 
 type SubcontextResponse = {
   id: string;
@@ -29,11 +43,13 @@ type SubcontextResponse = {
   project: {
     id: string;
     name: string;
+    ownerId?: string;
     owner?: {
-      companyId?: string;
-      departmentId?: string;
-      teamId?: string;
+      companyId?: string | null;
+      departmentId?: string | null;
+      teamId?: string | null;
       ownerUserId?: string | null;
+      displayName?: string | null;
     };
   };
   canWriteContext?: boolean;
@@ -50,9 +66,9 @@ type ContextDocument = {
 
 function projectOwnerToScope(project: {
   owner?: {
-    companyId?: string;
-    departmentId?: string;
-    teamId?: string;
+    companyId?: string | null;
+    departmentId?: string | null;
+    teamId?: string | null;
     ownerUserId?: string | null;
   };
 }): RecentScope | null {
@@ -65,8 +81,24 @@ function projectOwnerToScope(project: {
   return null;
 }
 
+function ownerToScopeForBreadcrumb(owner: {
+  companyId?: string | null;
+  departmentId?: string | null;
+  teamId?: string | null;
+  ownerUserId?: string | null;
+}): RecentScope | null {
+  if (owner.ownerUserId) return { type: 'personal' };
+  if (owner.companyId) return { type: 'company', id: owner.companyId };
+  if (owner.departmentId) return { type: 'department', id: owner.departmentId };
+  if (owner.teamId) return { type: 'team', id: owner.teamId };
+  return null;
+}
+
 export function SubcontextDetailPage() {
-  const { subcontextId } = useParams<{ subcontextId: string }>();
+  const { projectId: projectIdParam, subcontextId } = useParams<{
+    projectId: string;
+    subcontextId: string;
+  }>();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const recentActions = useRecentItemsActions();
@@ -83,7 +115,7 @@ export function SubcontextDetailPage() {
   const [newDocLoading, setNewDocLoading] = useState(false);
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['subcontext', subcontextId],
+    queryKey: ['subcontext', projectIdParam, subcontextId],
     queryFn: async () => {
       const res = await apiFetch(`/api/v1/subcontexts/${subcontextId}`);
       if (!res.ok) throw new Error('Subcontext not found');
@@ -93,6 +125,8 @@ export function SubcontextDetailPage() {
   });
 
   const contextId = data?.contextId;
+  const projectOwnerId = data?.project?.ownerId;
+
   const { data: documentsData } = useQuery({
     queryKey: ['contexts', contextId, 'documents'],
     queryFn: async () => {
@@ -109,23 +143,51 @@ export function SubcontextDetailPage() {
   });
 
   const { data: tagsData } = useQuery({
-    queryKey: ['tags', contextId],
+    queryKey: ['tags', projectOwnerId ?? contextId, 'subcontext'],
     queryFn: async () => {
+      if (projectOwnerId) {
+        const res = await apiFetch(`/api/v1/tags?ownerId=${projectOwnerId}`);
+        if (!res.ok) throw new Error('Failed to load tags');
+        return res.json() as Promise<{ id: string; name: string }[]>;
+      }
+      if (!contextId) return [];
       const res = await apiFetch(`/api/v1/tags?contextId=${contextId}`);
       if (!res.ok) throw new Error('Failed to load tags');
       return res.json() as Promise<{ id: string; name: string }[]>;
     },
-    enabled: !!contextId,
+    enabled: !!(projectOwnerId ?? contextId),
   });
+
+  const scopeParam =
+    data?.project?.owner?.companyId != null
+      ? `companyId=${data.project.owner.companyId}`
+      : data?.project?.owner?.departmentId != null
+        ? `departmentId=${data.project.owner.departmentId}`
+        : data?.project?.owner?.teamId != null
+          ? `teamId=${data.project.owner.teamId}`
+          : data?.project?.owner?.ownerUserId != null
+            ? `ownerUserId=${data.project.owner.ownerUserId}`
+            : '';
+
+  const { data: siblingsData } = useQuery({
+    queryKey: ['project', 'siblings', scopeParam],
+    queryFn: async () => {
+      const res = await apiFetch(`/api/v1/projects?limit=100&offset=0&${scopeParam}`);
+      if (!res.ok) throw new Error('Failed to load siblings');
+      return res.json() as Promise<{
+        items: { id: string; name: string; subcontexts?: { id: string; name: string }[] }[];
+      }>;
+    },
+    enabled: !!scopeParam,
+  });
+  const siblings = siblingsData?.items ?? [];
 
   const documents = documentsData?.items ?? [];
   const tagOptions = (tagsData ?? []).map((t) => ({ value: t.id, label: t.name }));
 
   useEffect(() => {
     if (data && recentActions) {
-      const scope = projectOwnerToScope(
-        data.project as { owner?: { companyId?: string; departmentId?: string; teamId?: string } }
-      );
+      const scope = projectOwnerToScope(data.project);
       if (scope)
         recentActions.addRecent(
           { type: 'project', id: data.project.id, name: data.project.name },
@@ -151,7 +213,12 @@ export function SubcontextDetailPage() {
         body: JSON.stringify({ name: editName.trim() }),
       });
       if (res.ok) {
-        void queryClient.invalidateQueries({ queryKey: ['subcontext', subcontextId] });
+        const projectPk = data?.project.id;
+        void queryClient.invalidateQueries({
+          queryKey: ['subcontext', projectIdParam, subcontextId],
+        });
+        void queryClient.invalidateQueries({ queryKey: ['project', 'siblings', scopeParam] });
+        if (projectPk) void queryClient.invalidateQueries({ queryKey: ['project', projectPk] });
         closeEdit();
         notifications.show({ title: 'Saved', message: 'Name was updated.', color: 'green' });
       } else {
@@ -174,6 +241,7 @@ export function SubcontextDetailPage() {
       const res = await apiFetch(`/api/v1/subcontexts/${subcontextId}`, { method: 'DELETE' });
       if (res.status === 204) {
         void queryClient.invalidateQueries({ queryKey: ['project', data.project.id] });
+        void queryClient.invalidateQueries({ queryKey: ['project', 'siblings', scopeParam] });
         closeDelete();
         void navigate(`/projects/${data.project.id}`, { replace: true });
         notifications.show({
@@ -244,6 +312,8 @@ export function SubcontextDetailPage() {
     }
   };
 
+  if (!subcontextId || !projectIdParam) return null;
+
   if (isPending)
     return (
       <Text size="sm" c="dimmed">
@@ -257,39 +327,45 @@ export function SubcontextDetailPage() {
       </Text>
     );
 
-  const scope = data.project ? projectOwnerToScope(data.project) : null;
-  const projectId = data.project?.id;
-  const projectName = data.project?.name ?? 'Project';
-  const metadataParts: ReactNode[] = [];
-  if (scope) {
-    metadataParts.push(
-      <Anchor key="scope" component={Link} to={scopeToUrl(scope)} size="sm" c="dimmed">
-        {scopeToLabel(scope)}
-      </Anchor>
-    );
+  if (data.project.id !== projectIdParam) {
+    return <Navigate to={`/projects/${data.project.id}/subcontexts/${subcontextId}`} replace />;
   }
-  if (projectId) {
-    metadataParts.push(
-      metadataParts.length > 0 ? ' · ' : null,
-      <Anchor key="project" component={Link} to={`/projects/${projectId}`} size="sm" c="dimmed">
-        Project: {projectName}
-      </Anchor>
-    );
-  }
-  metadataParts.push(
-    metadataParts.length > 0 ? ' · ' : null,
-    <Text key="type" size="sm" c="dimmed" span>
-      Subcontext
-    </Text>
-  );
-  const metadata = <Group gap={4}>{metadataParts.filter(Boolean)}</Group>;
+
+  const owner = data.project.owner;
+  const scope = owner ? ownerToScopeForBreadcrumb(owner) : null;
+  const scopeUrlWithTab = scope ? `${scopeToUrl(scope)}?tab=projects` : '/?tab=projects';
+  const scopeName = owner?.displayName ?? (scope ? scopeToLabel(scope) : 'Overview');
+  const ScopeIcon =
+    scope?.type === 'company'
+      ? IconBuildingSkyscraper
+      : scope?.type === 'department'
+        ? IconSitemap
+        : scope?.type === 'team'
+          ? IconUsersGroup
+          : IconUser;
 
   return (
-    <Box>
-      <PageHeader
-        title={data.name}
-        metadata={metadata}
-        actions={
+    <Container fluid maw={1600} px="md" mb="xl">
+      <Stack gap="lg" mb="xl" mt="md">
+        <Breadcrumbs separator={<IconChevronRight size={14} color="var(--mantine-color-dimmed)" />}>
+          <Anchor component={Link} to={scopeUrlWithTab} c="dimmed" size="sm">
+            <Group gap={4} align="center" wrap="nowrap">
+              <ScopeIcon size={14} />
+              <span>{scopeName}</span>
+            </Group>
+          </Anchor>
+          <Anchor component={Link} to={`/projects/${data.project.id}`} c="dimmed" size="sm">
+            {data.project.name}
+          </Anchor>
+          <Text size="sm" c="dimmed">
+            {data.name}
+          </Text>
+        </Breadcrumbs>
+        <Flex justify="space-between" align="flex-start" wrap="wrap" gap="lg">
+          <Group gap="sm" align="center">
+            <IconSubtask size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+            <Title order={1}>{data.name}</Title>
+          </Group>
           <Group gap="xs">
             {data.canWriteContext && (
               <Button variant="light" size="sm" onClick={openNewDoc}>
@@ -307,46 +383,28 @@ export function SubcontextDetailPage() {
               </>
             )}
           </Group>
-        }
-      />
-
-      <Stack gap="md">
-        <Card withBorder padding="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Documents
-            </Text>
-            {documents.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No documents yet.
-              </Text>
-            ) : (
-              <Stack gap={4}>
-                {documents.map((doc) => (
-                  <Group key={doc.id} justify="space-between" wrap="nowrap">
-                    <Link
-                      to={`/documents/${doc.id}`}
-                      style={{ fontSize: 'var(--mantine-font-size-sm)', textDecoration: 'none' }}
-                    >
-                      {doc.title}
-                    </Link>
-                    <Group gap="xs" wrap="nowrap">
-                      {doc.documentTags.map((dt) => (
-                        <Text key={dt.tag.id} size="xs" c="dimmed" span>
-                          {dt.tag.name}
-                        </Text>
-                      ))}
-                      <Text size="xs" c="dimmed">
-                        {new Date(doc.updatedAt).toLocaleDateString()}
-                      </Text>
-                    </Group>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-          </Stack>
-        </Card>
+        </Flex>
       </Stack>
+
+      <Paper withBorder={false} p="lg" radius="md">
+        <Flex
+          direction={{ base: 'column', lg: 'row' }}
+          gap={{ base: 'xl', lg: 48 }}
+          align="flex-start"
+        >
+          <ProjectSiblingSubnav variant="project" siblings={siblings} />
+          <Card withBorder padding="md" style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <Stack gap="xl">
+              <Box data-context-docs-table>
+                <Text tt="uppercase" fz="xs" fw={600} c="dimmed" mb="sm">
+                  Documents
+                </Text>
+                <ContextDocumentsTable documents={documents} />
+              </Box>
+            </Stack>
+          </Card>
+        </Flex>
+      </Paper>
 
       <Modal opened={newDocOpened} onClose={closeNewDoc} title="New draft" centered>
         <Stack gap="md">
@@ -417,6 +475,6 @@ export function SubcontextDetailPage() {
           </Button>
         </Group>
       </Modal>
-    </Box>
+    </Container>
   );
 }

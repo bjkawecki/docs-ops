@@ -492,6 +492,7 @@ export function CompanyPage() {
               href={`/projects/${p.id}`}
               documents={p.documents}
               subcontexts={p.subcontexts}
+              projectId={p.id}
             />
           ))}
         </ContextGrid>

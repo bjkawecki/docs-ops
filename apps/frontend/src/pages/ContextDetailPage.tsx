@@ -13,9 +13,6 @@ import {
   Breadcrumbs,
   Menu,
   ActionIcon,
-  Table,
-  NavLink,
-  Badge,
   Box,
   Card,
   Paper,
@@ -27,6 +24,8 @@ import { useMe } from '../hooks/useMe';
 import { useRecentItemsActions, type RecentScope } from '../hooks/useRecentItems';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import { ContentLink } from '../components/ContentLink';
+import { ContextDocumentsTable } from '../components/contexts/ContextDocumentsTable';
+import { ProjectSiblingSubnav } from '../components/contexts/ProjectSiblingSubnav';
 import { EditContextNameModal } from '../components/contexts/EditContextNameModal';
 import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
@@ -181,7 +180,9 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
     queryFn: async () => {
       const res = await apiFetch(`${endpoint}?limit=100&offset=0&${scopeParam}`);
       if (!res.ok) throw new Error('Failed to load siblings');
-      return res.json() as Promise<{ items: { id: string; name: string }[] }>;
+      return res.json() as Promise<{
+        items: { id: string; name: string; subcontexts?: { id: string; name: string }[] }[];
+      }>;
     },
     enabled: !!scopeParam,
   });
@@ -332,6 +333,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
       });
       if (res.status === 201) {
         void queryClient.invalidateQueries({ queryKey: [type, id] });
+        void queryClient.invalidateQueries({ queryKey: [type, 'siblings', scopeParam] });
         closeNewSubcontext();
         setNewSubcontextName('');
         notifications.show({
@@ -454,31 +456,10 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           gap={{ base: 'xl', lg: 48 }}
           align="flex-start"
         >
-          <Box w={{ base: '100%', lg: 280 }} style={{ flexShrink: 0 }} data-context-sibling-nav>
-            <Text
-              tt="uppercase"
-              fz="xs"
-              fw={600}
-              c="dimmed"
-              mb="sm"
-              style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
-            >
-              {type === 'process' ? 'All Processes' : 'All Projects'}
-            </Text>
-            <Stack component="nav" gap={2}>
-              {siblings.map((sibling) => (
-                <NavLink
-                  key={sibling.id}
-                  component={Link}
-                  to={`/${type === 'process' ? 'processes' : 'projects'}/${sibling.id}`}
-                  label={sibling.name}
-                  active={sibling.id === id}
-                  variant="light"
-                  style={{ borderRadius: 'var(--mantine-radius-sm)' }}
-                />
-              ))}
-            </Stack>
-          </Box>
+          <ProjectSiblingSubnav
+            variant={type === 'process' ? 'process' : 'project'}
+            siblings={siblings}
+          />
 
           <Card withBorder padding="md" style={{ flex: 1, minWidth: 0, width: '100%' }}>
             <Stack gap="xl">
@@ -486,52 +467,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
                 <Text tt="uppercase" fz="xs" fw={600} c="dimmed" mb="sm">
                   Documents
                 </Text>
-                {documents.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No documents yet.
-                  </Text>
-                ) : (
-                  <Table highlightOnHover verticalSpacing="sm">
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th style={{ width: '60%' }}>Title</Table.Th>
-                        <Table.Th style={{ width: '25%' }}>Tags</Table.Th>
-                        <Table.Th style={{ width: '15%' }}>Last updated</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {documents.map((doc) => (
-                        <Table.Tr
-                          key={doc.id}
-                          onClick={() => {
-                            void navigate(`/documents/${doc.id}`);
-                          }}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <Table.Td>
-                            <ContentLink to={`/documents/${doc.id}`} style={{ fontWeight: 500 }}>
-                              {doc.title}
-                            </ContentLink>
-                          </Table.Td>
-                          <Table.Td>
-                            <Group gap="xs">
-                              {doc.documentTags.map((dt) => (
-                                <Badge key={dt.tag.id} size="sm" variant="light" color="gray">
-                                  {dt.tag.name}
-                                </Badge>
-                              ))}
-                            </Group>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm" c="dimmed">
-                              {new Date(doc.updatedAt).toLocaleDateString()}
-                            </Text>
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                )}
+                <ContextDocumentsTable documents={documents} />
               </Box>
 
               {type === 'project' && (
@@ -555,7 +491,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
                       {((data as ProjectResponse).subcontexts ?? []).map((sub) => (
                         <ContentLink
                           key={sub.id}
-                          to={`/subcontexts/${sub.id}`}
+                          to={`/projects/${id}/subcontexts/${sub.id}`}
                           style={{ fontSize: 'var(--mantine-font-size-sm)' }}
                         >
                           {sub.name}
