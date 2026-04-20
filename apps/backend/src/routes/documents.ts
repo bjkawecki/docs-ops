@@ -69,6 +69,7 @@ import {
 import { enqueueJob, getJobById } from '../jobs/client.js';
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const QUEUE_RETRY_AFTER_SECONDS = 15;
 const exportPdfStatusParamsSchema = z.object({
   documentId: z.string().cuid(),
   jobId: z.string().min(1),
@@ -574,10 +575,22 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const userId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
 
-      const jobId = await enqueueJob('documents.export.pdf', {
-        documentId,
-        requestedByUserId: userId,
-      });
+      let jobId: string;
+      try {
+        jobId = await enqueueJob('documents.export.pdf', {
+          documentId,
+          requestedByUserId: userId,
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId, userId },
+          'Queue unavailable while starting PDF export job'
+        );
+        return reply.header('Retry-After', String(QUEUE_RETRY_AFTER_SECONDS)).status(503).send({
+          error: 'Queue/worker currently unavailable. Please retry shortly.',
+          code: 'QUEUE_UNAVAILABLE',
+        });
+      }
 
       return reply.status(202).send({
         jobId,

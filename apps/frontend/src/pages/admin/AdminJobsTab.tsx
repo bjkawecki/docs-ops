@@ -52,6 +52,29 @@ type SchedulesResponse = {
   availableJobNames: string[];
 };
 
+type JobAlertsResponse = {
+  status: 'ok' | 'degraded';
+  runbook: string;
+  thresholds: {
+    queuedLagSeconds: number;
+    failedRecentCount: number;
+    failedRecentWindowMinutes: number;
+  };
+  metrics: {
+    queuedCount: number;
+    runningCount: number;
+    failedTotalCount: number;
+    failedRecentCount: number;
+    oldestQueuedOn: string | null;
+    oldestQueuedLagSeconds: number | null;
+  };
+  alerts: Array<{
+    code: string;
+    severity: 'warning' | 'critical';
+    message: string;
+  }>;
+};
+
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 const POLLING_SECONDS_OPTIONS = [0, 2, 5, 10, 30] as const;
 const DEFAULT_PAGE_SIZE = 25;
@@ -178,6 +201,19 @@ export function AdminJobsTab() {
       return (await res.json()) as SchedulesResponse;
     },
   });
+  const alerts = useQuery({
+    queryKey: ['admin', 'jobs', 'alerts'],
+    queryFn: async (): Promise<JobAlertsResponse> => {
+      const res = await apiFetch('/api/v1/admin/jobs/alerts', { cache: 'no-store' });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? 'Failed to load job alerts');
+      }
+      return (await res.json()) as JobAlertsResponse;
+    },
+    refetchInterval: effectivePollingMs,
+    refetchIntervalInBackground: true,
+  });
 
   const retryMutation = useMutation({
     mutationFn: async (jobId: string) => {
@@ -261,6 +297,11 @@ export function AdminJobsTab() {
   const queueReachable = health.data?.queueReachable ?? false;
   const workerConnected = health.data?.workerConnected ?? false;
   const queueActionsDisabled = healthUnavailable || !queueReachable || !workerConnected;
+  const hasCriticalAlerts = (alerts.data?.alerts ?? []).some(
+    (entry) => entry.severity === 'critical'
+  );
+  const hasAnyAlerts = (alerts.data?.alerts ?? []).length > 0;
+  const oldestQueuedLag = alerts.data?.metrics.oldestQueuedLagSeconds ?? null;
 
   return (
     <Box>
@@ -390,6 +431,35 @@ export function AdminJobsTab() {
             : !queueReachable
               ? 'Queue ist derzeit nicht erreichbar. Retry/Cancel wurden voruebergehend deaktiviert.'
               : 'Worker ist derzeit nicht verbunden. Retry/Cancel wurden voruebergehend deaktiviert.'}
+        </Alert>
+      )}
+      {!alerts.isError && hasAnyAlerts && (
+        <Alert
+          color={hasCriticalAlerts ? 'red' : 'yellow'}
+          mb="md"
+          title={hasCriticalAlerts ? 'Kritische Job-Alerts' : 'Job-Alerts'}
+        >
+          <Text size="sm">
+            {(alerts.data?.alerts ?? []).map((entry) => entry.message).join(' | ')}
+          </Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            Queue: {alerts.data?.metrics.queuedCount ?? 0}, Running:{' '}
+            {alerts.data?.metrics.runningCount ?? 0}, Failed (recent/total):{' '}
+            {alerts.data?.metrics.failedRecentCount ?? 0}/
+            {alerts.data?.metrics.failedTotalCount ?? 0}, Oldest queued lag:{' '}
+            {oldestQueuedLag != null ? `${oldestQueuedLag}s` : 'n/a'}
+          </Text>
+          <Text size="xs" c="dimmed" mt={2}>
+            Schwellwerte: Lag {alerts.data?.thresholds.queuedLagSeconds ?? 0}s, Failed{' '}
+            {alerts.data?.thresholds.failedRecentCount ?? 0} in{' '}
+            {alerts.data?.thresholds.failedRecentWindowMinutes ?? 0}m, Runbook:{' '}
+            {alerts.data?.runbook ?? 'n/a'}
+          </Text>
+        </Alert>
+      )}
+      {alerts.isError && (
+        <Alert color="yellow" mb="md" title="Job-Alerts nicht verfuegbar">
+          Alert-Metriken konnten nicht geladen werden. Health und Jobliste laufen weiterhin.
         </Alert>
       )}
 

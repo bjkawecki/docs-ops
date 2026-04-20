@@ -310,19 +310,7 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 
 ## 17. Async Jobs
 
-[x] **Phase 0 abgeschlossen:** Architektur- und Vertragsfestlegung dokumentiert in [Plan-17a-Async-Jobs-Architektur-und-Vertraege](Plan-17a-Async-Jobs-Architektur-und-Vertraege.md) (Job-/Scheduler-Vertraege, Datenmodell, Health/Alerting, Graceful Degradation).
-[x] **Queue-Grundlage (pg-boss auf PostgreSQL):** `pg-boss` im Backend eingebunden; zentrale Queue-/Job-Namen definiert (`documents.export.pdf`, `search.reindex.incremental`, `search.reindex.full`, `notifications.send`, `maintenance.cleanup`); Retry-Limits pro Jobtyp in Registry konfiguriert.
-[x] **Worker als eigener Laufzeitprozess:** separater Worker-Entry-Point im Backend umgesetzt (kein HTTP-Server), Jobs via `work(...)` registriert und in Docker als eigener Service/Container betrieben.
-[x] **Zentrale Job-Registry + Payload-Validation:** pro Job ein Zod-Schema (Payload), Handler und Retry-Limit an einer Stelle (`jobRegistry`/`jobTypes`) gepflegt; unbekannte Payloads werden validiert/abgewiesen.
-[ ] **Job-Metadaten für UI/Admin:** eigene Job-Metadaten (requestedBy, scope, progress, resultUrl, error, attempts, startedAt/finishedAt) persistieren; Statusmodell mindestens `queued | running | succeeded | failed | cancelled`.
-[x] **Admin/API für Job-Management (inkl. Scheduler):** Admin-Endpunkte für Listen/Details/Filter (Status, Typ, User) sowie Aktionen `retry`/`cancel` umgesetzt; zusätzlich **regelmäßige Jobs per Admin anpassbar** (aktiv/inaktiv, Cron) zur Laufzeit in der UI (`/admin/jobs`) inkl. Health-Statuskarte („Worker connected“).
-[ ] **Echtzeit-Status im Frontend + konfigurierbares Polling:** zunächst Polling, optional später SSE/WebSocket; Polling pro User in Settings/Admin konfigurierbar (an/aus, Intervall z. B. 2/5/10/30s mit sinnvollen Limits), bei Hintergrund-Tab automatisch drosseln/pausieren; für Export-Jobs Ergebnislink (z. B. PDF in MinIO) und Fehlermeldungen anzeigen.
-[x] **Jobtyp 1 (MVP): Dokumentexport:** **Markdown-Dokumente per Pandoc exportierbar** (PDF-Export-Job `documents.export.pdf`); Pandoc via `PANDOC_BIN` und `PANDOC_ARGS` konfigurierbar; Ergebnis wird in MinIO gespeichert, `Document.pdfUrl` aktualisiert und per berechtigtem Download-Link (`/api/v1/documents/:id/pdf`) bereitgestellt.
-[ ] **Jobtyp 2: Suchindex-Pflege:** inkrementelles Reindexing bei Dokumentänderungen + optional regelmäßiger Full-Rebuild (nächtlich/zeitgesteuert) – Zeitplan durch Admin anpassbar (vgl. §18 Volltextsuche).
-[ ] **Jobtyp 3: Benachrichtigungen:** asynchroner Versand für Ereignisse (z. B. Review/PR/Dokument-Änderung), später an Notifications-UI koppeln (vgl. §20).
-[ ] **Betrieb & Observability:** strukturierte Logs mit `jobId`, Metriken (Queue-Länge, Fail-Rate, Laufzeit), Dead-Letter-/Error-Strategie, Alerting bei dauerhaft fehlgeschlagenen Jobs.
-[ ] **Optional: Dashboard-Platzhalter für Benachrichtigungen/Updates** (später an Async Jobs anbinden).
-[ ] **Rollout in Phasen:** (1) Queue+Worker-Infrastruktur, (2) Export-MVP, (3) Job-Status-UI/Admin, (4) Reindex + Notifications + Cleanup-Jobs.
+[x] **Abgeschlossen:** `pg-boss` + Worker, zentrale Job-Registry mit Zod-Payloads, PDF-Export (`documents.export.pdf`), inkrementeller/scheduler-gesteuerter Suchindex (`search.reindex.*`), asynchrone Benachrichtigungen (`notifications.send`), Admin-Jobs/Scheduler-UI, Polling mit Hintergrund-Drosselung, Health/Alerts, Runbook ([Runbook-Async-Jobs-Betrieb](Runbook-Async-Jobs-Betrieb.md)), Batch-Retry (`POST /api/v1/admin/jobs/retry-failed`), Admin-Audit (`/api/v1/admin/jobs/audit`), bei Queue-Ausfall `503` + `Retry-After`, Lasttest-Skript `pnpm --filter backend run loadtest:jobs`. Verträge: [Plan-17a-Async-Jobs-Architektur-und-Vertraege](Plan-17a-Async-Jobs-Architektur-und-Vertraege.md).
 
 ---
 

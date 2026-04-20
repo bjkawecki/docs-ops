@@ -107,3 +107,24 @@ export const patchAdminScheduleBodySchema = z
       });
     }
   });
+
+export const retryFailedJobsBodySchema = z.object({
+  jobName: z.string().min(1).max(255).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+});
+
+export const listAdminJobAuditQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  action: z
+    .enum([
+      'job-retry',
+      'job-cancel',
+      'job-delete',
+      'job-retry-failed-batch',
+      'schedule-upsert',
+      'schedule-remove',
+    ])
+    .optional(),
+  status: z.enum(['success', 'failed']).optional(),
+});
