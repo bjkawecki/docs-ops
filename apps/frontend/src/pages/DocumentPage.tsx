@@ -1359,169 +1359,190 @@ export function DocumentPage() {
                 </Card>
               )}
 
-              <Stack gap="lg">
-                {mode === 'view' ? (
-                  <Card withBorder padding="lg" style={{ maxWidth: '75ch' }}>
-                    <Box
-                      className="document-content"
-                      style={{
-                        paddingBottom: 'var(--mantine-spacing-xl)',
-                        maxWidth: '100%',
-                        marginLeft: 0,
-                      }}
-                    >
-                      {(() => {
-                        slugCountsRef.current = {};
-                        return null;
-                      })()}
-                      <Typography>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={markdownHeadingComponents}
-                        >
-                          {data.content || ''}
-                        </ReactMarkdown>
-                      </Typography>
-                    </Box>
-                  </Card>
-                ) : (
-                  <Card withBorder padding="lg">
-                    <Tabs defaultValue="content">
-                      <Tabs.List>
-                        <Tabs.Tab value="content">Content</Tabs.Tab>
-                        <Tabs.Tab value="settings">Settings</Tabs.Tab>
-                      </Tabs.List>
-                      <Tabs.Panel value="content" pt="lg">
-                        <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
-                          <SimpleGrid
-                            cols={{ base: 1, md: 2 }}
-                            spacing="xl"
-                            style={{ alignItems: 'stretch' }}
+              <Flex
+                gap={{ base: 'lg', lg: 'xl' }}
+                direction={{ base: 'column', lg: 'row' }}
+                align="flex-start"
+                wrap="nowrap"
+                w="100%"
+                style={{ minHeight: 0 }}
+              >
+                <Stack gap="lg" style={{ flex: 1, minWidth: 0 }}>
+                  {mode === 'view' ? (
+                    <Card withBorder padding="lg" style={{ maxWidth: '75ch' }}>
+                      <Box
+                        className="document-content"
+                        style={{
+                          paddingBottom: 'var(--mantine-spacing-xl)',
+                          maxWidth: '100%',
+                          marginLeft: 0,
+                        }}
+                      >
+                        {(() => {
+                          slugCountsRef.current = {};
+                          return null;
+                        })()}
+                        <Typography>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={markdownHeadingComponents}
                           >
-                            <Box
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                height: 'max(400px, calc(100vh - 360px))',
-                              }}
+                            {data.content || ''}
+                          </ReactMarkdown>
+                        </Typography>
+                      </Box>
+                    </Card>
+                  ) : (
+                    <Card withBorder padding="lg">
+                      <Tabs defaultValue="content">
+                        <Tabs.List>
+                          <Tabs.Tab value="content">Content</Tabs.Tab>
+                          <Tabs.Tab value="settings">Settings</Tabs.Tab>
+                        </Tabs.List>
+                        <Tabs.Panel value="content" pt="lg">
+                          <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
+                            <SimpleGrid
+                              cols={{ base: 1, md: 2 }}
+                              spacing="xl"
+                              style={{ alignItems: 'stretch' }}
                             >
-                              <Textarea
-                                ref={editContentTextareaRef}
-                                label="Markdown"
-                                placeholder="Content (Markdown)"
-                                value={editContent}
-                                onChange={(e) => setEditContent(e.currentTarget.value)}
-                                styles={{
-                                  root: {
-                                    flex: 1,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    minHeight: 0,
-                                  },
-                                  input: {
-                                    fontFamily: 'monospace',
-                                    height: '100%',
-                                    minHeight: 200,
-                                    boxSizing: 'border-box',
-                                  },
-                                  wrapper: {
-                                    flex: 1,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    minHeight: 0,
-                                  },
+                              <Box
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  height: 'max(400px, calc(100vh - 360px))',
                                 }}
-                              />
-                              {hasConflictMarkers && (
-                                <Alert
-                                  variant="light"
-                                  color="yellow"
-                                  mt="sm"
-                                  title="Conflict markers"
-                                >
-                                  <Text size="sm">
-                                    The text contains conflict markers (
-                                    <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>,{' '}
-                                    <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot; is
-                                    your draft, &quot;Theirs&quot; is the current published version.
-                                    Resolve by editing the text (keep one version or combine), then
-                                    click &quot;Save and mark as up to date&quot;.
-                                  </Text>
-                                </Alert>
-                              )}
-                            </Box>
-                            <Box
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                height: 'max(400px, calc(100vh - 360px))',
-                              }}
-                            >
-                              <Text size="sm" c="dimmed" fw={500} mb="sm">
-                                Preview
-                              </Text>
-                              <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                                <Box
-                                  style={{ maxWidth: '65ch', padding: 'var(--mantine-spacing-md)' }}
-                                >
-                                  <Typography>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                      {editContent || ''}
-                                    </ReactMarkdown>
-                                  </Typography>
+                              >
+                                <Textarea
+                                  ref={editContentTextareaRef}
+                                  label="Markdown"
+                                  placeholder="Content (Markdown)"
+                                  value={editContent}
+                                  onChange={(e) => setEditContent(e.currentTarget.value)}
+                                  styles={{
+                                    root: {
+                                      flex: 1,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      minHeight: 0,
+                                    },
+                                    input: {
+                                      fontFamily: 'monospace',
+                                      height: '100%',
+                                      minHeight: 200,
+                                      boxSizing: 'border-box',
+                                    },
+                                    wrapper: {
+                                      flex: 1,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      minHeight: 0,
+                                    },
+                                  }}
+                                />
+                                {hasConflictMarkers && (
+                                  <Alert
+                                    variant="light"
+                                    color="yellow"
+                                    mt="sm"
+                                    title="Conflict markers"
+                                  >
+                                    <Text size="sm">
+                                      The text contains conflict markers (
+                                      <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>,{' '}
+                                      <code>=======</code>,{' '}
+                                      <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot;
+                                      is your draft, &quot;Theirs&quot; is the current published
+                                      version. Resolve by editing the text (keep one version or
+                                      combine), then click &quot;Save and mark as up to date&quot;.
+                                    </Text>
+                                  </Alert>
+                                )}
+                              </Box>
+                              <Box
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  height: 'max(400px, calc(100vh - 360px))',
+                                }}
+                              >
+                                <Text size="sm" c="dimmed" fw={500} mb="sm">
+                                  Preview
+                                </Text>
+                                <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                                  <Box
+                                    style={{
+                                      maxWidth: '65ch',
+                                      padding: 'var(--mantine-spacing-md)',
+                                    }}
+                                  >
+                                    <Typography>
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {editContent || ''}
+                                      </ReactMarkdown>
+                                    </Typography>
+                                  </Box>
                                 </Box>
                               </Box>
-                            </Box>
-                          </SimpleGrid>
-                        </Box>
-                      </Tabs.Panel>
-                      <Tabs.Panel value="settings" pt="lg">
-                        <Stack gap="md">
-                          <TextInput
-                            label="Title"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.currentTarget.value)}
-                            maxLength={500}
-                          />
-                          <TextInput
-                            label="Description"
-                            placeholder="Short description (optional)"
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.currentTarget.value)}
-                            maxLength={500}
-                          />
-                          <Group align="flex-end" gap="xs">
-                            <MultiSelect
-                              label="Tags"
-                              placeholder="Select or add tags"
-                              data={tagOptions}
-                              value={editTagIds}
-                              onChange={setEditTagIds}
-                              searchable
-                              clearable
-                              style={{ flex: 1 }}
+                            </SimpleGrid>
+                          </Box>
+                        </Tabs.Panel>
+                        <Tabs.Panel value="settings" pt="lg">
+                          <Stack gap="md">
+                            <TextInput
+                              label="Title"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.currentTarget.value)}
+                              maxLength={500}
                             />
-                            <Button variant="light" size="sm" onClick={openCreateTag}>
-                              Create tag
-                            </Button>
-                            <Button variant="subtle" size="sm" onClick={openManageTags}>
-                              Manage tags
-                            </Button>
-                          </Group>
-                        </Stack>
-                      </Tabs.Panel>
-                    </Tabs>
-                  </Card>
-                )}
+                            <TextInput
+                              label="Description"
+                              placeholder="Short description (optional)"
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.currentTarget.value)}
+                              maxLength={500}
+                            />
+                            <Group align="flex-end" gap="xs">
+                              <MultiSelect
+                                label="Tags"
+                                placeholder="Select or add tags"
+                                data={tagOptions}
+                                value={editTagIds}
+                                onChange={setEditTagIds}
+                                searchable
+                                clearable
+                                style={{ flex: 1 }}
+                              />
+                              <Button variant="light" size="sm" onClick={openCreateTag}>
+                                Create tag
+                              </Button>
+                              <Button variant="subtle" size="sm" onClick={openManageTags}>
+                                Manage tags
+                              </Button>
+                            </Group>
+                          </Stack>
+                        </Tabs.Panel>
+                      </Tabs>
+                    </Card>
+                  )}
+                </Stack>
 
                 {documentId != null && data != null && (
-                  <DocumentCommentsSection
-                    documentId={documentId}
-                    currentUserId={me?.user?.id}
-                    headings={headings.map(({ id, text }) => ({ id, text }))}
-                  />
+                  <Box
+                    component="aside"
+                    aria-label="Comments"
+                    w={{ base: '100%', lg: 'auto' }}
+                    style={{ flexShrink: 0, alignSelf: 'stretch' }}
+                  >
+                    <DocumentCommentsSection
+                      documentId={documentId}
+                      currentUserId={me?.user?.id}
+                      headings={headings.map(({ id, text }) => ({ id, text }))}
+                      layout="rail"
+                    />
+                  </Box>
                 )}
-              </Stack>
+              </Flex>
             </Box>
           </Flex>
         </Paper>

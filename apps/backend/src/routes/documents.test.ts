@@ -811,20 +811,20 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
       expect(del.statusCode).toBe(403);
     });
 
-    it('DELETE root comment removes replies (cascade)', async () => {
+    it('DELETE root soft-deletes parent; replies remain in DB and in GET', async () => {
       const cookie = await loginAs(`writer-${TS}@example.com`);
       const root = await app.inject({
         method: 'POST',
         url: `/api/v1/documents/${publishedDocId}/comments`,
         headers: { cookie, 'content-type': 'application/json' },
-        payload: JSON.stringify({ text: 'Root cascade' }),
+        payload: JSON.stringify({ text: 'Root soft' }),
       });
       const rootId = (root.json() as { id: string }).id;
       await app.inject({
         method: 'POST',
         url: `/api/v1/documents/${publishedDocId}/comments`,
         headers: { cookie, 'content-type': 'application/json' },
-        payload: JSON.stringify({ text: 'Child', parentId: rootId }),
+        payload: JSON.stringify({ text: 'Child stays', parentId: rootId }),
       });
       const before = await prisma.documentComment.count({ where: { documentId: publishedDocId } });
       expect(before).toBeGreaterThanOrEqual(2);
@@ -836,7 +836,76 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
       });
       expect(del.statusCode).toBe(204);
       const after = await prisma.documentComment.count({ where: { documentId: publishedDocId } });
-      expect(after).toBe(before - 2);
+      expect(after).toBe(before);
+
+      const row = await prisma.documentComment.findUnique({ where: { id: rootId } });
+      expect(row?.deletedAt).not.toBeNull();
+
+      const list = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/${publishedDocId}/comments?limit=50&offset=0`,
+        headers: { cookie },
+      });
+      expect(list.statusCode).toBe(200);
+      const body = list.json() as {
+        items: Array<{
+          id: string;
+          deletedAt: string | null;
+          text: string;
+          replies: { text: string }[];
+        }>;
+      };
+      const item = body.items.find((i) => i.id === rootId);
+      expect(item).toBeDefined();
+      expect(item!.deletedAt).not.toBeNull();
+      expect(item!.text).toBe('');
+      expect(item!.replies.some((r) => r.text === 'Child stays')).toBe(true);
+    });
+
+    it('DELETE root again → 409 already removed', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const root = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Root twice' }),
+      });
+      const rootId = (root.json() as { id: string }).id;
+      const first = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/documents/${publishedDocId}/comments/${rootId}`,
+        headers: { cookie },
+      });
+      expect(first.statusCode).toBe(204);
+      const second = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/documents/${publishedDocId}/comments/${rootId}`,
+        headers: { cookie },
+      });
+      expect(second.statusCode).toBe(409);
+    });
+
+    it('POST reply when parent root is soft-deleted → 400', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const root = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Root for reply block' }),
+      });
+      const rootId = (root.json() as { id: string }).id;
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/documents/${publishedDocId}/comments/${rootId}`,
+        headers: { cookie },
+      });
+      const reply = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Too late', parentId: rootId }),
+      });
+      expect(reply.statusCode).toBe(400);
     });
   });
 });

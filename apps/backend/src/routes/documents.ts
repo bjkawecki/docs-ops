@@ -1364,20 +1364,22 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         limit: query.limit,
         offset: query.offset,
       });
-      const serialize = (
-        c: (typeof items)[number]['replies'][number] | (typeof items)[number]
-      ) => ({
-        id: c.id,
-        documentId: c.documentId,
-        authorId: c.authorId,
-        authorName: c.authorName,
-        text: c.text,
-        parentId: c.parentId,
-        anchorHeadingId: c.anchorHeadingId,
-        createdAt: c.createdAt.toISOString(),
-        updatedAt: c.updatedAt.toISOString(),
-        canDelete: c.authorId === userId || canModerate,
-      });
+      const serialize = (c: (typeof items)[number]['replies'][number] | (typeof items)[number]) => {
+        const removed = c.deletedAt != null;
+        return {
+          id: c.id,
+          documentId: c.documentId,
+          authorId: c.authorId,
+          authorName: c.authorName,
+          text: removed ? '' : c.text,
+          parentId: c.parentId,
+          anchorHeadingId: c.anchorHeadingId,
+          deletedAt: c.deletedAt?.toISOString() ?? null,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+          canDelete: removed ? false : c.authorId === userId || canModerate,
+        };
+      };
       return reply.send({
         items: items.map((root) => ({
           ...serialize(root),
@@ -1427,6 +1429,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         if (created.error === 'invalid_parent') {
           return reply.status(400).send({ error: 'You can only reply to a top-level comment' });
         }
+        if (created.error === 'parent_deleted') {
+          return reply.status(400).send({ error: 'Cannot reply to a removed comment' });
+        }
         return reply.status(400).send({ error: 'Invalid section anchor' });
       }
       const row = created.comment;
@@ -1463,6 +1468,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         anchorHeadingId: row.anchorHeadingId,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
+        deletedAt: row.deletedAt?.toISOString() ?? null,
         canDelete: true,
         replies: row.parentId == null ? [] : undefined,
       });
@@ -1498,6 +1504,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           return reply.status(404).send({ error: 'Comment not found' });
         if (result.error === 'forbidden')
           return reply.status(403).send({ error: 'You can only edit your own comments' });
+        if (result.error === 'deleted') {
+          return reply.status(400).send({ error: 'This comment was removed' });
+        }
         if (result.error === 'anchor_only_on_root') {
           return reply
             .status(400)
@@ -1518,6 +1527,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         anchorHeadingId: c.anchorHeadingId,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
+        deletedAt: c.deletedAt?.toISOString() ?? null,
         canDelete: c.authorId === userId || canModerate,
       });
     }
@@ -1545,6 +1555,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!result.ok) {
         if (result.error === 'not_found')
           return reply.status(404).send({ error: 'Comment not found' });
+        if (result.error === 'already_deleted') {
+          return reply.status(409).send({ error: 'Comment already removed' });
+        }
         return reply.status(403).send({ error: 'You cannot delete this comment' });
       }
       return reply.status(204).send();

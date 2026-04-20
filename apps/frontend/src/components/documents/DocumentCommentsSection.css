@@ -1,0 +1,19 @@
+/* Wie ScopeRecentColumn: Sticky, max-Höhe; Trennlinie nur am inneren Content-Panel (borderLeft dort). */
+.document-comments-rail-host {
+  background: var(--mantine-color-body);
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+@media (min-width: 62em) {
+  .document-comments-rail-host {
+    border-top: none;
+    position: sticky;
+    top: var(--mantine-spacing-md);
+    align-self: flex-start;
+    max-height: calc(100vh - 5.5rem);
+  }
+}
+
+.document-comments-inner-scroll {
+  min-height: 0;
+}

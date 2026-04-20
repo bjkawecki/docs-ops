@@ -11,6 +11,7 @@ export type DocumentCommentRow = {
   text: string;
   parentId: string | null;
   anchorHeadingId: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -26,6 +27,7 @@ function toRow(c: {
   text: string;
   parentId: string | null;
   anchorHeadingId: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   author: { name: string };
@@ -38,6 +40,7 @@ function toRow(c: {
     text: c.text,
     parentId: c.parentId,
     anchorHeadingId: c.anchorHeadingId,
+    deletedAt: c.deletedAt,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
   };
@@ -84,7 +87,10 @@ export async function listDocumentComments(
 
 export type CreateDocumentCommentResult =
   | { ok: true; comment: DocumentCommentRow }
-  | { ok: false; error: 'parent_not_found' | 'invalid_parent' | 'invalid_anchor' };
+  | {
+      ok: false;
+      error: 'parent_not_found' | 'invalid_parent' | 'invalid_anchor' | 'parent_deleted';
+    };
 
 export async function createDocumentComment(
   prisma: PrismaClient,
@@ -109,6 +115,7 @@ export async function createDocumentComment(
     });
     if (!parent) return { ok: false, error: 'parent_not_found' };
     if (parent.parentId != null) return { ok: false, error: 'invalid_parent' };
+    if (parent.deletedAt != null) return { ok: false, error: 'parent_deleted' };
     parentId = parent.id;
   } else if (args.anchorHeadingId != null && args.anchorHeadingId !== '') {
     if (!isHeadingSlugInMarkdown(args.documentContent, args.anchorHeadingId)) {
@@ -134,7 +141,7 @@ export type UpdateCommentResult =
   | { ok: true; comment: DocumentCommentRow }
   | {
       ok: false;
-      error: 'not_found' | 'forbidden' | 'invalid_anchor' | 'anchor_only_on_root';
+      error: 'not_found' | 'forbidden' | 'invalid_anchor' | 'anchor_only_on_root' | 'deleted';
     };
 
 export async function updateDocumentComment(
@@ -152,6 +159,7 @@ export async function updateDocumentComment(
     where: { id: args.commentId, documentId: args.documentId },
   });
   if (!existing) return { ok: false, error: 'not_found' };
+  if (existing.deletedAt != null) return { ok: false, error: 'deleted' };
   if (existing.authorId !== args.userId) return { ok: false, error: 'forbidden' };
 
   if (args.anchorHeadingId !== undefined) {
@@ -178,7 +186,9 @@ export async function updateDocumentComment(
   return { ok: true, comment: toRow(c) };
 }
 
-export type DeleteCommentResult = { ok: true } | { ok: false; error: 'not_found' | 'forbidden' };
+export type DeleteCommentResult =
+  | { ok: true }
+  | { ok: false; error: 'not_found' | 'forbidden' | 'already_deleted' };
 
 export async function deleteDocumentComment(
   prisma: PrismaClient,
@@ -195,6 +205,19 @@ export async function deleteDocumentComment(
   if (!existing) return { ok: false, error: 'not_found' };
   const isAuthor = existing.authorId === args.userId;
   if (!isAuthor && !args.canModerate) return { ok: false, error: 'forbidden' };
-  await prisma.documentComment.delete({ where: { id: args.commentId } });
+
+  if (existing.parentId != null) {
+    await prisma.documentComment.delete({ where: { id: args.commentId } });
+    return { ok: true };
+  }
+
+  if (existing.deletedAt != null) {
+    return { ok: false, error: 'already_deleted' };
+  }
+
+  await prisma.documentComment.update({
+    where: { id: args.commentId },
+    data: { deletedAt: new Date() },
+  });
   return { ok: true };
 }

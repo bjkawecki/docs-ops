@@ -308,6 +308,8 @@ model DocumentComment {
   replies         DocumentComment[] @relation("CommentThread")
   /// Markdown heading slug; only on root comments (parentId null).
   anchorHeadingId String?
+  /// Soft-delete for top-level comments only; replies stay visible.
+  deletedAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
