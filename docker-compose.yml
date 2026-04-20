@@ -42,6 +42,8 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/docsops
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-docsops}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-docsopsdev}
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,6 +53,22 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    command: sh -c "node dist/src/worker.js"
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/docsops
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-docsops}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-docsopsdev}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:
@@ -73,8 +91,10 @@ services:
       test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:5173/ || exit 1']
       interval: 5s
       timeout: 5s
-      retries: 15
-      start_period: 10s
+      retries: 30
+      # Frontend braucht beim ersten Start oft länger (pnpm install + prisma generate + vite).
+      # Längeres Startfenster verhindert False-Negatives beim Healthcheck.
+      start_period: 120s
     command: sh -c "pnpm install --ignore-scripts && pnpm --filter backend exec prisma generate && pnpm --filter frontend run dev"
 
   caddy:

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Text,
@@ -14,6 +14,7 @@ import {
   Table,
   Tabs,
   MultiSelect,
+  Pagination,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,6 +50,9 @@ type DepartmentStatsRes = {
   processCount: number;
   projectCount: number;
 };
+const DEPARTMENTS_PAGE_SIZE_KEY = 'docsops-admin-departments-page-size';
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -60,6 +64,19 @@ export function AdminDepartmentsTab() {
   const queryClient = useQueryClient();
   const [filterText, setFilterText] = useState('');
   const [filterCompanyId, setFilterCompanyId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState<number>(() => {
+    try {
+      const raw = window.localStorage.getItem(DEPARTMENTS_PAGE_SIZE_KEY);
+      if (!raw) return DEFAULT_PAGE_SIZE;
+      const parsed = Number(raw);
+      return PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])
+        ? parsed
+        : DEFAULT_PAGE_SIZE;
+    } catch {
+      return DEFAULT_PAGE_SIZE;
+    }
+  });
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [editingDepartment, setEditingDepartment] = useState<DepartmentWithCompany | null>(null);
   const [departmentCardEditing, setDepartmentCardEditing] = useState(false);
@@ -97,6 +114,15 @@ export function AdminDepartmentsTab() {
     }
     return list;
   }, [allDepartments, filterText, filterCompanyId]);
+  const totalPages = Math.max(1, Math.ceil(filteredDepartments.length / limit));
+  const pagedDepartments = useMemo(() => {
+    const start = (page - 1) * limit;
+    return filteredDepartments.slice(start, start + limit);
+  }, [filteredDepartments, page, limit]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const departmentIdsForCounts = useMemo(() => allDepartments.map((d) => d.id), [allDepartments]);
   const { data: memberCountsData } = useQuery({
@@ -299,26 +325,53 @@ export function AdminDepartmentsTab() {
             placeholder="Search (department, company)"
             size="xs"
             value={filterText}
-            onChange={(e) => setFilterText(e.currentTarget.value)}
+            onChange={(e) => {
+              setFilterText(e.currentTarget.value);
+              setPage(1);
+            }}
           />
           <Select
             placeholder="Company"
             size="xs"
             data={companyOptions}
             value={filterCompanyId ?? ''}
-            onChange={(v) => setFilterCompanyId(v || null)}
+            onChange={(v) => {
+              setFilterCompanyId(v || null);
+              setPage(1);
+            }}
             clearable
             style={{ width: 160 }}
           />
         </Group>
-        <Button
-          size="xs"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreate}
-          disabled={companies.length === 0}
-        >
-          Create department
-        </Button>
+        <Group gap="sm" align="flex-end">
+          <Text size="sm" c="dimmed">
+            {filteredDepartments.length} department(s)
+          </Text>
+          <Select
+            label="Per page"
+            data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+            value={String(limit)}
+            onChange={(value) => {
+              const next = Number(value ?? DEFAULT_PAGE_SIZE);
+              setLimit(next);
+              setPage(1);
+              try {
+                window.localStorage.setItem(DEPARTMENTS_PAGE_SIZE_KEY, String(next));
+              } catch {
+                /* ignore */
+              }
+            }}
+            style={{ width: 100 }}
+          />
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+            disabled={companies.length === 0}
+          >
+            Create department
+          </Button>
+        </Group>
       </Group>
 
       {companies.length === 0 ? (
@@ -336,7 +389,7 @@ export function AdminDepartmentsTab() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filteredDepartments.length === 0 ? (
+              {pagedDepartments.length === 0 ? (
                 <Table.Tr>
                   <Table.Td colSpan={5}>
                     <Text size="sm" c="dimmed">
@@ -347,7 +400,7 @@ export function AdminDepartmentsTab() {
                   </Table.Td>
                 </Table.Tr>
               ) : (
-                filteredDepartments.map((d) => {
+                pagedDepartments.map((d) => {
                   const leadNames = d.departmentLeads?.map((l) => l.user.name).join(', ') ?? '';
                   return (
                     <Table.Tr key={d.id}>
@@ -385,6 +438,11 @@ export function AdminDepartmentsTab() {
             </Table.Tbody>
           </Table>
         </>
+      )}
+      {filteredDepartments.length > limit && (
+        <Group justify="flex-end" mt="md">
+          <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
+        </Group>
       )}
 
       <Modal opened={createOpened} onClose={closeCreate} title="Create department" size="sm">

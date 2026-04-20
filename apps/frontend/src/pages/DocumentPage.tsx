@@ -61,6 +61,7 @@ import {
   IconRoute,
   IconBriefcase,
   IconSubtask,
+  IconDownload,
 } from '@tabler/icons-react';
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
@@ -153,6 +154,17 @@ type DraftResponse = {
   basedOnVersionId: string | null;
 };
 
+type PdfExportJobStatusResponse = {
+  jobId: string;
+  status: string;
+  state: string;
+  completedAt: string | null;
+  failedAt: string | null;
+  pdfReady: boolean;
+  downloadUrl: string | null;
+  error: string | null;
+};
+
 export function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
@@ -181,6 +193,9 @@ export function DocumentPage() {
     useDisclosure(false);
   const [assignContextId, setAssignContextId] = useState<string | null>(null);
   const [assignContextLoading, setAssignContextLoading] = useState(false);
+  const [pdfExportLoading, setPdfExportLoading] = useState(false);
+  const [pdfExportJobId, setPdfExportJobId] = useState<string | null>(null);
+  const [lastPdfExportStatus, setLastPdfExportStatus] = useState<string | null>(null);
   const editContentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const slugCountsRef = useRef<Record<string, number>>({});
 
@@ -268,6 +283,21 @@ export function DocumentPage() {
   });
   const openDraftRequests = draftRequestsData?.items ?? [];
 
+  const { data: pdfExportStatus } = useQuery<PdfExportJobStatusResponse>({
+    queryKey: ['document-export-pdf-status', documentId, pdfExportJobId],
+    queryFn: async () => {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/export-pdf/${pdfExportJobId}`);
+      if (!res.ok) throw new Error('Failed to load PDF export status');
+      return res.json() as Promise<PdfExportJobStatusResponse>;
+    },
+    enabled: !!documentId && !!pdfExportJobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === 'queued' || status === 'running') return 5000;
+      return false;
+    },
+  });
+
   useEffect(() => {
     if (data) {
       setEditTitle(data.title);
@@ -308,6 +338,44 @@ export function DocumentPage() {
       recentActions.addRecent({ type: 'document', id: data.id, name: data.title }, scope);
     }
   }, [data, recentActions]);
+
+  useEffect(() => {
+    if (!pdfExportStatus || pdfExportStatus.status === lastPdfExportStatus) return;
+    setLastPdfExportStatus(pdfExportStatus.status);
+
+    if (pdfExportStatus.status === 'running') {
+      notifications.show({
+        title: 'PDF export started',
+        message: 'Your document export is running in the background.',
+        color: 'blue',
+      });
+      return;
+    }
+    if (pdfExportStatus.status === 'succeeded') {
+      void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+      notifications.show({
+        title: 'PDF export ready',
+        message: 'The PDF export finished successfully.',
+        color: 'green',
+      });
+      return;
+    }
+    if (pdfExportStatus.status === 'failed') {
+      notifications.show({
+        title: 'PDF export failed',
+        message: pdfExportStatus.error ?? 'Export could not be completed.',
+        color: 'red',
+      });
+      return;
+    }
+    if (pdfExportStatus.status === 'cancelled') {
+      notifications.show({
+        title: 'PDF export cancelled',
+        message: 'The PDF export was cancelled.',
+        color: 'yellow',
+      });
+    }
+  }, [pdfExportStatus, lastPdfExportStatus, queryClient, documentId]);
 
   const headings = useMemo(() => (data ? getHeadingsFromMarkdown(data.content ?? '') : []), [data]);
   const markdownHeadingComponents = useMemo(() => {
@@ -802,6 +870,33 @@ export function DocumentPage() {
     }
   };
 
+  const handleStartPdfExport = async () => {
+    if (!documentId) return;
+    setPdfExportLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/documents/${documentId}/export-pdf`, { method: 'POST' });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'PDF export could not be started',
+          message: body?.error ?? res.statusText,
+          color: 'red',
+        });
+        return;
+      }
+      const body = (await res.json()) as { jobId: string; status: string };
+      setPdfExportJobId(body.jobId);
+      setLastPdfExportStatus(null);
+      notifications.show({
+        title: 'PDF export queued',
+        message: 'The export was queued and will run in the background.',
+        color: 'blue',
+      });
+    } finally {
+      setPdfExportLoading(false);
+    }
+  };
+
   const handleDeleteTag = async (tagId: string) => {
     const res = await apiFetch(`/api/v1/tags/${tagId}`, { method: 'DELETE' });
     if (res.status === 204) {
@@ -1058,6 +1153,24 @@ export function DocumentPage() {
                     >
                       History
                     </Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconDownload size={14} />}
+                      disabled={pdfExportLoading}
+                      onClick={() => void handleStartPdfExport()}
+                    >
+                      {pdfExportLoading ? 'Queuing PDF export...' : 'Export PDF (async)'}
+                    </Menu.Item>
+                    {pdfExportStatus?.status === 'succeeded' && pdfExportStatus.downloadUrl && (
+                      <Menu.Item
+                        component="a"
+                        href={pdfExportStatus.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        leftSection={<IconDownload size={14} />}
+                      >
+                        Download exported PDF
+                      </Menu.Item>
+                    )}
                     {hasNoContext && data.canWrite && (
                       <Menu.Item leftSection={<IconTarget size={14} />} onClick={openAssignContext}>
                         Assign to context
@@ -1110,11 +1223,10 @@ export function DocumentPage() {
                 <Text
                   tt="uppercase"
                   fz="xs"
-                  ls={1}
                   fw={600}
                   c="dimmed"
                   mb="sm"
-                  style={{ paddingLeft: 'var(--mantine-spacing-xs)' }}
+                  style={{ paddingLeft: 'var(--mantine-spacing-xs)', letterSpacing: 1 }}
                 >
                   Table of Contents
                 </Text>

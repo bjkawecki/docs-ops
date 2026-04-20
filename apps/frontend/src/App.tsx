@@ -35,6 +35,8 @@ import { AdminUsersTab } from './pages/admin/AdminUsersTab';
 import { AdminTeamsTab } from './pages/admin/AdminTeamsTab';
 import { AdminDepartmentsTab } from './pages/admin/AdminDepartmentsTab';
 import { AdminCompanyTab } from './pages/admin/AdminCompanyTab';
+import { AdminJobsTab } from './pages/admin/AdminJobsTab';
+import { AdminSchedulerTab } from './pages/admin/AdminSchedulerTab';
 
 function App() {
   return (
@@ -100,6 +102,8 @@ function App() {
             <Route path="teams" element={<AdminTeamsTab />} />
             <Route path="departments" element={<AdminDepartmentsTab />} />
             <Route path="company" element={<AdminCompanyTab />} />
+            <Route path="jobs" element={<AdminJobsTab />} />
+            <Route path="scheduler" element={<AdminSchedulerTab />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>

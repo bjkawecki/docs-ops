@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   requireAuthPreHandler,
   preHandlerWrap,
@@ -64,8 +65,23 @@ import {
   createTagBodySchema,
   getTagsQuerySchema,
 } from './schemas/documents.js';
+import { enqueueJob, getJobById } from '../jobs/client.js';
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const exportPdfStatusParamsSchema = z.object({
+  documentId: z.string().cuid(),
+  jobId: z.string().min(1),
+});
+
+function buildPdfDownloadFilename(title: string | null | undefined, documentId: string): string {
+  const raw = (title?.trim() || `document-${documentId}`).toLowerCase();
+  const normalized = raw
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const base = normalized || `document-${documentId}`;
+  return base.endsWith('.pdf') ? base : `${base}.pdf`;
+}
 
 const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // Allow binary uploads for attachment route (body as Buffer).
@@ -397,7 +413,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     });
   });
 
-  /** GET PDF download: redirect to presigned URL if pdfUrl is object key, else redirect to external URL. */
+  /** GET PDF download: proxy stream for internal object keys; redirect only for absolute external URLs. */
   app.get<{ Params: { documentId: string } }>(
     '/documents/:documentId/pdf',
     {
@@ -409,18 +425,107 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       // Allow trashed documents when user has trash read access (enforced by preHandler).
       const doc = await prisma.document.findFirst({
         where: { id: documentId },
-        select: { pdfUrl: true },
+        select: { title: true, pdfUrl: true },
       });
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
       const pdfUrl = doc.pdfUrl?.trim() ?? '';
       if (!pdfUrl) return reply.status(404).send({ error: 'PDF not available' });
       if (/^https?:\/\//i.test(pdfUrl)) {
-        return reply.redirect(302, pdfUrl);
+        return reply.redirect(pdfUrl, 302);
       }
       const storage = request.server.storage;
       if (!storage) return reply.status(503).send({ error: 'Storage not available' });
-      const presigned = await storage.getPresignedGetUrl(pdfUrl, 60);
-      return reply.redirect(302, presigned);
+      const object = await storage.getObject(pdfUrl);
+      if (!object) return reply.status(404).send({ error: 'PDF object not found in storage' });
+      const filename = buildPdfDownloadFilename(doc.title, documentId);
+      reply.header('Content-Type', object.ContentType ?? 'application/pdf');
+      reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+      reply.header('Cache-Control', 'private, max-age=60');
+      return reply.send(object.Body);
+    }
+  );
+
+  /** POST PDF export job: queue background generation and return job id for polling. */
+  app.post<{ Params: { documentId: string } }>(
+    '/documents/:documentId/export-pdf',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
+    },
+    async (request, reply) => {
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+
+      const jobId = await enqueueJob('documents.export.pdf', {
+        documentId,
+        requestedByUserId: userId,
+      });
+
+      return reply.status(202).send({
+        jobId,
+        status: 'queued',
+      });
+    }
+  );
+
+  /** GET PDF export job status incl. download URL when completed. */
+  app.get<{ Params: { documentId: string; jobId: string } }>(
+    '/documents/:documentId/export-pdf/:jobId',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId, jobId } = exportPdfStatusParamsSchema.parse(request.params);
+
+      const job = await getJobById('documents.export.pdf', jobId);
+      if (!job) {
+        return reply.status(404).send({ error: 'Export job not found' });
+      }
+
+      const payloadDocumentId =
+        typeof job.data === 'object' && job.data != null && 'documentId' in job.data
+          ? (job.data.documentId as string)
+          : null;
+      if (payloadDocumentId !== documentId) {
+        return reply.status(404).send({ error: 'Export job not found for document' });
+      }
+
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { pdfUrl: true },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+
+      const state = job.state;
+      const isDone = state === 'completed';
+      const responseStatus =
+        state === 'created' || state === 'retry'
+          ? 'queued'
+          : state === 'active'
+            ? 'running'
+            : state === 'completed'
+              ? 'succeeded'
+              : state === 'failed'
+                ? 'failed'
+                : state === 'cancelled'
+                  ? 'cancelled'
+                  : state;
+
+      return reply.send({
+        jobId,
+        status: responseStatus,
+        state,
+        completedAt: job.completedOn ?? null,
+        failedAt: null,
+        pdfReady: isDone && Boolean(doc.pdfUrl),
+        downloadUrl: isDone && doc.pdfUrl ? `/api/v1/documents/${documentId}/pdf` : null,
+        error:
+          state === 'failed' && job.output && typeof job.output === 'object'
+            ? 'message' in job.output
+              ? (job.output.message as string)
+              : 'Job failed'
+            : null,
+      });
     }
   );
 
@@ -490,7 +595,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       });
       if (!attachment) return reply.status(404).send({ error: 'Attachment not found' });
       const presigned = await storage.getPresignedGetUrl(attachment.objectKey, 60);
-      return reply.redirect(302, presigned);
+      return reply.redirect(presigned, 302);
     }
   );
 

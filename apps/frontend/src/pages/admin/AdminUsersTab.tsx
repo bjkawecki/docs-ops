@@ -62,12 +62,15 @@ type DepartmentWithTeams = { id: string; name: string; teams: { id: string; name
 type CompaniesRes = { items: { id: string }[] };
 type DepartmentsRes = { items: DepartmentWithTeams[] };
 
-const LIMIT = 20;
+const USERS_PAGE_SIZE_KEY = 'docsops-admin-users-page-size';
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 20;
 
 type SortByField = 'name' | 'email' | 'isAdmin' | 'deletedAt' | 'role' | 'teams' | 'departments';
 type SortOrder = 'asc' | 'desc';
 
 function buildUsersQuery(params: {
+  limit: number;
   offset: number;
   includeDeactivated: boolean;
   search: string;
@@ -75,7 +78,7 @@ function buildUsersQuery(params: {
   sortOrder: SortOrder;
 }) {
   const sp = new URLSearchParams();
-  sp.set('limit', String(LIMIT));
+  sp.set('limit', String(params.limit));
   sp.set('offset', String(params.offset));
   if (params.includeDeactivated) sp.set('includeDeactivated', 'true');
   if (params.search.trim()) sp.set('search', params.search.trim());
@@ -121,6 +124,18 @@ function SortableTh({
 export function AdminUsersTab() {
   const queryClient = useQueryClient();
   const [offset, setOffset] = useState(0);
+  const [limit, setLimit] = useState<number>(() => {
+    try {
+      const raw = window.localStorage.getItem(USERS_PAGE_SIZE_KEY);
+      if (!raw) return DEFAULT_PAGE_SIZE;
+      const parsed = Number(raw);
+      return PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])
+        ? parsed
+        : DEFAULT_PAGE_SIZE;
+    } catch {
+      return DEFAULT_PAGE_SIZE;
+    }
+  });
   const [includeDeactivated, setIncludeDeactivated] = useState(true);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -155,9 +170,16 @@ export function AdminUsersTab() {
   });
   const departments = departmentsData?.items ?? [];
 
-  const queryUrl = buildUsersQuery({ offset, includeDeactivated, search, sortBy, sortOrder });
+  const queryUrl = buildUsersQuery({
+    limit,
+    offset,
+    includeDeactivated,
+    search,
+    sortBy,
+    sortOrder,
+  });
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ['admin', 'users', offset, includeDeactivated, search, sortBy, sortOrder],
+    queryKey: ['admin', 'users', limit, offset, includeDeactivated, search, sortBy, sortOrder],
     queryFn: async (): Promise<ListUsersRes> => {
       const res = await apiFetch(queryUrl);
       if (!res.ok) {
@@ -329,7 +351,7 @@ export function AdminUsersTab() {
     },
   });
 
-  const totalPages = data ? Math.ceil(data.total / LIMIT) : 0;
+  const totalPages = data ? Math.ceil(data.total / limit) : 0;
 
   return (
     <Box>
@@ -365,9 +387,30 @@ export function AdminUsersTab() {
             Search
           </Button>
         </Group>
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          Create user
-        </Button>
+        <Group gap="sm" align="flex-end">
+          <Text size="sm" c="dimmed">
+            {data?.total ?? 0} user(s)
+          </Text>
+          <Select
+            label="Per page"
+            data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+            value={String(limit)}
+            onChange={(value) => {
+              const next = Number(value ?? DEFAULT_PAGE_SIZE);
+              setLimit(next);
+              setOffset(0);
+              try {
+                window.localStorage.setItem(USERS_PAGE_SIZE_KEY, String(next));
+              } catch {
+                /* ignore */
+              }
+            }}
+            style={{ width: 100 }}
+          />
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+            Create user
+          </Button>
+        </Group>
       </Group>
 
       {isPending && <Loader size="sm" />}
@@ -512,8 +555,8 @@ export function AdminUsersTab() {
           {totalPages > 1 && (
             <Pagination
               total={totalPages}
-              value={Math.floor(offset / LIMIT) + 1}
-              onChange={(p) => setOffset((p - 1) * LIMIT)}
+              value={Math.floor(offset / limit) + 1}
+              onChange={(p) => setOffset((p - 1) * limit)}
               mt="md"
               size="sm"
             />

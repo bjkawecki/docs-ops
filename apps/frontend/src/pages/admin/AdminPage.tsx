@@ -7,6 +7,8 @@ const adminTabs = [
   { to: '/admin/teams', label: 'Teams' },
   { to: '/admin/departments', label: 'Departments' },
   { to: '/admin/company', label: 'Company' },
+  { to: '/admin/jobs', label: 'Jobs' },
+  { to: '/admin/scheduler', label: 'Scheduler' },
 ] as const;
 
 export function AdminPage() {

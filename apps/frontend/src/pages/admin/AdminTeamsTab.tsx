@@ -15,6 +15,7 @@ import {
   Tabs,
   MultiSelect,
   Badge,
+  Pagination,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -48,11 +49,27 @@ function formatBytes(n: number): string {
 }
 
 type TeamWithDept = Team & { departmentId: string; departmentName: string };
+const TEAMS_PAGE_SIZE_KEY = 'docsops-admin-teams-page-size';
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
 
 export function AdminTeamsTab() {
   const queryClient = useQueryClient();
   const [filterText, setFilterText] = useState('');
   const [filterDepartmentId, setFilterDepartmentId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState<number>(() => {
+    try {
+      const raw = window.localStorage.getItem(TEAMS_PAGE_SIZE_KEY);
+      if (!raw) return DEFAULT_PAGE_SIZE;
+      const parsed = Number(raw);
+      return PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])
+        ? parsed
+        : DEFAULT_PAGE_SIZE;
+    } catch {
+      return DEFAULT_PAGE_SIZE;
+    }
+  });
   const [createTeamOpened, { open: openCreateTeam, close: closeCreateTeam }] = useDisclosure(false);
   const [editingTeam, setEditingTeam] = useState<TeamWithDept | null>(null);
   const [teamCardEditing, setTeamCardEditing] = useState(false);
@@ -110,6 +127,15 @@ export function AdminTeamsTab() {
     }
     return list;
   }, [allTeams, filterText, filterDepartmentId]);
+  const totalPages = Math.max(1, Math.ceil(filteredTeams.length / limit));
+  const pagedTeams = useMemo(() => {
+    const start = (page - 1) * limit;
+    return filteredTeams.slice(start, start + limit);
+  }, [filteredTeams, page, limit]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const { data: leadsForEditData, isPending: leadsForEditPending } = useQuery({
     queryKey: ['teams', editingTeam?.id, 'team-leads'],
@@ -393,27 +419,54 @@ export function AdminTeamsTab() {
             placeholder="Search (team, department)"
             size="xs"
             value={filterText}
-            onChange={(e) => setFilterText(e.currentTarget.value)}
+            onChange={(e) => {
+              setFilterText(e.currentTarget.value);
+              setPage(1);
+            }}
           />
           <Select
             placeholder="Department"
             size="xs"
             data={departmentOptions}
             value={filterDepartmentId ?? ''}
-            onChange={(v) => setFilterDepartmentId(v || null)}
+            onChange={(v) => {
+              setFilterDepartmentId(v || null);
+              setPage(1);
+            }}
             disabled={!companyId}
             clearable
             style={{ width: 160 }}
           />
         </Group>
-        <Button
-          size="xs"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreateTeam}
-          disabled={!companyId || departments.length === 0}
-        >
-          Create team
-        </Button>
+        <Group gap="sm" align="flex-end">
+          <Text size="sm" c="dimmed">
+            {filteredTeams.length} team(s)
+          </Text>
+          <Select
+            label="Per page"
+            data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+            value={String(limit)}
+            onChange={(value) => {
+              const next = Number(value ?? DEFAULT_PAGE_SIZE);
+              setLimit(next);
+              setPage(1);
+              try {
+                window.localStorage.setItem(TEAMS_PAGE_SIZE_KEY, String(next));
+              } catch {
+                /* ignore */
+              }
+            }}
+            style={{ width: 100 }}
+          />
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreateTeam}
+            disabled={!companyId || departments.length === 0}
+          >
+            Create team
+          </Button>
+        </Group>
       </Group>
 
       {companyId && departments.length > 0 && (
@@ -428,7 +481,7 @@ export function AdminTeamsTab() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {filteredTeams.length === 0 ? (
+            {pagedTeams.length === 0 ? (
               <Table.Tr>
                 <Table.Td colSpan={5}>
                   <Text size="sm" c="dimmed">
@@ -439,7 +492,7 @@ export function AdminTeamsTab() {
                 </Table.Td>
               </Table.Tr>
             ) : (
-              filteredTeams.map((t) => {
+              pagedTeams.map((t) => {
                 const batch = teamBatchData?.[t.id];
                 const leadText = batch?.leadNames?.length ? batch.leadNames.join(', ') : '–';
                 return (
@@ -473,6 +526,11 @@ export function AdminTeamsTab() {
             )}
           </Table.Tbody>
         </Table>
+      )}
+      {filteredTeams.length > limit && (
+        <Group justify="flex-end" mt="md">
+          <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
+        </Group>
       )}
 
       {!companyId && (

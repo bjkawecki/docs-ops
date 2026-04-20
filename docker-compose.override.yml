@@ -21,6 +21,8 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/docsops
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-docsops}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-docsopsdev}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-}
@@ -32,3 +34,27 @@ services:
       timeout: 5s
       retries: 20
       start_period: 120s
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node-dev
+    image: docsops-node-dev
+    user: '${UID:-1000}:${GID:-1000}'
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "pnpm --filter backend run worker:dev"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    environment:
+      CI: 'true'
+      NODE_ENV: development
+      DATABASE_URL: postgresql://app:app@postgres:5432/docsops
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-docsops}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-docsopsdev}
