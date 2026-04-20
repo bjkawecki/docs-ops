@@ -18,6 +18,9 @@ import {
   meTrashQuerySchema,
   meArchiveQuerySchema,
   meCanWriteInScopeQuerySchema,
+  meNotificationsQuerySchema,
+  notificationIdParamSchema,
+  markAllNotificationsReadBodySchema,
   type MeDraftsQuery,
   type MeTrashArchiveItem,
 } from './schemas/me.js';
@@ -37,6 +40,7 @@ import {
 } from './meTrashArchive.js';
 import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
 import type { PrismaClient } from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 
 function scopeRefFromQuery(q: {
   scope: string;
@@ -79,6 +83,18 @@ export type UserPreferences = {
   textSize?: 'default' | 'large' | 'larger';
   /** Pro Scope (company/department/team) eine Liste; Key z. B. "company:cid", "department:did", "team:tid". */
   recentItemsByScope?: Record<string, RecentPreferencesItem[]>;
+  notificationSettings?: {
+    inApp?: {
+      documentChanges?: boolean;
+      draftRequests?: boolean;
+      reminders?: boolean;
+    };
+    email?: {
+      documentChanges?: boolean;
+      draftRequests?: boolean;
+      reminders?: boolean;
+    };
+  };
 };
 
 /** Owner select for resolving scope (team/department/company/personal) and display name. */
@@ -1074,6 +1090,18 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       ...(body.primaryColor !== undefined && { primaryColor: body.primaryColor }),
       ...(body.textSize !== undefined && { textSize: body.textSize }),
       ...(body.recentItemsByScope !== undefined && { recentItemsByScope }),
+      ...(body.notificationSettings !== undefined && {
+        notificationSettings: {
+          inApp: {
+            ...currentPrefs.notificationSettings?.inApp,
+            ...body.notificationSettings.inApp,
+          },
+          email: {
+            ...currentPrefs.notificationSettings?.email,
+            ...body.notificationSettings.email,
+          },
+        },
+      }),
     };
 
     await request.server.prisma.user.update({
@@ -1082,6 +1110,92 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     });
     return reply.send(merged);
   });
+
+  /** GET /api/v1/me/notifications – persönliche In-App-Benachrichtigungen (paginiert). */
+  app.get('/me/notifications', { preHandler: requireAuthPreHandler }, async (request, reply) => {
+    const userId = getEffectiveUserId(request as RequestWithUser);
+    const query = meNotificationsQuerySchema.parse(request.query);
+
+    const unreadFilter = query.unreadOnly ? Prisma.sql`AND read_at IS NULL` : Prisma.empty;
+    const [countRows, rows] = await Promise.all([
+      request.server.prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS total
+        FROM user_notification
+        WHERE user_id = ${userId}
+        ${unreadFilter}
+      `),
+      request.server.prisma.$queryRaw<
+        Array<{
+          id: string;
+          event_type: string;
+          payload: unknown;
+          created_at: Date;
+          read_at: Date | null;
+        }>
+      >(Prisma.sql`
+        SELECT id, event_type, payload, created_at, read_at
+        FROM user_notification
+        WHERE user_id = ${userId}
+        ${unreadFilter}
+        ORDER BY created_at DESC
+        LIMIT ${query.limit}
+        OFFSET ${query.offset}
+      `),
+    ]);
+
+    return reply.send({
+      items: rows.map((row) => ({
+        id: row.id,
+        eventType: row.event_type,
+        payload: row.payload,
+        createdAt: row.created_at,
+        readAt: row.read_at,
+      })),
+      total: Number(countRows[0]?.total ?? 0n),
+      limit: query.limit,
+      offset: query.offset,
+    });
+  });
+
+  /** PATCH /api/v1/me/notifications/:notificationId/read – einzelne Benachrichtigung als gelesen markieren. */
+  app.patch<{ Params: { notificationId: string } }>(
+    '/me/notifications/:notificationId/read',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { notificationId } = notificationIdParamSchema.parse(request.params);
+      const rows = await request.server.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        UPDATE user_notification
+        SET read_at = COALESCE(read_at, NOW())
+        WHERE id = ${notificationId}
+          AND user_id = ${userId}
+        RETURNING id
+      `);
+      if (rows.length === 0) return reply.status(404).send({ error: 'Notification not found' });
+      return reply.status(204).send();
+    }
+  );
+
+  /** PATCH /api/v1/me/notifications/read-all – alle (oder bis Zeitpunkt) als gelesen markieren. */
+  app.patch(
+    '/me/notifications/read-all',
+    { preHandler: requireAuthPreHandler },
+    async (request, reply) => {
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const body = markAllNotificationsReadBodySchema.parse(request.body ?? {});
+      const before = body.before ? new Date(body.before) : null;
+      if (before && Number.isNaN(before.getTime())) {
+        return reply.status(400).send({ error: 'Invalid before timestamp' });
+      }
+      await request.server.prisma.$executeRaw`
+      UPDATE user_notification
+      SET read_at = COALESCE(read_at, NOW())
+      WHERE user_id = ${userId}
+        AND (${before == null}::boolean OR created_at <= ${before})
+    `;
+      return reply.status(204).send();
+    }
+  );
 
   /** PATCH /api/v1/me/account – E-Mail und/oder Passwort (nur bei lokalem Login). */
   app.patch('/me/account', { preHandler: requireAuthPreHandler }, async (request, reply) => {

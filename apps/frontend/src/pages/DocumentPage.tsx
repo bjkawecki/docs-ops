@@ -196,6 +196,9 @@ export function DocumentPage() {
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
   const [pdfExportJobId, setPdfExportJobId] = useState<string | null>(null);
   const [lastPdfExportStatus, setLastPdfExportStatus] = useState<string | null>(null);
+  const [isTabVisible, setIsTabVisible] = useState<boolean>(
+    () => document.visibilityState === 'visible'
+  );
   const editContentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const slugCountsRef = useRef<Record<string, number>>({});
 
@@ -293,9 +296,12 @@ export function DocumentPage() {
     enabled: !!documentId && !!pdfExportJobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === 'queued' || status === 'running') return 5000;
+      if (status === 'queued' || status === 'running') {
+        return isTabVisible ? 5000 : 30_000;
+      }
       return false;
     },
+    refetchIntervalInBackground: true,
   });
 
   useEffect(() => {
@@ -315,6 +321,22 @@ export function DocumentPage() {
       document.title = 'DocsOps – Internal Documentation';
     };
   }, [data?.title]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible';
+      setIsTabVisible(visible);
+      if (visible && documentId && pdfExportJobId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['document-export-pdf-status', documentId, pdfExportJobId],
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [documentId, pdfExportJobId, queryClient]);
 
   useEffect(() => {
     if (mode === 'edit') {
@@ -877,6 +899,15 @@ export function DocumentPage() {
       const res = await apiFetch(`/api/v1/documents/${documentId}/export-pdf`, { method: 'POST' });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
+        if (res.status === 503) {
+          notifications.show({
+            title: 'PDF export currently delayed',
+            message:
+              body?.error ?? 'Queue/worker is currently unavailable. Please try again shortly.',
+            color: 'yellow',
+          });
+          return;
+        }
         notifications.show({
           title: 'PDF export could not be started',
           message: body?.error ?? res.statusText,

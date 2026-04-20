@@ -15,6 +15,18 @@ export type UserPreferences = {
     string,
     { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
   >;
+  notificationSettings?: {
+    inApp?: {
+      documentChanges?: boolean;
+      draftRequests?: boolean;
+      reminders?: boolean;
+    };
+    email?: {
+      documentChanges?: boolean;
+      draftRequests?: boolean;
+      reminders?: boolean;
+    };
+  };
 };
 
 /** Syncs Mantine color scheme to the stored preference when preferences load or theme changes. */

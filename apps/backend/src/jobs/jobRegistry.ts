@@ -8,6 +8,8 @@ import { promisify } from 'node:util';
 import { jobPayloadSchemas, type JobPayloadByType, type JobType } from './jobTypes.js';
 import { initStorage, type StorageService } from '../storage/index.js';
 import { canWrite } from '../permissions/canWrite.js';
+import { runFullReindex, runIncrementalReindex } from '../services/searchIndexService.js';
+import { dispatchNotificationEvent } from '../services/notificationDispatchService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -116,6 +118,33 @@ async function exportDocumentToPdf(
   }
 }
 
+async function reindexIncremental(
+  payload: JobPayloadByType['search.reindex.incremental'],
+  context: JobContext
+): Promise<void> {
+  const result = await runIncrementalReindex(context.prisma, payload);
+  context.logger.info({ payload, result }, 'Incremental search reindex completed');
+}
+
+async function reindexFull(
+  payload: JobPayloadByType['search.reindex.full'],
+  context: JobContext
+): Promise<void> {
+  const result = await runFullReindex(context.prisma);
+  context.logger.info({ payload, result }, 'Full search reindex completed');
+}
+
+async function sendNotifications(
+  payload: JobPayloadByType['notifications.send'],
+  context: JobContext
+): Promise<void> {
+  const result = await dispatchNotificationEvent(context.prisma, payload);
+  context.logger.info(
+    { eventType: payload.eventType, targetUserIds: payload.targetUserIds, result },
+    'Notification dispatch completed'
+  );
+}
+
 export const jobDefinitions: ReadonlyArray<JobDefinition> = [
   {
     name: 'documents.export.pdf',
@@ -129,19 +158,21 @@ export const jobDefinitions: ReadonlyArray<JobDefinition> = [
     schema: jobPayloadSchemas['search.reindex.incremental'],
     retryLimit: 5,
     handler: (payload, context) =>
-      notImplementedHandler('search.reindex.incremental', payload, context),
+      reindexIncremental(payload as JobPayloadByType['search.reindex.incremental'], context),
   },
   {
     name: 'search.reindex.full',
     schema: jobPayloadSchemas['search.reindex.full'],
     retryLimit: 3,
-    handler: (payload, context) => notImplementedHandler('search.reindex.full', payload, context),
+    handler: (payload, context) =>
+      reindexFull(payload as JobPayloadByType['search.reindex.full'], context),
   },
   {
     name: 'notifications.send',
     schema: jobPayloadSchemas['notifications.send'],
     retryLimit: 5,
-    handler: (payload, context) => notImplementedHandler('notifications.send', payload, context),
+    handler: (payload, context) =>
+      sendNotifications(payload as JobPayloadByType['notifications.send'], context),
   },
   {
     name: 'maintenance.cleanup',

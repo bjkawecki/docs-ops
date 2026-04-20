@@ -22,7 +22,15 @@ export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
   /** If true, only return documents that have been published (publishedAt set). */
   publishedOnly: z.coerce.boolean().optional().default(false),
   sortBy: z
-    .enum(['title', 'updatedAt', 'createdAt', 'contextName', 'contextType', 'ownerDisplay'])
+    .enum([
+      'title',
+      'updatedAt',
+      'createdAt',
+      'contextName',
+      'contextType',
+      'ownerDisplay',
+      'relevance',
+    ])
     .optional(),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });

@@ -36,7 +36,14 @@ const CATALOG_PAGE_SIZE_KEY = 'docsops-catalog-page-size';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 25;
 
-type SortBy = 'title' | 'updatedAt' | 'createdAt' | 'contextName' | 'contextType' | 'ownerDisplay';
+type SortBy =
+  | 'title'
+  | 'updatedAt'
+  | 'createdAt'
+  | 'contextName'
+  | 'contextType'
+  | 'ownerDisplay'
+  | 'relevance';
 type SortOrder = 'asc' | 'desc';
 
 type TagItem = { id: string; name: string };
@@ -54,6 +61,8 @@ type CatalogDocument = {
   ownerHref: string | null;
   contextProcessId: string | null;
   contextProjectId: string | null;
+  searchRank?: number | null;
+  searchSnippet?: string | null;
 };
 type CatalogResponse = {
   items: CatalogDocument[];
@@ -78,6 +87,16 @@ function contextHref(doc: CatalogDocument): string {
   if (doc.contextProcessId) return `/processes/${doc.contextProcessId}`;
   if (doc.contextProjectId) return `/projects/${doc.contextProjectId}`;
   return '#';
+}
+
+function renderSearchSnippet(snippet: string): ReactNode {
+  const parts = snippet.split(/(\[\[.*?\]\])/g).filter((part) => part.length > 0);
+  return parts.map((part, index) => {
+    if (part.startsWith('[[') && part.endsWith(']]')) {
+      return <mark key={index}>{part.slice(2, -2)}</mark>;
+    }
+    return <span key={index}>{part}</span>;
+  });
 }
 
 function parseStoredPageSize(): number {
@@ -162,7 +181,11 @@ export function CatalogPage() {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('sortBy', by);
-        next.set('sortOrder', order ?? (sortBy === by && sortOrder === 'desc' ? 'asc' : 'desc'));
+        if (by === 'relevance') {
+          next.set('sortOrder', 'desc');
+        } else {
+          next.set('sortOrder', order ?? (sortBy === by && sortOrder === 'desc' ? 'asc' : 'desc'));
+        }
         next.delete('page');
         return next;
       });
@@ -244,6 +267,7 @@ export function CatalogPage() {
     <Table.Th
       className={sticky ? 'catalog-table-name-cell' : undefined}
       style={{ cursor: 'pointer', userSelect: 'none' }}
+      aria-disabled={column === 'relevance'}
       onClick={() => setSort(column)}
     >
       <Group gap={4} wrap="nowrap">
@@ -263,7 +287,7 @@ export function CatalogPage() {
         <Group gap="md" wrap="wrap" align="flex-end">
           <TextInput
             label="Search"
-            placeholder="Search by name"
+            placeholder="Search by title or content"
             value={search}
             onChange={(e) => setFilter('search', e.currentTarget.value)}
             style={{ minWidth: 200 }}
@@ -280,6 +304,24 @@ export function CatalogPage() {
             onChange={(v) => setFilter('contextType', v ?? '')}
             clearable
             style={{ minWidth: 140 }}
+          />
+          <Select
+            label="Sort by"
+            data={[
+              { value: 'updatedAt', label: 'Updated' },
+              { value: 'createdAt', label: 'Created' },
+              { value: 'title', label: 'Name' },
+              { value: 'ownerDisplay', label: 'Owner' },
+              { value: 'contextType', label: 'Context type' },
+              { value: 'contextName', label: 'Context' },
+              { value: 'relevance', label: 'Relevance' },
+            ]}
+            value={sortBy}
+            onChange={(value) => {
+              if (!value) return;
+              setSort(value as SortBy, value === 'relevance' ? 'desc' : undefined);
+            }}
+            style={{ minWidth: 150 }}
           />
           <MultiSelect
             label="Tags"
@@ -365,6 +407,11 @@ export function CatalogPage() {
                       <Anchor component={Link} to={`/documents/${doc.id}`} size="sm">
                         {highlightMatch(doc.title || doc.id, search)}
                       </Anchor>
+                      {search.trim() && doc.searchSnippet ? (
+                        <Text size="xs" c="dimmed" lineClamp={2}>
+                          {renderSearchSnippet(doc.searchSnippet)}
+                        </Text>
+                      ) : null}
                     </Table.Td>
                     <Table.Td>
                       {doc.ownerHref ? (

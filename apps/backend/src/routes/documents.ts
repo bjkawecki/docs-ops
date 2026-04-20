@@ -23,7 +23,7 @@ import {
   canReadScopeForOwner,
   canCreateTagForOwner,
 } from '../permissions/contextPermissions.js';
-import { type GrantRole } from '../../generated/prisma/client.js';
+import { Prisma, type GrantRole } from '../../generated/prisma/client.js';
 import {
   getReadableCatalogScope,
   getReadableCatalogOwnerIds,
@@ -43,6 +43,7 @@ import {
   DocumentNotInTrashError,
   DocumentBusinessError,
 } from '../services/documentService.js';
+import { searchDocumentsForUser } from '../services/documentSearchService.js';
 import { mergeThreeWay } from '../mergeThreeWay.js';
 import {
   paginationQuerySchema,
@@ -81,6 +82,54 @@ function buildPdfDownloadFilename(title: string | null | undefined, documentId: 
     .replace(/^-|-$/g, '');
   const base = normalized || `document-${documentId}`;
   return base.endsWith('.pdf') ? base : `${base}.pdf`;
+}
+
+async function enqueueIncrementalReindexForDocument(args: {
+  documentId: string;
+  contextId?: string | null;
+  trigger: 'document-created' | 'document-updated' | 'document-deleted' | 'manual';
+}): Promise<void> {
+  await enqueueJob('search.reindex.incremental', {
+    documentId: args.documentId,
+    contextId: args.contextId ?? undefined,
+    trigger: args.trigger,
+  });
+}
+
+async function enqueueNotificationEvent(args: {
+  eventType: string;
+  targetUserIds: string[];
+  payload: Record<string, unknown>;
+}): Promise<void> {
+  await enqueueJob('notifications.send', {
+    eventType: args.eventType,
+    targetUserIds: args.targetUserIds,
+    payload: args.payload,
+  });
+}
+
+async function findIndexedDocumentIds(
+  prisma: FastifyInstance['prisma'],
+  term: string
+): Promise<string[]> {
+  const prefixTokens = term
+    .split(/\s+/)
+    .map((part) => part.trim().toLowerCase())
+    .map((part) => part.replace(/[^\p{L}\p{N}_-]/gu, ''))
+    .filter((part) => part.length > 1);
+  const prefixTsQuery =
+    prefixTokens.length > 0 ? prefixTokens.map((token) => `${token}:*`).join(' & ') : null;
+
+  const rows = await prisma.$queryRaw<Array<{ document_id: string }>>(Prisma.sql`
+    SELECT document_id
+    FROM document_search_index
+    WHERE
+      searchable @@ websearch_to_tsquery('simple', ${term})
+      OR (${prefixTsQuery != null ? Prisma.sql`searchable @@ to_tsquery('simple', ${prefixTsQuery})` : Prisma.sql`FALSE`})
+      OR similarity(lower(title), lower(${term})) >= 0.3
+    LIMIT 5000
+  `);
+  return rows.map((row) => row.document_id);
 }
 
 const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
@@ -207,8 +256,56 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     if (query.tagIds.length > 0) {
       baseWhere.documentTags = { some: { tagId: { in: query.tagIds } } };
     }
+    let rankedSearchOrder: string[] | null = null;
+    let rankedSearchTotal: number | null = null;
+    let searchMetaById = new Map<string, { rank: number; snippet: string | null }>();
+    const isRelevanceSort = query.sortBy === 'relevance';
     if (query.search?.trim()) {
-      baseWhere.title = { contains: query.search.trim(), mode: 'insensitive' };
+      const term = query.search.trim();
+      try {
+        if (isRelevanceSort) {
+          const searchResult = await searchDocumentsForUser(prisma, userId, {
+            query: term,
+            limit: query.limit,
+            offset: query.offset,
+            contextType: query.contextType,
+            companyId: query.companyId,
+            departmentId: query.departmentId,
+            teamId: query.teamId,
+            tagIds: query.tagIds,
+            publishedOnly: query.publishedOnly,
+          });
+          rankedSearchOrder = searchResult.items.map((item) => item.id);
+          rankedSearchTotal = searchResult.total;
+          searchMetaById = new Map(
+            searchResult.items.map((item) => [item.id, { rank: item.rank, snippet: item.snippet }])
+          );
+          if (rankedSearchOrder.length === 0) {
+            return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+          }
+          baseAnd.push({ id: { in: rankedSearchOrder } });
+        } else {
+          const indexedIds = await findIndexedDocumentIds(prisma, term);
+          if (indexedIds.length === 0) {
+            return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+          }
+          baseAnd.push({ id: { in: indexedIds } });
+        }
+      } catch (error) {
+        rankedSearchOrder = null;
+        rankedSearchTotal = null;
+        searchMetaById = new Map();
+        request.log.warn(
+          { error },
+          'Search index unavailable, falling back to document content scan'
+        );
+        baseAnd.push({
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { content: { contains: term, mode: 'insensitive' } },
+          ],
+        });
+      }
     }
     if (query.publishedOnly) {
       baseWhere.publishedAt = { not: null };
@@ -292,29 +389,49 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           ? { context: { contextType: sortOrder } }
           : sortBy === 'ownerDisplay'
             ? { context: { ownerDisplayName: sortOrder } }
-            : ({ [sortBy]: sortOrder } as {
-                title?: 'asc' | 'desc';
-                updatedAt?: 'asc' | 'desc';
-                createdAt?: 'asc' | 'desc';
-              });
+            : sortBy === 'relevance'
+              ? { updatedAt: 'desc' as const }
+              : ({ [sortBy]: sortOrder } as {
+                  title?: 'asc' | 'desc';
+                  updatedAt?: 'asc' | 'desc';
+                  createdAt?: 'asc' | 'desc';
+                });
 
-    const [rawItems, totalCount] = await Promise.all([
+    const fetchCatalogRows = (args?: { useOrderBy?: boolean; take?: number; skip?: number }) =>
       prisma.document.findMany({
         where: baseWhere,
         select,
-        orderBy,
-        take: query.limit,
-        skip: query.offset,
-      }),
-      prisma.document.count({ where: baseWhere }),
-    ]);
+        ...(args?.useOrderBy ? { orderBy } : {}),
+        ...(args?.take !== undefined ? { take: args.take } : {}),
+        ...(args?.skip !== undefined ? { skip: args.skip } : {}),
+      });
+
+    let rawItems: Awaited<ReturnType<typeof fetchCatalogRows>> = [];
+    let totalCount = 0;
+    if (rankedSearchOrder != null) {
+      rawItems = await fetchCatalogRows();
+      const orderIndexById = new Map(rankedSearchOrder.map((id, index) => [id, index]));
+      rawItems.sort(
+        (a, b) =>
+          (orderIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (orderIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+      );
+      totalCount = rankedSearchTotal ?? rawItems.length;
+    } else {
+      const [normalItems, normalTotalCount] = await Promise.all([
+        fetchCatalogRows({ useOrderBy: true, take: query.limit, skip: query.offset }),
+        prisma.document.count({ where: baseWhere }),
+      ]);
+      rawItems = normalItems;
+      totalCount = normalTotalCount;
+    }
 
     type ScopeInfo = {
       scopeType: 'team' | 'department' | 'company' | 'personal';
       scopeId: string | null;
       scopeName: string;
     };
-    const mapDoc = (doc: (typeof rawItems)[number]) => {
+    const mapDoc = (doc: Awaited<ReturnType<typeof fetchCatalogRows>>[number]) => {
       const ctx = doc.context;
       let contextType: 'process' | 'project' = 'process';
       let contextName = '';
@@ -400,6 +517,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         scopeType: scopeInfo.scopeType,
         scopeId: scopeInfo.scopeId,
         scopeName: scopeInfo.scopeName,
+        searchRank: searchMetaById.get(doc.id)?.rank ?? null,
+        searchSnippet: searchMetaById.get(doc.id)?.snippet ?? null,
       };
     };
 
@@ -787,6 +906,30 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         });
         if (!doc)
           return reply.status(500).send({ error: 'Publish succeeded but document not found' });
+        try {
+          await enqueueIncrementalReindexForDocument({
+            documentId,
+            contextId: doc.contextId,
+            trigger: 'document-updated',
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue reindex job after document publish'
+          );
+        }
+        try {
+          await enqueueNotificationEvent({
+            eventType: 'document-published',
+            targetUserIds: [userId],
+            payload: { documentId, contextId: doc.contextId },
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue notification job after document publish'
+          );
+        }
         return reply.send({
           ...doc,
           createdByName: doc.createdBy?.name ?? null,
@@ -812,6 +955,29 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       try {
         await archiveDocument(prisma, documentId);
+        try {
+          await enqueueIncrementalReindexForDocument({
+            documentId,
+            trigger: 'document-updated',
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue reindex job after document archive'
+          );
+        }
+        try {
+          await enqueueNotificationEvent({
+            eventType: 'document-archived',
+            targetUserIds: [getEffectiveUserId(request as RequestWithUser)],
+            payload: { documentId },
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue notification job after document archive'
+          );
+        }
         return reply.status(204).send();
       } catch (err) {
         if (err instanceof DocumentNotFoundError)
@@ -1073,6 +1239,22 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           submittedAt: true,
         },
       });
+      try {
+        await enqueueNotificationEvent({
+          eventType: 'draft-request-submitted',
+          targetUserIds: [userId],
+          payload: {
+            documentId,
+            draftRequestId: draftRequest.id,
+            submittedByUserId: userId,
+          },
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId, draftRequestId: draftRequest.id },
+          'Failed to enqueue notification job'
+        );
+      }
       return reply.status(201).send(draftRequest);
     }
   );
@@ -1213,6 +1395,17 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             data: { basedOnVersionId: newVersion.id },
           });
         });
+        try {
+          await enqueueIncrementalReindexForDocument({
+            documentId: draftRequest.documentId,
+            trigger: 'document-updated',
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, draftRequestId },
+            'Failed to enqueue reindex job after draft merge'
+          );
+        }
       } else {
         await prisma.draftRequest.update({
           where: { id: draftRequestId },
@@ -1234,6 +1427,23 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           comment: true,
         },
       });
+      try {
+        await enqueueNotificationEvent({
+          eventType: body.action === 'merge' ? 'draft-request-merged' : 'draft-request-rejected',
+          targetUserIds: [draftRequest.submittedById],
+          payload: {
+            documentId: draftRequest.documentId,
+            draftRequestId: draftRequest.id,
+            action: body.action,
+            processedByUserId: userId,
+          },
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, draftRequestId },
+          'Failed to enqueue notification job after draft request update'
+        );
+      }
       return reply.send(updated);
     }
   );
@@ -1317,6 +1527,30 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
         },
       });
+      try {
+        await enqueueIncrementalReindexForDocument({
+          documentId: doc.id,
+          contextId: null,
+          trigger: 'document-created',
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId: doc.id },
+          'Failed to enqueue reindex job after document creation'
+        );
+      }
+      try {
+        await enqueueNotificationEvent({
+          eventType: 'document-created',
+          targetUserIds: [userId],
+          payload: { documentId: doc.id },
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId: doc.id },
+          'Failed to enqueue notification job after document creation'
+        );
+      }
       return reply.status(201).send({
         ...created,
         createdByName: created.createdBy?.name ?? null,
@@ -1393,6 +1627,30 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         documentTags: { include: { tag: { select: { id: true, name: true } } } },
       },
     });
+    try {
+      await enqueueIncrementalReindexForDocument({
+        documentId: doc.id,
+        contextId: created.contextId,
+        trigger: 'document-created',
+      });
+    } catch (error) {
+      request.log.warn(
+        { error, documentId: doc.id },
+        'Failed to enqueue reindex job after document creation'
+      );
+    }
+    try {
+      await enqueueNotificationEvent({
+        eventType: 'document-created',
+        targetUserIds: [userId],
+        payload: { documentId: doc.id, contextId: created.contextId },
+      });
+    } catch (error) {
+      request.log.warn(
+        { error, documentId: doc.id },
+        'Failed to enqueue notification job after document creation'
+      );
+    }
     return reply.status(201).send({
       ...created,
       createdByName: created.createdBy?.name ?? null,
@@ -1458,6 +1716,30 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           description: body.description,
           tagIds: body.tagIds,
         });
+        try {
+          await enqueueIncrementalReindexForDocument({
+            documentId,
+            contextId: doc.contextId,
+            trigger: 'document-updated',
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue reindex job after document update'
+          );
+        }
+        try {
+          await enqueueNotificationEvent({
+            eventType: 'document-updated',
+            targetUserIds: [userId],
+            payload: { documentId, contextId: doc.contextId },
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue notification job after document update'
+          );
+        }
         return reply.send({
           ...doc,
           createdByName: doc.createdBy?.name ?? null,
@@ -1485,6 +1767,29 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to delete this document' });
       await deleteDocument(prisma, documentId);
+      try {
+        await enqueueIncrementalReindexForDocument({
+          documentId,
+          trigger: 'document-deleted',
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to enqueue reindex job after document delete'
+        );
+      }
+      try {
+        await enqueueNotificationEvent({
+          eventType: 'document-deleted',
+          targetUserIds: [userId],
+          payload: { documentId },
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to enqueue notification job after document delete'
+        );
+      }
       return reply.status(204).send();
     }
   );
@@ -1513,6 +1818,29 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       }
       try {
         await restoreDocument(prisma, documentId);
+        try {
+          await enqueueIncrementalReindexForDocument({
+            documentId,
+            trigger: 'document-updated',
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue reindex job after document restore'
+          );
+        }
+        try {
+          await enqueueNotificationEvent({
+            eventType: 'document-restored',
+            targetUserIds: [userId],
+            payload: { documentId },
+          });
+        } catch (error) {
+          request.log.warn(
+            { error, documentId },
+            'Failed to enqueue notification job after document restore'
+          );
+        }
         return reply.status(204).send();
       } catch (err) {
         if (err instanceof DocumentNotFoundError)

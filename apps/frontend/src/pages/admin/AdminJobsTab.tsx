@@ -98,6 +98,9 @@ export function AdminJobsTab() {
     parseStoredNumber(JOBS_POLLING_SECONDS_KEY, POLLING_SECONDS_OPTIONS, DEFAULT_POLLING_SECONDS)
   );
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [isTabVisible, setIsTabVisible] = useState<boolean>(
+    () => document.visibilityState === 'visible'
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -108,7 +111,23 @@ export function AdminJobsTab() {
     };
   }, []);
 
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible';
+      setIsTabVisible(visible);
+      if (visible) {
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'jobs'] });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [queryClient]);
+
   const pollingMs = pollingSeconds > 0 ? pollingSeconds * 1000 : false;
+  const effectivePollingMs =
+    pollingMs === false ? false : isTabVisible ? pollingMs : Math.max(30_000, pollingMs * 6);
 
   const jobsQueryString = useMemo(() => {
     const sp = new URLSearchParams();
@@ -130,8 +149,8 @@ export function AdminJobsTab() {
       }
       return (await res.json()) as ListJobsResponse;
     },
-    refetchInterval: pollingMs,
-    refetchIntervalInBackground: pollingMs !== false,
+    refetchInterval: effectivePollingMs,
+    refetchIntervalInBackground: true,
   });
 
   const health = useQuery({
@@ -144,8 +163,8 @@ export function AdminJobsTab() {
       }
       return (await res.json()) as HealthResponse;
     },
-    refetchInterval: pollingMs,
-    refetchIntervalInBackground: pollingMs !== false,
+    refetchInterval: effectivePollingMs,
+    refetchIntervalInBackground: true,
   });
 
   const schedules = useQuery({
@@ -215,19 +234,17 @@ export function AdminJobsTab() {
     },
   });
 
-  if (jobs.isPending || health.isPending || schedules.isPending) {
+  if (jobs.isPending || schedules.isPending) {
     return <Loader size="sm" />;
   }
 
-  if (jobs.isError || health.isError || schedules.isError) {
+  if (jobs.isError || schedules.isError) {
     const jobsErrorMessage =
       jobs.error instanceof Error
         ? jobs.error.message
-        : health.error instanceof Error
-          ? health.error.message
-          : schedules.error instanceof Error
-            ? schedules.error.message
-            : 'Unknown error';
+        : schedules.error instanceof Error
+          ? schedules.error.message
+          : 'Unknown error';
     return (
       <Alert color="red" title="Failed to load admin jobs">
         {jobsErrorMessage}
@@ -240,6 +257,10 @@ export function AdminJobsTab() {
   const lastHealthRefreshAbsolute = lastHealthRefreshMs
     ? new Date(lastHealthRefreshMs).toLocaleString()
     : 'n/a';
+  const healthUnavailable = health.isError || !health.data;
+  const queueReachable = health.data?.queueReachable ?? false;
+  const workerConnected = health.data?.workerConnected ?? false;
+  const queueActionsDisabled = healthUnavailable || !queueReachable || !workerConnected;
 
   return (
     <Box>
@@ -345,17 +366,32 @@ export function AdminJobsTab() {
 
       <Group mb="xs" justify="space-between" align="center" wrap="wrap">
         <Group gap={6} wrap="nowrap" align="center">
-          <Badge color={health.data?.workerConnected ? 'green' : 'yellow'} variant="light">
-            {health.data?.workerConnected ? 'Worker OK' : 'Worker degraded'}
+          <Badge color={workerConnected ? 'green' : 'yellow'} variant="light">
+            {workerConnected ? 'Worker OK' : 'Worker degraded'}
           </Badge>
           <Text size="xs" c="dimmed" title={`Zuletzt aktualisiert: ${lastHealthRefreshAbsolute}`}>
             Zuletzt aktualisiert: {formatRelativeAge(lastHealthRefreshMs, nowMs)}
           </Text>
+          {!isTabVisible && (
+            <Text size="xs" c="dimmed">
+              (Hintergrund-Tab: Polling gedrosselt)
+            </Text>
+          )}
         </Group>
         <Text size="sm" c="dimmed">
           {jobs.data?.total ?? 0} job(s)
         </Text>
       </Group>
+
+      {(healthUnavailable || !queueReachable || !workerConnected) && (
+        <Alert color="yellow" mb="md" title="Job-Infrastruktur eingeschränkt">
+          {healthUnavailable
+            ? 'Health-Status aktuell nicht erreichbar. Queue-Aktionen wurden vorsorglich reduziert.'
+            : !queueReachable
+              ? 'Queue ist derzeit nicht erreichbar. Retry/Cancel wurden voruebergehend deaktiviert.'
+              : 'Worker ist derzeit nicht verbunden. Retry/Cancel wurden voruebergehend deaktiviert.'}
+        </Alert>
+      )}
 
       <Table withTableBorder withColumnBorders className="admin-table-hover">
         <Table.Thead>
@@ -410,7 +446,12 @@ export function AdminJobsTab() {
                       size="xs"
                       variant="light"
                       onClick={() => retryMutation.mutate(job.id)}
-                      disabled={retryMutation.isPending}
+                      disabled={retryMutation.isPending || queueActionsDisabled}
+                      title={
+                        queueActionsDisabled
+                          ? 'Queue/Worker nicht verfuegbar - Aktion derzeit deaktiviert'
+                          : undefined
+                      }
                     >
                       Retry
                     </Button>
@@ -419,7 +460,12 @@ export function AdminJobsTab() {
                       variant="light"
                       color="red"
                       onClick={() => cancelMutation.mutate(job.id)}
-                      disabled={cancelMutation.isPending}
+                      disabled={cancelMutation.isPending || queueActionsDisabled}
+                      title={
+                        queueActionsDisabled
+                          ? 'Queue/Worker nicht verfuegbar - Aktion derzeit deaktiviert'
+                          : undefined
+                      }
                     >
                       Cancel
                     </Button>

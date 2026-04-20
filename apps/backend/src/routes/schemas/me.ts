@@ -14,6 +14,17 @@ const recentItemSchema = z.object({
   name: z.string().max(255).optional(),
 });
 
+const notificationChannelPreferencesSchema = z.object({
+  documentChanges: z.boolean().optional(),
+  draftRequests: z.boolean().optional(),
+  reminders: z.boolean().optional(),
+});
+
+export const notificationSettingsSchema = z.object({
+  inApp: notificationChannelPreferencesSchema.optional(),
+  email: notificationChannelPreferencesSchema.optional(),
+});
+
 export const patchPreferencesBodySchema = z.object({
   theme: z.enum(['light', 'dark', 'auto']).optional(),
   sidebarPinned: z.boolean().optional(),
@@ -35,6 +46,7 @@ export const patchPreferencesBodySchema = z.object({
     .optional(),
   textSize: z.enum(['default', 'large', 'larger']).optional(),
   recentItemsByScope: z.record(z.string(), z.array(recentItemSchema).max(8)).optional(),
+  notificationSettings: notificationSettingsSchema.optional(),
 });
 
 export type PatchPreferencesBody = z.infer<typeof patchPreferencesBodySchema>;
@@ -156,6 +168,24 @@ export const meCanWriteInScopeResponseSchema = z.object({
   canWrite: z.boolean(),
 });
 export type MeCanWriteInScopeResponse = z.infer<typeof meCanWriteInScopeResponseSchema>;
+
+/** Query: GET /me/notifications – optional unreadOnly + pagination. */
+export const meNotificationsQuerySchema = z.object({
+  unreadOnly: z.coerce.boolean().optional().default(false),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type MeNotificationsQuery = z.infer<typeof meNotificationsQuerySchema>;
+
+/** Params: PATCH /me/notifications/:notificationId/read */
+export const notificationIdParamSchema = z.object({
+  notificationId: z.string().uuid(),
+});
+
+/** Body: PATCH /me/notifications/read-all */
+export const markAllNotificationsReadBodySchema = z.object({
+  before: z.string().datetime().optional(),
+});
 
 /** Unified trash/archive item for table (type, displayTitle, date). Used by GET /me/trash and GET /me/archive. */
 export type MeTrashArchiveItem = {

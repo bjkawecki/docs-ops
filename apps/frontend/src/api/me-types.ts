@@ -43,6 +43,18 @@ export type MeResponse = {
       string,
       { type: 'process' | 'project' | 'document'; id: string; name?: string }[]
     >;
+    notificationSettings?: {
+      inApp?: {
+        documentChanges?: boolean;
+        draftRequests?: boolean;
+        reminders?: boolean;
+      };
+      email?: {
+        documentChanges?: boolean;
+        draftRequests?: boolean;
+        reminders?: boolean;
+      };
+    };
   };
   /** Nur gesetzt, wenn Admin gerade als anderer Nutzer agiert. */
   impersonation?: { active: true; realUser: { id: string; name: string } };

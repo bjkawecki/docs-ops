@@ -1,6 +1,7 @@
 import { createBoss } from './jobs/boss.js';
 import { ensureQueues, registerWorkers } from './jobs/startWorker.js';
 import { prisma } from './db.js';
+import { consumeNotificationEmailOutbox } from './services/notificationEmailOutboxService.js';
 
 const logger = {
   info: (obj: unknown, msg?: string) => {
@@ -21,8 +22,19 @@ const WORKER_HEARTBEAT_INTERVAL_MS = Math.max(
   1_000,
   Number(process.env.WORKER_HEARTBEAT_INTERVAL_MS ?? 5_000)
 );
+const NOTIFICATION_EMAIL_QUEUE_ENABLED =
+  (process.env.NOTIFICATION_EMAIL_QUEUE_ENABLED ?? 'false').toLowerCase() === 'true';
+const NOTIFICATION_EMAIL_CONSUMER_INTERVAL_MS = Math.max(
+  1_000,
+  Number(process.env.NOTIFICATION_EMAIL_CONSUMER_INTERVAL_MS ?? 5_000)
+);
+const NOTIFICATION_EMAIL_CONSUMER_BATCH_SIZE = Math.max(
+  1,
+  Number(process.env.NOTIFICATION_EMAIL_CONSUMER_BATCH_SIZE ?? 20)
+);
 const WORKER_INSTANCE_ID = `${process.env.HOSTNAME ?? 'worker'}-${process.pid}`;
 let heartbeatInterval: NodeJS.Timeout | null = null;
+let emailConsumerInterval: NodeJS.Timeout | null = null;
 
 async function ensureHeartbeatTable(): Promise<void> {
   await prisma.$executeRawUnsafe(`
@@ -56,6 +68,39 @@ async function startHeartbeatLoop(): Promise<void> {
   heartbeatInterval.unref();
 }
 
+async function runEmailConsumerTick(): Promise<void> {
+  const result = await consumeNotificationEmailOutbox(prisma, {
+    batchSize: NOTIFICATION_EMAIL_CONSUMER_BATCH_SIZE,
+  });
+  if (result.pickedCount > 0) {
+    logger.info(
+      { result, workerInstanceId: WORKER_INSTANCE_ID },
+      'Processed notification_email_outbox batch'
+    );
+  }
+}
+
+async function startEmailConsumerLoop(): Promise<void> {
+  if (!NOTIFICATION_EMAIL_QUEUE_ENABLED) {
+    logger.info(
+      { workerInstanceId: WORKER_INSTANCE_ID },
+      'Notification email outbox consumer disabled (queue not enabled)'
+    );
+    return;
+  }
+
+  await runEmailConsumerTick();
+  emailConsumerInterval = setInterval(() => {
+    void runEmailConsumerTick().catch((error: unknown) => {
+      logger.warn(
+        { error, workerInstanceId: WORKER_INSTANCE_ID },
+        'Failed to process notification_email_outbox batch'
+      );
+    });
+  }, NOTIFICATION_EMAIL_CONSUMER_INTERVAL_MS);
+  emailConsumerInterval.unref();
+}
+
 const boss = createBoss();
 boss.on('error', (error) => {
   logger.error({ error }, 'pg-boss emitted worker error');
@@ -66,6 +111,10 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
+  }
+  if (emailConsumerInterval) {
+    clearInterval(emailConsumerInterval);
+    emailConsumerInterval = null;
   }
   try {
     await boss.stop();
@@ -81,6 +130,7 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 try {
   await boss.start();
   await startHeartbeatLoop();
+  await startEmailConsumerLoop();
   await ensureQueues(boss, logger);
   await registerWorkers(boss, logger);
   logger.info(
