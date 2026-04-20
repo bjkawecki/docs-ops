@@ -369,10 +369,10 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 
 **Ziel:** Diskussion und Feedback direkt am Dokument. Kommentar-Rechte = Leserechte: Jeder mit Leserecht darf Kommentare lesen, anlegen sowie eigene bearbeiten/löschen; Scope-Lead/Admin dürfen beliebige Kommentare löschen (Moderation). Konzept: [Pseudocode §3b](../platform/datenmodell/Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant), [Rechtesystem §6c](../platform/datenmodell/Rechtesystem.md#6c-kommentare-geplant), [Prisma-Schema-Entwurf §9](Prisma-Schema-Entwurf.md#9-kommentar-sektion-geplant).
 
-[ ] **Datenmodell:** Tabelle **DocumentComment** (id, documentId, authorId, text, parentId?, createdAt, updatedAt?); Indizes documentId, parentId. Migration.
-[ ] **Rechte:** canReadComment / canCreateComment / canEditOwnComment / canDeleteOwnComment = canRead(documentId); canDeleteAnyComment = canWriteContext(contextId) oder isAdmin.
-[ ] **Backend:** CRUD-API für Kommentare (z. B. GET/POST `/documents/:documentId/comments`, PATCH/DELETE `/documents/:documentId/comments/:commentId`); Pagination optional; Rechteprüfung bei jedem Zugriff.
-[ ] **Frontend:** Auf der Dokument-Detailseite eine Kommentar-Sektion (unter dem Inhalt oder Sidebar): Liste, Formular zum Anlegen, Bearbeiten/Löschen eigener Kommentare; bei canDeleteAnyComment Löschen-Button für alle. Optional: Threads (Antworten via parentId).
+[x] **Datenmodell:** Tabelle **DocumentComment** (id, documentId, authorId, text, parentId?, createdAt, updatedAt?); Indizes documentId, parentId. Migration.
+[x] **Rechte:** canReadComment / canCreateComment / canEditOwnComment / canDeleteOwnComment = canRead(documentId); canDeleteAnyComment = canWriteContext(contextId) oder isAdmin.
+[x] **Backend:** CRUD-API für Kommentare (z. B. GET/POST `/documents/:documentId/comments`, PATCH/DELETE `/documents/:documentId/comments/:commentId`); Pagination optional; Rechteprüfung bei jedem Zugriff.
+[x] **Frontend:** Auf der Dokument-Detailseite eine Kommentar-Sektion (unter dem Inhalt oder Sidebar): Liste, Formular zum Anlegen, Bearbeiten/Löschen eigener Kommentare; bei canDeleteAnyComment Löschen-Button für alle. Optional: Threads (Antworten via parentId).
 [ ] **Später (optional):** Inline-/Absatz-Kommentare (Anker auf Block/Zeile); Benachrichtigungen bei neuen Kommentaren.
 
 ---

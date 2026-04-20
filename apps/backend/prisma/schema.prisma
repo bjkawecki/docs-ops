@@ -91,6 +91,7 @@ model User {
   draftRequestsMerged     DraftRequest[]   @relation("DraftRequestsMerged")
   documentDrafts          DocumentDraft[]
   documentAttachmentsUploaded DocumentAttachment[]
+  documentCommentsAuthored    DocumentComment[] @relation("DocumentCommentAuthor")
   sessions              Session[]
 }
 
@@ -254,6 +255,7 @@ model Document {
   draftRequests             DraftRequest[]
   documentDrafts            DocumentDraft[]
   attachments               DocumentAttachment[]
+  comments                  DocumentComment[]
 }
 
 /// Tag: scope-gebunden (ownerId → Owner), für Kategorisierung und Filterung. Eindeutigkeit pro Scope: (ownerId, name).
@@ -291,6 +293,26 @@ model DocumentAttachment {
 
   @@index([documentId])
   @@index([uploadedById])
+}
+
+/// Kommentar zu einem Dokument (Diskussion/Feedback). Rechte: siehe docs/platform/datenmodell/Rechtesystem.md §6c.
+model DocumentComment {
+  id              String   @id @default(cuid())
+  documentId      String
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User     @relation("DocumentCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  text            String   @db.Text
+  parentId        String?
+  parent          DocumentComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies         DocumentComment[] @relation("CommentThread")
+  /// Markdown heading slug; only on root comments (parentId null).
+  anchorHeadingId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([parentId])
 }
 
 // --- Versionierung & PR (vgl. docs/plan/Prisma-Schema-Entwurf.md §8) ---

@@ -1,5 +1,6 @@
 export { canRead } from './canRead.js';
 export { canWrite } from './canWrite.js';
+export { canModerateDocumentComments } from './commentPermissions.js';
 export { canDeleteDocument } from './canDeleteDocument.js';
 export { canPublishDocument } from './canPublishDocument.js';
 export { canMergeDraftRequest } from './canMergeDraftRequest.js';

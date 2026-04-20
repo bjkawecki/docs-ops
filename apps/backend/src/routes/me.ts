@@ -109,6 +109,7 @@ const DOCUMENT_NOTIFICATION_EVENT_TYPES = [
   'document-deleted',
   'document-restored',
   'document-grants-changed',
+  'document-comment-created',
 ] as const;
 
 const REVIEW_NOTIFICATION_EVENT_TYPES = [

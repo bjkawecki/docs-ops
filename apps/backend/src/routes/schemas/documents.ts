@@ -175,3 +175,42 @@ export const createTagBodySchema = z
   .refine((data) => data.ownerId != null || data.contextId != null, {
     message: 'ownerId or contextId is required',
   });
+
+const DOCUMENT_COMMENT_TEXT_MAX = 16_000;
+
+/** Params: documentId + commentId. */
+export const documentCommentIdParamSchema = z.object({
+  documentId: z.string().cuid(),
+  commentId: z.string().cuid(),
+});
+
+/** Body: POST document comment. */
+export const createDocumentCommentBodySchema = z
+  .object({
+    text: z
+      .string()
+      .transform((s) => s.trim())
+      .pipe(z.string().min(1).max(DOCUMENT_COMMENT_TEXT_MAX)),
+    parentId: z.string().cuid().optional(),
+    /** Heading slug from document markdown; only for top-level comments. */
+    anchorHeadingId: z.string().min(1).max(200).optional(),
+  })
+  .strict()
+  .refine((d) => d.parentId == null || d.anchorHeadingId == null, {
+    message: 'anchorHeadingId is only allowed on top-level comments',
+    path: ['anchorHeadingId'],
+  });
+
+/** Body: PATCH document comment (author only). */
+export const patchDocumentCommentBodySchema = z
+  .object({
+    text: z
+      .string()
+      .transform((s) => s.trim())
+      .pipe(z.string().min(1).max(DOCUMENT_COMMENT_TEXT_MAX))
+      .optional(),
+    anchorHeadingId: z.union([z.string().min(1).max(200), z.null()]).optional(),
+  })
+  .refine((d) => d.text !== undefined || d.anchorHeadingId !== undefined, {
+    message: 'Provide text and/or anchorHeadingId',
+  });

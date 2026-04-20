@@ -31,7 +31,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './DocumentContent.css';
 import { apiFetch } from '../api/client';
-import { meQueryKey } from '../hooks/useMe';
+import { meQueryKey, useMe } from '../hooks/useMe';
+import { DocumentCommentsSection } from '../components/documents/DocumentCommentsSection';
 import { PageHeader } from '../components/PageHeader';
 import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import type { RecentScope } from '../hooks/useRecentItems';
@@ -137,6 +138,7 @@ type DocumentResponse = {
   documentTags: { tag: { id: string; name: string } }[];
   canWrite: boolean;
   canDelete: boolean;
+  canModerateComments?: boolean;
   canPublish?: boolean;
   scope: DocumentScope | null;
   contextOwnerId?: string | null;
@@ -169,6 +171,7 @@ export function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: me } = useMe();
   const recentActions = useRecentItemsActions();
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -1509,6 +1512,14 @@ export function DocumentPage() {
                       </Tabs.Panel>
                     </Tabs>
                   </Card>
+                )}
+
+                {documentId != null && data != null && (
+                  <DocumentCommentsSection
+                    documentId={documentId}
+                    currentUserId={me?.user?.id}
+                    headings={headings.map(({ id, text }) => ({ id, text }))}
+                  />
                 )}
               </Stack>
             </Box>

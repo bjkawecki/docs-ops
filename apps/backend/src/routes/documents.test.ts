@@ -90,7 +90,7 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
     const publishedDoc = await prisma.document.create({
       data: {
         title: `Published Doc ${TS}`,
-        content: 'Published content',
+        content: '# Intro\n\nPublished content',
         contextId,
         publishedAt: new Date(),
       },
@@ -100,7 +100,7 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
     const version = await prisma.documentVersion.create({
       data: {
         documentId: publishedDocId,
-        content: 'Published content',
+        content: '# Intro\n\nPublished content',
         versionNumber: 1,
         createdById: scopeLeadId,
       },
@@ -124,6 +124,9 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
   afterAll(async () => {
     const docIds = [draftDocId, publishedDocId].filter((id): id is string => id != null);
     if (docIds.length > 0) {
+      await prisma.documentComment.deleteMany({
+        where: { documentId: { in: docIds } },
+      });
       await prisma.documentAttachment.deleteMany({
         where: { documentId: { in: docIds } },
       });
@@ -593,6 +596,247 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
       expect(res.statusCode).toBe(503);
       const body = res.json() as { error?: string };
       expect(body.error).toBe('Storage not available');
+    });
+  });
+
+  describe('GET/POST/PATCH/DELETE /documents/:documentId/comments', () => {
+    it('Writer POST comment → 201; GET list → 200 with canDelete', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const post = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: '  First comment  ' }),
+      });
+      expect(post.statusCode).toBe(201);
+      const created = post.json() as { id: string; text: string; canDelete: boolean };
+      expect(created.text).toBe('First comment');
+      expect(created.canDelete).toBe(true);
+
+      const list = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/${publishedDocId}/comments?limit=20&offset=0`,
+        headers: { cookie },
+      });
+      expect(list.statusCode).toBe(200);
+      const body = list.json() as {
+        items: { id: string; canDelete: boolean; authorName: string }[];
+        total: number;
+      };
+      expect(body.total).toBeGreaterThanOrEqual(1);
+      const row = body.items.find((i) => i.id === created.id);
+      expect(row).toBeDefined();
+      expect(row!.canDelete).toBe(true);
+      expect(row!.authorName).toBe('Writer');
+    });
+
+    it('POST with unknown body key (strict) → 400', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'x', notAField: true }),
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('POST reply to root → 201; GET lists nested replies', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const root = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Root for thread' }),
+      });
+      expect(root.statusCode).toBe(201);
+      const rootId = (root.json() as { id: string }).id;
+
+      const reply = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Nested reply', parentId: rootId }),
+      });
+      expect(reply.statusCode).toBe(201);
+      expect((reply.json() as { parentId: string }).parentId).toBe(rootId);
+
+      const list = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/${publishedDocId}/comments?limit=50&offset=0`,
+        headers: { cookie },
+      });
+      expect(list.statusCode).toBe(200);
+      const body = list.json() as {
+        items: Array<{ id: string; replies: { id: string; text: string }[] }>;
+      };
+      const item = body.items.find((i) => i.id === rootId);
+      expect(item).toBeDefined();
+      expect(item!.replies.some((r) => r.text === 'Nested reply')).toBe(true);
+    });
+
+    it('POST reply to reply → 400', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const root = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Root B' }),
+      });
+      const rootId = (root.json() as { id: string }).id;
+      const reply = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'First reply', parentId: rootId }),
+      });
+      const replyId = (reply.json() as { id: string }).id;
+      const bad = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Too deep', parentId: replyId }),
+      });
+      expect(bad.statusCode).toBe(400);
+    });
+
+    it('POST with invalid anchorHeadingId → 400', async () => {
+      await prisma.document.update({
+        where: { id: publishedDocId },
+        data: { content: '# Intro\n\nPublished content' },
+      });
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Anchored', anchorHeadingId: 'no-such-heading-slug' }),
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('POST with anchorHeadingId matching document heading → 201', async () => {
+      await prisma.document.update({
+        where: { id: publishedDocId },
+        data: { content: '# Intro\n\nPublished content' },
+      });
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'In section', anchorHeadingId: 'intro' }),
+      });
+      expect(res.statusCode).toBe(201);
+      const j = res.json() as { anchorHeadingId: string | null };
+      expect(j.anchorHeadingId).toBe('intro');
+    });
+
+    it('Writer PATCH own comment → 200; PATCH other → 403', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const post = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'to patch' }),
+      });
+      expect(post.statusCode).toBe(201);
+      const { id: commentId } = post.json() as { id: string };
+
+      const patch = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/documents/${publishedDocId}/comments/${commentId}`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'updated' }),
+      });
+      expect(patch.statusCode).toBe(200);
+      expect((patch.json() as { text: string }).text).toBe('updated');
+
+      const leadCookie = await loginAs(`scope-lead-${TS}@example.com`);
+      const leadPost = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie: leadCookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'by lead' }),
+      });
+      expect(leadPost.statusCode).toBe(201);
+      const leadCommentId = (leadPost.json() as { id: string }).id;
+
+      const forbidden = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/documents/${publishedDocId}/comments/${leadCommentId}`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'hijack' }),
+      });
+      expect(forbidden.statusCode).toBe(403);
+    });
+
+    it('Department lead DELETE writer comment → 204', async () => {
+      const writerCookie = await loginAs(`writer-${TS}@example.com`);
+      const post = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie: writerCookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'delete me' }),
+      });
+      expect(post.statusCode).toBe(201);
+      const commentId = (post.json() as { id: string }).id;
+
+      const leadCookie = await loginAs(`scope-lead-${TS}@example.com`);
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/documents/${publishedDocId}/comments/${commentId}`,
+        headers: { cookie: leadCookie },
+      });
+      expect(del.statusCode).toBe(204);
+    });
+
+    it('Writer cannot DELETE lead comment → 403', async () => {
+      const leadCookie = await loginAs(`scope-lead-${TS}@example.com`);
+      const post = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie: leadCookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'lead owned' }),
+      });
+      expect(post.statusCode).toBe(201);
+      const commentId = (post.json() as { id: string }).id;
+
+      const writerCookie = await loginAs(`writer-${TS}@example.com`);
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/documents/${publishedDocId}/comments/${commentId}`,
+        headers: { cookie: writerCookie },
+      });
+      expect(del.statusCode).toBe(403);
+    });
+
+    it('DELETE root comment removes replies (cascade)', async () => {
+      const cookie = await loginAs(`writer-${TS}@example.com`);
+      const root = await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Root cascade' }),
+      });
+      const rootId = (root.json() as { id: string }).id;
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/documents/${publishedDocId}/comments`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: JSON.stringify({ text: 'Child', parentId: rootId }),
+      });
+      const before = await prisma.documentComment.count({ where: { documentId: publishedDocId } });
+      expect(before).toBeGreaterThanOrEqual(2);
+
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/documents/${publishedDocId}/comments/${rootId}`,
+        headers: { cookie },
+      });
+      expect(del.statusCode).toBe(204);
+      const after = await prisma.documentComment.count({ where: { documentId: publishedDocId } });
+      expect(after).toBe(before - 2);
     });
   });
 });

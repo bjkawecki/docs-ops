@@ -71,7 +71,8 @@ Implementierung der Prüflogik: `canRead(userId, documentId)` / `canWrite(userId
 - **Document:** title, content, pdfUrl?, contextId?, deletedAt?, archivedAt?; Tags über **Tag** + **DocumentTag** (n:m).
 - **DocumentGrantUser**, **DocumentGrantTeam**, **DocumentGrantDepartment** für explizite Rechte (genau ein Grantee pro Zeile).
 - **Umgesetzt:** Pinned (§7) – DocumentPinnedInScope, nur Dokumente.
-- **Geplant (noch nicht umgesetzt):** Document-Status draft/published (§3), Versionierung & PR (§8), Kommentar-Sektion (§9).
+- **Geplant (noch nicht umgesetzt):** Document-Status draft/published (§3), Versionierung & PR (§8).
+- **Umgesetzt:** Kommentar-Sektion (§9) – Modell **DocumentComment** in `schema.prisma`; API und UI siehe Umsetzungs-Todo §22.
 
 Schema liegt in `apps/backend/prisma/schema.prisma`; Migrationen unter `apps/backend/prisma/migrations/`.
 
@@ -143,9 +144,9 @@ Snapshots nur bei Veröffentlichung und bei Merge; Pull-Request-Workflow für Do
 
 ---
 
-## 9. Kommentar-Sektion (geplant)
+## 9. Kommentar-Sektion (umgesetzt)
 
-Diskussion und Feedback direkt am Dokument. Noch nicht in `schema.prisma` umgesetzt. Konzept und Rechte: [Pseudocode §3b](../platform/datenmodell/Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant), [Rechtesystem §6c](../platform/datenmodell/Rechtesystem.md#6c-kommentare-geplant).
+Diskussion und Feedback direkt am Dokument. In `apps/backend/prisma/schema.prisma` als **DocumentComment** umgesetzt (Migration `20260421120000_add_document_comment`). Konzept und Rechte: [Pseudocode §3b](../platform/datenmodell/Pseudocode%20Datenmodell.md#3b-kommentar-sektion-geplant), [Rechtesystem §6c](../platform/datenmodell/Rechtesystem.md#6c-kommentare-geplant).
 
 **Vorschlag Tabelle DocumentComment:**
 

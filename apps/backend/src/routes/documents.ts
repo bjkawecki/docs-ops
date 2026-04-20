@@ -13,9 +13,10 @@ import {
   canWrite,
   canPublishDocument,
   canMergeDraftRequest,
+  canModerateDocumentComments,
   DOCUMENT_FOR_PERMISSION_INCLUDE,
 } from '../permissions/index.js';
-import { canSeeDocumentInTrash } from '../permissions/canRead.js';
+import { canSeeDocumentInTrash, loadDocument } from '../permissions/canRead.js';
 import {
   canReadContext,
   canWriteContext,
@@ -45,6 +46,12 @@ import {
 } from '../services/documentService.js';
 import { buildCatalogDocumentListBase } from '../services/catalogDocumentListWhere.js';
 import { searchDocumentsForUser } from '../services/documentSearchService.js';
+import {
+  createDocumentComment,
+  deleteDocumentComment,
+  listDocumentComments,
+  updateDocumentComment,
+} from '../services/documentCommentService.js';
 import { mergeThreeWay } from '../mergeThreeWay.js';
 import {
   paginationQuerySchema,
@@ -66,6 +73,9 @@ import {
   tagIdParamSchema,
   createTagBodySchema,
   getTagsQuerySchema,
+  documentCommentIdParamSchema,
+  createDocumentCommentBodySchema,
+  patchDocumentCommentBodySchema,
 } from './schemas/documents.js';
 import { enqueueJob, getJobById } from '../jobs/client.js';
 import {
@@ -779,10 +789,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             .send({ error: 'Draft documents are only visible to users with write access' });
         }
       }
-      const [writeAllowed, deleteAllowed, canPublish] = await Promise.all([
+      const [writeAllowed, deleteAllowed, canPublish, canModerateComments] = await Promise.all([
         isTrashed ? Promise.resolve(false) : canWrite(prisma, userId, doc),
         canDeleteDocument(prisma, userId, documentId),
         isTrashed ? Promise.resolve(false) : canPublishDocument(prisma, userId, documentId),
+        isTrashed ? Promise.resolve(false) : canModerateDocumentComments(prisma, userId, doc),
       ]);
       const ctx = doc.context;
       const owner =
@@ -862,6 +873,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         canWrite: writeAllowed,
         canDelete: deleteAllowed,
         canPublish,
+        canModerateComments,
         scope,
         contextOwnerId,
         contextType,
@@ -1331,6 +1343,211 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         submittedByName: r.submittedBy.name,
       }));
       return reply.send({ items });
+    }
+  );
+
+  /** GET Document comments (canRead). Top-level only (parentId null); pagination. */
+  app.get<{ Params: { documentId: string }; Querystring: Record<string, string | undefined> }>(
+    '/documents/:documentId/comments',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const query = paginationQuerySchema.parse(request.query ?? {});
+      const doc = await loadDocument(prisma, documentId);
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      const canModerate = await canModerateDocumentComments(prisma, userId, doc);
+      const { items, total } = await listDocumentComments(prisma, documentId, {
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const serialize = (
+        c: (typeof items)[number]['replies'][number] | (typeof items)[number]
+      ) => ({
+        id: c.id,
+        documentId: c.documentId,
+        authorId: c.authorId,
+        authorName: c.authorName,
+        text: c.text,
+        parentId: c.parentId,
+        anchorHeadingId: c.anchorHeadingId,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        canDelete: c.authorId === userId || canModerate,
+      });
+      return reply.send({
+        items: items.map((root) => ({
+          ...serialize(root),
+          replies: root.replies.map((r) => serialize(r)),
+        })),
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      });
+    }
+  );
+
+  /** POST Document comment (canRead). */
+  app.post<{ Params: { documentId: string } }>(
+    '/documents/:documentId/comments',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const parsed = createDocumentCommentBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: 'Invalid body',
+          details: parsed.error.flatten(),
+        });
+      }
+      const docRow = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { content: true, title: true },
+      });
+      if (!docRow) return reply.status(404).send({ error: 'Document not found' });
+      const created = await createDocumentComment(prisma, {
+        documentId,
+        authorId: userId,
+        text: parsed.data.text,
+        parentId: parsed.data.parentId,
+        anchorHeadingId: parsed.data.anchorHeadingId,
+        documentContent: docRow.content,
+      });
+      if (!created.ok) {
+        if (created.error === 'parent_not_found') {
+          return reply.status(404).send({ error: 'Comment thread not found' });
+        }
+        if (created.error === 'invalid_parent') {
+          return reply.status(400).send({ error: 'You can only reply to a top-level comment' });
+        }
+        return reply.status(400).send({ error: 'Invalid section anchor' });
+      }
+      const row = created.comment;
+      try {
+        const readerIds = excludeUserIds(
+          await listUserIdsWhoCanReadDocument(prisma, documentId),
+          userId
+        );
+        await enqueueNotificationEvent({
+          eventType: 'document-comment-created',
+          targetUserIds: readerIds,
+          payload: {
+            documentId,
+            commentId: row.id,
+            parentId: row.parentId,
+            authorUserId: userId,
+            documentTitle: docRow.title,
+            commentPreview: row.text.slice(0, 200),
+          },
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to enqueue notification job after document comment'
+        );
+      }
+      return reply.status(201).send({
+        id: row.id,
+        documentId: row.documentId,
+        authorId: row.authorId,
+        authorName: row.authorName,
+        text: row.text,
+        parentId: row.parentId,
+        anchorHeadingId: row.anchorHeadingId,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+        canDelete: true,
+        replies: row.parentId == null ? [] : undefined,
+      });
+    }
+  );
+
+  /** PATCH Document comment – author only (canRead). */
+  app.patch<{ Params: { documentId: string; commentId: string } }>(
+    '/documents/:documentId/comments/:commentId',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId, commentId } = documentCommentIdParamSchema.parse(request.params);
+      const body = patchDocumentCommentBodySchema.parse(request.body);
+      const docRow = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { content: true },
+      });
+      if (!docRow) return reply.status(404).send({ error: 'Document not found' });
+      const result = await updateDocumentComment(prisma, {
+        documentId,
+        commentId,
+        userId,
+        text: body.text,
+        anchorHeadingId: body.anchorHeadingId,
+        documentContent: docRow.content,
+      });
+      if (!result.ok) {
+        if (result.error === 'not_found')
+          return reply.status(404).send({ error: 'Comment not found' });
+        if (result.error === 'forbidden')
+          return reply.status(403).send({ error: 'You can only edit your own comments' });
+        if (result.error === 'anchor_only_on_root') {
+          return reply
+            .status(400)
+            .send({ error: 'Section anchor can only be set on top-level comments' });
+        }
+        return reply.status(400).send({ error: 'Invalid section anchor' });
+      }
+      const doc = await loadDocument(prisma, documentId);
+      const canModerate = doc ? await canModerateDocumentComments(prisma, userId, doc) : false;
+      const c = result.comment;
+      return reply.send({
+        id: c.id,
+        documentId: c.documentId,
+        authorId: c.authorId,
+        authorName: c.authorName,
+        text: c.text,
+        parentId: c.parentId,
+        anchorHeadingId: c.anchorHeadingId,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        canDelete: c.authorId === userId || canModerate,
+      });
+    }
+  );
+
+  /** DELETE Document comment – author or moderator (canRead + moderation rule). */
+  app.delete<{ Params: { documentId: string; commentId: string } }>(
+    '/documents/:documentId/comments/:commentId',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+    },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const userId = getEffectiveUserId(request as RequestWithUser);
+      const { documentId, commentId } = documentCommentIdParamSchema.parse(request.params);
+      const doc = await loadDocument(prisma, documentId);
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      const canModerate = await canModerateDocumentComments(prisma, userId, doc);
+      const result = await deleteDocumentComment(prisma, {
+        documentId,
+        commentId,
+        userId,
+        canModerate,
+      });
+      if (!result.ok) {
+        if (result.error === 'not_found')
+          return reply.status(404).send({ error: 'Comment not found' });
+        return reply.status(403).send({ error: 'You cannot delete this comment' });
+      }
+      return reply.status(204).send();
     }
   );
 

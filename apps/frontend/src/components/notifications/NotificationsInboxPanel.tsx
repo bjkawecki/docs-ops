@@ -79,6 +79,7 @@ function eventHeadline(eventType: string): string {
     'document-archived': 'Document archived',
     'document-restored': 'Document restored',
     'document-grants-changed': 'Document access changed',
+    'document-comment-created': 'New comment on document',
     'draft-request-submitted': 'Review request submitted',
     'draft-request-merged': 'Review request merged',
     'draft-request-rejected': 'Review request rejected',
@@ -95,6 +96,11 @@ function payloadDraftRequestId(payload: Record<string, unknown>): string | null 
 }
 
 function secondaryDetail(eventType: string, payload: Record<string, unknown>): string | null {
+  if (eventType === 'document-comment-created') {
+    const preview = typeof payload.commentPreview === 'string' ? payload.commentPreview.trim() : '';
+    if (preview !== '') return preview.length > 120 ? `${preview.slice(0, 120)}…` : preview;
+    return 'Someone commented on a document you can read.';
+  }
   const draftId = payloadDraftRequestId(payload);
   if (draftId == null) return null;
   if (eventType === 'draft-request-submitted') return 'A review request is open for this document.';
