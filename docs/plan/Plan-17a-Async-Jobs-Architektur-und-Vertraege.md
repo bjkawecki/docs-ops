@@ -21,7 +21,7 @@ Referenz: [Umsetzungs-Todo §17](Umsetzungs-Todo.md#17-async-jobs), [Prisma-Sche
 - `search.reindex.incremental`
 - `search.reindex.full`
 - `notifications.send`
-- `maintenance.cleanup`
+- `maintenance.cleanup` (Tasks u. a. `user-notifications-retention` für In-App-`user_notification`-Retention; andere Tasks können noch Stub sein)
 
 Die Nutzersuche (Dashboard-Quick-Suche, Katalog mit Relevanzsortierung) liest den FTS-Index; `search.reindex.*`-Jobs halten ihn mit den Dokumentinhalten abgleichbar (kurze Verzögerung bis zur Verarbeitung ist aus API-Sicht akzeptabel, vgl. §18).
 

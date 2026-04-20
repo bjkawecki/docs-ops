@@ -8,7 +8,8 @@ const TIMEOUT_MS = Math.max(5_000, Number(process.env.JOB_LOADTEST_TIMEOUT_MS ??
 const TASK = (process.env.JOB_LOADTEST_TASK ?? 'temporary-assets') as
   | 'temporary-assets'
   | 'failed-jobs'
-  | 'orphaned-exports';
+  | 'orphaned-exports'
+  | 'user-notifications-retention';
 
 async function withPool<T>(
   items: number[],

@@ -10,6 +10,11 @@ import {
   canMergeDraftRequest,
 } from './index.js';
 import { hashPassword } from '../auth/password.js';
+import {
+  listUserIdsWhoCanMergeDraftRequestOnDocument,
+  listUserIdsWhoCanReadDocument,
+  symmetricDiffUserIds,
+} from '../services/notificationRecipients.js';
 
 const TS = `perm-${Date.now()}`;
 
@@ -368,6 +373,43 @@ describe('Permissions (canRead, canWrite)', () => {
     });
     it('DraftRequest nicht vorhanden → canMergeDraftRequest false', async () => {
       expect(await canMergeDraftRequest(prisma, adminId, 'non-existent-dr-id')).toBe(false);
+    });
+  });
+
+  describe('notificationRecipients', () => {
+    beforeAll(async () => {
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+    });
+
+    it('listUserIdsWhoCanReadDocument: recipients pass canRead; writer-only grant excluded', async () => {
+      const ids = await listUserIdsWhoCanReadDocument(prisma, docProcessId);
+      expect(ids.length).toBeGreaterThan(0);
+      for (const uid of ids) {
+        expect(await canRead(prisma, uid, docProcessId)).toBe(true);
+      }
+      expect(await canRead(prisma, writerOnlyUserId, docProcessId)).toBe(false);
+      expect(ids).not.toContain(writerOnlyUserId);
+      expect(ids).toContain(adminId);
+      expect(ids).toContain(supervisorId);
+    });
+
+    it('listUserIdsWhoCanMergeDraftRequestOnDocument aligns with canMergeDraftRequest', async () => {
+      const mergeIds = await listUserIdsWhoCanMergeDraftRequestOnDocument(prisma, docProcessId);
+      expect(mergeIds.length).toBeGreaterThan(0);
+      for (const uid of mergeIds) {
+        expect(await canMergeDraftRequest(prisma, uid, draftRequestId)).toBe(true);
+      }
+      expect(mergeIds).toContain(adminId);
+      expect(mergeIds).toContain(supervisorId);
+      expect(mergeIds).not.toContain(writerOnlyUserId);
+      expect(mergeIds).not.toContain(teamMemberId);
+    });
+
+    it('symmetricDiffUserIds', () => {
+      expect(symmetricDiffUserIds(new Set(['a', 'b']), new Set(['b', 'c'])).sort()).toEqual([
+        'a',
+        'c',
+      ]);
     });
   });
 });

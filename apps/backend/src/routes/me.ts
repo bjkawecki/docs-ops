@@ -42,6 +42,93 @@ import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../cont
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { Prisma } from '../../generated/prisma/client.js';
 
+type MeNotificationDbRow = {
+  id: string;
+  event_type: string;
+  payload: unknown;
+  created_at: Date;
+  read_at: Date | null;
+};
+
+function notificationPayloadAsRecord(payload: unknown): Record<string, unknown> {
+  if (payload != null && typeof payload === 'object' && !Array.isArray(payload)) {
+    return payload as Record<string, unknown>;
+  }
+  return {};
+}
+
+/** Resolve current document titles for the notifications page (IDs in payload only). */
+async function enrichMeNotificationItems(
+  prisma: PrismaClient,
+  rows: MeNotificationDbRow[]
+): Promise<
+  Array<{
+    id: string;
+    eventType: string;
+    payload: unknown;
+    createdAt: Date;
+    readAt: Date | null;
+    documentTitle: string | null;
+  }>
+> {
+  const documentIds = new Set<string>();
+  for (const row of rows) {
+    const p = notificationPayloadAsRecord(row.payload);
+    const docId = typeof p.documentId === 'string' ? p.documentId : null;
+    if (docId) documentIds.add(docId);
+  }
+  const idList = [...documentIds];
+  const documents =
+    idList.length > 0
+      ? await prisma.document.findMany({
+          where: { id: { in: idList } },
+          select: { id: true, title: true },
+        })
+      : [];
+  const titleById = new Map(documents.map((d) => [d.id, d.title]));
+  return rows.map((row) => {
+    const payload = notificationPayloadAsRecord(row.payload);
+    const documentId = typeof payload.documentId === 'string' ? payload.documentId : null;
+    const documentTitle = documentId != null ? (titleById.get(documentId) ?? null) : null;
+    return {
+      id: row.id,
+      eventType: row.event_type,
+      payload: row.payload,
+      createdAt: row.created_at,
+      readAt: row.read_at,
+      documentTitle,
+    };
+  });
+}
+
+const DOCUMENT_NOTIFICATION_EVENT_TYPES = [
+  'document-created',
+  'document-updated',
+  'document-published',
+  'document-archived',
+  'document-deleted',
+  'document-restored',
+  'document-grants-changed',
+] as const;
+
+const REVIEW_NOTIFICATION_EVENT_TYPES = [
+  'draft-request-submitted',
+  'draft-request-merged',
+  'draft-request-rejected',
+] as const;
+
+/** Whitelist filter for GET /me/notifications; system/org reserved (no rows until event types exist). */
+function notificationsCategorySql(category: string): Prisma.Sql {
+  if (category === 'all') return Prisma.empty;
+  if (category === 'documents') {
+    return Prisma.sql`AND event_type IN (${Prisma.join([...DOCUMENT_NOTIFICATION_EVENT_TYPES])})`;
+  }
+  if (category === 'reviews') {
+    return Prisma.sql`AND event_type IN (${Prisma.join([...REVIEW_NOTIFICATION_EVENT_TYPES])})`;
+  }
+  return Prisma.sql`AND FALSE`;
+}
+
 function scopeRefFromQuery(q: {
   scope: string;
   companyId?: string | null;
@@ -1117,12 +1204,14 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const query = meNotificationsQuerySchema.parse(request.query);
 
     const unreadFilter = query.unreadOnly ? Prisma.sql`AND read_at IS NULL` : Prisma.empty;
+    const categoryFilter = notificationsCategorySql(query.category);
     const [countRows, rows] = await Promise.all([
       request.server.prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
         SELECT COUNT(*)::bigint AS total
         FROM user_notification
         WHERE user_id = ${userId}
         ${unreadFilter}
+        ${categoryFilter}
       `),
       request.server.prisma.$queryRaw<
         Array<{
@@ -1137,19 +1226,22 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         FROM user_notification
         WHERE user_id = ${userId}
         ${unreadFilter}
+        ${categoryFilter}
         ORDER BY created_at DESC
         LIMIT ${query.limit}
         OFFSET ${query.offset}
       `),
     ]);
 
+    const enriched = await enrichMeNotificationItems(request.server.prisma, rows);
     return reply.send({
-      items: rows.map((row) => ({
+      items: enriched.map((row) => ({
         id: row.id,
-        eventType: row.event_type,
+        eventType: row.eventType,
         payload: row.payload,
-        createdAt: row.created_at,
-        readAt: row.read_at,
+        createdAt: row.createdAt,
+        readAt: row.readAt,
+        documentTitle: row.documentTitle,
       })),
       total: Number(countRows[0]?.total ?? 0n),
       limit: query.limit,

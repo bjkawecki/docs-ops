@@ -20,7 +20,12 @@ export const jobPayloadSchemas = {
     payload: z.record(z.string(), z.unknown()).default({}),
   }),
   'maintenance.cleanup': z.object({
-    task: z.enum(['temporary-assets', 'failed-jobs', 'orphaned-exports']),
+    task: z.enum([
+      'temporary-assets',
+      'failed-jobs',
+      'orphaned-exports',
+      'user-notifications-retention',
+    ]),
     requestedByUserId: z.string().cuid().optional(),
   }),
 } as const;

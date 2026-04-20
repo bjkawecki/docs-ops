@@ -68,6 +68,15 @@ import {
   getTagsQuerySchema,
 } from './schemas/documents.js';
 import { enqueueJob, getJobById } from '../jobs/client.js';
+import {
+  chunkUserIdsForNotificationJobs,
+  excludeUserIds,
+  listUserIdsWhoCanMergeDraftRequestOnDocument,
+  listUserIdsWhoCanReadDocument,
+  listUserIdsWhoCanReadOrWriteDocument,
+  listUserIdsWhoCanWriteDocument,
+  symmetricDiffUserIds,
+} from '../services/notificationRecipients.js';
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const QUEUE_RETRY_AFTER_SECONDS = 15;
@@ -103,11 +112,78 @@ async function enqueueNotificationEvent(args: {
   targetUserIds: string[];
   payload: Record<string, unknown>;
 }): Promise<void> {
-  await enqueueJob('notifications.send', {
-    eventType: args.eventType,
-    targetUserIds: args.targetUserIds,
-    payload: args.payload,
+  const chunks =
+    args.targetUserIds.length === 0 ? [] : chunkUserIdsForNotificationJobs(args.targetUserIds);
+  for (const targetUserIds of chunks) {
+    await enqueueJob('notifications.send', {
+      eventType: args.eventType,
+      targetUserIds,
+      payload: args.payload,
+    });
+  }
+}
+
+function sortedTagIdsSignature(tags: readonly { tagId?: string; tag?: { id: string } }[]): string {
+  const ids = tags
+    .map((t) => t.tag?.id ?? t.tagId)
+    .filter((id): id is string => id != null && id !== '');
+  return [...new Set(ids)].sort().join(',');
+}
+
+function patchTouchesReaderVisibleFields(body: z.infer<typeof updateDocumentBodySchema>): boolean {
+  return (
+    body.title !== undefined ||
+    body.content !== undefined ||
+    body.description !== undefined ||
+    body.contextId !== undefined ||
+    body.tagIds !== undefined
+  );
+}
+
+async function enqueueDocumentGrantsChangedNotifications(args: {
+  prisma: FastifyInstance['prisma'];
+  documentId: string;
+  actorUserId: string;
+  beforeUnion: Set<string>;
+}): Promise<void> {
+  const { prisma, documentId, actorUserId, beforeUnion } = args;
+  const afterRead = await listUserIdsWhoCanReadDocument(prisma, documentId);
+  const afterWrite = await listUserIdsWhoCanWriteDocument(prisma, documentId);
+  const afterUnion = new Set<string>([...afterRead, ...afterWrite]);
+  const changed = symmetricDiffUserIds(beforeUnion, afterUnion);
+  const targets = excludeUserIds(changed, actorUserId);
+  if (targets.length === 0) return;
+  await enqueueNotificationEvent({
+    eventType: 'document-grants-changed',
+    targetUserIds: targets,
+    payload: { documentId, changedByUserId: actorUserId },
   });
+}
+
+function readerVisibleContentChanged(args: {
+  before: {
+    title: string;
+    content: string;
+    description: string | null;
+    contextId: string | null;
+    documentTags: { tagId: string }[];
+  };
+  body: z.infer<typeof updateDocumentBodySchema>;
+  after: DocumentMetadataUpdateResult;
+}): boolean {
+  const { before, body, after } = args;
+  if (body.title !== undefined && body.title !== before.title) return true;
+  if (body.content !== undefined && body.content !== before.content) return true;
+  if (body.description !== undefined && (before.description ?? null) !== (body.description ?? null))
+    return true;
+  if (body.contextId !== undefined && (before.contextId ?? null) !== (body.contextId ?? null))
+    return true;
+  if (body.tagIds !== undefined) {
+    const beforeSig = sortedTagIdsSignature(before.documentTags);
+    const afterSig = sortedTagIdsSignature(after.documentTags.map((dt) => ({ tag: dt.tag })));
+    if (beforeSig !== afterSig) return true;
+  }
+  return false;
 }
 
 async function findIndexedDocumentIds(
@@ -850,10 +926,14 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           );
         }
         try {
+          const readerIds = excludeUserIds(
+            await listUserIdsWhoCanReadDocument(prisma, documentId),
+            userId
+          );
           await enqueueNotificationEvent({
             eventType: 'document-published',
-            targetUserIds: [userId],
-            payload: { documentId, contextId: doc.contextId },
+            targetUserIds: readerIds,
+            payload: { documentId, contextId: doc.contextId, publishedByUserId: userId },
           });
         } catch (error) {
           request.log.warn(
@@ -898,10 +978,15 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           );
         }
         try {
+          const actorId = getEffectiveUserId(request as RequestWithUser);
+          const readerIds = excludeUserIds(
+            await listUserIdsWhoCanReadDocument(prisma, documentId),
+            actorId
+          );
           await enqueueNotificationEvent({
             eventType: 'document-archived',
-            targetUserIds: [getEffectiveUserId(request as RequestWithUser)],
-            payload: { documentId },
+            targetUserIds: readerIds,
+            payload: { documentId, archivedByUserId: actorId },
           });
         } catch (error) {
           request.log.warn(
@@ -1171,9 +1256,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         },
       });
       try {
+        const mergeEligibleIds = await listUserIdsWhoCanMergeDraftRequestOnDocument(
+          prisma,
+          documentId
+        );
         await enqueueNotificationEvent({
           eventType: 'draft-request-submitted',
-          targetUserIds: [userId],
+          targetUserIds: mergeEligibleIds,
           payload: {
             documentId,
             draftRequestId: draftRequest.id,
@@ -1470,18 +1559,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           'Failed to enqueue reindex job after document creation'
         );
       }
-      try {
-        await enqueueNotificationEvent({
-          eventType: 'document-created',
-          targetUserIds: [userId],
-          payload: { documentId: doc.id },
-        });
-      } catch (error) {
-        request.log.warn(
-          { error, documentId: doc.id },
-          'Failed to enqueue notification job after document creation'
-        );
-      }
       return reply.status(201).send({
         ...created,
         createdByName: created.createdBy?.name ?? null,
@@ -1570,18 +1647,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         'Failed to enqueue reindex job after document creation'
       );
     }
-    try {
-      await enqueueNotificationEvent({
-        eventType: 'document-created',
-        targetUserIds: [userId],
-        payload: { documentId: doc.id, contextId: created.contextId },
-      });
-    } catch (error) {
-      request.log.warn(
-        { error, documentId: doc.id },
-        'Failed to enqueue notification job after document creation'
-      );
-    }
     return reply.status(201).send({
       ...created,
       createdByName: created.createdBy?.name ?? null,
@@ -1639,6 +1704,22 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         }
       }
 
+      const beforeUpdate = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: {
+          publishedAt: true,
+          title: true,
+          content: true,
+          description: true,
+          contextId: true,
+          documentTags: { select: { tagId: true } },
+        },
+      });
+      if (!beforeUpdate) return reply.status(404).send({ error: 'Document not found' });
+
+      const shouldConsiderReaderNotification =
+        beforeUpdate.publishedAt != null && patchTouchesReaderVisibleFields(body);
+
       try {
         const doc: DocumentMetadataUpdateResult = await updateDocumentMetadata(prisma, documentId, {
           title: body.title,
@@ -1660,11 +1741,20 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           );
         }
         try {
-          await enqueueNotificationEvent({
-            eventType: 'document-updated',
-            targetUserIds: [userId],
-            payload: { documentId, contextId: doc.contextId },
-          });
+          if (
+            shouldConsiderReaderNotification &&
+            readerVisibleContentChanged({ before: beforeUpdate, body, after: doc })
+          ) {
+            const readerIds = excludeUserIds(
+              await listUserIdsWhoCanReadDocument(prisma, documentId),
+              userId
+            );
+            await enqueueNotificationEvent({
+              eventType: 'document-updated',
+              targetUserIds: readerIds,
+              payload: { documentId, contextId: doc.contextId, updatedByUserId: userId },
+            });
+          }
         } catch (error) {
           request.log.warn(
             { error, documentId },
@@ -1697,6 +1787,18 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const allowed = await canDeleteDocument(prisma, userId, documentId);
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to delete this document' });
+      let notifyTargets: string[] = [];
+      try {
+        notifyTargets = excludeUserIds(
+          await listUserIdsWhoCanReadOrWriteDocument(prisma, documentId),
+          userId
+        );
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to resolve notification recipients before document delete'
+        );
+      }
       await deleteDocument(prisma, documentId);
       try {
         await enqueueIncrementalReindexForDocument({
@@ -1712,8 +1814,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       try {
         await enqueueNotificationEvent({
           eventType: 'document-deleted',
-          targetUserIds: [userId],
-          payload: { documentId },
+          targetUserIds: notifyTargets,
+          payload: { documentId, deletedByUserId: userId },
         });
       } catch (error) {
         request.log.warn(
@@ -1761,10 +1863,14 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           );
         }
         try {
+          const readerIds = excludeUserIds(
+            await listUserIdsWhoCanReadDocument(prisma, documentId),
+            userId
+          );
           await enqueueNotificationEvent({
             eventType: 'document-restored',
-            targetUserIds: [userId],
-            payload: { documentId },
+            targetUserIds: readerIds,
+            payload: { documentId, restoredByUserId: userId },
           });
         } catch (error) {
           request.log.warn(
@@ -1817,8 +1923,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
+      const actorUserId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const { grants } = putGrantsUsersBodySchema.parse(request.body);
+      const beforeUnion = new Set([
+        ...(await listUserIdsWhoCanReadDocument(prisma, documentId)),
+        ...(await listUserIdsWhoCanWriteDocument(prisma, documentId)),
+      ]);
       await prisma.documentGrantUser.deleteMany({ where: { documentId } });
       if (grants.length > 0) {
         await prisma.documentGrantUser.createMany({
@@ -1834,6 +1945,19 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { documentId },
         select: { userId: true, role: true },
       });
+      try {
+        await enqueueDocumentGrantsChangedNotifications({
+          prisma,
+          documentId,
+          actorUserId,
+          beforeUnion,
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to enqueue notification job after user grants update'
+        );
+      }
       return reply.send({ grants: list });
     }
   );
@@ -1844,8 +1968,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
+      const actorUserId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const { grants } = putGrantsTeamsBodySchema.parse(request.body);
+      const beforeUnion = new Set([
+        ...(await listUserIdsWhoCanReadDocument(prisma, documentId)),
+        ...(await listUserIdsWhoCanWriteDocument(prisma, documentId)),
+      ]);
       await prisma.documentGrantTeam.deleteMany({ where: { documentId } });
       if (grants.length > 0) {
         await prisma.documentGrantTeam.createMany({
@@ -1861,6 +1990,19 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { documentId },
         select: { teamId: true, role: true },
       });
+      try {
+        await enqueueDocumentGrantsChangedNotifications({
+          prisma,
+          documentId,
+          actorUserId,
+          beforeUnion,
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to enqueue notification job after team grants update'
+        );
+      }
       return reply.send({ grants: list });
     }
   );
@@ -1871,8 +2013,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
     async (request, reply) => {
       const prisma = request.server.prisma;
+      const actorUserId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const { grants } = putGrantsDepartmentsBodySchema.parse(request.body);
+      const beforeUnion = new Set([
+        ...(await listUserIdsWhoCanReadDocument(prisma, documentId)),
+        ...(await listUserIdsWhoCanWriteDocument(prisma, documentId)),
+      ]);
       await prisma.documentGrantDepartment.deleteMany({ where: { documentId } });
       if (grants.length > 0) {
         await prisma.documentGrantDepartment.createMany({
@@ -1888,6 +2035,19 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         where: { documentId },
         select: { departmentId: true, role: true },
       });
+      try {
+        await enqueueDocumentGrantsChangedNotifications({
+          prisma,
+          documentId,
+          actorUserId,
+          beforeUnion,
+        });
+      } catch (error) {
+        request.log.warn(
+          { error, documentId },
+          'Failed to enqueue notification job after department grants update'
+        );
+      }
       return reply.send({ grants: list });
     }
   );

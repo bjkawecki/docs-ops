@@ -6,18 +6,21 @@
 
 ## Umgebungsvariablen (geplant)
 
-| Variable                    | Beschreibung                                         | Beispiel (nur Format)                     |
-| --------------------------- | ---------------------------------------------------- | ----------------------------------------- |
-| **DATABASE_URL**            | PostgreSQL-Verbindungs-URL                           | `postgresql://user:pass@host:5432/dbname` |
-| **LOG_LEVEL**               | Optional: Log-Level für Pino (Backend)               | `info`, `debug`, `warn`                   |
-| **SESSION_SECRET**          | Geheimnis für Session-Cookie (Signatur/Verifikation) | Lang genug, zufällig                      |
-| **SESSION_MAX_AGE_SECONDS** | Optional: Session-Laufzeit in Sekunden               | z. B. `604800` (7 Tage)                   |
-| **MINIO_ENDPOINT**          | MinIO-URL (S3-kompatibel)                            | `http://minio:9000`                       |
-| **MINIO_ACCESS_KEY**        | MinIO Access Key (S3-API)                            | —                                         |
-| **MINIO_SECRET_KEY**        | MinIO Secret Key (S3-API)                            | —                                         |
-| **MINIO_BUCKET**            | Bucket-Name für Anhänge/Exporte                      | z. B. `documents`                         |
-| **LDAP_URL**                | Optional: LDAP/AD für SSO                            | `ldap://…`                                |
-| **OIDC_ISSUER**             | Optional: OIDC Issuer für SSO                        | —                                         |
+| Variable                                 | Beschreibung                                                                                                                                          | Beispiel (nur Format)                     |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **DATABASE_URL**                         | PostgreSQL-Verbindungs-URL                                                                                                                            | `postgresql://user:pass@host:5432/dbname` |
+| **LOG_LEVEL**                            | Optional: Log-Level für Pino (Backend)                                                                                                                | `info`, `debug`, `warn`                   |
+| **SESSION_SECRET**                       | Geheimnis für Session-Cookie (Signatur/Verifikation)                                                                                                  | Lang genug, zufällig                      |
+| **SESSION_MAX_AGE_SECONDS**              | Optional: Session-Laufzeit in Sekunden                                                                                                                | z. B. `604800` (7 Tage)                   |
+| **NOTIFICATION_RETENTION_DAYS**          | In-App-`user_notification`-Zeilen löschen, die älter als N Tage sind (`0` = aus). Job: `maintenance.cleanup` mit Task `user-notifications-retention`. | `90`                                      |
+| **NOTIFICATION_COALESCE_WINDOW_MINUTES** | Innerhalb dieses Fensters werden wiederholte In-App-Events `document-updated` pro Nutzer und `documentId` zu einer Zeile zusammengeführt (`0` = aus). | `15`                                      |
+| **NOTIFICATION_HARD_CAP_PER_USER**       | Optional: maximal N In-App-Zeilen pro Nutzer; älteste werden verworfen (`0` = aus).                                                                   | `0`                                       |
+| **MINIO_ENDPOINT**                       | MinIO-URL (S3-kompatibel)                                                                                                                             | `http://minio:9000`                       |
+| **MINIO_ACCESS_KEY**                     | MinIO Access Key (S3-API)                                                                                                                             | —                                         |
+| **MINIO_SECRET_KEY**                     | MinIO Secret Key (S3-API)                                                                                                                             | —                                         |
+| **MINIO_BUCKET**                         | Bucket-Name für Anhänge/Exporte                                                                                                                       | z. B. `documents`                         |
+| **LDAP_URL**                             | Optional: LDAP/AD für SSO                                                                                                                             | `ldap://…`                                |
+| **OIDC_ISSUER**                          | Optional: OIDC Issuer für SSO                                                                                                                         | —                                         |
 
 - **MinIO (Dev):** MinIO-Container nutzt `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`; dieselben Werte können als `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` für den Backend-S3-Client verwendet werden (Fallback im Code, wenn ACCESS_KEY/SECRET_KEY nicht gesetzt).
 - Alle Werte über Umgebung oder `.env` (nicht committen; `.env.example` ohne echte Secrets möglich).

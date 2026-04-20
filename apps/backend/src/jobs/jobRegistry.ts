@@ -10,6 +10,7 @@ import { initStorage, type StorageService } from '../storage/index.js';
 import { canWrite } from '../permissions/canWrite.js';
 import { runFullReindex, runIncrementalReindex } from '../services/searchIndexService.js';
 import { dispatchNotificationEvent } from '../services/notificationDispatchService.js';
+import { runUserNotificationRetention } from '../services/notificationRetentionService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -145,6 +146,18 @@ async function sendNotifications(
   );
 }
 
+async function maintenanceCleanup(
+  payload: JobPayloadByType['maintenance.cleanup'],
+  context: JobContext
+): Promise<void> {
+  if (payload.task === 'user-notifications-retention') {
+    const deleted = await runUserNotificationRetention(context.prisma);
+    context.logger.info({ task: payload.task, deleted }, 'maintenance.cleanup completed');
+    return;
+  }
+  await notImplementedHandler('maintenance.cleanup', payload, context);
+}
+
 export const jobDefinitions: ReadonlyArray<JobDefinition> = [
   {
     name: 'documents.export.pdf',
@@ -178,6 +191,7 @@ export const jobDefinitions: ReadonlyArray<JobDefinition> = [
     name: 'maintenance.cleanup',
     schema: jobPayloadSchemas['maintenance.cleanup'],
     retryLimit: 2,
-    handler: (payload, context) => notImplementedHandler('maintenance.cleanup', payload, context),
+    handler: (payload, context) =>
+      maintenanceCleanup(payload as JobPayloadByType['maintenance.cleanup'], context),
   },
 ];

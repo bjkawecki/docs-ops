@@ -35,9 +35,11 @@ import {
   IconUsersGroup,
   IconClipboardCheck,
   IconHelp,
+  IconBell,
 } from '@tabler/icons-react';
 import { apiFetch } from '../api/client';
 import { useMe, meQueryKey } from '../hooks/useMe';
+import { useMeNotificationsUnreadTotal } from '../hooks/useMeNotificationsUnreadTotal';
 import { useMeDrafts } from '../hooks/useMeDrafts';
 import { useResolvedColorScheme } from '../hooks/useResolvedColorScheme';
 import { DocopsLogo } from './DocopsLogo';
@@ -96,6 +98,8 @@ export function AppShell() {
   const navLinkStyles = useMemo(() => getNavLinkStyles(), []);
 
   const { data: me } = useMe();
+  const { data: unreadNotificationsTotal } = useMeNotificationsUnreadTotal();
+  const unreadNotificationsCount = unreadNotificationsTotal ?? 0;
   const isAdmin = me?.user?.isAdmin === true;
   const isImpersonating =
     me?.impersonation?.active === true ||
@@ -919,12 +923,32 @@ export function AppShell() {
                   }
                   styles={navLinkStyles}
                 />
+                <NavLink
+                  data-sidebar-link
+                  component={Link}
+                  to="/notifications"
+                  label="Notifications"
+                  title="Unread in-app notifications (all categories)"
+                  aria-label="Notifications: unread in-app activity across all types"
+                  active={isActive('/notifications', location.pathname)}
+                  leftSection={<IconBell size={18} />}
+                  rightSection={
+                    unreadNotificationsCount > 0 ? (
+                      <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                      </Text>
+                    ) : null
+                  }
+                  styles={navLinkStyles}
+                />
                 {hasReviewRights && (
                   <NavLink
                     data-sidebar-link
                     component={Link}
                     to="/reviews"
                     label="Reviews"
+                    title="Open draft requests you can merge or reject"
+                    aria-label="Reviews: open draft requests awaiting your decision"
                     active={isActive('/reviews', location.pathname)}
                     leftSection={<IconClipboardCheck size={18} />}
                     rightSection={
@@ -1017,6 +1041,20 @@ export function AppShell() {
                   leftSection={<IconHelp size={14} />}
                 >
                   Help
+                </Menu.Item>
+                <Menu.Item
+                  component={Link}
+                  to="/notifications"
+                  leftSection={<IconBell size={14} />}
+                  rightSection={
+                    unreadNotificationsCount > 0 ? (
+                      <Badge size="xs" variant="filled" radius="xl" miw={22} px={6}>
+                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                      </Badge>
+                    ) : undefined
+                  }
+                >
+                  Notifications
                 </Menu.Item>
                 <Menu.Item component={Link} to="/settings" leftSection={<IconSettings size={14} />}>
                   Settings

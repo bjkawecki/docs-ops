@@ -19,6 +19,7 @@ import { SubcontextRedirectPage } from './pages/SubcontextRedirectPage';
 import { DocumentPage } from './pages/DocumentPage';
 import { DocumentVersionsPage } from './pages/DocumentVersionsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { HelpLayout } from './pages/help/HelpLayout';
 import { HelpOverviewPage } from './pages/help/HelpOverviewPage';
 import { HelpOrganisationPage } from './pages/help/HelpOrganisationPage';
@@ -63,6 +64,7 @@ function App() {
           <Route path="personal" element={<PersonalPage />} />
           <Route path="shared" element={<SharedPage />} />
           <Route path="reviews" element={<ReviewsPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="help" element={<HelpLayout />}>
             <Route index element={<Navigate to="overview" replace />} />

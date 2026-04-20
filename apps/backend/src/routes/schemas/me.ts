@@ -169,13 +169,25 @@ export const meCanWriteInScopeResponseSchema = z.object({
 });
 export type MeCanWriteInScopeResponse = z.infer<typeof meCanWriteInScopeResponseSchema>;
 
-/** Query: GET /me/notifications – optional unreadOnly + pagination. */
+/** GET /me/notifications – Inbox-Kategorie (Whitelist im Backend). */
+export const meNotificationCategorySchema = z.enum([
+  'all',
+  'documents',
+  'reviews',
+  'system',
+  'org',
+]);
+
+/** Query: GET /me/notifications – optional unreadOnly + pagination + category. */
 export const meNotificationsQuerySchema = z.object({
-  unreadOnly: z.coerce.boolean().optional().default(false),
+  /** Query strings must not use `z.coerce.boolean()` (both `"true"` and `"false"` become true). */
+  unreadOnly: z.stringbool().optional().default(false),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+  category: meNotificationCategorySchema.optional().default('all'),
 });
 export type MeNotificationsQuery = z.infer<typeof meNotificationsQuerySchema>;
+export type MeNotificationCategory = z.infer<typeof meNotificationCategorySchema>;
 
 /** Params: PATCH /me/notifications/:notificationId/read */
 export const notificationIdParamSchema = z.object({
