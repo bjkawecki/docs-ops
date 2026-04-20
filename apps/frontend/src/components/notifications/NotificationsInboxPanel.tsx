@@ -6,23 +6,21 @@ import {
   Box,
   Button,
   Card,
-  Divider,
   Group,
   Loader,
   Pagination,
-  Paper,
   Select,
   Stack,
   Switch,
+  Table,
   Text,
-  ThemeIcon,
   Tooltip,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { IconBell, IconCheck, IconFileText } from '@tabler/icons-react';
+import { IconCheck } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/client';
 import { useMe } from '../../hooks/useMe';
 
@@ -110,7 +108,7 @@ function documentDisplayTitle(item: NotificationItem): string {
   const docId = payloadDocumentId(item.payload);
   if (docId == null) return 'Activity';
   if (item.documentTitle != null && item.documentTitle.trim() !== '') return item.documentTitle;
-  return 'Document (title unavailable)';
+  return 'Untitled document';
 }
 
 type NotificationsInboxPanelProps = {
@@ -133,6 +131,7 @@ export function NotificationsInboxPanel({
   embedded = false,
 }: NotificationsInboxPanelProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: me } = useMe();
   const [limit, setLimit] = useState<number>(DEFAULT_LIMIT);
   const [page, setPage] = useState(1);
@@ -219,170 +218,214 @@ export function NotificationsInboxPanel({
   const totalNotifications = notificationsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalNotifications / limit));
 
-  const body = (
-    <Stack gap="lg">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-        <div>
-          <Text fw={600} size="lg">
-            {cardTitle}
-          </Text>
-          <Text size="sm" c="dimmed">
-            Document and review activity. Open an item to go to the document.
-          </Text>
-        </div>
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Switch
-            size="sm"
-            label="Unread only"
-            checked={unreadOnly}
-            onChange={(event) => {
-              onUnreadOnlyChange(event.currentTarget.checked);
-            }}
-          />
-          <Select
-            size="xs"
-            label="Per page"
-            w={100}
-            data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
-            value={String(limit)}
-            onChange={(value) => {
-              const next = Number(value ?? DEFAULT_LIMIT);
-              setLimit(next);
-              setPage(1);
-            }}
-          />
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() => markAllAsRead.mutate()}
-            disabled={markAllAsRead.isPending}
-          >
-            Mark all as read
-          </Button>
-        </Group>
-      </Group>
+  /** Filter row aligned like `/catalog`: controls left, total + per page pushed right. */
+  const filtersRow = (
+    <Group gap="md" wrap="wrap" align="flex-end" w="100%">
+      <Switch
+        size="sm"
+        label="Unread only"
+        checked={unreadOnly}
+        onChange={(event) => {
+          onUnreadOnlyChange(event.currentTarget.checked);
+        }}
+      />
+      <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+        {notificationsQuery.data != null
+          ? `${totalNotifications} notification${totalNotifications !== 1 ? 's' : ''}`
+          : '—'}
+      </Text>
+      <Select
+        label="Per page"
+        data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+        value={String(limit)}
+        onChange={(v) => {
+          if (!v) return;
+          setLimit(parseInt(v, 10));
+          setPage(1);
+        }}
+        style={{ width: 90 }}
+      />
+    </Group>
+  );
 
-      <Divider />
+  const toolbar = !embedded ? (
+    <Stack gap="md" w="100%">
+      <Stack gap={2}>
+        <Text fw={600} size="lg">
+          {cardTitle}
+        </Text>
+        <Text size="sm" c="dimmed">
+          Open a row to go to the document.
+        </Text>
+      </Stack>
+      {filtersRow}
+    </Stack>
+  ) : (
+    filtersRow
+  );
 
-      {notificationsQuery.isPending && <Loader size="sm" />}
-      {notificationsQuery.isError && (
-        <Alert color="red">
-          {notificationsQuery.error instanceof Error
-            ? notificationsQuery.error.message
-            : 'Failed to load notifications'}
-        </Alert>
-      )}
-      {!notificationsQuery.isPending &&
-        !notificationsQuery.isError &&
-        notificationItems.length === 0 && (
-          <Paper withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
-            <Stack align="center" gap="sm">
-              <ThemeIcon size="xl" radius="md" variant="light" color="gray">
-                <IconBell size={22} stroke={1.5} />
-              </ThemeIcon>
-              <Text fw={500}>No notifications</Text>
+  const markAllRow = (
+    <Group justify="flex-end" wrap="wrap">
+      <Button
+        size="sm"
+        variant="light"
+        onClick={() => markAllAsRead.mutate()}
+        disabled={markAllAsRead.isPending || notificationItems.length === 0}
+      >
+        Mark all as read
+      </Button>
+    </Group>
+  );
+
+  const listContent = (
+    <Stack gap="md">
+      {markAllRow}
+      <Box>
+        {notificationsQuery.isPending && <Loader size="sm" />}
+        {notificationsQuery.isError && (
+          <Alert color="red" mt="sm">
+            {notificationsQuery.error instanceof Error
+              ? notificationsQuery.error.message
+              : 'Failed to load notifications'}
+          </Alert>
+        )}
+        {!notificationsQuery.isPending &&
+          !notificationsQuery.isError &&
+          notificationItems.length === 0 && (
+            <Stack align="center" gap="xs" py="xl" px="md">
+              <Text fw={500} c="dimmed">
+                No notifications
+              </Text>
               <Text size="sm" c="dimmed" ta="center" maw={360}>
-                When documents change or review requests update, entries will appear here.
+                When documents change or review requests update, they will show up here.
               </Text>
             </Stack>
-          </Paper>
-        )}
-      {!notificationsQuery.isPending &&
-        !notificationsQuery.isError &&
-        notificationItems.length > 0 && (
-          <Stack gap={0}>
-            {notificationItems.map((item, index) => {
-              const docId = payloadDocumentId(item.payload);
-              const docHref = docId != null ? `/documents/${docId}` : null;
-              const detail = secondaryDetail(item.eventType, item.payload);
-              const unread = item.readAt == null;
-              return (
-                <Box key={item.id}>
-                  {index > 0 && <Divider my="sm" />}
-                  <Paper
-                    p="md"
-                    radius="md"
-                    withBorder
-                    style={{
-                      borderColor: unread ? 'var(--mantine-color-blue-light-color)' : undefined,
-                      backgroundColor: unread
-                        ? 'var(--mantine-color-blue-light)'
-                        : 'var(--mantine-color-body)',
-                    }}
-                  >
-                    <Group align="flex-start" wrap="nowrap" gap="md">
-                      <ThemeIcon
-                        size={42}
-                        radius="md"
-                        variant={unread ? 'light' : 'default'}
-                        color={unread ? 'blue' : 'gray'}
+          )}
+        {!notificationsQuery.isPending &&
+          !notificationsQuery.isError &&
+          notificationItems.length > 0 && (
+            <Box style={{ overflowX: 'auto' }}>
+              <Table
+                highlightOnHover
+                verticalSpacing="sm"
+                withTableBorder
+                style={{ minWidth: 640 }}
+              >
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th style={{ width: '22%' }}>Event</Table.Th>
+                    <Table.Th>Document</Table.Th>
+                    <Table.Th style={{ width: '18%', whiteSpace: 'nowrap' }}>When</Table.Th>
+                    <Table.Th style={{ width: 52 }} />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {notificationItems.map((item) => {
+                    const docId = payloadDocumentId(item.payload);
+                    const docHref = docId != null ? `/documents/${docId}` : null;
+                    const detail = secondaryDetail(item.eventType, item.payload);
+                    const unread = item.readAt == null;
+                    return (
+                      <Table.Tr
+                        key={item.id}
+                        onClick={() => {
+                          if (docHref != null) void navigate(docHref);
+                        }}
+                        style={{
+                          cursor: docHref != null ? 'pointer' : 'default',
+                          borderLeft: unread
+                            ? '3px solid var(--mantine-color-blue-filled)'
+                            : '3px solid transparent',
+                        }}
                       >
-                        <IconFileText size={22} stroke={1.5} />
-                      </ThemeIcon>
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group gap="xs" wrap="wrap">
-                          <Badge size="sm" variant="dot" color={unread ? 'blue' : 'gray'}>
-                            {eventHeadline(item.eventType)}
-                          </Badge>
-                          {!unread && (
-                            <Badge size="sm" variant="light" color="gray">
-                              Read
-                            </Badge>
-                          )}
-                        </Group>
-                        {docHref != null ? (
-                          <Anchor component={Link} to={docHref} fw={600} size="md" lineClamp={2}>
-                            {documentDisplayTitle(item)}
-                          </Anchor>
-                        ) : (
-                          <Text fw={600} size="md">
-                            {documentDisplayTitle(item)}
+                        <Table.Td>
+                          <Group gap="xs" wrap="nowrap">
+                            <Text size="xs" c="dimmed" tt="uppercase" fw={600} lineClamp={2}>
+                              {eventHeadline(item.eventType)}
+                            </Text>
+                            {!unread && (
+                              <Badge size="xs" variant="dot" color="gray">
+                                Read
+                              </Badge>
+                            )}
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap={4}>
+                            {docHref != null ? (
+                              <Anchor
+                                component={Link}
+                                to={docHref}
+                                fw={600}
+                                size="sm"
+                                lineClamp={2}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {documentDisplayTitle(item)}
+                              </Anchor>
+                            ) : (
+                              <Text fw={600} size="sm" lineClamp={2}>
+                                {documentDisplayTitle(item)}
+                              </Text>
+                            )}
+                            {detail != null && (
+                              <Text size="sm" c="dimmed" lineClamp={2}>
+                                {detail}
+                              </Text>
+                            )}
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(item.createdAt).toLocaleString()}
                           </Text>
-                        )}
-                        {detail != null && (
-                          <Text size="sm" c="dimmed" lineClamp={2}>
-                            {detail}
-                          </Text>
-                        )}
-                        <Text size="xs" c="dimmed">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </Text>
-                      </Stack>
-                      <Tooltip label="Mark as read">
-                        <ActionIcon
-                          variant="light"
-                          color="gray"
-                          size="lg"
-                          radius="md"
-                          aria-label="Mark as read"
-                          disabled={!unread || markAsRead.isPending}
-                          onClick={() => markAsRead.mutate(item.id)}
-                        >
-                          <IconCheck size={18} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
-                  </Paper>
-                </Box>
-              );
-            })}
-          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Tooltip label="Mark as read">
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              size="md"
+                              radius="md"
+                              aria-label="Mark as read"
+                              disabled={!unread || markAsRead.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markAsRead.mutate(item.id);
+                              }}
+                            >
+                              <IconCheck size={18} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Box>
+          )}
+        {!notificationsQuery.isPending && !notificationsQuery.isError && totalPages > 1 && (
+          <Group justify="flex-end" pt="lg">
+            <Pagination value={page} onChange={setPage} total={totalPages} size="sm" />
+          </Group>
         )}
-      {!notificationsQuery.isPending && !notificationsQuery.isError && totalPages > 1 && (
-        <Group justify="center" pt="sm">
-          <Pagination value={page} onChange={setPage} total={totalPages} size="sm" />
-        </Group>
-      )}
+      </Box>
     </Stack>
   );
 
-  if (embedded) {
-    return body;
-  }
-
   return (
-    <Card withBorder padding="lg" radius="md" shadow="sm">
-      {body}
-    </Card>
+    <Stack gap="md">
+      {toolbar}
+      <Card
+        withBorder
+        radius="md"
+        padding={embedded ? 'md' : 'lg'}
+        shadow={embedded ? undefined : 'sm'}
+        style={embedded ? { flex: 1, minWidth: 0, width: '100%' } : undefined}
+      >
+        {listContent}
+      </Card>
+    </Stack>
   );
 }

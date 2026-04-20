@@ -1042,20 +1042,6 @@ export function AppShell() {
                 >
                   Help
                 </Menu.Item>
-                <Menu.Item
-                  component={Link}
-                  to="/notifications"
-                  leftSection={<IconBell size={14} />}
-                  rightSection={
-                    unreadNotificationsCount > 0 ? (
-                      <Badge size="xs" variant="filled" radius="xl" miw={22} px={6}>
-                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
-                      </Badge>
-                    ) : undefined
-                  }
-                >
-                  Notifications
-                </Menu.Item>
                 <Menu.Item component={Link} to="/settings" leftSection={<IconSettings size={14} />}>
                   Settings
                 </Menu.Item>
