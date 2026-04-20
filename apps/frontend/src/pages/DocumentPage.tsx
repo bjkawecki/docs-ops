@@ -140,7 +140,7 @@ type DocumentResponse = {
   canPublish?: boolean;
   scope: DocumentScope | null;
   contextOwnerId?: string | null;
-  contextType?: 'process' | 'project';
+  contextType?: 'process' | 'project' | 'subcontext';
   contextName?: string;
   contextProcessId?: string | null;
   contextProjectId?: string | null;

@@ -43,6 +43,7 @@ import {
   DocumentNotInTrashError,
   DocumentBusinessError,
 } from '../services/documentService.js';
+import { buildCatalogDocumentListBase } from '../services/catalogDocumentListWhere.js';
 import { searchDocumentsForUser } from '../services/documentSearchService.js';
 import { mergeThreeWay } from '../mergeThreeWay.js';
 import {
@@ -155,104 +156,17 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       getReadableCatalogScope(prisma, userId),
       getWritableCatalogScope(prisma, userId),
     ]);
-    const { contextIds, documentIdsFromGrants } = readableScope;
-    const {
-      contextIds: writableContextIds,
-      documentIdsFromGrants: writableDocumentIdsFromGrants,
-      documentIdsFromCreator: writableDocumentIdsFromCreator,
-    } = writableScope;
 
-    const readableOr: unknown[] = [
-      ...(contextIds.length > 0 ? [{ contextId: { in: contextIds } }] : []),
-      ...(documentIdsFromGrants.length > 0 ? [{ id: { in: documentIdsFromGrants } }] : []),
-      ...(writableDocumentIdsFromCreator.length > 0
-        ? [{ id: { in: writableDocumentIdsFromCreator } }]
-        : []),
-    ];
-    if (readableOr.length === 0) {
+    const catalogBase = buildCatalogDocumentListBase(readableScope, writableScope, userId, {
+      contextType: query.contextType,
+      companyId: query.companyId,
+      departmentId: query.departmentId,
+      teamId: query.teamId,
+    });
+    if (catalogBase == null) {
       return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
     }
-
-    const draftVisibleOr: unknown[] = [
-      { publishedAt: { not: null } },
-      ...(writableContextIds.length > 0 ? [{ contextId: { in: writableContextIds } }] : []),
-      ...(writableDocumentIdsFromGrants.length > 0
-        ? [{ id: { in: writableDocumentIdsFromGrants } }]
-        : []),
-      ...(writableDocumentIdsFromCreator.length > 0
-        ? [{ id: { in: writableDocumentIdsFromCreator } }]
-        : []),
-    ];
-    const scopeFilter = query.companyId ?? query.departmentId ?? query.teamId;
-    const contextConditions: Record<string, unknown>[] = [];
-    if (query.contextType === 'process') {
-      contextConditions.push({ process: { isNot: null } });
-    } else if (query.contextType === 'project') {
-      contextConditions.push({
-        OR: [{ project: { isNot: null } }, { subcontext: { isNot: null } }],
-      });
-    }
-    if (query.companyId) {
-      contextConditions.push({
-        OR: [
-          { process: { owner: { companyId: query.companyId } } },
-          { project: { owner: { companyId: query.companyId } } },
-          { subcontext: { project: { owner: { companyId: query.companyId } } } },
-        ],
-      });
-    } else if (query.departmentId) {
-      contextConditions.push({
-        OR: [
-          { process: { owner: { departmentId: query.departmentId } } },
-          { project: { owner: { departmentId: query.departmentId } } },
-          { subcontext: { project: { owner: { departmentId: query.departmentId } } } },
-        ],
-      });
-    } else if (query.teamId) {
-      contextConditions.push({
-        OR: [
-          { process: { owner: { teamId: query.teamId } } },
-          { project: { owner: { teamId: query.teamId } } },
-          { subcontext: { project: { owner: { teamId: query.teamId } } } },
-        ],
-      });
-    }
-    const scopeContextCond =
-      contextConditions.length === 1 ? contextConditions[0] : { AND: contextConditions };
-    const contextNotDeletedCond = {
-      OR: [
-        { contextId: null },
-        {
-          context: {
-            OR: [
-              { process: { deletedAt: null } },
-              { project: { deletedAt: null } },
-              { subcontext: { project: { deletedAt: null } } },
-            ],
-          },
-        },
-      ],
-    };
-    const baseAnd: unknown[] = [
-      { OR: readableOr },
-      contextNotDeletedCond,
-      scopeFilter != null
-        ? {
-            OR: [
-              { publishedAt: { not: null }, context: scopeContextCond },
-              { contextId: null, createdById: userId },
-            ],
-          }
-        : { OR: draftVisibleOr },
-    ];
-    const baseWhere: Record<string, unknown> = {
-      deletedAt: null,
-      archivedAt: null,
-      AND: baseAnd,
-    };
-    if (contextConditions.length > 0 && scopeFilter == null) {
-      baseWhere.context = scopeContextCond;
-    }
+    const { baseAnd, baseWhere } = catalogBase;
 
     if (query.tagIds.length > 0) {
       baseWhere.documentTags = { some: { tagId: { in: query.tagIds } } };
@@ -434,7 +348,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     };
     const mapDoc = (doc: Awaited<ReturnType<typeof fetchCatalogRows>>[number]) => {
       const ctx = doc.context;
-      let contextType: 'process' | 'project' = 'process';
+      let contextType: 'process' | 'project' | 'subcontext' = 'process';
       let contextName = '';
       let ownerDisplay = 'Personal';
       let ownerHref: string | null = null;
@@ -479,21 +393,25 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextName = 'Ungrouped';
       } else {
         contextName = ctx.displayName ?? '';
-        if (ctx.contextType === 'process' || ctx.contextType === 'project')
-          contextType = ctx.contextType;
         if (ctx.process) {
+          contextType = 'process';
           if (!contextName) contextName = ctx.process.name;
           contextProcessId = ctx.process.id;
           getOwnerFrom(ctx.process.owner);
         } else if (ctx.project) {
+          contextType = 'project';
           if (!contextName) contextName = ctx.project.name;
           contextProjectId = ctx.project.id;
           getOwnerFrom(ctx.project.owner);
         } else if (ctx.subcontext) {
+          contextType = 'subcontext';
           if (!contextName) contextName = ctx.subcontext.name;
           contextProjectId = ctx.subcontext.project.id;
           getOwnerFrom(ctx.subcontext.project.owner);
         } else {
+          if (ctx.contextType === 'process' || ctx.contextType === 'project') {
+            contextType = ctx.contextType;
+          }
           ownerDisplay = ctx.ownerDisplayName ?? 'Personal';
           scopeInfo = {
             scopeType: 'personal',
@@ -805,7 +723,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
                 ? { type: 'team' as const, id: owner.teamId, name: owner.displayName }
                 : null;
 
-      let contextType: 'process' | 'project' = 'process';
+      let contextType: 'process' | 'project' | 'subcontext' = 'process';
       let contextName = '';
       let contextProcessId: string | null = null;
       let contextProjectId: string | null = null;
@@ -823,7 +741,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         contextName = ctx.project.name;
         contextProjectId = ctx.project.id;
       } else if (ctx.subcontext) {
-        contextType = 'project';
+        contextType = 'subcontext';
         contextName = ctx.subcontext.name;
         contextProjectId = ctx.subcontext.project.id;
         contextProjectName = ctx.subcontext.project.name;

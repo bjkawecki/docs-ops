@@ -23,6 +23,8 @@ Referenz: [Umsetzungs-Todo §17](Umsetzungs-Todo.md#17-async-jobs), [Prisma-Sche
 - `notifications.send`
 - `maintenance.cleanup`
 
+Die Nutzersuche (Dashboard-Quick-Suche, Katalog mit Relevanzsortierung) liest den FTS-Index; `search.reindex.*`-Jobs halten ihn mit den Dokumentinhalten abgleichbar (kurze Verzögerung bis zur Verarbeitung ist aus API-Sicht akzeptabel, vgl. §18).
+
 ---
 
 ## 2. Job-Lebenszyklus und Statusmodell

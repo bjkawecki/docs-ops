@@ -316,10 +316,10 @@ Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Bin�
 
 ## 18. Volltextsuche & Suchseite
 
-[ ] PostgreSQL Full-Text-Search oder externe Engine (Meilisearch/Typesense)
-[ ] Such-API (Query, Filter nach Kontext/Team)
+[x] **PostgreSQL Full-Text-Search:** Produktiv über den Suchindex `document_search_index` und Roh-SQL im Backend (`documentSearchService`); kein separates MVP mit externer Engine (Meilisearch/Typesense).
+[x] **Such-API:** `GET /api/v1/search/documents` mit Query `q`, Pagination und optionalen Scope-Filtern; Nutzung im **Katalog** (Relevanzsortierung) und im **Dashboard-Quick-Search-Modal** auf der Startseite.
 [ ] **Suchseite:** Dedizierte Route (z. B. `/search`) mit einheitlicher Such-UI; Anbindung an Volltextsuche (Filter, Tags). Bei Aufruf aus dem Dashboard im **KI-Modus** (vgl. §13): gleiche Suchseite, aber **KI-Chat-Ansicht** – Nutzer sieht Konversation (Frage → Antwort + Quellen), Fortsetzung des Dialogs möglich. Normal-Modus: klassische Trefferliste (Dokumente, Kontexte). Eine Suchseite, zwei Darstellungsmodi (Listen- vs. Chat-UI) je nach Herkunft oder expliziter Umschaltung.
-[ ] Such-UI auf Dashboard (Suchleiste + Schalter §13), optional Suchfeld in Sidebar (§20)
+[x] **Dashboard (Normal):** Nach Submit der Startseiten-Suchleiste öffnet ein Quick-Search-Modal; Treffer über dieselbe Such-API wie der Katalog. **[ ]** **Suchleiste mit Schalter Normal/KI** (§13) und Sidebar-Suchfeld (§20) bleiben offen.
 
 ---
 

@@ -5,14 +5,17 @@ import {
   type RequestWithUser,
 } from '../auth/middleware.js';
 import { searchDocumentsQuerySchema } from './schemas/search.js';
-import { searchDocumentsForUser } from '../services/documentSearchService.js';
+import {
+  searchDocumentsByContainsFallback,
+  searchDocumentsForUser,
+} from '../services/documentSearchService.js';
 
-const searchRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
+const searchRoutes: FastifyPluginAsync = (app: FastifyInstance): Promise<void> => {
   app.get('/search/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const userId = getEffectiveUserId(request as RequestWithUser);
     const query = searchDocumentsQuerySchema.parse(request.query);
 
-    const result = await searchDocumentsForUser(request.server.prisma, userId, {
+    const searchArgs = {
       query: query.q.trim(),
       limit: query.limit,
       offset: query.offset,
@@ -20,10 +23,25 @@ const searchRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       companyId: query.companyId,
       departmentId: query.departmentId,
       teamId: query.teamId,
-    });
+    };
 
-    return reply.send(result);
+    try {
+      const result = await searchDocumentsForUser(request.server.prisma, userId, searchArgs);
+      return reply.send(result);
+    } catch (error) {
+      request.log.warn(
+        { error },
+        'GET /search/documents: index query failed, using contains fallback (same as catalog)'
+      );
+      const result = await searchDocumentsByContainsFallback(
+        request.server.prisma,
+        userId,
+        searchArgs
+      );
+      return reply.send(result);
+    }
   });
+  return Promise.resolve();
 };
 
 export default searchRoutes;

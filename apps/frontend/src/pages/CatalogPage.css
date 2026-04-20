@@ -1,3 +1,13 @@
+/* Filter row (Search + …) bleibt beim vertikalen Scrollen sichtbar */
+.catalog-sticky-filters {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  padding-bottom: var(--mantine-spacing-xs);
+  background-color: var(--mantine-color-body);
+  box-shadow: 0 1px 0 var(--mantine-color-default-border);
+}
+
 /* Sticky first column (name): layout + default background in CSS so hover can override */
 .catalog-table-hover .catalog-table-name-cell {
   position: sticky;

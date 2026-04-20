@@ -1,0 +1,29 @@
+/* Parent wrapper for `renderSearchSnippet` output (Catalog + Dashboard modal). */
+.docsops-search-snippet-mark mark {
+  background-color: var(--mantine-color-yellow-3);
+  color: var(--mantine-color-yellow-9);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* Search hit excerpt: readable as a quoted passage (dashboard modal). */
+.docsops-search-hit-quote {
+  display: block;
+  margin: 0;
+  margin-top: 4px;
+  min-width: 0;
+  padding: 8px 12px 8px 14px;
+  border-left: 3px solid var(--mantine-color-gray-4);
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-dimmed);
+}
+
+/* Line clamp on a real block (not Mantine Text/span + lineClamp — that hid the snippet). */
+.docsops-search-hit-quote-inner {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}

@@ -10,7 +10,6 @@ import {
   MultiSelect,
   Pagination,
   Anchor,
-  type MantineTheme,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -19,6 +18,8 @@ import { Link } from 'react-router-dom';
 import { IconArrowDown, IconArrowUp, IconSelector } from '@tabler/icons-react';
 import { PageHeader } from '../components/PageHeader';
 import { apiFetch } from '../api/client';
+import { renderSearchSnippet } from '../utils/renderSearchSnippet';
+import '../utils/searchSnippetMark.css';
 import './CatalogPage.css';
 
 /** Renders text with search term wrapped in <mark> (case-insensitive). */
@@ -54,7 +55,7 @@ type CatalogDocument = {
   createdAt: string;
   updatedAt: string;
   documentTags: { tag: { id: string; name: string } }[];
-  contextType: 'process' | 'project';
+  contextType: 'process' | 'project' | 'subcontext';
   contextName: string;
   ownerDisplay: string;
   /** Link to owner scope (company, department, team, or personal). Null if no context. */
@@ -87,16 +88,6 @@ function contextHref(doc: CatalogDocument): string {
   if (doc.contextProcessId) return `/processes/${doc.contextProcessId}`;
   if (doc.contextProjectId) return `/projects/${doc.contextProjectId}`;
   return '#';
-}
-
-function renderSearchSnippet(snippet: string): ReactNode {
-  const parts = snippet.split(/(\[\[.*?\]\])/g).filter((part) => part.length > 0);
-  return parts.map((part, index) => {
-    if (part.startsWith('[[') && part.endsWith(']]')) {
-      return <mark key={index}>{part.slice(2, -2)}</mark>;
-    }
-    return <span key={index}>{part}</span>;
-  });
 }
 
 function parseStoredPageSize(): number {
@@ -284,79 +275,71 @@ export function CatalogPage() {
         description="All documents you can access. Filter, search, and sort."
       />
       <Stack gap="md">
-        <Group gap="md" wrap="wrap" align="flex-end">
-          <TextInput
-            label="Search"
-            placeholder="Search by title or content"
-            value={search}
-            onChange={(e) => setFilter('search', e.currentTarget.value)}
-            style={{ minWidth: 200 }}
-          />
-          <Select
-            label="Context type"
-            placeholder="All"
-            data={[
-              { value: '', label: 'All' },
-              { value: 'process', label: 'Process' },
-              { value: 'project', label: 'Project' },
-            ]}
-            value={contextType || null}
-            onChange={(v) => setFilter('contextType', v ?? '')}
-            clearable
-            style={{ minWidth: 140 }}
-          />
-          <Select
-            label="Sort by"
-            data={[
-              { value: 'updatedAt', label: 'Updated' },
-              { value: 'createdAt', label: 'Created' },
-              { value: 'title', label: 'Name' },
-              { value: 'ownerDisplay', label: 'Owner' },
-              { value: 'contextType', label: 'Context type' },
-              { value: 'contextName', label: 'Context' },
-              { value: 'relevance', label: 'Relevance' },
-            ]}
-            value={sortBy}
-            onChange={(value) => {
-              if (!value) return;
-              setSort(value as SortBy, value === 'relevance' ? 'desc' : undefined);
-            }}
-            style={{ minWidth: 150 }}
-          />
-          <MultiSelect
-            label="Tags"
-            placeholder="Search or select tags"
-            data={tagOptions}
-            value={tagIds}
-            onChange={(v) => setFilter('tagIds', v)}
-            clearable
-            searchable
-            nothingFoundMessage="No tags match"
-            style={{ minWidth: 200 }}
-          />
-          <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
-            {data != null ? `${data.total} document${data.total !== 1 ? 's' : ''}` : '—'}
-          </Text>
-          <Select
-            label="Per page"
-            data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
-            value={String(limit)}
-            onChange={(v) => v && setLimit(parseInt(v, 10))}
-            style={{ width: 90 }}
-          />
-        </Group>
+        <Box className="catalog-sticky-filters">
+          <Group gap="md" wrap="wrap" align="flex-end">
+            <TextInput
+              label="Search"
+              placeholder="Search by title or content"
+              value={search}
+              onChange={(e) => setFilter('search', e.currentTarget.value)}
+              style={{ minWidth: 200 }}
+            />
+            <Select
+              label="Context type"
+              placeholder="All"
+              data={[
+                { value: '', label: 'All' },
+                { value: 'process', label: 'Process' },
+                { value: 'project', label: 'Project' },
+              ]}
+              value={contextType || null}
+              onChange={(v) => setFilter('contextType', v ?? '')}
+              clearable
+              style={{ minWidth: 140 }}
+            />
+            <Select
+              label="Sort by"
+              data={[
+                { value: 'updatedAt', label: 'Updated' },
+                { value: 'createdAt', label: 'Created' },
+                { value: 'title', label: 'Name' },
+                { value: 'ownerDisplay', label: 'Owner' },
+                { value: 'contextType', label: 'Context type' },
+                { value: 'contextName', label: 'Context' },
+                { value: 'relevance', label: 'Relevance' },
+              ]}
+              value={sortBy}
+              onChange={(value) => {
+                if (!value) return;
+                setSort(value as SortBy, value === 'relevance' ? 'desc' : undefined);
+              }}
+              style={{ minWidth: 150 }}
+            />
+            <MultiSelect
+              label="Tags"
+              placeholder="Search or select tags"
+              data={tagOptions}
+              value={tagIds}
+              onChange={(v) => setFilter('tagIds', v)}
+              clearable
+              searchable
+              nothingFoundMessage="No tags match"
+              style={{ minWidth: 200 }}
+            />
+            <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+              {data != null ? `${data.total} document${data.total !== 1 ? 's' : ''}` : '—'}
+            </Text>
+            <Select
+              label="Per page"
+              data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+              value={String(limit)}
+              onChange={(v) => v && setLimit(parseInt(v, 10))}
+              style={{ width: 90 }}
+            />
+          </Group>
+        </Box>
 
-        <Box
-          style={{ overflowX: 'auto' }}
-          sx={(theme: MantineTheme) => ({
-            '& mark': {
-              backgroundColor: theme.colors.yellow[3],
-              color: theme.colors.yellow[9],
-              padding: '0 2px',
-              borderRadius: 2,
-            },
-          })}
-        >
+        <Box className="docsops-search-snippet-mark" style={{ overflowX: 'auto' }}>
           <Table withTableBorder withColumnBorders className="catalog-table-hover">
             <Table.Thead>
               <Table.Tr>
@@ -430,7 +413,13 @@ export function CatalogPage() {
                       )}
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{doc.contextType === 'process' ? 'Process' : 'Project'}</Text>
+                      <Text size="sm">
+                        {doc.contextType === 'process'
+                          ? 'Process'
+                          : doc.contextType === 'subcontext'
+                            ? 'Subcontext'
+                            : 'Project'}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Anchor
