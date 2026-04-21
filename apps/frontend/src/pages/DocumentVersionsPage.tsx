@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Card,
+  Container,
   Group,
   NativeSelect,
   Skeleton,
@@ -13,8 +14,18 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { PageHeader } from '../components/PageHeader';
+import {
+  DocumentDocBreadcrumbs,
+  type DocumentForDocBreadcrumbs,
+} from '../components/documents/DocumentDocBreadcrumbs';
 import DiffMatchPatch from 'diff-match-patch';
 import { useMemo, useState } from 'react';
+import { IconFileText, IconPencil } from '@tabler/icons-react';
+
+type DocumentVersionsDoc = DocumentForDocBreadcrumbs & {
+  title: string;
+  publishedAt: string | null;
+};
 
 type VersionItem = {
   id: string;
@@ -96,7 +107,7 @@ export function DocumentVersionsPage() {
     queryFn: async () => {
       const res = await apiFetch(`/api/v1/documents/${documentId}`);
       if (!res.ok) throw new Error('Failed to load document');
-      return res.json() as Promise<{ title: string }>;
+      return res.json() as Promise<DocumentVersionsDoc>;
     },
     enabled: !!documentId,
   });
@@ -162,7 +173,7 @@ export function DocumentVersionsPage() {
     label: `v${v.versionNumber} – ${new Date(v.createdAt).toLocaleString()}${v.createdByName ? ` (${v.createdByName})` : ''}`,
   }));
 
-  if (docPending || !documentId) {
+  if (docPending || !documentId || !doc) {
     return (
       <Stack gap="md">
         <Skeleton height={32} width="60%" />
@@ -172,31 +183,23 @@ export function DocumentVersionsPage() {
   }
 
   return (
-    <>
-      <PageHeader
-        title="Version history"
-        breadcrumbs={
-          <Group gap="xs">
-            <Button variant="subtle" size="compact-sm" component={Link} to="/catalog">
-              Catalog
-            </Button>
-            <Text size="sm" c="dimmed">
-              /
-            </Text>
-            <Button
-              variant="subtle"
-              size="compact-sm"
-              component={Link}
-              to={`/documents/${documentId}`}
-            >
-              {doc?.title ?? 'Document'}
-            </Button>
-            <Text size="sm" c="dimmed">
-              / History
-            </Text>
-          </Group>
-        }
-      />
+    <Container fluid maw={1600} px="md" mb="xl">
+      <Stack gap="lg" mb="xl" mt="md">
+        <DocumentDocBreadcrumbs documentId={documentId} doc={doc} historyMode="current" />
+        <PageHeader
+          title={doc.title}
+          titleOrder={1}
+          noBottomMargin
+          titleIcon={
+            doc.publishedAt ? (
+              <IconFileText size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+            ) : (
+              <IconPencil size={32} stroke={1.5} color="var(--mantine-color-dimmed)" />
+            )
+          }
+          description="Version history"
+        />
+      </Stack>
 
       <Stack gap="lg">
         {versionsPending ? (
@@ -314,6 +317,6 @@ export function DocumentVersionsPage() {
           </>
         )}
       </Stack>
-    </>
+    </Container>
   );
 }

@@ -87,29 +87,32 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
     });
     draftDocId = draftDoc.id;
 
-    const publishedDoc = await prisma.document.create({
-      data: {
-        title: `Published Doc ${TS}`,
-        content: '# Intro\n\nPublished content',
-        contextId,
-        publishedAt: new Date(),
-      },
-      select: { id: true },
+    const publishedDoc = await prisma.$transaction(async (tx) => {
+      const d = await tx.document.create({
+        data: {
+          title: `Published Doc ${TS}`,
+          content: '# Intro\n\nPublished content',
+          contextId,
+        },
+      });
+      const version = await tx.documentVersion.create({
+        data: {
+          documentId: d.id,
+          content: '# Intro\n\nPublished content',
+          versionNumber: 1,
+          createdById: scopeLeadId,
+        },
+      });
+      await tx.document.update({
+        where: { id: d.id },
+        data: {
+          publishedAt: new Date(),
+          currentPublishedVersionId: version.id,
+        },
+      });
+      return { id: d.id };
     });
     publishedDocId = publishedDoc.id;
-    const version = await prisma.documentVersion.create({
-      data: {
-        documentId: publishedDocId,
-        content: '# Intro\n\nPublished content',
-        versionNumber: 1,
-        createdById: scopeLeadId,
-      },
-      select: { id: true },
-    });
-    await prisma.document.update({
-      where: { id: publishedDocId },
-      data: { currentPublishedVersionId: version.id },
-    });
 
     await prisma.documentGrantUser.createMany({
       data: [
@@ -446,25 +449,30 @@ describe('Documents routes (publish, versions, draft, draft-requests)', () => {
 
   describe('POST /documents/:documentId/draft/update-to-latest', () => {
     it('ohne Draft → 404', async () => {
-      const noDraftDoc = await prisma.document.create({
-        data: {
-          title: `No draft doc ${TS}`,
-          content: 'x',
-          contextId,
-          publishedAt: new Date(),
-        },
-      });
-      const v = await prisma.documentVersion.create({
-        data: {
-          documentId: noDraftDoc.id,
-          content: 'x',
-          versionNumber: 1,
-          createdById: scopeLeadId,
-        },
-      });
-      await prisma.document.update({
-        where: { id: noDraftDoc.id },
-        data: { currentPublishedVersionId: v.id },
+      const noDraftDoc = await prisma.$transaction(async (tx) => {
+        const d = await tx.document.create({
+          data: {
+            title: `No draft doc ${TS}`,
+            content: 'x',
+            contextId,
+          },
+        });
+        const v = await tx.documentVersion.create({
+          data: {
+            documentId: d.id,
+            content: 'x',
+            versionNumber: 1,
+            createdById: scopeLeadId,
+          },
+        });
+        await tx.document.update({
+          where: { id: d.id },
+          data: {
+            publishedAt: new Date(),
+            currentPublishedVersionId: v.id,
+          },
+        });
+        return d;
       });
       await prisma.documentGrantUser.createMany({
         data: [

@@ -302,7 +302,7 @@ export async function executeFtsDocumentSearch(
         d.id,
         d.title,
         d."contextId" AS context_id,
-        c.display_name AS context_name,
+        c."displayName" AS context_name,
         CASE
           WHEN EXISTS (
             SELECT 1 FROM "Subcontext" s WHERE s."contextId" = c.id

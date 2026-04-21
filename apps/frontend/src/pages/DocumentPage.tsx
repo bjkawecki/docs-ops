@@ -1,7 +1,7 @@
 import {
   Alert,
-  Anchor,
   Badge,
+  Radio,
   Box,
   Button,
   Card,
@@ -23,7 +23,6 @@ import {
   Container,
   Flex,
   Paper,
-  Breadcrumbs,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -33,9 +32,9 @@ import './DocumentContent.css';
 import { apiFetch } from '../api/client';
 import { meQueryKey, useMe } from '../hooks/useMe';
 import { DocumentCommentsSection } from '../components/documents/DocumentCommentsSection';
+import { DocumentDocBreadcrumbs } from '../components/documents/DocumentDocBreadcrumbs';
 import { PageHeader } from '../components/PageHeader';
-import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
-import type { RecentScope } from '../hooks/useRecentItems';
+import { scopeToUrl } from '../lib/scopeNav';
 import { useRecentItemsActions } from '../hooks/useRecentItems';
 import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -52,18 +51,64 @@ import {
   IconSend,
   IconCheck,
   IconX,
-  IconChevronRight,
   IconDotsVertical,
   IconFileText,
-  IconBuildingSkyscraper,
-  IconSitemap,
-  IconUsersGroup,
-  IconUser,
-  IconRoute,
-  IconBriefcase,
-  IconSubtask,
   IconDownload,
 } from '@tabler/icons-react';
+import DiffMatchPatch from 'diff-match-patch';
+
+type DiffTuple = [number, string];
+
+function ReviewDiffView({ fromContent, toContent }: { fromContent: string; toContent: string }) {
+  const dmp = useMemo(() => new DiffMatchPatch(), []);
+  const diffs = useMemo((): DiffTuple[] => {
+    const d = dmp.diff_main(fromContent, toContent) as DiffTuple[];
+    dmp.diff_cleanupSemantic(d);
+    return d;
+  }, [dmp, fromContent, toContent]);
+
+  return (
+    <Box
+      component="pre"
+      style={{
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        fontFamily: 'var(--mantine-font-family-monospace)',
+        fontSize: 'var(--mantine-font-size-sm)',
+        padding: 'var(--mantine-spacing-md)',
+        borderRadius: 'var(--mantine-radius-md)',
+        overflow: 'auto',
+      }}
+      bg="dark.6"
+    >
+      {diffs.map(([op, text], i) => {
+        if (op === 0) return <span key={i}>{text}</span>;
+        if (op === -1)
+          return (
+            <span
+              key={i}
+              style={{
+                backgroundColor: 'rgba(255, 0, 0, 0.35)',
+                textDecoration: 'line-through',
+              }}
+            >
+              {text}
+            </span>
+          );
+        return (
+          <span
+            key={i}
+            style={{
+              backgroundColor: 'rgba(0, 200, 0, 0.35)',
+            }}
+          >
+            {text}
+          </span>
+        );
+      })}
+    </Box>
+  );
+}
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
 function slugify(text: string): string {
@@ -131,6 +176,7 @@ type DocumentResponse = {
   updatedAt: string;
   publishedAt: string | null;
   currentPublishedVersionId: string | null;
+  currentPublishedVersionNumber: number | null;
   description: string | null;
   createdById: string | null;
   createdByName: string | null;
@@ -154,6 +200,15 @@ type DocumentResponse = {
 type DraftResponse = {
   content: string;
   basedOnVersionId: string | null;
+  updatedAt?: string;
+};
+
+type OpenDraftRequestItem = {
+  id: string;
+  status: string;
+  draftContent: string;
+  submittedByName: string;
+  submittedAt: string;
 };
 
 type PdfExportJobStatusResponse = {
@@ -190,8 +245,19 @@ export function DocumentPage() {
   const [mergingRequestId, setMergingRequestId] = useState<string | null>(null);
   /** Set when loading draft in edit mode; used to show "update to latest" banner when behind published version. */
   const [draftBasedOnVersionId, setDraftBasedOnVersionId] = useState<string | null>(null);
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null);
+  const [editSource, setEditSource] = useState<'draft' | 'published'>('draft');
   const [updateToLatestLoading, setUpdateToLatestLoading] = useState(false);
   const [hasConflictMarkers, setHasConflictMarkers] = useState(false);
+  const [editInitialSnapshot, setEditInitialSnapshot] = useState<{
+    title: string;
+    content: string;
+    description: string;
+    tagIds: string[];
+  } | null>(null);
+  const [reviewPreviewRequest, setReviewPreviewRequest] = useState<OpenDraftRequestItem | null>(
+    null
+  );
   const [assignContextOpened, { open: openAssignContext, close: closeAssignContext }] =
     useDisclosure(false);
   const [assignContextId, setAssignContextId] = useState<string | null>(null);
@@ -277,12 +343,7 @@ export function DocumentPage() {
       const res = await apiFetch(`/api/v1/documents/${documentId}/draft-requests?status=open`);
       if (!res.ok) throw new Error('Failed to load draft requests');
       return res.json() as Promise<{
-        items: {
-          id: string;
-          status: string;
-          submittedByName: string;
-          submittedAt: string;
-        }[];
+        items: OpenDraftRequestItem[];
       }>;
     },
     enabled: !!documentId && !!data,
@@ -537,9 +598,19 @@ export function DocumentPage() {
           body: JSON.stringify({ content: editContent }),
         });
         if (res.ok) {
+          const draft = (await res.json()) as DraftResponse;
+          setDraftUpdatedAt(draft.updatedAt ?? null);
+          setEditInitialSnapshot((prev) =>
+            prev == null
+              ? prev
+              : {
+                  ...prev,
+                  content: editContent,
+                }
+          );
           notifications.show({
             title: 'Saved',
-            message: 'Draft was saved.',
+            message: 'Draft gespeichert - veroeffentlichte Version bleibt unveraendert.',
             color: 'green',
           });
         } else {
@@ -572,6 +643,7 @@ export function DocumentPage() {
               queryKey: ['contexts', data.contextId, 'documents'],
             });
           setMode('view');
+          setEditInitialSnapshot(null);
           notifications.show({
             title: 'Saved',
             message: 'Document was updated.',
@@ -592,17 +664,29 @@ export function DocumentPage() {
   };
 
   const handleEditClick = async () => {
+    setEditSource('draft');
+    let nextContent = data?.content ?? '';
     if (data?.publishedAt && documentId) {
       const res = await apiFetch(`/api/v1/documents/${documentId}/draft`);
       if (res.ok) {
         const draft = (await res.json()) as DraftResponse;
+        nextContent = draft.content;
         setEditContent(draft.content);
         setDraftBasedOnVersionId(draft.basedOnVersionId ?? null);
+        setDraftUpdatedAt(draft.updatedAt ?? null);
         setHasConflictMarkers(false);
       } else {
         setDraftBasedOnVersionId(null);
+        setDraftUpdatedAt(null);
+        nextContent = data.content ?? '';
       }
     }
+    setEditInitialSnapshot({
+      title: data?.title ?? '',
+      content: nextContent,
+      description: data?.description ?? '',
+      tagIds: data?.documentTags.map((dt) => dt.tag.id) ?? [],
+    });
     setMode('edit');
   };
 
@@ -655,6 +739,7 @@ export function DocumentPage() {
             });
           void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
           void queryClient.invalidateQueries({ queryKey: [...meQueryKey, 'personal-documents'] });
+          setReviewPreviewRequest(null);
         }
         notifications.show({
           title: action === 'merge' ? 'Merged' : 'Rejected',
@@ -672,6 +757,29 @@ export function DocumentPage() {
     } finally {
       setMergingRequestId(null);
     }
+  };
+
+  const handleCancelEdit = () => {
+    const dirtyPublished =
+      data.publishedAt != null &&
+      editInitialSnapshot != null &&
+      editContent !== editInitialSnapshot.content;
+    const dirtyDraftLike =
+      data.publishedAt == null &&
+      editInitialSnapshot != null &&
+      (editTitle !== editInitialSnapshot.title ||
+        editContent !== editInitialSnapshot.content ||
+        editDescription !== editInitialSnapshot.description ||
+        editTagIds.join(',') !== editInitialSnapshot.tagIds.join(','));
+    const hasUnsaved = dirtyPublished || dirtyDraftLike;
+    if (hasUnsaved) {
+      const ok = window.confirm(
+        'Nicht gespeicherter Fortschritt kann verloren gehen. Wirklich abbrechen?'
+      );
+      if (!ok) return;
+    }
+    setMode('view');
+    setEditInitialSnapshot(null);
   };
 
   const handlePublish = async () => {
@@ -972,34 +1080,13 @@ export function DocumentPage() {
   }
 
   const docTitle = mode === 'edit' ? editTitle || 'Untitled' : data.title;
-  const scope = data.scope as RecentScope | null;
+  const isPublishedEdit = mode === 'edit' && data.publishedAt != null;
+  const isViewingPublishedInEdit = isPublishedEdit && editSource === 'published';
+  const editorContent =
+    isPublishedEdit && editSource === 'published' ? (data.content ?? '') : editContent;
+  const showEditSourceRadio = isPublishedEdit;
+  const reviewCount = openDraftRequests.length;
   const hasNoContext = data.contextId == null;
-  const contextMeta =
-    data.contextProcessId != null
-      ? {
-          typeLabel: 'Process',
-          name: data.contextName ?? 'Process',
-          to: `/processes/${data.contextProcessId}`,
-          icon: IconRoute,
-        }
-      : data.subcontextId != null
-        ? {
-            typeLabel: 'Subcontext',
-            name: data.subcontextName ?? data.contextName ?? 'Subcontext',
-            to:
-              data.contextProjectId != null
-                ? `/projects/${data.contextProjectId}/subcontexts/${data.subcontextId}`
-                : `/subcontexts/${data.subcontextId}`,
-            icon: IconSubtask,
-          }
-        : data.contextProjectId != null
-          ? {
-              typeLabel: 'Project',
-              name: data.contextProjectName ?? data.contextName ?? 'Project',
-              to: `/projects/${data.contextProjectId}`,
-              icon: IconBriefcase,
-            }
-          : null;
   const writerNames = [
     ...(data.writers?.users?.map((u) => u.name) ?? []),
     ...(data.writers?.teams?.map((t) => t.name) ?? []),
@@ -1018,6 +1105,38 @@ export function DocumentPage() {
         </Text>
       </Group>
     );
+    if (data.currentPublishedVersionNumber != null) {
+      metadataItems.push(
+        <Badge key="published-version" size="sm" variant="light" color="blue">
+          v{data.currentPublishedVersionNumber}
+        </Badge>
+      );
+    }
+    if (mode === 'edit') {
+      metadataItems.push(
+        <Badge
+          key="edit-source"
+          size="sm"
+          variant="light"
+          color={editSource === 'draft' ? 'blue' : 'gray'}
+        >
+          {editSource === 'draft' ? 'Editing draft' : 'Viewing published'}
+        </Badge>
+      );
+      if (draftUpdatedAt) {
+        metadataItems.push(
+          <Text key="draft-saved-at" size="sm" c="dimmed" span>
+            Draft last saved at {new Date(draftUpdatedAt).toLocaleString()}
+          </Text>
+        );
+      } else {
+        metadataItems.push(
+          <Badge key="draft-unsaved" size="sm" variant="light" color="yellow">
+            Draft not saved yet
+          </Badge>
+        );
+      }
+    }
   } else {
     metadataItems.push(
       <Badge key="status" size="sm" variant="light" color="yellow">
@@ -1059,45 +1178,13 @@ export function DocumentPage() {
     });
   }
 
-  const scopeName = data.scope?.name ?? (scope ? scopeToLabel(scope) : 'Overview');
-  const ScopeIcon =
-    scope?.type === 'company'
-      ? IconBuildingSkyscraper
-      : scope?.type === 'department'
-        ? IconSitemap
-        : scope?.type === 'team'
-          ? IconUsersGroup
-          : IconUser;
-
   return (
     <>
       <Container fluid maw={1600} px="md" mb="xl">
         <Stack gap="lg" mb="xl" mt="md">
-          <Breadcrumbs
-            separator={<IconChevronRight size={14} color="var(--mantine-color-dimmed)" />}
-          >
-            {scope && (
-              <Anchor component={Link} to={scopeToUrl(scope)} c="dimmed" size="sm">
-                <Group gap={4} align="center" wrap="nowrap">
-                  <ScopeIcon size={14} />
-                  <span>{scopeName}</span>
-                </Group>
-              </Anchor>
-            )}
-            {contextMeta && (
-              <Anchor component={Link} to={contextMeta.to} c="dimmed" size="sm">
-                <Group gap={4} align="center" wrap="nowrap">
-                  <contextMeta.icon size={14} />
-                  <span>{contextMeta.name}</span>
-                </Group>
-              </Anchor>
-            )}
-            {hasNoContext && (
-              <Text size="sm" c="dimmed">
-                No context
-              </Text>
-            )}
-          </Breadcrumbs>
+          {documentId != null && (
+            <DocumentDocBreadcrumbs documentId={documentId} doc={data} historyMode="link" />
+          )}
           <PageHeader
             title={docTitle}
             titleOrder={1}
@@ -1111,21 +1198,40 @@ export function DocumentPage() {
             }
             description={mode === 'view' && data.description ? data.description : undefined}
             metadata={
-              metadataItems.length > 0 ? (
-                <Group gap="sm" wrap="wrap" align="center">
-                  {metadataItems}
-                </Group>
+              metadataItems.length > 0 || showEditSourceRadio ? (
+                <Flex justify="space-between" align="center" gap="sm" wrap="wrap">
+                  <Group gap="sm" wrap="wrap" align="center">
+                    {metadataItems}
+                  </Group>
+                  {showEditSourceRadio && (
+                    <Radio.Group
+                      value={editSource}
+                      onChange={(v) => setEditSource(v as 'draft' | 'published')}
+                      aria-label="Edit source"
+                    >
+                      <Group gap="md" wrap="nowrap">
+                        <Radio value="draft" label="View my draft" size="xs" />
+                        <Radio value="published" label="View published" size="xs" />
+                      </Group>
+                    </Radio.Group>
+                  )}
+                </Flex>
               ) : undefined
             }
             actions={
               <Group gap="xs">
                 {mode === 'edit' && (
                   <>
-                    <Button variant="default" size="sm" onClick={() => setMode('view')}>
+                    <Button variant="default" size="sm" onClick={handleCancelEdit}>
                       Cancel
                     </Button>
-                    <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
-                      Save
+                    <Button
+                      size="sm"
+                      loading={saveLoading}
+                      disabled={isViewingPublishedInEdit}
+                      onClick={() => void handleSave()}
+                    >
+                      {data.publishedAt ? 'Save draft' : 'Save'}
                     </Button>
                     {hasConflictMarkers && data?.currentPublishedVersionId && (
                       <Button
@@ -1156,10 +1262,59 @@ export function DocumentPage() {
                     size="sm"
                     leftSection={<IconSend size={14} />}
                     loading={submitReviewLoading}
+                    disabled={isViewingPublishedInEdit}
                     onClick={() => void handleSubmitForReview()}
                   >
                     Submit for review
                   </Button>
+                )}
+                {data.canPublish && reviewCount > 0 && (
+                  <Menu shadow="md" position="bottom-end" width={360}>
+                    <Menu.Target>
+                      <Button variant="default" size="sm">
+                        Pending review ({reviewCount})
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      {openDraftRequests.map((pr, idx) => (
+                        <Box key={pr.id} px="sm" py="xs">
+                          <Text size="xs" c="dimmed">
+                            PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
+                          </Text>
+                          <Group gap="xs" mt={6} wrap="wrap">
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              onClick={() => setReviewPreviewRequest(pr)}
+                            >
+                              View changes
+                            </Button>
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              color="green"
+                              leftSection={<IconCheck size={12} />}
+                              loading={mergingRequestId === pr.id}
+                              onClick={() => void handleMergeReject(pr.id, 'merge')}
+                            >
+                              Merge
+                            </Button>
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              color="red"
+                              leftSection={<IconX size={12} />}
+                              loading={mergingRequestId === pr.id}
+                              onClick={() => void handleMergeReject(pr.id, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </Group>
+                          {idx < openDraftRequests.length - 1 && <Menu.Divider mt="xs" />}
+                        </Box>
+                      ))}
+                    </Menu.Dropdown>
+                  </Menu>
                 )}
                 {mode === 'edit' && data.canPublish && !data.publishedAt && (
                   <Button
@@ -1318,47 +1473,6 @@ export function DocumentPage() {
                   </Alert>
                 )}
 
-              {openDraftRequests.length > 0 && (
-                <Card withBorder padding="md" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
-                  <Text size="sm" fw={500} mb="xs">
-                    Pending review
-                  </Text>
-                  <Stack gap="xs">
-                    {openDraftRequests.map((pr) => (
-                      <Group key={pr.id} justify="space-between" wrap="nowrap">
-                        <Text size="sm">
-                          PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
-                        </Text>
-                        {data.canPublish && (
-                          <Group gap="xs">
-                            <Button
-                              variant="light"
-                              size="compact-xs"
-                              color="green"
-                              leftSection={<IconCheck size={12} />}
-                              loading={mergingRequestId === pr.id}
-                              onClick={() => void handleMergeReject(pr.id, 'merge')}
-                            >
-                              Merge
-                            </Button>
-                            <Button
-                              variant="light"
-                              size="compact-xs"
-                              color="red"
-                              leftSection={<IconX size={12} />}
-                              loading={mergingRequestId === pr.id}
-                              onClick={() => void handleMergeReject(pr.id, 'reject')}
-                            >
-                              Reject
-                            </Button>
-                          </Group>
-                        )}
-                      </Group>
-                    ))}
-                  </Stack>
-                </Card>
-              )}
-
               <Flex
                 gap={{ base: 'lg', lg: 'xl' }}
                 direction={{ base: 'column', lg: 'row' }}
@@ -1415,10 +1529,13 @@ export function DocumentPage() {
                               >
                                 <Textarea
                                   ref={editContentTextareaRef}
-                                  label="Markdown"
+                                  label={
+                                    isViewingPublishedInEdit ? 'Markdown (published)' : 'Markdown'
+                                  }
                                   placeholder="Content (Markdown)"
-                                  value={editContent}
+                                  value={editorContent}
                                   onChange={(e) => setEditContent(e.currentTarget.value)}
+                                  disabled={isViewingPublishedInEdit}
                                   styles={{
                                     root: {
                                       flex: 1,
@@ -1478,7 +1595,7 @@ export function DocumentPage() {
                                   >
                                     <Typography>
                                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {editContent || ''}
+                                        {editorContent || ''}
                                       </ReactMarkdown>
                                     </Typography>
                                   </Box>
@@ -1566,6 +1683,27 @@ export function DocumentPage() {
             Move to trash
           </Button>
         </Group>
+      </Modal>
+
+      <Modal
+        opened={reviewPreviewRequest != null}
+        onClose={() => setReviewPreviewRequest(null)}
+        title="Review changes"
+        size="xl"
+        centered
+      >
+        {reviewPreviewRequest == null ? null : (
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              PR by {reviewPreviewRequest.submittedByName},{' '}
+              {new Date(reviewPreviewRequest.submittedAt).toLocaleString()}
+            </Text>
+            <ReviewDiffView
+              fromContent={data.content ?? ''}
+              toContent={reviewPreviewRequest.draftContent ?? ''}
+            />
+          </Stack>
+        )}
       </Modal>
 
       <Modal

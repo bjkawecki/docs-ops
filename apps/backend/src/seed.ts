@@ -45,6 +45,46 @@ function csvRows(path: string): Record<string, string>[] {
   });
 }
 
+type PublishedSeedDocInput = {
+  title: string;
+  content: string;
+  contextId: string;
+  createdById?: string | null;
+};
+
+/**
+ * Legt ein veröffentlichtes Seed-Dokument an: zuerst Draft, dann Version 1, dann Publish in einer Transaktion
+ * (erfüllt DB-`CHECK`: publishedAt ⇒ currentPublishedVersionId).
+ */
+async function createPublishedSeedDocument(prisma: PrismaClient, input: PublishedSeedDocInput) {
+  return prisma.$transaction(async (tx) => {
+    const doc = await tx.document.create({
+      data: {
+        title: input.title,
+        content: input.content,
+        contextId: input.contextId,
+        ...(input.createdById != null ? { createdById: input.createdById } : {}),
+      },
+    });
+    const version = await tx.documentVersion.create({
+      data: {
+        documentId: doc.id,
+        content: input.content,
+        versionNumber: 1,
+        ...(input.createdById != null ? { createdById: input.createdById } : {}),
+      },
+    });
+    await tx.document.update({
+      where: { id: doc.id },
+      data: {
+        publishedAt: new Date(),
+        currentPublishedVersionId: version.id,
+      },
+    });
+    return doc;
+  });
+}
+
 /**
  * Runs seed: creates company, departments, teams, users, members, team leads, department leads,
  * company leads from CSV files. Does nothing if at least one company already exists.
@@ -253,13 +293,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       });
       await setContextDisplayFromProcess(prisma, pCtx.id, p.id);
       for (const title of docTitles) {
-        await prisma.document.create({
-          data: {
-            title,
-            content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
-            contextId: pCtx.id,
-            publishedAt: new Date(),
-          },
+        await createPublishedSeedDocument(prisma, {
+          title,
+          content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
+          contextId: pCtx.id,
         });
       }
     }
@@ -274,13 +311,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       });
       await setContextDisplayFromProject(prisma, projCtx.id, proj.id);
       for (const title of docTitles) {
-        await prisma.document.create({
-          data: {
-            title,
-            content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
-            contextId: projCtx.id,
-            publishedAt: new Date(),
-          },
+        await createPublishedSeedDocument(prisma, {
+          title,
+          content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
+          contextId: projCtx.id,
         });
       }
     }
@@ -398,13 +432,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       where: { id: processId },
       select: { contextId: true, ownerId: true },
     });
-    const doc = await prisma.document.create({
-      data: {
-        title: seedDocTitle(scopeKey, 'process'),
-        content: docContent,
-        contextId: process.contextId,
-        publishedAt: new Date(),
-      },
+    const doc = await createPublishedSeedDocument(prisma, {
+      title: seedDocTitle(scopeKey, 'process'),
+      content: docContent,
+      contextId: process.contextId,
     });
     if (process.ownerId && scopeKey.startsWith('company:')) {
       const tagId = tagByNameAndOwner.get(`${process.ownerId}:Release`);
@@ -418,13 +449,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       where: { id: projectId },
       select: { contextId: true, ownerId: true },
     });
-    await prisma.document.create({
-      data: {
-        title: seedDocTitle(scopeKey, 'project'),
-        content: docContent,
-        contextId: project.contextId,
-        publishedAt: new Date(),
-      },
+    await createPublishedSeedDocument(prisma, {
+      title: seedDocTitle(scopeKey, 'project'),
+      content: docContent,
+      contextId: project.contextId,
     });
   }
   if (companyProjectId) {
@@ -437,13 +465,10 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       Meilensteine: 'Project Milestones',
     };
     for (const sub of subcontexts) {
-      await prisma.document.create({
-        data: {
-          title: subcontextTitles[sub.name] ?? sub.name,
-          content: docContent,
-          contextId: sub.contextId,
-          publishedAt: new Date(),
-        },
+      await createPublishedSeedDocument(prisma, {
+        title: subcontextTitles[sub.name] ?? sub.name,
+        content: docContent,
+        contextId: sub.contextId,
       });
     }
   }

@@ -62,6 +62,7 @@ type CatalogDocument = {
   ownerHref: string | null;
   contextProcessId: string | null;
   contextProjectId: string | null;
+  currentPublishedVersionNumber: number | null;
   searchRank?: number | null;
   searchSnippet?: string | null;
 };
@@ -344,6 +345,7 @@ export function CatalogPage() {
             <Table.Thead>
               <Table.Tr>
                 <ThSort column="title" label="Name" sticky />
+                <Table.Th>Version</Table.Th>
                 <ThSort column="ownerDisplay" label="Owner" />
                 <ThSort column="contextType" label="Context type" />
                 <ThSort column="contextName" label="Context" />
@@ -355,7 +357,7 @@ export function CatalogPage() {
             <Table.Tbody>
               {isPending && (
                 <Table.Tr>
-                  <Table.Td colSpan={7}>
+                  <Table.Td colSpan={8}>
                     <Text size="sm" c="dimmed">
                       Loading…
                     </Text>
@@ -364,7 +366,7 @@ export function CatalogPage() {
               )}
               {!isPending && isError && (
                 <Table.Tr>
-                  <Table.Td colSpan={7}>
+                  <Table.Td colSpan={8}>
                     <Text size="sm" c="red">
                       Failed to load documents.
                     </Text>
@@ -373,7 +375,7 @@ export function CatalogPage() {
               )}
               {!isPending && !isError && data && data.items.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={7}>
+                  <Table.Td colSpan={8}>
                     <Text size="sm" c="dimmed">
                       No documents match the filters.
                     </Text>
@@ -395,6 +397,13 @@ export function CatalogPage() {
                           {renderSearchSnippet(doc.searchSnippet)}
                         </Text>
                       ) : null}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">
+                        {doc.currentPublishedVersionNumber != null
+                          ? `v${doc.currentPublishedVersionNumber}`
+                          : 'Draft'}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       {doc.ownerHref ? (

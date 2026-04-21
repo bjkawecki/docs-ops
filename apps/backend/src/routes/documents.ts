@@ -318,6 +318,12 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       contextId: true,
       createdAt: true,
       updatedAt: true,
+      publishedAt: true,
+      currentPublishedVersion: {
+        select: {
+          versionNumber: true,
+        },
+      },
       documentTags: { include: { tag: { select: { id: true, name: true } } } },
       context: {
         select: {
@@ -519,6 +525,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         ownerHref,
         contextProcessId,
         contextProjectId,
+        currentPublishedVersionNumber:
+          doc.publishedAt != null ? (doc.currentPublishedVersion?.versionNumber ?? null) : null,
         scopeType: scopeInfo.scopeType,
         scopeId: scopeInfo.scopeId,
         scopeName: scopeInfo.scopeName,
@@ -774,6 +782,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           ...DOCUMENT_FOR_PERMISSION_INCLUDE,
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
           createdBy: { select: { name: true } },
+          currentPublishedVersion: { select: { versionNumber: true } },
           grantUser: { include: { user: { select: { name: true } } } },
           grantTeam: { include: { team: { select: { name: true } } } },
           grantDepartment: { include: { department: { select: { name: true } } } },
@@ -865,6 +874,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         deletedAt: doc.deletedAt?.toISOString() ?? null,
         publishedAt: doc.publishedAt,
         currentPublishedVersionId: doc.currentPublishedVersionId ?? null,
+        currentPublishedVersionNumber:
+          doc.publishedAt != null ? (doc.currentPublishedVersion?.versionNumber ?? null) : null,
         description: doc.description,
         createdById: doc.createdById,
         createdByName: doc.createdBy?.name ?? null,

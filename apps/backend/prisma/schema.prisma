@@ -229,6 +229,7 @@ model DocumentPinnedInScope {
 
 /// Einzelne inhaltliche Einheit (Markdown). Optional genau ein Kontext (contextId); null = kontextfreier Draft (nur Ersteller/Grants).
 /// Optional: PDF-Version (pdfUrl, z. B. Export-URL aus MinIO). Zugriff über Grants; Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
+/// Invariante (DB-`CHECK`): Ist `publishedAt` gesetzt, muss `currentPublishedVersionId` gesetzt sein.
 model Document {
   id                        String                   @id @default(cuid())
   title                     String
