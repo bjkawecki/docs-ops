@@ -1,7 +1,7 @@
 import { createBoss } from './jobs/boss.js';
 import { ensureQueues, registerWorkers } from './jobs/startWorker.js';
 import { prisma } from './db.js';
-import { consumeNotificationEmailOutbox } from './services/notificationEmailOutboxService.js';
+import { consumeNotificationEmailOutbox } from './services/notifications/notificationEmailOutboxService.js';
 
 const logger = {
   info: (obj: unknown, msg?: string) => {

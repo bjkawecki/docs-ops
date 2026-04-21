@@ -8,9 +8,9 @@ import { promisify } from 'node:util';
 import { jobPayloadSchemas, type JobPayloadByType, type JobType } from './jobTypes.js';
 import { initStorage, type StorageService } from '../storage/index.js';
 import { canWrite } from '../permissions/canWrite.js';
-import { runFullReindex, runIncrementalReindex } from '../services/searchIndexService.js';
-import { dispatchNotificationEvent } from '../services/notificationDispatchService.js';
-import { runUserNotificationRetention } from '../services/notificationRetentionService.js';
+import { runFullReindex, runIncrementalReindex } from '../services/search/searchIndexService.js';
+import { dispatchNotificationEvent } from '../services/notifications/notificationDispatchService.js';
+import { runUserNotificationRetention } from '../services/notifications/notificationRetentionService.js';
 
 const execFileAsync = promisify(execFile);
 

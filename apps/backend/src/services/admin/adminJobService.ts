@@ -1,6 +1,6 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
-import { jobTypes, type JobType } from '../jobs/jobTypes.js';
-import { retryJob } from '../jobs/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
+import { jobTypes, type JobType } from '../../jobs/jobTypes.js';
+import { retryJob } from '../../jobs/client.js';
 
 type FailedJobRow = {
   id: string;

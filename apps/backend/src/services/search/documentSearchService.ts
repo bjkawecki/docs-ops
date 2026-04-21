@@ -1,8 +1,8 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
 import {
   getReadableCatalogScope,
   getWritableCatalogScope,
-} from '../permissions/catalogPermissions.js';
+} from '../../permissions/catalogPermissions.js';
 import { executeFtsDocumentSearch } from './documentSearchFts.js';
 import type { SearchDocumentsArgs, SearchDocumentItem } from './documentSearchTypes.js';
 

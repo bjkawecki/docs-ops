@@ -1,4 +1,4 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
 
 /** Metadata-only update payload. No lifecycle fields (publishedAt, archivedAt, deletedAt). */
 export type UpdateDocumentMetadataData = {

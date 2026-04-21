@@ -1,9 +1,9 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
 import {
   getReadableCatalogScope,
   getWritableCatalogScope,
-} from '../permissions/catalogPermissions.js';
-import { buildCatalogDocumentListBase } from './catalogDocumentListWhere.js';
+} from '../../permissions/catalogPermissions.js';
+import { buildCatalogDocumentListBase } from '../documents/catalogDocumentListWhere.js';
 import type { SearchDocumentItem, SearchDocumentsArgs } from './documentSearchTypes.js';
 
 /** Plain-text excerpt with `[[match]]` markers for the same `renderSearchSnippet` UI as FTS. */

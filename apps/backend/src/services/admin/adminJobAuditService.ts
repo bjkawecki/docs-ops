@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { Prisma } from '../../generated/prisma/client.js';
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import { Prisma } from '../../../generated/prisma/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
 
 export type AdminJobAuditAction =
   | 'job-retry'

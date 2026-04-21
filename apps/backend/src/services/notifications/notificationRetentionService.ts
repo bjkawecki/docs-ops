@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from '../../generated/prisma/client.js';
+import { Prisma, type PrismaClient } from '../../../generated/prisma/client.js';
 
 /**
  * Days after which in-app notification rows are deleted (read and unread).

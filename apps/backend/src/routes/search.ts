@@ -8,7 +8,7 @@ import { searchDocumentsQuerySchema } from './schemas/search.js';
 import {
   searchDocumentsByContainsFallback,
   searchDocumentsForUser,
-} from '../services/documentSearchService.js';
+} from '../services/search/documentSearchService.js';
 
 const searchRoutes: FastifyPluginAsync = (app: FastifyInstance): Promise<void> => {
   app.get('/search/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {

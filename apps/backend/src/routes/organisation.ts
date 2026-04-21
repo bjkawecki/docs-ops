@@ -5,7 +5,10 @@ import {
   getEffectiveUserId,
   type RequestWithUser,
 } from '../auth/middleware.js';
-import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
+import {
+  setOwnerDisplayName,
+  refreshContextOwnerDisplayForOwner,
+} from '../services/contexts/contextOwnerDisplay.js';
 import {
   canViewCompany,
   canViewDepartment,

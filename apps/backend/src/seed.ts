@@ -12,7 +12,7 @@ import {
   setContextDisplayFromProcess,
   setContextDisplayFromProject,
   setContextDisplayFromSubcontext,
-} from './contextOwnerDisplay.js';
+} from './services/contexts/contextOwnerDisplay.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve from project root (apps/backend) so it works with tsx and node dist
@@ -388,7 +388,8 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
   // --- Tags pro Scope (Company, erstes Team, Personal) ---
   const tagByNameAndOwner = new Map<string, string>(); // key "ownerId:name" -> tagId
   if (companyOwnerId) {
-    for (const name of ['Release', 'Wichtig', 'Draft']) {
+    // Kein Tag-Namen wie „Release“: kollidiert optisch mit dem System-Status „Published“.
+    for (const name of ['Referenz', 'Wichtig', 'Draft']) {
       const tag = await prisma.tag.create({ data: { name, ownerId: companyOwnerId } });
       tagByNameAndOwner.set(`${companyOwnerId}:${name}`, tag.id);
     }
@@ -438,7 +439,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       contextId: process.contextId,
     });
     if (process.ownerId && scopeKey.startsWith('company:')) {
-      const tagId = tagByNameAndOwner.get(`${process.ownerId}:Release`);
+      const tagId = tagByNameAndOwner.get(`${process.ownerId}:Referenz`);
       if (tagId) {
         await prisma.documentTag.create({ data: { documentId: doc.id, tagId } });
       }

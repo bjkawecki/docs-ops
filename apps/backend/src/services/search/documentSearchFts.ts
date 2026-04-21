@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from '../../generated/prisma/client.js';
+import { Prisma, type PrismaClient } from '../../../generated/prisma/client.js';
 import type { SearchDocumentItem, SearchDocumentsArgs } from './documentSearchTypes.js';
 
 type ReadableCatalogScope = { contextIds: string[]; documentIdsFromGrants: string[] };

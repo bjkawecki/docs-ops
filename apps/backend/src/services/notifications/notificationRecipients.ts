@@ -1,7 +1,7 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
-import { GrantRole } from '../../generated/prisma/client.js';
-import type { DocumentForPermission } from '../permissions/documentLoad.js';
-import { loadDocument } from '../permissions/canRead.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
+import { GrantRole } from '../../../generated/prisma/client.js';
+import type { DocumentForPermission } from '../../permissions/documentLoad.js';
+import { loadDocument } from '../../permissions/canRead.js';
 
 /** Must match `notifications.send` job schema max length. */
 export const NOTIFICATION_TARGET_USER_IDS_MAX = 1000;

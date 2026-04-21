@@ -1,5 +1,5 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
-import { isHeadingSlugInMarkdown } from '../lib/markdownHeadingSlugs.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
+import { isHeadingSlugInMarkdown } from '../../lib/markdownHeadingSlugs.js';
 
 export const DOCUMENT_COMMENT_TEXT_MAX = 16_000;
 

@@ -14,7 +14,7 @@ import {
   listUserIdsWhoCanMergeDraftRequestOnDocument,
   listUserIdsWhoCanReadDocument,
   symmetricDiffUserIds,
-} from '../services/notificationRecipients.js';
+} from '../services/notifications/notificationRecipients.js';
 
 const TS = `perm-${Date.now()}`;
 

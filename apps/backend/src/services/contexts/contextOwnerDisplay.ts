@@ -2,7 +2,7 @@
  * Helpers for cached display names on Context and Owner (catalog sort/display).
  * Kept in sync when Process/Project/Subcontext or Company/Department/Team/User names change.
  */
-import type { PrismaClient } from '../generated/prisma/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
 
 const OWNER_SELECT = {
   company: { select: { name: true } },

@@ -4,6 +4,7 @@ export type MeIdentityTeam = {
   teamName: string;
   departmentId: string;
   departmentName: string;
+  companyId: string;
   role: 'member' | 'leader';
 };
 
@@ -19,7 +20,7 @@ export type MeResponse = {
   identity: {
     teams: MeIdentityTeam[];
     departments: { id: string; name: string }[];
-    departmentLeads: { id: string; name: string }[];
+    departmentLeads: { id: string; name: string; companyId: string }[];
     companyLeads: { id: string; name: string }[];
   };
   preferences: {

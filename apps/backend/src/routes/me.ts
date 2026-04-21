@@ -38,7 +38,10 @@ import {
   contextNameFromDoc,
   trashArchiveContextSelect,
 } from './meTrashArchive.js';
-import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
+import {
+  setOwnerDisplayName,
+  refreshContextOwnerDisplayForOwner,
+} from '../services/contexts/contextOwnerDisplay.js';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { Prisma } from '../../generated/prisma/client.js';
 
@@ -322,6 +325,8 @@ export type MeIdentityTeam = {
   teamName: string;
   departmentName: string;
   departmentId: string;
+  /** Firma der Abteilung — für Client z. B. Katalog-/Sidebar-Zähler nach `companyId`. */
+  companyId: string;
   role: 'member' | 'leader';
 };
 
@@ -337,7 +342,7 @@ export type MeResponse = {
   identity: {
     teams: MeIdentityTeam[];
     departments: { id: string; name: string }[];
-    departmentLeads: { id: string; name: string }[];
+    departmentLeads: { id: string; name: string; companyId: string }[];
     companyLeads: { id: string; name: string }[];
   };
   preferences: UserPreferences;
@@ -389,6 +394,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         teamName: m.team.name,
         departmentId: m.team.department.id,
         departmentName: m.team.department.name,
+        companyId: m.team.department.companyId,
         role,
       });
       departmentMap.set(m.team.department.id, {
@@ -400,6 +406,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const departmentLeads = user.departmentLeads.map((d) => ({
       id: d.department.id,
       name: d.department.name,
+      companyId: d.department.companyId,
     }));
     for (const d of departmentLeads) {
       departmentMap.set(d.id, { id: d.id, name: d.name });

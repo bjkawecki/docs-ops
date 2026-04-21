@@ -80,6 +80,11 @@ services:
     working_dir: /app
     ports:
       - '5173:5173'
+    depends_on:
+      # Sonst startet Vite bevor `app` im Docker-DNS existiert → getaddrinfo ENOTFOUND app;
+      # danach ggf. ECONNREFUSED bis der Server lauscht.
+      app:
+        condition: service_healthy
     environment:
       # Vite-Proxy im Container: /api → Backend-Service (nicht 127.0.0.1)
       VITE_DEV_PROXY_API: http://app:8080

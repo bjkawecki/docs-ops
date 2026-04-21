@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppShell as MantineAppShell,
@@ -110,11 +110,16 @@ export function AppShell() {
   const companyIdFromLead = me?.identity?.companyLeads?.[0]?.id;
   const departmentId = me?.identity?.departmentLeads?.[0]?.id;
   const userTeamId = me?.identity?.teams?.[0]?.teamId;
+  /** Abteilung des ersten Team-Eintrags (für Nutzer ohne Lead-Rolle). */
+  const userDepartmentId = me?.identity?.teams?.[0]?.departmentId;
   const hasReviewRights =
     isAdmin ||
     isCompanyLead ||
     isDepartmentLead ||
     (me?.identity?.teams?.some((t) => t.role === 'leader') ?? false);
+
+  const companyIdFromTeamOrDeptLead =
+    me?.identity?.teams?.[0]?.companyId ?? me?.identity?.departmentLeads?.[0]?.companyId;
 
   const { data: firstCompany } = useQuery({
     queryKey: ['companies', 'first'],
@@ -124,10 +129,11 @@ export function AppShell() {
       const data = (await res.json()) as { items: { id: string }[] };
       return data.items[0] ?? null;
     },
-    enabled: isAdmin && !companyIdFromLead,
+    enabled: isAdmin && !companyIdFromLead && !companyIdFromTeamOrDeptLead,
   });
 
-  const effectiveCompanyId = companyIdFromLead ?? firstCompany?.id;
+  const effectiveCompanyId =
+    companyIdFromLead ?? companyIdFromTeamOrDeptLead ?? (isAdmin ? firstCompany?.id : undefined);
 
   const { data: companyDepartments } = useQuery<DepartmentsRes>({
     queryKey: ['companies', effectiveCompanyId, 'departments'],
@@ -139,6 +145,12 @@ export function AppShell() {
     },
     enabled: !!effectiveCompanyId && (isCompanyLead || isAdmin),
   });
+
+  /** Ein einziges Department: Liste standardmäßig aufklappen, damit die Dokumentanzahl sichtbar ist. */
+  useEffect(() => {
+    const n = companyDepartments?.items?.length;
+    if (n === 1) setDepartmentsSectionExpanded(true);
+  }, [companyDepartments?.items?.length]);
 
   const { data: departmentTeams } = useQuery<TeamsRes>({
     queryKey: ['departments', departmentId, 'teams'],
@@ -242,11 +254,18 @@ export function AppShell() {
     } else if (departmentTeams?.items && departmentId) {
       deptIds.push(departmentId);
       for (const t of departmentTeams.items) teamIds.push(t.id);
-    } else if (userTeamId) {
-      teamIds.push(userTeamId);
+    } else {
+      if (userDepartmentId) deptIds.push(userDepartmentId);
+      if (userTeamId) teamIds.push(userTeamId);
     }
     return { departmentIds: deptIds, teamIds };
-  }, [companyDepartments?.items, departmentTeams?.items, departmentId, userTeamId]);
+  }, [
+    companyDepartments?.items,
+    departmentTeams?.items,
+    departmentId,
+    userTeamId,
+    userDepartmentId,
+  ]);
 
   const { data: companyCount } = useQuery({
     queryKey: ['catalog-documents', 'count', 'company', effectiveCompanyId],
@@ -390,6 +409,11 @@ export function AppShell() {
     }
 
     if ((isCompanyLead || isAdmin) && companyDepartments?.items) {
+      const depts = companyDepartments.items;
+      const singleDeptDocumentCount =
+        depts.length === 1 && typeof departmentCounts[depts[0].id] === 'number'
+          ? departmentCounts[depts[0].id]
+          : undefined;
       return (
         <>
           <NavLink
@@ -440,6 +464,11 @@ export function AppShell() {
                   Departments
                 </Text>
               </UnstyledButton>
+              {singleDeptDocumentCount !== undefined && singleDeptDocumentCount > 0 ? (
+                <Text size="xs" c="var(--mantine-primary-color-filled)" component="span" px={4}>
+                  {singleDeptDocumentCount}
+                </Text>
+              ) : null}
               <UnstyledButton
                 style={{ flex: 0, padding: '2px 4px' }}
                 onClick={() => setDepartmentsSectionExpanded((v) => !v)}
@@ -464,7 +493,7 @@ export function AppShell() {
               }}
             >
               <Stack gap={0} pl={0}>
-                {companyDepartments.items.map((dept) => (
+                {depts.map((dept) => (
                   <NavLink
                     key={dept.id}
                     data-sidebar-link
@@ -542,7 +571,7 @@ export function AppShell() {
               }}
             >
               <Stack gap={0} pl={0}>
-                {companyDepartments.items.map((dept) => (
+                {depts.map((dept) => (
                   <Box key={dept.id}>
                     <Text size="xs" fw={500} c="dimmed" mt="xs" mb={4}>
                       {dept.name}
@@ -717,8 +746,6 @@ export function AppShell() {
       );
     }
 
-    const userDepartmentId = me?.identity?.teams?.[0]?.departmentId;
-
     return (
       <>
         <NavLink
@@ -748,6 +775,15 @@ export function AppShell() {
               : isActive('/department', location.pathname)
           }
           leftSection={<IconSitemap size={18} />}
+          rightSection={
+            userDepartmentId &&
+            departmentCounts[userDepartmentId] !== undefined &&
+            departmentCounts[userDepartmentId] > 0 ? (
+              <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
+                {departmentCounts[userDepartmentId]}
+              </Text>
+            ) : null
+          }
           styles={navLinkStyles}
         />
         <NavLink

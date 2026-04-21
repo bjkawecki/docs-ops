@@ -1095,23 +1095,18 @@ export function DocumentPage() {
 
   const metadataItems: ReactNode[] = [];
   if (data.publishedAt) {
+    const versionSuffix =
+      data.currentPublishedVersionNumber != null ? ` · v${data.currentPublishedVersionNumber}` : '';
     metadataItems.push(
       <Group key="status" gap="xs" align="center">
         <Badge size="sm" variant="light" color="green">
-          Published
+          Published{versionSuffix}
         </Badge>
         <Text size="sm" c="dimmed" span>
           {new Date(data.publishedAt).toLocaleDateString(undefined)}
         </Text>
       </Group>
     );
-    if (data.currentPublishedVersionNumber != null) {
-      metadataItems.push(
-        <Badge key="published-version" size="sm" variant="light" color="blue">
-          v{data.currentPublishedVersionNumber}
-        </Badge>
-      );
-    }
     if (mode === 'edit') {
       metadataItems.push(
         <Badge

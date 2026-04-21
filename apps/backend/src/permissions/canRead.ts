@@ -181,6 +181,46 @@ export async function canRead(
   )
     return true;
 
+  // 7. Veröffentlichte Dokumente: Leserecht wie Kontext-Leserecht (analog canReadContext / Katalog).
+  // Ohne diesen Schritt sehen Nutzer Einträge im Katalog, scheitern aber an GET /documents/:id.
+  if (doc.publishedAt != null && userCanReadDocumentContext(doc, user)) return true;
+
+  return false;
+}
+
+/**
+ * Gleiche Organisations-/Team-Zugehörigkeit wie canReadContext, aber aus dem bereits geladenen
+ * Document (ohne Prisma-Roundtrip, kein Zyklus zu contextPermissions).
+ */
+function userCanReadDocumentContext(doc: DocumentForPermission, user: UserForPermission): boolean {
+  const owner =
+    doc.context?.process?.owner ??
+    doc.context?.project?.owner ??
+    doc.context?.subcontext?.project?.owner ??
+    null;
+  if (!owner) return false;
+
+  const companyId = owner.companyId;
+  const departmentId = owner.departmentId ?? owner.team?.departmentId ?? null;
+  const teamId = owner.teamId;
+  const ownerUserId = owner.ownerUserId;
+
+  if (ownerUserId !== null && ownerUserId === user.id) return true;
+
+  if (companyId) {
+    if (user.companyLeads.some((c) => c.companyId === companyId)) return true;
+    if (user.departmentLeads.some((d) => d.department.companyId === companyId)) return true;
+    if (user.leadOfTeams.some((l) => l.team.department.companyId === companyId)) return true;
+    if (user.teamMemberships.some((m) => m.team.department.companyId === companyId)) return true;
+  }
+  if (departmentId) {
+    if (user.departmentLeads.some((d) => d.departmentId === departmentId)) return true;
+    if (user.leadOfTeams.some((l) => l.team.departmentId === departmentId)) return true;
+    if (user.teamMemberships.some((m) => m.team.departmentId === departmentId)) return true;
+  }
+  if (teamId) {
+    if (user.teamMemberships.some((m) => m.team.id === teamId)) return true;
+  }
   return false;
 }
 

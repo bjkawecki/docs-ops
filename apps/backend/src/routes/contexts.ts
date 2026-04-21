@@ -15,7 +15,7 @@ import {
   setContextDisplayFromProcess,
   setContextDisplayFromProject,
   setContextDisplayFromSubcontext,
-} from '../contextOwnerDisplay.js';
+} from '../services/contexts/contextOwnerDisplay.js';
 import {
   processListQuerySchema,
   projectListQuerySchema,

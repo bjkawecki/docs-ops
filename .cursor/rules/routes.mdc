@@ -28,4 +28,6 @@ sets publishedAt directly
 Good:
 
 POST /documents/:id/publish
--> documentService.publishDocument()
+-> `documentService.publishDocument()` (import from `services/documents/documentService.js`, not inline Prisma in the route).
+
+**Paths:** Handlers import from `../services/<domain>/…` (see `backend.tree`). If a snippet still references a flat `services/foo.ts` path, align it with the domain folder.

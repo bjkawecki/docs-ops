@@ -21,7 +21,10 @@ import {
   patchAdminScheduleBodySchema,
   retryFailedJobsBodySchema,
 } from './schemas/admin.js';
-import { setOwnerDisplayName, refreshContextOwnerDisplayForOwner } from '../contextOwnerDisplay.js';
+import {
+  setOwnerDisplayName,
+  refreshContextOwnerDisplayForOwner,
+} from '../services/contexts/contextOwnerDisplay.js';
 import {
   companyIdParamSchema,
   departmentIdParamSchema,
@@ -37,8 +40,8 @@ import {
   removeSchedule,
 } from '../jobs/client.js';
 import { jobTypes, type JobType } from '../jobs/jobTypes.js';
-import { retryFailedJobs } from '../services/adminJobService.js';
-import { writeAdminJobAudit } from '../services/adminJobAuditService.js';
+import { retryFailedJobs } from '../services/admin/adminJobService.js';
+import { writeAdminJobAudit } from '../services/admin/adminJobAuditService.js';
 
 const IMPERSONATE_COOKIE_MAX_AGE = 86400; // 1 Tag
 const schedulableJobTypes = [

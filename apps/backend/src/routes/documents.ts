@@ -43,16 +43,16 @@ import {
   DocumentDeletedError,
   DocumentNotInTrashError,
   DocumentBusinessError,
-} from '../services/documentService.js';
-import { buildCatalogDocumentListBase } from '../services/catalogDocumentListWhere.js';
-import { searchDocumentsForUser } from '../services/documentSearchService.js';
+} from '../services/documents/documentService.js';
+import { buildCatalogDocumentListBase } from '../services/documents/catalogDocumentListWhere.js';
+import { searchDocumentsForUser } from '../services/search/documentSearchService.js';
 import {
   createDocumentComment,
   deleteDocumentComment,
   listDocumentComments,
   updateDocumentComment,
-} from '../services/documentCommentService.js';
-import { mergeThreeWay } from '../mergeThreeWay.js';
+} from '../services/documents/documentCommentService.js';
+import { mergeThreeWay } from '../services/documents/mergeThreeWay.js';
 import {
   paginationQuerySchema,
   catalogDocumentsQuerySchema,
@@ -86,7 +86,7 @@ import {
   listUserIdsWhoCanReadOrWriteDocument,
   listUserIdsWhoCanWriteDocument,
   symmetricDiffUserIds,
-} from '../services/notificationRecipients.js';
+} from '../services/notifications/notificationRecipients.js';
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const QUEUE_RETRY_AFTER_SECONDS = 15;
