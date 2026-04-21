@@ -1,7 +1,7 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
 import { GrantRole } from '../../../generated/prisma/client.js';
 import type { DocumentForPermission } from '../../permissions/documentLoad.js';
-import { loadDocument } from '../../permissions/canRead.js';
+import { canRead, loadDocument } from '../../permissions/canRead.js';
 
 /** Must match `notifications.send` job schema max length. */
 export const NOTIFICATION_TARGET_USER_IDS_MAX = 1000;
@@ -164,8 +164,9 @@ async function addUsersInDepartmentsForWriteGrant(
 }
 
 /**
- * All user ids for whom {@link import('../permissions/canRead.js').canRead} would be true for this document.
- * Excludes soft-deleted users at the end.
+ * Nutzer-IDs für Benachrichtigungen: zuerst heuristische Menge (Grants, Leads, …), danach
+ * strikt mit {@link import('../permissions/canRead.js').canRead} gefiltert (keine Drift zu GET /documents).
+ * Soft-deleted Nutzer fallen vorher weg.
  */
 export async function listUserIdsWhoCanReadDocument(
   prisma: PrismaClient,
@@ -217,7 +218,12 @@ export async function listUserIdsWhoCanReadDocument(
     await addUsersInDepartmentsForReadGrant(prisma, readDeptIds, ids);
   }
 
-  return filterActiveUserIds(prisma, [...ids]);
+  const active = await filterActiveUserIds(prisma, [...ids]);
+  const verified: string[] = [];
+  for (const uid of active) {
+    if (await canRead(prisma, uid, documentId)) verified.push(uid);
+  }
+  return verified;
 }
 
 /**

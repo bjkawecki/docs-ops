@@ -167,6 +167,19 @@ async function backfillDocumentBlocksJob(
     documentId: payload.documentId,
     limit: payload.limit ?? 200,
   });
+  for (const documentId of result.affectedDocumentIds) {
+    try {
+      await runIncrementalReindex(context.prisma, {
+        documentId,
+        trigger: 'manual',
+      });
+    } catch (error) {
+      context.logger.warn(
+        { error, documentId },
+        'Incremental search reindex after blocks backfill failed'
+      );
+    }
+  }
   context.logger.info({ payload, result }, 'documents.blocks.backfill completed');
 }
 

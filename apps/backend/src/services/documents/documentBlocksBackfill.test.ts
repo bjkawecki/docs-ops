@@ -37,8 +37,8 @@ describe('documentBlocksBackfill (EPIC-3)', () => {
   });
 
   it('PR-3a: fills DocumentVersion.blocks from markdown', async () => {
-    const updated = await backfillDocumentVersionBlocks(prisma, { documentId, limit: 50 });
-    expect(updated).toBeGreaterThanOrEqual(1);
+    const r = await backfillDocumentVersionBlocks(prisma, { documentId, limit: 50 });
+    expect(r.updated).toBeGreaterThanOrEqual(1);
     const v = await prisma.documentVersion.findUnique({ where: { id: versionId } });
     expect(v?.blocks).not.toBeNull();
     const parsed = parseBlockDocumentFromDb(v?.blocks);
@@ -47,8 +47,8 @@ describe('documentBlocksBackfill (EPIC-3)', () => {
   });
 
   it('PR-3c: fills Document.draftBlocks from markdown', async () => {
-    const updated = await backfillDocumentDraftBlocks(prisma, { documentId, limit: 50 });
-    expect(updated).toBeGreaterThanOrEqual(1);
+    const r = await backfillDocumentDraftBlocks(prisma, { documentId, limit: 50 });
+    expect(r.updated).toBeGreaterThanOrEqual(1);
     const d = await prisma.document.findUnique({ where: { id: documentId } });
     expect(d?.draftBlocks).not.toBeNull();
     const parsed = parseBlockDocumentFromDb(d?.draftBlocks);

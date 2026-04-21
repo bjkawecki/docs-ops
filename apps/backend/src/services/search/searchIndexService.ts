@@ -1,4 +1,5 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
+import { resolveSearchIndexBodyText } from './searchIndexPlaintext.js';
 
 async function upsertSearchIndexEntry(
   prisma: PrismaClient,
@@ -13,6 +14,8 @@ async function upsertSearchIndexEntry(
       content: true,
       deletedAt: true,
       archivedAt: true,
+      draftBlocks: true,
+      currentPublishedVersion: { select: { blocks: true } },
     },
   });
 
@@ -24,14 +27,20 @@ async function upsertSearchIndexEntry(
     return 'removed';
   }
 
+  const indexBody = resolveSearchIndexBodyText({
+    content: doc.content,
+    draftBlocks: doc.draftBlocks,
+    currentPublishedVersion: doc.currentPublishedVersion,
+  });
+
   await prisma.$executeRaw`
     INSERT INTO document_search_index (document_id, context_id, title, content, searchable, updated_on)
     VALUES (
       ${doc.id},
       ${doc.contextId},
       ${doc.title},
-      ${doc.content},
-      to_tsvector('simple', concat_ws(' ', coalesce(${doc.title}, ''), coalesce(${doc.content}, ''))),
+      ${indexBody},
+      to_tsvector('simple', concat_ws(' ', coalesce(${doc.title}, ''), coalesce(${indexBody}, ''))),
       NOW()
     )
     ON CONFLICT (document_id) DO UPDATE
@@ -62,31 +71,14 @@ export async function runIncrementalReindex(
       DELETE FROM document_search_index
       WHERE context_id = ${args.contextId}
     `;
-    await prisma.$executeRaw`
-      INSERT INTO document_search_index (document_id, context_id, title, content, searchable, updated_on)
-      SELECT
-        d.id,
-        d."contextId",
-        d.title,
-        d.content,
-        to_tsvector('simple', concat_ws(' ', coalesce(d.title, ''), coalesce(d.content, ''))),
-        NOW()
-      FROM "Document" d
-      WHERE d."contextId" = ${args.contextId}
-        AND d."deletedAt" IS NULL
-        AND d."archivedAt" IS NULL
-      ON CONFLICT (document_id) DO UPDATE
-      SET
-        context_id = EXCLUDED.context_id,
-        title = EXCLUDED.title,
-        content = EXCLUDED.content,
-        searchable = EXCLUDED.searchable,
-        updated_on = EXCLUDED.updated_on
-    `;
-    const count = await prisma.document.count({
+    const docs = await prisma.document.findMany({
       where: { contextId: args.contextId, deletedAt: null, archivedAt: null },
+      select: { id: true },
     });
-    return { indexedCount: count, removedCount: 0 };
+    for (const { id } of docs) {
+      await upsertSearchIndexEntry(prisma, id);
+    }
+    return { indexedCount: docs.length, removedCount: 0 };
   }
 
   const count = await prisma.document.count({
@@ -97,21 +89,12 @@ export async function runIncrementalReindex(
 
 export async function runFullReindex(prisma: PrismaClient): Promise<{ indexedCount: number }> {
   await prisma.$executeRaw`TRUNCATE TABLE document_search_index`;
-  await prisma.$executeRaw`
-    INSERT INTO document_search_index (document_id, context_id, title, content, searchable, updated_on)
-    SELECT
-      d.id,
-      d."contextId",
-      d.title,
-      d.content,
-      to_tsvector('simple', concat_ws(' ', coalesce(d.title, ''), coalesce(d.content, ''))),
-      NOW()
-    FROM "Document" d
-    WHERE d."deletedAt" IS NULL
-      AND d."archivedAt" IS NULL
-  `;
-  const indexedCount = await prisma.document.count({
+  const docs = await prisma.document.findMany({
     where: { deletedAt: null, archivedAt: null },
+    select: { id: true },
   });
-  return { indexedCount };
+  for (const { id } of docs) {
+    await upsertSearchIndexEntry(prisma, id);
+  }
+  return { indexedCount: docs.length };
 }

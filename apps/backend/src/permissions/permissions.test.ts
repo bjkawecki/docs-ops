@@ -8,6 +8,11 @@ import {
   canDeleteDocument,
   canPublishDocument,
   canMergeDraftRequest,
+  canEditLeadDraft,
+  canReadLeadDraft,
+  canCreateSuggestion,
+  canReadSuggestions,
+  canResolveSuggestion,
 } from './index.js';
 import { hashPassword } from '../auth/password.js';
 import {
@@ -358,6 +363,62 @@ describe('Permissions (canRead, canWrite)', () => {
     });
   });
 
+  describe('Lead-Draft (canEditLeadDraft, canReadLeadDraft)', () => {
+    beforeAll(async () => {
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+    });
+
+    it('canEditLeadDraft entspricht canPublishDocument', async () => {
+      expect(await canEditLeadDraft(prisma, supervisorId, docProcessId)).toBe(
+        await canPublishDocument(prisma, supervisorId, docProcessId)
+      );
+      expect(await canEditLeadDraft(prisma, writerOnlyUserId, docProcessId)).toBe(
+        await canPublishDocument(prisma, writerOnlyUserId, docProcessId)
+      );
+    });
+
+    it('nur User-Read-Grant (ohne Write/Lead) → canReadLeadDraft false', async () => {
+      expect(await canRead(prisma, otherUserId, docProcessId)).toBe(true);
+      expect(await canWrite(prisma, otherUserId, docProcessId)).toBe(false);
+      expect(await canReadLeadDraft(prisma, otherUserId, docProcessId)).toBe(false);
+    });
+
+    it('Writer-Grant → canReadLeadDraft true', async () => {
+      expect(await canReadLeadDraft(prisma, writerOnlyUserId, docProcessId)).toBe(true);
+    });
+
+    it('Team-Lead (Team-Write-Grant gilt nur für Lead) → canReadLeadDraft true', async () => {
+      expect(await canReadLeadDraft(prisma, teamLeaderId, docProcessId)).toBe(true);
+    });
+
+    it('Team-Mitglied ohne Write-Grant → canReadLeadDraft false', async () => {
+      expect(await canReadLeadDraft(prisma, teamMemberId, docProcessId)).toBe(false);
+    });
+  });
+
+  describe('Document-Suggestions (EPIC-5)', () => {
+    it('canCreateSuggestion entspricht canWrite', async () => {
+      expect(await canCreateSuggestion(prisma, writerOnlyUserId, docProcessId)).toBe(
+        await canWrite(prisma, writerOnlyUserId, docProcessId)
+      );
+      expect(await canCreateSuggestion(prisma, otherUserId, docProcessId)).toBe(false);
+    });
+    it('canReadSuggestions entspricht canReadLeadDraft', async () => {
+      expect(await canReadSuggestions(prisma, writerOnlyUserId, docProcessId)).toBe(
+        await canReadLeadDraft(prisma, writerOnlyUserId, docProcessId)
+      );
+      expect(await canReadSuggestions(prisma, otherUserId, docProcessId)).toBe(
+        await canReadLeadDraft(prisma, otherUserId, docProcessId)
+      );
+    });
+    it('canResolveSuggestion entspricht canEditLeadDraft', async () => {
+      expect(await canResolveSuggestion(prisma, supervisorId, docProcessId)).toBe(
+        await canEditLeadDraft(prisma, supervisorId, docProcessId)
+      );
+      expect(await canResolveSuggestion(prisma, writerOnlyUserId, docProcessId)).toBe(false);
+    });
+  });
+
   describe('canMergeDraftRequest', () => {
     beforeAll(async () => {
       await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
@@ -382,8 +443,12 @@ describe('Permissions (canRead, canWrite)', () => {
     });
 
     it('listUserIdsWhoCanReadDocument: recipients pass canRead; writer-only grant excluded', async () => {
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
       const ids = await listUserIdsWhoCanReadDocument(prisma, docProcessId);
       expect(ids.length).toBeGreaterThan(0);
+      // Zweites isAdmin: parallele Testdateien können Admin kurz toggeln; sonst schlägt die
+      // canRead-Nachprüfung für dieselbe ID nach listUserIdsWhoCanReadDocument fehl.
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
       for (const uid of ids) {
         expect(await canRead(prisma, uid, docProcessId)).toBe(true);
       }
@@ -394,8 +459,10 @@ describe('Permissions (canRead, canWrite)', () => {
     });
 
     it('listUserIdsWhoCanMergeDraftRequestOnDocument aligns with canMergeDraftRequest', async () => {
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
       const mergeIds = await listUserIdsWhoCanMergeDraftRequestOnDocument(prisma, docProcessId);
       expect(mergeIds.length).toBeGreaterThan(0);
+      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
       for (const uid of mergeIds) {
         expect(await canMergeDraftRequest(prisma, uid, draftRequestId)).toBe(true);
       }

@@ -56,6 +56,13 @@ import {
   IconDownload,
 } from '@tabler/icons-react';
 import DiffMatchPatch from 'diff-match-patch';
+import type { BlockDocumentV0 } from '../api/document-types';
+import {
+  DocumentBlocksPreview,
+  blockDocumentToPlainPreview,
+} from '../components/documents/DocumentBlocksPreview';
+import { DocumentLeadDraftPanel } from '../components/documents/DocumentLeadDraftPanel';
+import { DocumentSuggestionsPanel } from '../components/documents/DocumentSuggestionsPanel';
 
 type DiffTuple = [number, string];
 
@@ -169,6 +176,12 @@ type DocumentResponse = {
   id: string;
   title: string;
   content: string;
+  /** Lead-Draft-Revision (Block-System, EPIC-8). */
+  draftRevision?: number;
+  /** Lead-Draft-Blocks; null wenn noch nicht initialisiert. */
+  blocks?: BlockDocumentV0 | null;
+  publishedBlocks?: BlockDocumentV0 | null;
+  publishedBlocksSchemaVersion?: number | null;
   pdfUrl: string | null;
   contextId: string | null;
   archivedAt: string | null;
@@ -281,6 +294,7 @@ export function DocumentPage() {
       return res.json() as Promise<DocumentResponse>;
     },
     enabled: !!documentId,
+    refetchInterval: isTabVisible ? 15_000 : false,
   });
 
   const contextOwnerId = data?.contextOwnerId ?? null;
@@ -394,6 +408,10 @@ export function DocumentPage() {
         void queryClient.invalidateQueries({
           queryKey: ['document-export-pdf-status', documentId, pdfExportJobId],
         });
+      }
+      if (visible && documentId) {
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'suggestions'] });
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -1093,6 +1111,10 @@ export function DocumentPage() {
     ...(data.writers?.departments?.map((d) => d.name) ?? []),
   ].filter(Boolean);
 
+  const blocksOnlyView = data.publishedBlocks != null && !(data.content ?? '').trim();
+  const publishedPlainFromBlocks =
+    data.publishedBlocks != null ? blockDocumentToPlainPreview(data.publishedBlocks).trim() : '';
+
   const metadataItems: ReactNode[] = [];
   if (data.publishedAt) {
     const versionSuffix =
@@ -1491,14 +1513,41 @@ export function DocumentPage() {
                           slugCountsRef.current = {};
                           return null;
                         })()}
-                        <Typography>
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={markdownHeadingComponents}
-                          >
-                            {data.content || ''}
-                          </ReactMarkdown>
-                        </Typography>
+                        {blocksOnlyView ? (
+                          publishedPlainFromBlocks && data.publishedBlocks != null ? (
+                            <DocumentBlocksPreview
+                              title="Inhalt (aus Blocks)"
+                              doc={data.publishedBlocks}
+                            />
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              Veröffentlichte Version liefert Blocks ohne extrahierbaren Text;
+                              Details im Bereich „Lead-Draft“ unten.
+                            </Text>
+                          )
+                        ) : (
+                          <>
+                            {data.publishedBlocks != null && (
+                              <>
+                                <DocumentBlocksPreview
+                                  title="Lesevorschau aus Blocks"
+                                  doc={data.publishedBlocks}
+                                />
+                                <Text size="xs" c="dimmed" mb="sm">
+                                  Markdown-Export (parallel)
+                                </Text>
+                              </>
+                            )}
+                            <Typography>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={markdownHeadingComponents}
+                              >
+                                {data.content || ''}
+                              </ReactMarkdown>
+                            </Typography>
+                          </>
+                        )}
                       </Box>
                     </Card>
                   ) : (
@@ -1509,6 +1558,16 @@ export function DocumentPage() {
                           <Tabs.Tab value="settings">Settings</Tabs.Tab>
                         </Tabs.List>
                         <Tabs.Panel value="content" pt="lg">
+                          {data.blocks != null && !isViewingPublishedInEdit && (
+                            <Alert variant="light" color="blue" mb="md" title="Lead-Draft (Blocks)">
+                              <Text size="sm">
+                                Der gemeinsame Lead-Draft wird als Block-JSON gepflegt (nicht über
+                                dieses Markdown-Feld). Markdown bleibt parallel nutzbar; speichern
+                                Sie Änderungen am Lead-Draft im Bereich „Block-System“ unterhalb des
+                                Editors.
+                              </Text>
+                            </Alert>
+                          )}
                           <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
                             <SimpleGrid
                               cols={{ base: 1, md: 2 }}
@@ -1657,6 +1716,34 @@ export function DocumentPage() {
               </Flex>
             </Box>
           </Flex>
+
+          {(data.canWrite || data.canPublish) && documentId != null && (
+            <Card withBorder padding="lg" mt="xl" maw={1200}>
+              <Text fw={600} size="sm" mb="md">
+                Block-System (Lead-Draft & Suggestions)
+              </Text>
+              <Tabs defaultValue="lead">
+                <Tabs.List>
+                  <Tabs.Tab value="lead">Lead-Draft (API)</Tabs.Tab>
+                  <Tabs.Tab value="suggestions">Suggestions</Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="lead" pt="md">
+                  <DocumentLeadDraftPanel
+                    documentId={documentId}
+                    refetchWhenVisible={isTabVisible}
+                  />
+                </Tabs.Panel>
+                <Tabs.Panel value="suggestions" pt="md">
+                  <DocumentSuggestionsPanel
+                    documentId={documentId}
+                    currentUserId={me?.user?.id}
+                    canPublish={!!data.canPublish}
+                    refetchWhenVisible={isTabVisible}
+                  />
+                </Tabs.Panel>
+              </Tabs>
+            </Card>
+          )}
         </Paper>
       </Container>
 

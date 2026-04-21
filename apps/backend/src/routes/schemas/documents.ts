@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { DocumentSuggestionStatus } from '../../../generated/prisma/client.js';
+import { blockDocumentSchemaV0 } from '../../services/documents/blockSchema.js';
 import { paginationQuerySchema } from './organisation.js';
 
 export { paginationQuerySchema };
@@ -49,6 +51,12 @@ export const documentIdParamSchema = z.object({
 export const versionIdParamSchema = z.object({
   documentId: z.cuid(),
   versionId: z.cuid(),
+});
+
+/** Params: documentId + suggestionId (Suggestions, EPIC-5). */
+export const suggestionIdParamSchema = z.object({
+  documentId: z.cuid(),
+  suggestionId: z.cuid(),
 });
 
 /** Params: documentId + attachmentId (for attachment routes). */
@@ -115,6 +123,29 @@ export const updateDocumentBodySchema = z.object({
   contextId: z.string().cuid().optional().nullable(),
   tagIds: z.array(z.cuid()).optional(),
   description: z.string().max(500).trim().optional().nullable(),
+});
+
+/** Body: PATCH Lead-Draft (Block-JSON); Optimistic Lock über `expectedRevision` (optional abgestimmt mit If-Match). */
+export const patchLeadDraftBodySchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  blocks: blockDocumentSchemaV0,
+});
+
+/** Query: GET …/suggestions – optional nach Status filtern. */
+export const listDocumentSuggestionsQuerySchema = z.object({
+  status: z.nativeEnum(DocumentSuggestionStatus).optional(),
+});
+
+/** Body: POST …/suggestions (Autor). */
+export const createDocumentSuggestionBodySchema = z.object({
+  baseDraftRevision: z.number().int().min(0),
+  ops: z.unknown(),
+  publishedVersionId: z.string().cuid().optional().nullable(),
+});
+
+/** Body: POST accept/reject (Lead, optional Kommentar). */
+export const resolveDocumentSuggestionBodySchema = z.object({
+  comment: z.string().max(5000).trim().optional().nullable(),
 });
 
 /** Grant-Rolle (API: String). */

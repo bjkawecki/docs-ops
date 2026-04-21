@@ -115,25 +115,29 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-4 – Lead-Draft: API + Permissions
 
+**Status: umgesetzt** – Pfade **`/documents/:id/lead-draft`** (GET/PATCH), weil **`/documents/:id/draft`** bereits dem persönlichen `DocumentDraft` (Legacy GET/PUT) vorbehalten ist.
+
 **Dateien:**
 
-| Schicht     | Pfade                                                                                                                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routes      | `apps/backend/src/routes/documents.ts` (neue Unterrouten oder konsistente Pfadstruktur), `apps/backend/src/routes/schemas/documents.ts`                                                        |
-| Services    | `apps/backend/src/services/documents/documentService.ts` (oder neues `leadDraftService.ts` im gleichen Ordner)                                                                                 |
-| Permissions | **neu:** z. B. `apps/backend/src/permissions/canEditLeadDraft.ts`; Anbindung an `apps/backend/src/permissions/scopeLead.ts` (Lead-Erkennung existiert bereits)                                 |
-| Bestehend   | `apps/backend/src/permissions/canWrite.ts`, `apps/backend/src/permissions/canRead.ts`, `apps/backend/src/permissions/canPublishDocument.ts` – Matrix abstimmen (Autor: read draft, kein PATCH) |
-| Tests       | `apps/backend/src/routes/documents.test.ts`, `apps/backend/src/permissions/permissions.test.ts`                                                                                                |
+| Schicht     | Pfade                                                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routes      | `apps/backend/src/routes/documents.ts`, `apps/backend/src/routes/schemas/documents.ts` (`patchLeadDraftBodySchema`)                           |
+| Services    | `apps/backend/src/services/documents/leadDraftService.ts`                                                                                     |
+| Permissions | `apps/backend/src/permissions/canEditLeadDraft.ts` (`canEditLeadDraft` = `canPublishDocument`; `canReadLeadDraft` = Read + (Write oder Lead)) |
+| Bestehend   | `canPublishDocument` / `canWrite` / `canRead`; Publish weiterhin nur `POST .../publish`                                                       |
+| Tests       | `apps/backend/src/routes/documents.test.ts`, `apps/backend/src/permissions/permissions.test.ts`                                               |
 
-| PR        | Endpoints (laut Konzeptplan §7)                                                                                        |
-| --------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **PR-4a** | `GET .../documents/:id/draft` – Lead voll, Autor read-only + `draftRevision`                                           |
-| **PR-4b** | `PATCH .../documents/:id/draft` – nur Lead, **If-Match / Body `expectedRevision`** → 409 bei Konflikt                  |
-| **PR-4c** | Regeln aus `.cursor/rules/document-lifecycle.mdc`: Publish weiterhin **nicht** über generisches `PATCH /documents/:id` |
+| PR        | Endpoints (Konzept §7, technisch `lead-draft`)                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **PR-4a** | `GET .../documents/:id/lead-draft` – Lead `canEdit: true`, Autor read-only `canEdit: false` + `draftRevision`, `blocks`, `ETag`      |
+| **PR-4b** | `PATCH .../documents/:id/lead-draft` – nur Lead; Body `expectedRevision` (+ optionales konsistentes **If-Match**) → **409** Konflikt |
+| **PR-4c** | Regeln aus `.cursor/rules/document-lifecycle.mdc`: Publish **nicht** über `PATCH /documents/:id` (unverändert)                       |
 
 ---
 
 ## EPIC-5 – Suggestions: CRUD + Lead-Aktionen
+
+**Status: umgesetzt** – Routen unter `…/documents/:id/suggestions` (GET/POST), `…/suggestions/:sid/withdraw|accept|reject`; Service `documentSuggestionService.ts` + Ops `documentSuggestionOps.ts`; Rechte `canCreateSuggestion` / `canReadSuggestions` / `canResolveSuggestion`.
 
 **Dateien:**
 
@@ -155,6 +159,8 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-6 – Publish: Draft → Version + Suggestion-Konsequenzen
 
+**Status: umgesetzt** – `publishDocument` nutzt bei gültigem `draftBlocks` (Block v0) dieselben Blocks für `DocumentVersion.blocks`, leitet Markdown für `DocumentVersion.content` und `Document.content` via `blockDocumentV0ToMarkdown` ab; sonst bisheriger Markdown-Pfad. In derselben Transaktion: alle `pending`-`DocumentSuggestion` → `superseded` (ADR 001 §2.1).
+
 **Dateien:**
 
 - `apps/backend/src/services/documents/documentService.ts` (`publishDocument` o. Ä.)
@@ -171,6 +177,8 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-7 – Suche & Jobs
 
+**Status: umgesetzt** – `searchIndexPlaintext.ts` / `resolveSearchIndexBodyText`: Index-Spalte `document_search_index.content` + `searchable` aus Published-`blocks` → sonst `draftBlocks` → sonst Markdown; `runFullReindex` / Kontext-Reindex nutzen `upsertSearchIndexEntry`. Contains-Fallback-Snippets nutzen dieselbe Quelle. Nach `documents.blocks.backfill`-Job: inkrementeller Reindex pro betroffener `documentId` (EPIC-7b).
+
 **Dateien:**
 
 - `apps/backend/src/services/search/searchIndexService.ts`
@@ -186,18 +194,20 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-8 – Frontend
 
+**Status: umgesetzt** – Types in `document-types.ts`; `DocumentPage` mit erweitertem `DocumentResponse` (inkl. `blocks` / `publishedBlocks`), Polling für Dokument + Lead-Draft + Suggestions bei sichtbarem Tab; Lead-Draft per JSON-Textarea + PATCH (kein Tiptap-Paket); Autoren-UI: Suggestions POST/Withdraw, Lead nur lesen ohne PATCH; Lesevorschau aus Blocks; paralleles Markdown in der Ansicht ausgeblendet, wenn `publishedBlocks` gesetzt und `content` leer.
+
 **Dateien:**
 
 - `apps/frontend/src/pages/DocumentPage.tsx`
-- Neu: `apps/frontend/src/components/documents/` (Tiptap-Editor, Suggestion-Liste, Lead-Ansicht)
-- API-Client / Types: je nach Frontend-Struktur (z. B. `apps/frontend/src/api/` oder wo `fetch` gekapselt ist)
+- `apps/frontend/src/api/document-types.ts`
+- `apps/frontend/src/components/documents/DocumentBlocksPreview.tsx`, `DocumentLeadDraftPanel.tsx`, `DocumentSuggestionsPanel.tsx`
 
-| PR        | Inhalt                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------- |
-| **PR-8a** | API-Types + `GET document` / `draft` / `suggestions` anbinden (read-only für Autoren)       |
-| **PR-8b** | Tiptap: Lead voll editierbar; Autor nur Suggestion-Erstellung (kein Draft-PATCH)            |
-| **PR-8c** | Near-Realtime **minimal:** Polling oder ETag zuerst (Plan §5.4)                             |
-| **PR-8d** | Entfernen / Ausblenden der parallelen Markdown-Quelle, wenn Backend nur noch Blocks liefert |
+| PR        | Inhalt                                                                                                                                                      |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PR-8a** | API-Types + `GET document` / `lead-draft` / `suggestions` anbinden (read-only für Autoren)                                                                  |
+| **PR-8b** | Lead: JSON-Editor + PATCH; Autor nur Suggestion-Erstellung (kein Lead-Draft-PATCH)                                                                          |
+| **PR-8c** | Polling (15s) bei sichtbarem Tab für Dokument, Lead-Draft und Suggestions                                                                                   |
+| **PR-8d** | Paralleles Markdown in der Ansicht ausblenden, wenn nur Blocks (`content` leer, `publishedBlocks` gesetzt); sonst Blocks-Vorschau + Markdown gekennzeichnet |
 
 ---
 

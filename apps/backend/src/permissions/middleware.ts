@@ -10,9 +10,10 @@ export const DOCUMENT_ID_PARAM = 'documentId';
  * PreHandler: Prüft Lese- oder Schreibzugriff auf ein Dokument.
  * Muss nach requireAuth laufen. Liest documentId aus request.params.documentId.
  * 400 wenn documentId fehlt, 401 wenn kein User, 404 wenn Dokument nicht existiert, 403 wenn kein Zugriff.
+ * `readOrWrite`: canRead **oder** canWrite (z. B. Lead-Draft für Autoren ohne separates Read-Grant).
  */
 export function requireDocumentAccess(
-  mode: 'read' | 'write'
+  mode: 'read' | 'write' | 'readOrWrite'
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const documentId = (request.params as Record<string, string | undefined>)?.[DOCUMENT_ID_PARAM];
@@ -41,7 +42,11 @@ export function requireDocumentAccess(
       return;
     }
     const allowed =
-      mode === 'read' ? await canRead(prisma, userId, doc) : await canWrite(prisma, userId, doc);
+      mode === 'read'
+        ? await canRead(prisma, userId, doc)
+        : mode === 'write'
+          ? await canWrite(prisma, userId, doc)
+          : (await canRead(prisma, userId, doc)) || (await canWrite(prisma, userId, doc));
     if (!allowed) {
       return reply.status(403).send({ error: 'No access to this document' });
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { prisma } from '../db.js';
-import { hashPassword } from '../auth/password.js';
+import { prisma } from '../../db.js';
+import { hashPassword } from '../../auth/password.js';
 import {
   dispatchNotificationEvent,
   getNotificationCoalesceWindowMinutes,

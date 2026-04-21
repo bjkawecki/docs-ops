@@ -5,6 +5,7 @@ import {
 } from '../../permissions/catalogPermissions.js';
 import { buildCatalogDocumentListBase } from '../documents/catalogDocumentListWhere.js';
 import type { SearchDocumentItem, SearchDocumentsArgs } from './documentSearchTypes.js';
+import { resolveSearchIndexBodyText } from './searchIndexPlaintext.js';
 
 /** Plain-text excerpt with `[[match]]` markers for the same `renderSearchSnippet` UI as FTS. */
 function excerptWithMarkers(source: string, term: string): string | null {
@@ -69,8 +70,10 @@ export async function searchDocumentsByContainsFallback(
         id: true,
         title: true,
         content: true,
+        draftBlocks: true,
         contextId: true,
         updatedAt: true,
+        currentPublishedVersion: { select: { blocks: true } },
         context: {
           select: {
             displayName: true,
@@ -86,7 +89,12 @@ export async function searchDocumentsByContainsFallback(
   ]);
 
   const items: SearchDocumentItem[] = rows.map((row) => {
-    const fromBody = excerptWithMarkers(row.content ?? '', term);
+    const bodySource = resolveSearchIndexBodyText({
+      content: row.content ?? '',
+      draftBlocks: row.draftBlocks,
+      currentPublishedVersion: row.currentPublishedVersion,
+    });
+    const fromBody = excerptWithMarkers(bodySource, term);
     const fromTitle = fromBody == null ? excerptWithMarkers(row.title ?? '', term) : null;
     const snippet = fromBody ?? fromTitle;
     return {

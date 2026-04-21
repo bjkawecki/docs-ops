@@ -24,6 +24,8 @@ export type BackfillDocumentBlocksOptions = {
 export type BackfillDocumentBlocksResult = {
   documentVersionsUpdated: number;
   documentsDraftUpdated: number;
+  /** Betroffene Dokument-IDs (EPIC-7b: Search-Reindex). */
+  affectedDocumentIds: string[];
 };
 
 /**
@@ -33,7 +35,7 @@ export type BackfillDocumentBlocksResult = {
 export async function backfillDocumentVersionBlocks(
   prisma: PrismaClient,
   opts?: BackfillDocumentBlocksOptions
-): Promise<number> {
+): Promise<{ updated: number; documentIds: string[] }> {
   const take = opts?.limit ?? 200;
   const rows = await prisma.documentVersion.findMany({
     where: {
@@ -41,9 +43,10 @@ export async function backfillDocumentVersionBlocks(
       ...(opts?.documentId != null ? { documentId: opts.documentId } : {}),
     },
     take,
-    select: { id: true, content: true },
+    select: { id: true, content: true, documentId: true },
   });
 
+  const documentIds: string[] = [];
   let updated = 0;
   for (const row of rows) {
     const json = blockDocumentJsonFromMarkdown(row.content);
@@ -51,9 +54,10 @@ export async function backfillDocumentVersionBlocks(
       where: { id: row.id },
       data: { blocks: json, blocksSchemaVersion: 0 },
     });
+    documentIds.push(row.documentId);
     updated += 1;
   }
-  return updated;
+  return { updated, documentIds };
 }
 
 /**
@@ -62,7 +66,7 @@ export async function backfillDocumentVersionBlocks(
 export async function backfillDocumentDraftBlocks(
   prisma: PrismaClient,
   opts?: BackfillDocumentBlocksOptions
-): Promise<number> {
+): Promise<{ updated: number; documentIds: string[] }> {
   const take = opts?.limit ?? 200;
   const rows = await prisma.document.findMany({
     where: {
@@ -74,6 +78,7 @@ export async function backfillDocumentDraftBlocks(
     select: { id: true, content: true },
   });
 
+  const documentIds: string[] = [];
   let updated = 0;
   for (const row of rows) {
     const json = blockDocumentJsonFromMarkdown(row.content);
@@ -81,9 +86,10 @@ export async function backfillDocumentDraftBlocks(
       where: { id: row.id },
       data: { draftBlocks: json },
     });
+    documentIds.push(row.id);
     updated += 1;
   }
-  return updated;
+  return { updated, documentIds };
 }
 
 /** Versionen zuerst, dann Draft-Spalten am Dokument (eine Job-/Script-Runde). */
@@ -91,7 +97,12 @@ export async function backfillAllDocumentBlocks(
   prisma: PrismaClient,
   opts?: BackfillDocumentBlocksOptions
 ): Promise<BackfillDocumentBlocksResult> {
-  const documentVersionsUpdated = await backfillDocumentVersionBlocks(prisma, opts);
-  const documentsDraftUpdated = await backfillDocumentDraftBlocks(prisma, opts);
-  return { documentVersionsUpdated, documentsDraftUpdated };
+  const v = await backfillDocumentVersionBlocks(prisma, opts);
+  const d = await backfillDocumentDraftBlocks(prisma, opts);
+  const affectedDocumentIds = [...new Set([...v.documentIds, ...d.documentIds])];
+  return {
+    documentVersionsUpdated: v.updated,
+    documentsDraftUpdated: d.updated,
+    affectedDocumentIds,
+  };
 }

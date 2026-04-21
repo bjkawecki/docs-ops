@@ -3,6 +3,12 @@ export { canWrite } from './canWrite.js';
 export { canModerateDocumentComments } from './commentPermissions.js';
 export { canDeleteDocument } from './canDeleteDocument.js';
 export { canPublishDocument } from './canPublishDocument.js';
+export { canEditLeadDraft, canReadLeadDraft } from './canEditLeadDraft.js';
+export {
+  canCreateSuggestion,
+  canReadSuggestions,
+  canResolveSuggestion,
+} from './canDocumentSuggestion.js';
 export { canMergeDraftRequest } from './canMergeDraftRequest.js';
 export {
   canReadContext,

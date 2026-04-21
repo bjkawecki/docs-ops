@@ -1,5 +1,10 @@
-import type { PrismaClient } from '../../../generated/prisma/client.js';
-import { blockDocumentJsonFromMarkdown } from './documentBlocksBackfill.js';
+import type { Prisma, PrismaClient } from '../../../generated/prisma/client.js';
+import { DocumentSuggestionStatus } from '../../../generated/prisma/client.js';
+import {
+  blockDocumentJsonFromMarkdown,
+  parseBlockDocumentFromDb,
+} from './documentBlocksBackfill.js';
+import { blockDocumentV0ToMarkdown } from './blocksToMarkdown.js';
 
 /** Metadata-only update payload. No lifecycle fields (publishedAt, archivedAt, deletedAt). */
 export type UpdateDocumentMetadataData = {
@@ -54,7 +59,7 @@ export async function publishDocument(
 ): Promise<{ id: string; publishedAt: Date; currentPublishedVersionId: string }> {
   const doc = await prisma.document.findUnique({
     where: { id: documentId, deletedAt: null },
-    select: { id: true, contextId: true, publishedAt: true, content: true },
+    select: { id: true, contextId: true, publishedAt: true, content: true, draftBlocks: true },
   });
   if (!doc) throw new DocumentNotFoundError(documentId);
   if (doc.contextId == null)
@@ -63,12 +68,21 @@ export async function publishDocument(
     );
   if (doc.publishedAt != null) throw new DocumentAlreadyPublishedError(documentId);
 
+  const draftParsed = parseBlockDocumentFromDb(doc.draftBlocks);
+  const publishFromLeadDraft = draftParsed != null;
+  const versionMarkdown = publishFromLeadDraft
+    ? blockDocumentV0ToMarkdown(draftParsed)
+    : doc.content;
+  const versionBlocksJson: Prisma.InputJsonValue = publishFromLeadDraft
+    ? (draftParsed as unknown as Prisma.InputJsonValue)
+    : blockDocumentJsonFromMarkdown(doc.content);
+
   await prisma.$transaction(async (tx) => {
     const v = await tx.documentVersion.create({
       data: {
         documentId,
-        content: doc.content,
-        blocks: blockDocumentJsonFromMarkdown(doc.content),
+        content: versionMarkdown,
+        blocks: versionBlocksJson,
         blocksSchemaVersion: 0,
         versionNumber: 1,
         createdById: userId,
@@ -77,7 +91,15 @@ export async function publishDocument(
     });
     await tx.document.update({
       where: { id: documentId },
-      data: { publishedAt: new Date(), currentPublishedVersionId: v.id },
+      data: {
+        publishedAt: new Date(),
+        currentPublishedVersionId: v.id,
+        ...(publishFromLeadDraft ? { content: versionMarkdown } : {}),
+      },
+    });
+    await tx.documentSuggestion.updateMany({
+      where: { documentId, status: DocumentSuggestionStatus.pending },
+      data: { status: DocumentSuggestionStatus.superseded },
     });
   });
 
