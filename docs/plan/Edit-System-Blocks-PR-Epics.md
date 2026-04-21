@@ -194,18 +194,19 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-8 – Frontend
 
-**Status: umgesetzt** – Types in `document-types.ts`; `DocumentPage` mit erweitertem `DocumentResponse` (inkl. `blocks` / `publishedBlocks`), Polling für Dokument + Lead-Draft + Suggestions bei sichtbarem Tab; Lead-Draft per JSON-Textarea + PATCH (kein Tiptap-Paket); Autoren-UI: Suggestions POST/Withdraw, Lead nur lesen ohne PATCH; Lesevorschau aus Blocks; paralleles Markdown in der Ansicht ausgeblendet, wenn `publishedBlocks` gesetzt und `content` leer.
+**Status: umgesetzt** – Types in `document-types.ts`; `DocumentPage` mit erweitertem `DocumentResponse` (inkl. `blocks` / `publishedBlocks`), Polling für Dokument + Lead-Draft + Suggestions bei sichtbarem Tab; Lead-Draft mit **Tiptap** (StarterKit, ohne Bold/Italic/Strike wegen fehlender Persistenz im Block-v0-Modell) + Roundtrip-Konverter `blockDocumentTiptap.ts` + optionales Roh-JSON im Accordion; PATCH unverändert. Autoren-UI: Suggestions POST/Withdraw, Lead nur lesen ohne PATCH; Lesevorschau aus Blocks; paralleles Markdown in der Ansicht ausgeblendet, wenn `publishedBlocks` gesetzt und `content` leer.
 
 **Dateien:**
 
 - `apps/frontend/src/pages/DocumentPage.tsx`
 - `apps/frontend/src/api/document-types.ts`
-- `apps/frontend/src/components/documents/DocumentBlocksPreview.tsx`, `DocumentLeadDraftPanel.tsx`, `DocumentSuggestionsPanel.tsx`
+- `apps/frontend/src/lib/blockDocumentTiptap.ts`, `apps/frontend/src/tiptap/blockIdExtension.ts`
+- `apps/frontend/src/components/documents/DocumentBlocksPreview.tsx`, `DocumentLeadDraftPanel.tsx`, `LeadDraftTiptapEditor.tsx`, `DocumentSuggestionsPanel.tsx`
 
 | PR        | Inhalt                                                                                                                                                      |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **PR-8a** | API-Types + `GET document` / `lead-draft` / `suggestions` anbinden (read-only für Autoren)                                                                  |
-| **PR-8b** | Lead: JSON-Editor + PATCH; Autor nur Suggestion-Erstellung (kein Lead-Draft-PATCH)                                                                          |
+| **PR-8b** | Lead: Tiptap + PATCH (+ JSON-Fallback); Autor nur Suggestion-Erstellung (kein Lead-Draft-PATCH)                                                             |
 | **PR-8c** | Polling (15s) bei sichtbarem Tab für Dokument, Lead-Draft und Suggestions                                                                                   |
 | **PR-8d** | Paralleles Markdown in der Ansicht ausblenden, wenn nur Blocks (`content` leer, `publishedBlocks` gesetzt); sonst Blocks-Vorschau + Markdown gekennzeichnet |
 

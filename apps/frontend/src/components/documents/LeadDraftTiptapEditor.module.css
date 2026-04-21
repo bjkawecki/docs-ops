@@ -1,0 +1,38 @@
+.editorShell {
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-sm);
+  background: light-dark(var(--mantine-color-body), var(--mantine-color-dark-7));
+}
+
+/* Tiptap: editierbare Wurzel ist .ProseMirror */
+.editorShell :global(.ProseMirror) {
+  min-height: 220px;
+  outline: none;
+  padding: var(--mantine-spacing-sm);
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.55;
+}
+
+.editorShell :global(.ProseMirror p) {
+  margin: 0.35em 0;
+}
+
+.editorShell :global(.ProseMirror h1),
+.editorShell :global(.ProseMirror h2),
+.editorShell :global(.ProseMirror h3) {
+  margin: 0.5em 0 0.25em;
+  font-weight: 650;
+}
+
+.editorShell :global(.ProseMirror ul) {
+  margin: 0.35em 0;
+  padding-left: 1.25rem;
+}
+
+.editorShell :global(.ProseMirror pre) {
+  margin: 0.5em 0;
+  padding: var(--mantine-spacing-xs);
+  border-radius: var(--mantine-radius-xs);
+  font-size: var(--mantine-font-size-xs);
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+}

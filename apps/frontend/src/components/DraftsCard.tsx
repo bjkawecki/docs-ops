@@ -37,7 +37,7 @@ function DraftPreviewLinks({
 
 export function DraftsCard({
   scopeParams,
-  limit = 5,
+  limit = 10,
   enabled = true,
   onViewMore,
 }: DraftsCardProps) {

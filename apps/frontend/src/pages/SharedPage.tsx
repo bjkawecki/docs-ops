@@ -70,7 +70,7 @@ export function SharedPage() {
         </Card>
         <DraftsCard
           scopeParams={{ scope: 'shared' }}
-          limit={5}
+          limit={10}
           onViewMore={() => setActiveTab('drafts')}
         />
       </SimpleGrid>

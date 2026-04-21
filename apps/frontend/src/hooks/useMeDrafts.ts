@@ -91,13 +91,13 @@ export function useMeDrafts(
   options?: { limit?: number; offset?: number; enabled?: boolean }
 ) {
   const queryKey = meDraftsQueryKey(params, {
-    limit: options?.limit ?? 20,
+    limit: options?.limit ?? 10,
     offset: options?.offset ?? 0,
   });
   return useQuery({
     queryKey,
     queryFn: () =>
-      fetchMeDrafts(params, { limit: options?.limit ?? 20, offset: options?.offset ?? 0 }),
+      fetchMeDrafts(params, { limit: options?.limit ?? 10, offset: options?.offset ?? 0 }),
     enabled: options?.enabled !== false,
   });
 }

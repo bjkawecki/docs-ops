@@ -249,7 +249,7 @@ export function PersonalPage() {
         </ScopeCard>
         <DraftsCard
           scopeParams={{ scope: 'personal' }}
-          limit={5}
+          limit={10}
           onViewMore={() => setActiveTab('drafts')}
         />
       </SimpleGrid>

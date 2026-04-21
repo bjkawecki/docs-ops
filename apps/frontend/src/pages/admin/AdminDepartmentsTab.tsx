@@ -52,7 +52,7 @@ type DepartmentStatsRes = {
 };
 const DEPARTMENTS_PAGE_SIZE_KEY = 'docsops-admin-departments-page-size';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;

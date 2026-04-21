@@ -77,7 +77,7 @@ type JobAlertsResponse = {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 const POLLING_SECONDS_OPTIONS = [0, 2, 5, 10, 30] as const;
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_POLLING_SECONDS = 5;
 const JOBS_PAGE_SIZE_KEY = 'docsops-admin-jobs-page-size';
 const JOBS_POLLING_SECONDS_KEY = 'docsops-admin-jobs-polling-seconds';

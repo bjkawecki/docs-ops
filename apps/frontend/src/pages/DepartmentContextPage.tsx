@@ -398,7 +398,7 @@ export function DepartmentContextPage() {
         {canWrite && (
           <DraftsCard
             scopeParams={{ departmentId }}
-            limit={5}
+            limit={10}
             enabled={!!departmentId}
             onViewMore={() => setActiveTab('drafts')}
           />

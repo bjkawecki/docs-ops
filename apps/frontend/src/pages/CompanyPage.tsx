@@ -420,7 +420,7 @@ export function CompanyPage() {
         {effectiveCompanyId != null && (
           <DraftsCard
             scopeParams={{ companyId: effectiveCompanyId }}
-            limit={5}
+            limit={10}
             onViewMore={() => setActiveTab('drafts')}
           />
         )}

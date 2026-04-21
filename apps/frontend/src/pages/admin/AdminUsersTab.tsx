@@ -64,7 +64,7 @@ type DepartmentsRes = { items: DepartmentWithTeams[] };
 
 const USERS_PAGE_SIZE_KEY = 'docsops-admin-users-page-size';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 type SortByField = 'name' | 'email' | 'isAdmin' | 'deletedAt' | 'role' | 'teams' | 'departments';
 type SortOrder = 'asc' | 'desc';
@@ -810,7 +810,7 @@ function UserDetailTabs({
   const [documentsPage, setDocumentsPage] = useState(0);
   const [profileEditing, setProfileEditing] = useState(false);
   const [assignmentsEditing, setAssignmentsEditing] = useState(false);
-  const DOCS_PAGE_SIZE = 20;
+  const DOCS_PAGE_SIZE = 10;
   const isLastActiveAdmin = activeAdminCount === 1 && !!user.isAdmin && !user.deletedAt;
 
   const { data: statsData, isPending: statsPending } = useQuery({

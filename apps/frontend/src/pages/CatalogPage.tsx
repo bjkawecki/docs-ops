@@ -35,7 +35,7 @@ function highlightMatch(text: string, searchTerm: string): ReactNode {
 
 const CATALOG_PAGE_SIZE_KEY = 'docsops-catalog-page-size';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 
 type SortBy =
   | 'title'

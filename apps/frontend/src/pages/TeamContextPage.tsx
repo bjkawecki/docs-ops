@@ -404,7 +404,7 @@ export function TeamContextPage() {
         {canWrite && (
           <DraftsCard
             scopeParams={{ teamId: teamId! }}
-            limit={5}
+            limit={10}
             enabled={!!teamId}
             onViewMore={() => setActiveTab('drafts')}
           />

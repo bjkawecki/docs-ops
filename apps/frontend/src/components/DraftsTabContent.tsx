@@ -33,7 +33,7 @@ function hasPendingRequest(documentId: string, openDraftRequests: OpenDraftReque
   return openDraftRequests.some((r) => r.documentId === documentId);
 }
 
-const DRAFTS_PAGE_SIZE = 25;
+const DRAFTS_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 export function DraftsTabContent({

@@ -23,7 +23,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { apiFetch } from '../../api/client';
 import './DocumentCommentsSection.css';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const LS_KEY_PREFIX = 'docsops.documentComments.open.';
 const TOGGLE_STRIP_WIDTH = 32;
 const WIDTH_OPEN = 300;

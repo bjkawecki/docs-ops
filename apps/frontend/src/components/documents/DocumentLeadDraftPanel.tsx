@@ -1,11 +1,14 @@
-import { Alert, Box, Button, Group, Stack, Text, Textarea } from '@mantine/core';
+import { Accordion, Alert, Box, Button, Group, Stack, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 import type { BlockDocumentV0, LeadDraftResponse } from '../../api/document-types';
+import { LeadDraftTiptapEditor, type LeadDraftTiptapEditorHandle } from './LeadDraftTiptapEditor';
 
 const POLL_MS = 15_000;
+
+const emptyDoc: BlockDocumentV0 = { schemaVersion: 0, blocks: [] };
 
 type Props = {
   documentId: string;
@@ -15,8 +18,9 @@ type Props = {
 
 export function DocumentLeadDraftPanel({ documentId, refetchWhenVisible }: Props) {
   const queryClient = useQueryClient();
-  const [draftJson, setDraftJson] = useState('');
-  const [jsonError, setJsonError] = useState<string | null>(null);
+  const editorRef = useRef<LeadDraftTiptapEditorHandle>(null);
+  const [accordionRaw, setAccordionRaw] = useState<string | null>(null);
+  const [rawJson, setRawJson] = useState('');
 
   const q = useQuery({
     queryKey: ['document', documentId, 'lead-draft'],
@@ -35,26 +39,30 @@ export function DocumentLeadDraftPanel({ documentId, refetchWhenVisible }: Props
   const canEdit = data && !('forbidden' in data) && data.canEdit;
   const revision = data && !('forbidden' in data) ? data.draftRevision : 0;
 
-  useEffect(() => {
-    if (!data || 'forbidden' in data) return;
-    setDraftJson(JSON.stringify(data.blocks ?? { schemaVersion: 0, blocks: [] }, null, 2));
-    setJsonError(null);
+  const serverDoc = useMemo<BlockDocumentV0>(() => {
+    if (!data || 'forbidden' in data) return emptyDoc;
+    return data.blocks ?? { schemaVersion: 0, blocks: [] };
   }, [data]);
 
+  const serverFingerprint = useMemo(() => JSON.stringify(serverDoc), [serverDoc]);
+
+  useEffect(() => {
+    if (accordionRaw !== 'raw') return;
+    const doc = editorRef.current?.getBlockDocument() ?? serverDoc;
+    setRawJson(JSON.stringify(doc, null, 2));
+  }, [accordionRaw, serverFingerprint, serverDoc]);
+
   const handleSave = useCallback(async () => {
-    if (!data || 'forbidden' in data || !canEdit) return;
-    let parsed: BlockDocumentV0;
-    try {
-      parsed = JSON.parse(draftJson) as BlockDocumentV0;
-    } catch {
-      setJsonError('Ungültiges JSON');
-      return;
-    }
+    if (!data || 'forbidden' in data) return;
+    const parsed = editorRef.current?.getBlockDocument() ?? serverDoc;
     if (parsed.schemaVersion !== 0 || !Array.isArray(parsed.blocks)) {
-      setJsonError('Erwartet schemaVersion: 0 und blocks: Array');
+      notifications.show({
+        color: 'red',
+        title: 'Ungültiges Dokument',
+        message: 'Erwartet schemaVersion: 0 und blocks: Array',
+      });
       return;
     }
-    setJsonError(null);
     const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -87,7 +95,7 @@ export function DocumentLeadDraftPanel({ documentId, refetchWhenVisible }: Props
     await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
     await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'suggestions'] });
     await q.refetch();
-  }, [canEdit, data, documentId, draftJson, queryClient, q, revision]);
+  }, [data, documentId, queryClient, q, revision, serverDoc]);
 
   if (q.isPending) {
     return (
@@ -122,17 +130,37 @@ export function DocumentLeadDraftPanel({ documentId, refetchWhenVisible }: Props
           {canEdit ? 'Sie können den Lead-Draft bearbeiten.' : 'Nur Lesen (kein Lead-Draft-PATCH).'}
         </Text>
       </Group>
-      <Textarea
-        label="Block-JSON (v0)"
-        value={draftJson}
-        onChange={(e) => setDraftJson(e.currentTarget.value)}
-        readOnly={!canEdit}
-        minRows={12}
-        autosize
-        maxRows={28}
-        styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 } }}
-        error={jsonError}
+
+      <LeadDraftTiptapEditor
+        ref={editorRef}
+        sourceDocument={serverDoc}
+        contentFingerprint={serverFingerprint}
+        editable={!!canEdit}
       />
+
+      <Accordion
+        variant="contained"
+        chevronPosition="right"
+        value={accordionRaw}
+        onChange={(v) => setAccordionRaw(v)}
+      >
+        <Accordion.Item value="raw">
+          <Accordion.Control>Roh-JSON (Fallback / Debugging)</Accordion.Control>
+          <Accordion.Panel>
+            <Textarea
+              readOnly
+              minRows={10}
+              autosize
+              maxRows={24}
+              value={rawJson}
+              styles={{
+                input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 },
+              }}
+            />
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
+
       {canEdit && (
         <Box>
           <Button size="sm" onClick={() => void handleSave()}>
