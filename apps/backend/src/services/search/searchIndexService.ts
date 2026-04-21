@@ -11,7 +11,6 @@ async function upsertSearchIndexEntry(
       id: true,
       contextId: true,
       title: true,
-      content: true,
       deletedAt: true,
       archivedAt: true,
       draftBlocks: true,
@@ -28,7 +27,6 @@ async function upsertSearchIndexEntry(
   }
 
   const indexBody = resolveSearchIndexBodyText({
-    content: doc.content,
     draftBlocks: doc.draftBlocks,
     currentPublishedVersion: doc.currentPublishedVersion,
   });

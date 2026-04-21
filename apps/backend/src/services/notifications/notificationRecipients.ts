@@ -426,18 +426,6 @@ async function collectWriteContextUserIds(
   return [...ids];
 }
 
-export async function listUserIdsWhoCanMergeDraftRequestOnDocument(
-  prisma: PrismaClient,
-  documentId: string
-): Promise<string[]> {
-  const doc = await prisma.document.findUnique({
-    where: { id: documentId },
-    select: { contextId: true },
-  });
-  if (doc?.contextId == null) return [];
-  return listUserIdsWhoCanWriteContext(prisma, doc.contextId);
-}
-
 /** Union of readers and writers (for trash/delete style notifications). */
 export async function listUserIdsWhoCanReadOrWriteDocument(
   prisma: PrismaClient,

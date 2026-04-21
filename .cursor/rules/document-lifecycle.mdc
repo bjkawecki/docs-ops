@@ -11,8 +11,8 @@ Allowed lifecycle transitions:
 publish
 archive
 restore
-request-draft
-merge-draft
+request-draft _(Legacy: nur wenn `DOCUMENT_LEGACY_DRAFT_ENABLED` an)_
+merge-draft _(Legacy: nur wenn `DOCUMENT_LEGACY_DRAFT_ENABLED` an)_
 delete
 
 Lifecycle fields must NOT be modified via generic PATCH routes.

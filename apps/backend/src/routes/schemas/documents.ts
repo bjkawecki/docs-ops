@@ -65,49 +65,10 @@ export const attachmentIdParamSchema = z.object({
   attachmentId: z.cuid(),
 });
 
-/** Params: draftRequestId (for PATCH draft-requests). */
-export const draftRequestIdParamSchema = z.object({
-  draftRequestId: z.cuid(),
-});
-
-/** Body: Create draft request (PR). */
-export const createDraftRequestBodySchema = z.object({
-  draftContent: z.string(),
-  targetVersionId: z.string().cuid().optional(),
-});
-
-/** Body: PUT document draft (upsert user's draft). */
-export const putDraftBodySchema = z.object({
-  content: z.string(),
-  /** When set to currentPublishedVersionId, marks draft as based on latest version (e.g. after update-to-latest). */
-  basedOnVersionId: z.string().cuid().optional(),
-});
-
-/** Body: PATCH draft-request (merge or reject). */
-export const patchDraftRequestBodySchema = z.object({
-  action: z.enum(['merge', 'reject']),
-  comment: z.string().max(2000).optional(),
-});
-
-/** Query: GET draft-requests – optional status filter. */
-export const draftRequestsQuerySchema = z.object({
-  status: z.enum(['open', 'merged', 'rejected']).optional(),
-});
-
-/** Response: POST draft/update-to-latest – either upToDate or merge result. */
-export const updateToLatestResponseSchema = z.discriminatedUnion('upToDate', [
-  z.object({ upToDate: z.literal(true) }),
-  z.object({
-    mergedContent: z.string(),
-    hasConflicts: z.boolean(),
-  }),
-]);
-
 /** Body: Dokument anlegen (immer als Draft). contextId optional = context-free draft (only creator visible). */
 export const createDocumentBodySchema = z
   .object({
     title: z.string().min(1).max(500),
-    content: z.string(),
     contextId: z.string().cuid().optional(),
     tagIds: z.array(z.cuid()).optional().default([]),
     description: z.string().max(500).trim().optional(),
@@ -116,10 +77,9 @@ export const createDocumentBodySchema = z
     message: 'tagIds not allowed when creating a context-free draft (no contextId)',
   });
 
-/** Body: Dokument-Metadaten aktualisieren (title, content, contextId, description, tagIds). Lifecycle nur über dedizierte Endpoints. */
+/** Body: Dokument-Metadaten aktualisieren (title, contextId, description, tagIds). Lifecycle nur über dedizierte Endpoints. */
 export const updateDocumentBodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
-  content: z.string().optional(),
   contextId: z.string().cuid().optional().nullable(),
   tagIds: z.array(z.cuid()).optional(),
   description: z.string().max(500).trim().optional().nullable(),

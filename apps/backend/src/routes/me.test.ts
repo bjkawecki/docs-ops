@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../app.js';
 import { prisma } from '../db.js';
 import { hashPassword } from '../auth/password.js';
+import { emptyBlockDocumentJson } from '../services/documents/documentBlocksBackfill.js';
 
 const TEST_EMAIL = `me-test-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'testpass';
@@ -403,7 +404,7 @@ describe('GET /me/trash and /me/archive (org scope)', () => {
     const docTrash = await prisma.document.create({
       data: {
         title: 'Doc for Trash',
-        content: '',
+        draftBlocks: emptyBlockDocumentJson(),
         contextId,
         createdById: testUserId,
       },
@@ -412,7 +413,7 @@ describe('GET /me/trash and /me/archive (org scope)', () => {
     const docArchive = await prisma.document.create({
       data: {
         title: 'Doc for Archive',
-        content: '',
+        draftBlocks: emptyBlockDocumentJson(),
         contextId,
         createdById: testUserId,
       },

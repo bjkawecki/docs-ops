@@ -7,7 +7,6 @@ import {
   Select,
   Stack,
   Text,
-  Textarea,
   TextInput,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -59,7 +58,6 @@ export function NewDocumentModal({
   const [mode, setMode] = useState<DraftMode>('in_context');
   const [contextId, setContextId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -111,7 +109,6 @@ export function NewDocumentModal({
     setMode('in_context');
     setContextId(null);
     setTitle('');
-    setContent('');
     setTagIds([]);
     setLoading(false);
   };
@@ -130,11 +127,10 @@ export function NewDocumentModal({
     if (!canSubmit) return;
     if (!noContext && !contextId) return;
     setLoading(true);
-    const contentToSend = content.trim() === '' ? `# ${title.trim()}\n\n` : content;
     try {
       const body = noContext
-        ? { title: title.trim(), content: contentToSend }
-        : { title: title.trim(), content: contentToSend, contextId: contextId!, tagIds };
+        ? { title: title.trim() }
+        : { title: title.trim(), contextId: contextId!, tagIds };
       const res = await apiFetch('/api/v1/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -208,13 +204,6 @@ export function NewDocumentModal({
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
           required
-        />
-        <Textarea
-          label="Content (Markdown)"
-          placeholder="Optional content"
-          value={content}
-          onChange={(e) => setContent(e.currentTarget.value)}
-          minRows={4}
         />
         {!noContext && (
           <MultiSelect

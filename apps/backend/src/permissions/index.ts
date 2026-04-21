@@ -9,7 +9,6 @@ export {
   canReadSuggestions,
   canResolveSuggestion,
 } from './canDocumentSuggestion.js';
-export { canMergeDraftRequest } from './canMergeDraftRequest.js';
 export {
   canReadContext,
   canWriteContext,

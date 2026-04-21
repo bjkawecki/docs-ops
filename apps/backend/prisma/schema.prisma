@@ -87,11 +87,8 @@ model User {
   pinnedDocumentScopes  DocumentPinnedInScope[]
   createdDocuments      Document[]         @relation("DocumentCreatedBy")
   documentVersionsCreated  DocumentVersion[]
-  draftRequestsSubmitted  DraftRequest[]   @relation("DraftRequestsSubmitted")
-  draftRequestsMerged     DraftRequest[]   @relation("DraftRequestsMerged")
   documentSuggestionsAuthored DocumentSuggestion[] @relation("DocumentSuggestionAuthor")
   documentSuggestionsResolved   DocumentSuggestion[] @relation("DocumentSuggestionResolvedBy")
-  documentDrafts          DocumentDraft[]
   documentAttachmentsUploaded DocumentAttachment[]
   documentCommentsAuthored    DocumentComment[] @relation("DocumentCommentAuthor")
   sessions              Session[]
@@ -229,14 +226,13 @@ model DocumentPinnedInScope {
 
 // --- Dokumente und Tags ---
 
-/// Einzelne inhaltliche Einheit (Markdown). Optional genau ein Kontext (contextId); null = kontextfreier Draft (nur Ersteller/Grants).
+/// Einzelne inhaltliche Einheit (Block-Lead-Draft + veröffentlichte Versionen). Optional genau ein Kontext (contextId); null = kontextfreier Draft (nur Ersteller/Grants).
 /// Optional: PDF-Version (pdfUrl, z. B. Export-URL aus MinIO). Zugriff über Grants; Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
 /// Invariante (DB-`CHECK`): Ist `publishedAt` gesetzt, muss `currentPublishedVersionId` gesetzt sein.
-/// Lead-Draft (Edit-System, ADR 001): `draftBlocks` + `draftRevision`; Markdown `content` bleibt bis EPIC-9 parallel.
+/// Lead-Draft (Edit-System, ADR 001): `draftBlocks` + `draftRevision`.
 model Document {
   id                        String                   @id @default(cuid())
   title                     String
-  content                   String                   @db.Text
   /// Gemeinsamer Lead-Draft als Block-JSON (schemaVersion im JSON); null = noch nicht initialisiert.
   draftBlocks               Json?
   /// Erhöht sich bei jedem erfolgreichen PATCH des Lead-Drafts (Optimistic-Concurrency / Suggestion-Basis).
@@ -260,8 +256,6 @@ model Document {
   currentPublishedVersionId String?                  @unique // FK auf aktuelle veröffentlichte DocumentVersion (1:1)
   currentPublishedVersion   DocumentVersion?         @relation("CurrentPublishedVersion", fields: [currentPublishedVersionId], references: [id], onDelete: SetNull)
   versions                  DocumentVersion[]
-  draftRequests             DraftRequest[]
-  documentDrafts            DocumentDraft[]
   attachments               DocumentAttachment[]
   comments                  DocumentComment[]
   suggestions               DocumentSuggestion[]
@@ -328,13 +322,12 @@ model DocumentComment {
 
 // --- Versionierung & PR (vgl. docs/plan/Prisma-Schema-Entwurf.md §8) ---
 
-/// Snapshot einer veröffentlichten Version (Full-Version). Nur bei Publish und bei Merge eines PRs.
-/// Optional `blocks` + `blocksSchemaVersion`: Block-JSON pro Version (parallel zu Markdown `content` bis vollständige Umstellung).
+/// Snapshot einer veröffentlichten Version (Full-Version). Nur bei Publish.
+/// `blocks` + `blocksSchemaVersion`: Block-JSON pro Version.
 model DocumentVersion {
   id                        String    @id @default(cuid())
   documentId                String
   document                  Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  content                   String    @db.Text
   blocks                    Json?
   blocksSchemaVersion       Int?
   versionNumber             Int
@@ -345,8 +338,6 @@ model DocumentVersion {
   parentVersion             DocumentVersion?  @relation("VersionChain", fields: [parentVersionId], references: [id], onDelete: SetNull)
   childVersions             DocumentVersion[] @relation("VersionChain")
   currentPublishedForDocument Document?        @relation("CurrentPublishedVersion")
-  draftRequestsAsTarget     DraftRequest[]
-  documentDraftsBasedOn     DocumentDraft[]
   suggestionPublishedSnapshots DocumentSuggestion[] @relation("DocumentSuggestionPublishedVersion")
 
   @@index([documentId])
@@ -383,50 +374,6 @@ model DocumentSuggestion {
 
   @@index([documentId, status])
   @@index([documentId, authorId])
-}
-
-/// Pull Request: eingereichter Änderungsvorschlag (draftContent). Merge nur durch Scope-Lead.
-enum DraftRequestStatus {
-  open
-  merged
-  rejected
-}
-
-model DraftRequest {
-  id             String            @id @default(cuid())
-  documentId     String
-  document       Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  draftContent   String            @db.Text
-  targetVersionId String?          // Version, gegen die der PR geht; null wenn Dokument noch nie veröffentlicht
-  targetVersion  DocumentVersion?  @relation(fields: [targetVersionId], references: [id], onDelete: SetNull)
-  status         DraftRequestStatus
-  submittedById  String
-  submittedBy    User              @relation("DraftRequestsSubmitted", fields: [submittedById], references: [id], onDelete: Cascade)
-  submittedAt    DateTime          @default(now())
-  mergedAt       DateTime?
-  mergedById     String?
-  mergedBy       User?             @relation("DraftRequestsMerged", fields: [mergedById], references: [id], onDelete: SetNull)
-  comment        String?           @db.Text
-
-  @@index([documentId])
-  @@index([status])
-}
-
-/// Pro-User-Arbeitskopie für Bearbeitung an veröffentlichtem Dokument (basedOnVersionId für „Auf neueste Version updaten“).
-model DocumentDraft {
-  id                 String           @id @default(cuid())
-  documentId         String
-  document           Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  userId             String
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content            String           @db.Text
-  basedOnVersionId   String?
-  basedOnVersion     DocumentVersion? @relation(fields: [basedOnVersionId], references: [id], onDelete: SetNull)
-  updatedAt          DateTime         @updatedAt
-
-  @@unique([documentId, userId])
-  @@index([documentId])
-  @@index([userId])
 }
 
 // --- Zugriffsrechte (explizit; vgl. Rechteableitung) ---

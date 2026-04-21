@@ -4,6 +4,7 @@ import { buildApp } from '../app.js';
 import { prisma } from '../db.js';
 import { hashPassword } from '../auth/password.js';
 import { canPinForScope } from '../permissions/pinnedPermissions.js';
+import { emptyBlockDocumentJson } from '../services/documents/documentBlocksBackfill.js';
 
 const TS = `pinned-${Date.now()}`;
 const PASSWORD = 'testpass';
@@ -94,7 +95,11 @@ describe('Pinned routes (GET/POST/DELETE /pinned)', () => {
     });
     processId = process.id;
     const doc = await prisma.document.create({
-      data: { title: `Doc ${TS}`, content: '', contextId },
+      data: {
+        title: `Doc ${TS}`,
+        draftBlocks: emptyBlockDocumentJson(),
+        contextId,
+      },
     });
     documentId = doc.id;
     await prisma.documentGrantTeam.create({
@@ -115,7 +120,11 @@ describe('Pinned routes (GET/POST/DELETE /pinned)', () => {
       },
     });
     const docPersonal = await prisma.document.create({
-      data: { title: `Doc Personal ${TS}`, content: '', contextId: contextPersonalId },
+      data: {
+        title: `Doc Personal ${TS}`,
+        draftBlocks: emptyBlockDocumentJson(),
+        contextId: contextPersonalId,
+      },
     });
     documentPersonalId = docPersonal.id;
     await prisma.documentGrantUser.create({

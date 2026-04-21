@@ -12,7 +12,6 @@ import {
   canDeleteDocument,
   canWrite,
   canPublishDocument,
-  canMergeDraftRequest,
   canModerateDocumentComments,
   canReadLeadDraft,
   canEditLeadDraft,
@@ -50,9 +49,11 @@ import {
   DocumentBusinessError,
 } from '../services/documents/documentService.js';
 import {
-  blockDocumentJsonFromMarkdown,
+  emptyBlockDocumentJson,
   parseBlockDocumentFromDb,
 } from '../services/documents/documentBlocksBackfill.js';
+import { documentMarkdownFromRow } from '../services/documents/documentMarkdownSnapshot.js';
+import { blockDocumentV0ToMarkdown } from '../services/documents/blocksToMarkdown.js';
 import { getLeadDraftForUser, patchLeadDraft } from '../services/documents/leadDraftService.js';
 import {
   acceptDocumentSuggestion,
@@ -76,7 +77,6 @@ import {
   listDocumentComments,
   updateDocumentComment,
 } from '../services/documents/documentCommentService.js';
-import { mergeThreeWay } from '../services/documents/mergeThreeWay.js';
 import {
   paginationQuerySchema,
   catalogDocumentsQuerySchema,
@@ -84,11 +84,6 @@ import {
   documentIdParamSchema,
   versionIdParamSchema,
   attachmentIdParamSchema,
-  draftRequestIdParamSchema,
-  createDraftRequestBodySchema,
-  putDraftBodySchema,
-  patchDraftRequestBodySchema,
-  draftRequestsQuerySchema,
   createDocumentBodySchema,
   updateDocumentBodySchema,
   patchLeadDraftBodySchema,
@@ -110,7 +105,6 @@ import { enqueueJob, getJobById } from '../jobs/client.js';
 import {
   chunkUserIdsForNotificationJobs,
   excludeUserIds,
-  listUserIdsWhoCanMergeDraftRequestOnDocument,
   listUserIdsWhoCanReadDocument,
   listUserIdsWhoCanReadOrWriteDocument,
   listUserIdsWhoCanWriteDocument,
@@ -172,7 +166,6 @@ function sortedTagIdsSignature(tags: readonly { tagId?: string; tag?: { id: stri
 function patchTouchesReaderVisibleFields(body: z.infer<typeof updateDocumentBodySchema>): boolean {
   return (
     body.title !== undefined ||
-    body.content !== undefined ||
     body.description !== undefined ||
     body.contextId !== undefined ||
     body.tagIds !== undefined
@@ -202,7 +195,6 @@ async function enqueueDocumentGrantsChangedNotifications(args: {
 function readerVisibleContentChanged(args: {
   before: {
     title: string;
-    content: string;
     description: string | null;
     contextId: string | null;
     documentTags: { tagId: string }[];
@@ -212,7 +204,6 @@ function readerVisibleContentChanged(args: {
 }): boolean {
   const { before, body, after } = args;
   if (body.title !== undefined && body.title !== before.title) return true;
-  if (body.content !== undefined && body.content !== before.content) return true;
   if (body.description !== undefined && (before.description ?? null) !== (body.description ?? null))
     return true;
   if (body.contextId !== undefined && (before.contextId ?? null) !== (body.contextId ?? null))
@@ -330,10 +321,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           'Search index unavailable, falling back to document content scan'
         );
         baseAnd.push({
-          OR: [
-            { title: { contains: term, mode: 'insensitive' } },
-            { content: { contains: term, mode: 'insensitive' } },
-          ],
+          OR: [{ title: { contains: term, mode: 'insensitive' } }],
         });
       }
     }
@@ -897,7 +885,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       return reply.send({
         id: doc.id,
         title: doc.title,
-        content: doc.content,
+        content: documentMarkdownFromRow({
+          publishedAt: doc.publishedAt,
+          draftBlocks: doc.draftBlocks,
+          currentPublishedVersion: doc.currentPublishedVersion,
+        }),
         draftRevision: doc.draftRevision,
         blocks: parseBlockDocumentFromDb(doc.draftBlocks),
         publishedBlocks: parseBlockDocumentFromDb(doc.currentPublishedVersion?.blocks ?? null),
@@ -955,13 +947,14 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           select: {
             id: true,
             title: true,
-            content: true,
+            draftBlocks: true,
+            publishedAt: true,
             pdfUrl: true,
             contextId: true,
             createdAt: true,
             updatedAt: true,
-            publishedAt: true,
             currentPublishedVersionId: true,
+            currentPublishedVersion: { select: { blocks: true } },
             description: true,
             archivedAt: true,
             createdById: true,
@@ -1001,6 +994,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         }
         return reply.send({
           ...doc,
+          content: documentMarkdownFromRow({
+            publishedAt: doc.publishedAt,
+            draftBlocks: doc.draftBlocks,
+            currentPublishedVersion: doc.currentPublishedVersion,
+          }),
           createdByName: doc.createdBy?.name ?? null,
         });
       } catch (err) {
@@ -1117,7 +1115,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: {
           id: true,
           documentId: true,
-          content: true,
           blocks: true,
           blocksSchemaVersion: true,
           versionNumber: true,
@@ -1128,11 +1125,12 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       });
       if (!version) return reply.status(404).send({ error: 'Version not found' });
 
+      const versionBlocks = parseBlockDocumentFromDb(version.blocks);
       return reply.send({
         id: version.id,
         documentId: version.documentId,
-        content: version.content,
-        blocks: parseBlockDocumentFromDb(version.blocks),
+        content: versionBlocks ? blockDocumentV0ToMarkdown(versionBlocks) : '',
+        blocks: versionBlocks,
         blocksSchemaVersion: version.blocksSchemaVersion ?? null,
         versionNumber: version.versionNumber,
         createdAt: version.createdAt,
@@ -1144,7 +1142,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
 
   /**
    * GET gemeinsamer Lead-Draft (Block-JSON). Nicht für reine Leser ohne Write/Lead (403).
-   * Hinweis: `GET|PUT /documents/:id/draft` bleibt dem persönlichen DocumentDraft vorbehalten (Legacy).
    */
   app.get<{ Params: { documentId: string } }>(
     '/documents/:documentId/lead-draft',
@@ -1469,260 +1466,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** POST Update draft to latest published version (3-way merge). canWrite, published document only. */
-  app.post<{ Params: { documentId: string } }>(
-    '/documents/:documentId/draft/update-to-latest',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
-
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId, deletedAt: null },
-        select: { id: true, publishedAt: true, content: true, currentPublishedVersionId: true },
-      });
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      if (doc.publishedAt == null)
-        return reply
-          .status(400)
-          .send({ error: 'Update to latest is only for published documents' });
-
-      const draft = await prisma.documentDraft.findUnique({
-        where: { documentId_userId: { documentId, userId } },
-        select: { content: true, basedOnVersionId: true },
-      });
-      if (!draft) return reply.status(404).send({ error: 'No draft found for this document' });
-
-      if (draft.basedOnVersionId === doc.currentPublishedVersionId) {
-        return reply.send({ upToDate: true as const });
-      }
-
-      if (doc.currentPublishedVersionId == null || draft.basedOnVersionId == null) {
-        return reply.send({ upToDate: true as const });
-      }
-
-      const baseVersion = await prisma.documentVersion.findUnique({
-        where: { id: draft.basedOnVersionId, documentId },
-        select: { content: true },
-      });
-      if (!baseVersion)
-        return reply.status(400).send({ error: 'Draft base version no longer exists' });
-
-      let mergedContent: string;
-      let hasConflicts: boolean;
-      try {
-        const result = mergeThreeWay(baseVersion.content, draft.content, doc.content);
-        mergedContent = result.mergedContent;
-        hasConflicts = result.hasConflicts;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return reply.status(500).send({
-          error: 'Merge failed',
-          details: message,
-        });
-      }
-      return reply.send({ mergedContent, hasConflicts });
-    }
-  );
-
-  /** GET User's draft for document (canWrite). 404 if no draft. */
-  app.get<{ Params: { documentId: string } }>(
-    '/documents/:documentId/draft',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
-
-      const draft = await prisma.documentDraft.findUnique({
-        where: { documentId_userId: { documentId, userId } },
-        select: {
-          id: true,
-          documentId: true,
-          userId: true,
-          content: true,
-          basedOnVersionId: true,
-          updatedAt: true,
-        },
-      });
-      if (!draft) return reply.status(404).send({ error: 'No draft found for this document' });
-      return reply.send(draft);
-    }
-  );
-
-  /** PUT User's draft – upsert (canWrite, published document only). */
-  app.put<{ Params: { documentId: string } }>(
-    '/documents/:documentId/draft',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
-      const body = putDraftBodySchema.parse(request.body);
-
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId, deletedAt: null },
-        select: { id: true, publishedAt: true, currentPublishedVersionId: true },
-      });
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      if (doc.publishedAt == null)
-        return reply.status(400).send({ error: 'Draft is only for published documents' });
-
-      const updateData: { content: string; basedOnVersionId?: string } = { content: body.content };
-      if (
-        body.basedOnVersionId != null &&
-        body.basedOnVersionId === doc.currentPublishedVersionId
-      ) {
-        updateData.basedOnVersionId = body.basedOnVersionId;
-      }
-      const draft = await prisma.documentDraft.upsert({
-        where: { documentId_userId: { documentId, userId } },
-        create: {
-          documentId,
-          userId,
-          content: body.content,
-          basedOnVersionId: doc.currentPublishedVersionId,
-        },
-        update: updateData,
-        select: {
-          id: true,
-          documentId: true,
-          userId: true,
-          content: true,
-          basedOnVersionId: true,
-          updatedAt: true,
-        },
-      });
-      return reply.send(draft);
-    }
-  );
-
-  /** POST Create draft request (PR) – canWrite, published document. */
-  app.post<{ Params: { documentId: string } }>(
-    '/documents/:documentId/draft-requests',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
-      const body = createDraftRequestBodySchema.parse(request.body);
-
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId, deletedAt: null },
-        select: { id: true, publishedAt: true, currentPublishedVersionId: true },
-      });
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      if (doc.publishedAt == null)
-        return reply.status(400).send({ error: 'Draft requests are only for published documents' });
-
-      const targetVersionId = body.targetVersionId ?? doc.currentPublishedVersionId;
-
-      const draftRequest = await prisma.draftRequest.create({
-        data: {
-          documentId,
-          draftContent: body.draftContent,
-          targetVersionId,
-          status: 'open',
-          submittedById: userId,
-        },
-        select: {
-          id: true,
-          documentId: true,
-          draftContent: true,
-          targetVersionId: true,
-          status: true,
-          submittedById: true,
-          submittedAt: true,
-        },
-      });
-      try {
-        const mergeEligibleIds = await listUserIdsWhoCanMergeDraftRequestOnDocument(
-          prisma,
-          documentId
-        );
-        await enqueueNotificationEvent({
-          eventType: 'draft-request-submitted',
-          targetUserIds: mergeEligibleIds,
-          payload: {
-            documentId,
-            draftRequestId: draftRequest.id,
-            submittedByUserId: userId,
-          },
-        });
-      } catch (error) {
-        request.log.warn(
-          { error, documentId, draftRequestId: draftRequest.id },
-          'Failed to enqueue notification job'
-        );
-      }
-      return reply.status(201).send(draftRequest);
-    }
-  );
-
-  /** GET Draft requests for document (canRead). */
-  app.get<{ Params: { documentId: string } }>(
-    '/documents/:documentId/draft-requests',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const { documentId } = documentIdParamSchema.parse(request.params);
-      const query = draftRequestsQuerySchema.parse(request.query ?? {});
-
-      // Allow trashed documents when user has trash read access (enforced by preHandler).
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId },
-        select: { id: true },
-      });
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-
-      const where: { documentId: string; status?: 'open' | 'merged' | 'rejected' } = { documentId };
-      if (query.status) where.status = query.status;
-
-      const requests = await prisma.draftRequest.findMany({
-        where,
-        orderBy: { submittedAt: 'desc' },
-        select: {
-          id: true,
-          documentId: true,
-          draftContent: true,
-          targetVersionId: true,
-          status: true,
-          submittedById: true,
-          submittedAt: true,
-          mergedAt: true,
-          mergedById: true,
-          comment: true,
-          submittedBy: { select: { name: true } },
-        },
-      });
-      const items = requests.map((r) => ({
-        id: r.id,
-        documentId: r.documentId,
-        draftContent: r.draftContent,
-        targetVersionId: r.targetVersionId,
-        status: r.status,
-        submittedById: r.submittedById,
-        submittedAt: r.submittedAt,
-        mergedAt: r.mergedAt ?? null,
-        mergedById: r.mergedById ?? null,
-        comment: r.comment ?? null,
-        submittedByName: r.submittedBy.name,
-      }));
-      return reply.send({ items });
-    }
-  );
-
   /** GET Document comments (canRead). Top-level only (parentId null); pagination. */
   app.get<{ Params: { documentId: string }; Querystring: Record<string, string | undefined> }>(
     '/documents/:documentId/comments',
@@ -1788,16 +1531,26 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       }
       const docRow = await prisma.document.findUnique({
         where: { id: documentId },
-        select: { content: true, title: true },
+        select: {
+          title: true,
+          publishedAt: true,
+          draftBlocks: true,
+          currentPublishedVersion: { select: { blocks: true } },
+        },
       });
       if (!docRow) return reply.status(404).send({ error: 'Document not found' });
+      const mdSnapshot = documentMarkdownFromRow({
+        publishedAt: docRow.publishedAt,
+        draftBlocks: docRow.draftBlocks,
+        currentPublishedVersion: docRow.currentPublishedVersion,
+      });
       const created = await createDocumentComment(prisma, {
         documentId,
         authorId: userId,
         text: parsed.data.text,
         parentId: parsed.data.parentId,
         anchorHeadingId: parsed.data.anchorHeadingId,
-        documentContent: docRow.content,
+        documentContent: mdSnapshot,
       });
       if (!created.ok) {
         if (created.error === 'parent_not_found') {
@@ -1865,16 +1618,25 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const body = patchDocumentCommentBodySchema.parse(request.body);
       const docRow = await prisma.document.findUnique({
         where: { id: documentId },
-        select: { content: true },
+        select: {
+          publishedAt: true,
+          draftBlocks: true,
+          currentPublishedVersion: { select: { blocks: true } },
+        },
       });
       if (!docRow) return reply.status(404).send({ error: 'Document not found' });
+      const mdSnapshot = documentMarkdownFromRow({
+        publishedAt: docRow.publishedAt,
+        draftBlocks: docRow.draftBlocks,
+        currentPublishedVersion: docRow.currentPublishedVersion,
+      });
       const result = await updateDocumentComment(prisma, {
         documentId,
         commentId,
         userId,
         text: body.text,
         anchorHeadingId: body.anchorHeadingId,
-        documentContent: docRow.content,
+        documentContent: mdSnapshot,
       });
       if (!result.ok) {
         if (result.error === 'not_found')
@@ -1941,142 +1703,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** PATCH Draft request – merge or reject (canMergeDraftRequest). */
-  app.patch<{ Params: { draftRequestId: string } }>(
-    '/draft-requests/:draftRequestId',
-    { preHandler: requireAuthPreHandler },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { draftRequestId } = draftRequestIdParamSchema.parse(request.params);
-      const body = patchDraftRequestBodySchema.parse(request.body);
-
-      const canMerge = await canMergeDraftRequest(prisma, userId, draftRequestId);
-      if (!canMerge)
-        return reply
-          .status(403)
-          .send({ error: 'Permission denied to merge or reject this request' });
-
-      const draftRequest = await prisma.draftRequest.findUnique({
-        where: { id: draftRequestId },
-        select: {
-          id: true,
-          documentId: true,
-          draftContent: true,
-          status: true,
-          submittedById: true,
-        },
-      });
-      if (!draftRequest) return reply.status(404).send({ error: 'Draft request not found' });
-      if (draftRequest.status !== 'open')
-        return reply.status(409).send({ error: 'Draft request is no longer open' });
-
-      if (body.action === 'merge') {
-        await prisma.$transaction(async (tx) => {
-          const doc = await tx.document.findUnique({
-            where: { id: draftRequest.documentId, deletedAt: null },
-            select: { currentPublishedVersionId: true },
-          });
-          if (!doc) throw new Error('Document not found');
-
-          const maxVersion = await tx.documentVersion.aggregate({
-            where: { documentId: draftRequest.documentId },
-            _max: { versionNumber: true },
-          });
-          const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
-
-          const newVersion = await tx.documentVersion.create({
-            data: {
-              documentId: draftRequest.documentId,
-              content: draftRequest.draftContent,
-              blocks: blockDocumentJsonFromMarkdown(draftRequest.draftContent),
-              blocksSchemaVersion: 0,
-              versionNumber: nextVersionNumber,
-              parentVersionId: doc.currentPublishedVersionId,
-              createdById: userId,
-            },
-            select: { id: true },
-          });
-
-          await tx.document.update({
-            where: { id: draftRequest.documentId },
-            data: {
-              content: draftRequest.draftContent,
-              currentPublishedVersionId: newVersion.id,
-            },
-          });
-
-          await tx.draftRequest.update({
-            where: { id: draftRequestId },
-            data: {
-              status: 'merged',
-              mergedAt: new Date(),
-              mergedById: userId,
-              comment: body.comment ?? undefined,
-            },
-          });
-
-          await tx.documentDraft.updateMany({
-            where: {
-              documentId: draftRequest.documentId,
-              userId: draftRequest.submittedById,
-            },
-            data: { basedOnVersionId: newVersion.id },
-          });
-        });
-        try {
-          await enqueueIncrementalReindexForDocument({
-            documentId: draftRequest.documentId,
-            trigger: 'document-updated',
-          });
-        } catch (error) {
-          request.log.warn(
-            { error, draftRequestId },
-            'Failed to enqueue reindex job after draft merge'
-          );
-        }
-      } else {
-        await prisma.draftRequest.update({
-          where: { id: draftRequestId },
-          data: {
-            status: 'rejected',
-            mergedById: userId,
-            comment: body.comment ?? undefined,
-          },
-        });
-      }
-
-      const updated = await prisma.draftRequest.findUnique({
-        where: { id: draftRequestId },
-        select: {
-          id: true,
-          status: true,
-          mergedAt: true,
-          mergedById: true,
-          comment: true,
-        },
-      });
-      try {
-        await enqueueNotificationEvent({
-          eventType: body.action === 'merge' ? 'draft-request-merged' : 'draft-request-rejected',
-          targetUserIds: [draftRequest.submittedById],
-          payload: {
-            documentId: draftRequest.documentId,
-            draftRequestId: draftRequest.id,
-            action: body.action,
-            processedByUserId: userId,
-          },
-        });
-      } catch (error) {
-        request.log.warn(
-          { error, draftRequestId },
-          'Failed to enqueue notification job after draft request update'
-        );
-      }
-      return reply.send(updated);
-    }
-  );
-
   /** GET Dokumente eines Kontexts – canReadContext, paginiert, ohne gelöschte. */
   app.get(
     '/contexts/:contextId/documents',
@@ -2126,13 +1752,13 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createDocumentBodySchema.parse(request.body);
-    const content = body.content.trim() === '' ? `# ${body.title}\n\n` : body.content;
+    const initialBlocks = emptyBlockDocumentJson();
 
     if (body.contextId == null) {
       const doc = await prisma.document.create({
         data: {
           title: body.title,
-          content,
+          draftBlocks: initialBlocks,
           contextId: null,
           description: body.description ?? null,
           publishedAt: null,
@@ -2144,16 +1770,17 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: {
           id: true,
           title: true,
-          content: true,
+          draftBlocks: true,
+          publishedAt: true,
           pdfUrl: true,
           contextId: true,
           createdAt: true,
           updatedAt: true,
-          publishedAt: true,
           description: true,
           createdById: true,
           createdBy: { select: { name: true } },
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
+          currentPublishedVersion: { select: { blocks: true } },
         },
       });
       try {
@@ -2170,6 +1797,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       }
       return reply.status(201).send({
         ...created,
+        content: documentMarkdownFromRow({
+          publishedAt: created.publishedAt,
+          draftBlocks: created.draftBlocks,
+          currentPublishedVersion: created.currentPublishedVersion,
+        }),
         createdByName: created.createdBy?.name ?? null,
         writers: { users: [], teams: [], departments: [] },
       });
@@ -2214,7 +1846,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const doc = await prisma.document.create({
       data: {
         title: body.title,
-        content,
+        draftBlocks: initialBlocks,
         contextId: body.contextId,
         description: body.description ?? null,
         publishedAt: null,
@@ -2232,16 +1864,17 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       select: {
         id: true,
         title: true,
-        content: true,
+        draftBlocks: true,
+        publishedAt: true,
         pdfUrl: true,
         contextId: true,
         createdAt: true,
         updatedAt: true,
-        publishedAt: true,
         description: true,
         createdById: true,
         createdBy: { select: { name: true } },
         documentTags: { include: { tag: { select: { id: true, name: true } } } },
+        currentPublishedVersion: { select: { blocks: true } },
       },
     });
     try {
@@ -2258,12 +1891,17 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
     return reply.status(201).send({
       ...created,
+      content: documentMarkdownFromRow({
+        publishedAt: created.publishedAt,
+        draftBlocks: created.draftBlocks,
+        currentPublishedVersion: created.currentPublishedVersion,
+      }),
       createdByName: created.createdBy?.name ?? null,
       writers: { users: [], teams: [], departments: [] },
     });
   });
 
-  /** PATCH Dokument – nur Metadaten (title, content, contextId, description, tagIds). Lifecycle über dedizierte Endpoints. */
+  /** PATCH Dokument – nur Metadaten (title, contextId, description, tagIds). Lifecycle über dedizierte Endpoints. */
   app.patch(
     '/documents/:documentId',
     { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))] },
@@ -2318,7 +1956,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: {
           publishedAt: true,
           title: true,
-          content: true,
           description: true,
           contextId: true,
           documentTags: { select: { tagId: true } },
@@ -2332,7 +1969,6 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       try {
         const doc: DocumentMetadataUpdateResult = await updateDocumentMetadata(prisma, documentId, {
           title: body.title,
-          content: body.content,
           contextId: body.contextId,
           description: body.description,
           tagIds: body.tagIds,
@@ -2370,8 +2006,23 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             'Failed to enqueue notification job after document update'
           );
         }
+        const mdRow = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: {
+            publishedAt: true,
+            draftBlocks: true,
+            currentPublishedVersion: { select: { blocks: true } },
+          },
+        });
         return reply.send({
           ...doc,
+          content: mdRow
+            ? documentMarkdownFromRow({
+                publishedAt: mdRow.publishedAt,
+                draftBlocks: mdRow.draftBlocks,
+                currentPublishedVersion: mdRow.currentPublishedVersion,
+              })
+            : '',
           createdByName: doc.createdBy?.name ?? null,
           writers: { users: [], teams: [], departments: [] },
         });

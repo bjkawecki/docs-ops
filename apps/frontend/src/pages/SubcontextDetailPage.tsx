@@ -7,7 +7,6 @@ import {
   Stack,
   Text,
   TextInput,
-  Textarea,
   MultiSelect,
   Modal,
   Title,
@@ -110,7 +109,6 @@ export function SubcontextDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [newDocOpened, { open: openNewDoc, close: closeNewDoc }] = useDisclosure(false);
   const [newDocTitle, setNewDocTitle] = useState('');
-  const [newDocContent, setNewDocContent] = useState('');
   const [newDocTagIds, setNewDocTagIds] = useState<string[]>([]);
   const [newDocLoading, setNewDocLoading] = useState(false);
 
@@ -280,7 +278,6 @@ export function SubcontextDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
-          content: newDocContent,
           contextId: data.contextId,
           tagIds: newDocTagIds,
         }),
@@ -291,7 +288,6 @@ export function SubcontextDetailPage() {
         void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
         closeNewDoc();
         setNewDocTitle('');
-        setNewDocContent('');
         setNewDocTagIds([]);
         notifications.show({
           title: 'Draft created',
@@ -414,13 +410,6 @@ export function SubcontextDetailPage() {
             onChange={(e) => setNewDocTitle(e.currentTarget.value)}
             placeholder="Draft title"
             required
-          />
-          <Textarea
-            label="Content (Markdown)"
-            value={newDocContent}
-            onChange={(e) => setNewDocContent(e.currentTarget.value)}
-            placeholder="Optional content"
-            minRows={4}
           />
           <MultiSelect
             label="Tags"

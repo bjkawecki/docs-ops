@@ -23,8 +23,8 @@ function excerptWithMarkers(source: string, term: string): string | null {
 }
 
 /**
- * Same text match as GET /documents when the search index query fails: `title` / `content`
- * `contains` with catalog-readable and draft-visibility rules.
+ * Same text match as GET /documents when the search index query fails: `title` `contains`
+ * (ohne Markdown-Spalte; Volltext primär über FTS-Index).
  */
 export async function searchDocumentsByContainsFallback(
   prisma: PrismaClient,
@@ -49,10 +49,7 @@ export async function searchDocumentsByContainsFallback(
 
   const { baseAnd, baseWhere } = catalogBase;
   baseAnd.push({
-    OR: [
-      { title: { contains: term, mode: 'insensitive' } },
-      { content: { contains: term, mode: 'insensitive' } },
-    ],
+    OR: [{ title: { contains: term, mode: 'insensitive' } }],
   });
 
   if ((args.tagIds?.length ?? 0) > 0) {
@@ -69,7 +66,6 @@ export async function searchDocumentsByContainsFallback(
       select: {
         id: true,
         title: true,
-        content: true,
         draftBlocks: true,
         contextId: true,
         updatedAt: true,
@@ -90,7 +86,6 @@ export async function searchDocumentsByContainsFallback(
 
   const items: SearchDocumentItem[] = rows.map((row) => {
     const bodySource = resolveSearchIndexBodyText({
-      content: row.content ?? '',
       draftBlocks: row.draftBlocks,
       currentPublishedVersion: row.currentPublishedVersion,
     });

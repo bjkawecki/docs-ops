@@ -1,15 +1,10 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client.js';
 import { DocumentSuggestionStatus } from '../../../generated/prisma/client.js';
-import {
-  blockDocumentJsonFromMarkdown,
-  parseBlockDocumentFromDb,
-} from './documentBlocksBackfill.js';
-import { blockDocumentV0ToMarkdown } from './blocksToMarkdown.js';
+import { parseBlockDocumentFromDb } from './documentBlocksBackfill.js';
 
 /** Metadata-only update payload. No lifecycle fields (publishedAt, archivedAt, deletedAt). */
 export type UpdateDocumentMetadataData = {
   title?: string;
-  content?: string;
   contextId?: string | null;
   description?: string | null;
   tagIds?: string[];
@@ -18,7 +13,6 @@ export type UpdateDocumentMetadataData = {
 const DOCUMENT_PATCH_SELECT = {
   id: true,
   title: true,
-  content: true,
   pdfUrl: true,
   contextId: true,
   archivedAt: true,
@@ -35,7 +29,6 @@ const DOCUMENT_PATCH_SELECT = {
 export interface DocumentMetadataUpdateResult {
   id: string;
   title: string;
-  content: string;
   pdfUrl: string | null;
   contextId: string | null;
   archivedAt: Date | null;
@@ -59,7 +52,7 @@ export async function publishDocument(
 ): Promise<{ id: string; publishedAt: Date; currentPublishedVersionId: string }> {
   const doc = await prisma.document.findUnique({
     where: { id: documentId, deletedAt: null },
-    select: { id: true, contextId: true, publishedAt: true, content: true, draftBlocks: true },
+    select: { id: true, contextId: true, publishedAt: true, draftBlocks: true },
   });
   if (!doc) throw new DocumentNotFoundError(documentId);
   if (doc.contextId == null)
@@ -69,19 +62,17 @@ export async function publishDocument(
   if (doc.publishedAt != null) throw new DocumentAlreadyPublishedError(documentId);
 
   const draftParsed = parseBlockDocumentFromDb(doc.draftBlocks);
-  const publishFromLeadDraft = draftParsed != null;
-  const versionMarkdown = publishFromLeadDraft
-    ? blockDocumentV0ToMarkdown(draftParsed)
-    : doc.content;
-  const versionBlocksJson: Prisma.InputJsonValue = publishFromLeadDraft
-    ? (draftParsed as unknown as Prisma.InputJsonValue)
-    : blockDocumentJsonFromMarkdown(doc.content);
+  if (!draftParsed) {
+    throw new DocumentNotPublishableError(
+      'Lead-Draft (Blocks) fehlt oder ist ungültig – bitte Inhalt anlegen.'
+    );
+  }
+  const versionBlocksJson = draftParsed as unknown as Prisma.InputJsonValue;
 
   await prisma.$transaction(async (tx) => {
     const v = await tx.documentVersion.create({
       data: {
         documentId,
-        content: versionMarkdown,
         blocks: versionBlocksJson,
         blocksSchemaVersion: 0,
         versionNumber: 1,
@@ -94,7 +85,6 @@ export async function publishDocument(
       data: {
         publishedAt: new Date(),
         currentPublishedVersionId: v.id,
-        ...(publishFromLeadDraft ? { content: versionMarkdown } : {}),
       },
     });
     await tx.documentSuggestion.updateMany({
@@ -179,7 +169,7 @@ export async function deleteDocument(prisma: PrismaClient, documentId: string): 
 }
 
 /**
- * Updates document metadata only (title, content, contextId, description, tagIds).
+ * Updates document metadata only (title, contextId, description, tagIds).
  * No lifecycle fields. Caller must enforce canWrite and validate contextId/tagIds.
  * Enforces: published document cannot have contextId set to null.
  */
@@ -190,12 +180,10 @@ export async function updateDocumentMetadata(
 ): Promise<DocumentMetadataUpdateResult> {
   const updatePayload: {
     title?: string;
-    content?: string;
     contextId?: string | null;
     description?: string | null;
   } = {};
   if (data.title != null) updatePayload.title = data.title;
-  if (data.content != null) updatePayload.content = data.content;
   if (data.description !== undefined) updatePayload.description = data.description;
   if (data.contextId !== undefined) {
     const current = await prisma.document.findUnique({

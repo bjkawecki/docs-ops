@@ -895,75 +895,7 @@ const meRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       };
     });
 
-    /** §4b: Offene Draft Requests nur für Schreiber (writable), nicht für Leser. */
-    let writableDocIdsForPrs: string[] = [...inScopeWritableDocIds];
-    if (inScopeWritableContextIds.length > 0) {
-      const fromContexts = await prisma.document.findMany({
-        where: {
-          contextId: { in: inScopeWritableContextIds },
-          deletedAt: null,
-          archivedAt: null,
-        },
-        select: { id: true },
-      });
-      writableDocIdsForPrs = [
-        ...new Set([...writableDocIdsForPrs, ...fromContexts.map((d) => d.id)]),
-      ];
-    }
-    const openDraftRequestsRaw =
-      writableDocIdsForPrs.length > 0
-        ? await prisma.draftRequest.findMany({
-            where: {
-              status: 'open',
-              documentId: { in: writableDocIdsForPrs },
-            },
-            select: {
-              id: true,
-              documentId: true,
-              submittedAt: true,
-              status: true,
-              document: {
-                select: {
-                  title: true,
-                  context: {
-                    select: {
-                      process: { select: { owner: { select: ownerScopeSelect } } },
-                      project: { select: { owner: { select: ownerScopeSelect } } },
-                      subcontext: {
-                        select: { project: { select: { owner: { select: ownerScopeSelect } } } },
-                      },
-                    },
-                  },
-                },
-              },
-              submittedBy: { select: { id: true, name: true } },
-            },
-            orderBy: { submittedAt: 'desc' },
-            take: query.limit,
-            skip: query.offset,
-          })
-        : [];
-
-    const openDraftRequests = openDraftRequestsRaw.map((dr) => {
-      const owner =
-        dr.document.context?.process?.owner ??
-        dr.document.context?.project?.owner ??
-        dr.document.context?.subcontext?.project?.owner ??
-        null;
-      const scope = getScopeFromOwner(owner);
-      return {
-        id: dr.id,
-        documentId: dr.documentId,
-        documentTitle: dr.document.title,
-        submittedById: dr.submittedBy.id,
-        submittedByName: dr.submittedBy.name,
-        submittedAt: dr.submittedAt,
-        status: dr.status,
-        scopeType: scope.scopeType,
-        scopeId: scope.scopeId,
-        scopeName: scope.scopeName,
-      };
-    });
+    const openDraftRequests: never[] = [];
 
     return reply.send({
       draftDocuments,

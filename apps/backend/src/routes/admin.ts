@@ -1046,8 +1046,13 @@ const adminRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         request.server.prisma.documentGrantUser.count({
           where: { userId, role: GrantRole.Write },
         }),
-        request.server.prisma.documentDraft.count({
-          where: { userId },
+        request.server.prisma.document.count({
+          where: {
+            createdById: userId,
+            publishedAt: null,
+            deletedAt: null,
+            archivedAt: null,
+          },
         }),
       ]);
       return reply.send({

@@ -1,7 +1,6 @@
 import {
   Alert,
   Badge,
-  Radio,
   Box,
   Button,
   Card,
@@ -9,13 +8,11 @@ import {
   Modal,
   NavLink,
   Select,
-  SimpleGrid,
   Skeleton,
   Stack,
   Text,
   Tabs,
   TextInput,
-  Textarea,
   MultiSelect,
   ActionIcon,
   Typography,
@@ -43,19 +40,14 @@ import {
   IconArchive,
   IconArchiveOff,
   IconPencil,
-  IconRefresh,
   IconTarget,
   IconTrash,
   IconCloudUpload,
   IconHistory,
-  IconSend,
-  IconCheck,
-  IconX,
   IconDotsVertical,
   IconFileText,
   IconDownload,
 } from '@tabler/icons-react';
-import DiffMatchPatch from 'diff-match-patch';
 import type { BlockDocumentV0 } from '../api/document-types';
 import {
   DocumentBlocksPreview,
@@ -63,59 +55,6 @@ import {
 } from '../components/documents/DocumentBlocksPreview';
 import { DocumentLeadDraftPanel } from '../components/documents/DocumentLeadDraftPanel';
 import { DocumentSuggestionsPanel } from '../components/documents/DocumentSuggestionsPanel';
-
-type DiffTuple = [number, string];
-
-function ReviewDiffView({ fromContent, toContent }: { fromContent: string; toContent: string }) {
-  const dmp = useMemo(() => new DiffMatchPatch(), []);
-  const diffs = useMemo((): DiffTuple[] => {
-    const d = dmp.diff_main(fromContent, toContent) as DiffTuple[];
-    dmp.diff_cleanupSemantic(d);
-    return d;
-  }, [dmp, fromContent, toContent]);
-
-  return (
-    <Box
-      component="pre"
-      style={{
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'var(--mantine-font-family-monospace)',
-        fontSize: 'var(--mantine-font-size-sm)',
-        padding: 'var(--mantine-spacing-md)',
-        borderRadius: 'var(--mantine-radius-md)',
-        overflow: 'auto',
-      }}
-      bg="dark.6"
-    >
-      {diffs.map(([op, text], i) => {
-        if (op === 0) return <span key={i}>{text}</span>;
-        if (op === -1)
-          return (
-            <span
-              key={i}
-              style={{
-                backgroundColor: 'rgba(255, 0, 0, 0.35)',
-                textDecoration: 'line-through',
-              }}
-            >
-              {text}
-            </span>
-          );
-        return (
-          <span
-            key={i}
-            style={{
-              backgroundColor: 'rgba(0, 200, 0, 0.35)',
-            }}
-          >
-            {text}
-          </span>
-        );
-      })}
-    </Box>
-  );
-}
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
 function slugify(text: string): string {
@@ -210,20 +149,6 @@ type DocumentResponse = {
   subcontextName?: string | null;
 };
 
-type DraftResponse = {
-  content: string;
-  basedOnVersionId: string | null;
-  updatedAt?: string;
-};
-
-type OpenDraftRequestItem = {
-  id: string;
-  status: string;
-  draftContent: string;
-  submittedByName: string;
-  submittedAt: string;
-};
-
 type PdfExportJobStatusResponse = {
   jobId: string;
   status: string;
@@ -245,7 +170,6 @@ export function DocumentPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -254,23 +178,11 @@ export function DocumentPage() {
   const [newTagName, setNewTagName] = useState('');
   const [createTagLoading, setCreateTagLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
-  const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
-  const [mergingRequestId, setMergingRequestId] = useState<string | null>(null);
-  /** Set when loading draft in edit mode; used to show "update to latest" banner when behind published version. */
-  const [draftBasedOnVersionId, setDraftBasedOnVersionId] = useState<string | null>(null);
-  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null);
-  const [editSource, setEditSource] = useState<'draft' | 'published'>('draft');
-  const [updateToLatestLoading, setUpdateToLatestLoading] = useState(false);
-  const [hasConflictMarkers, setHasConflictMarkers] = useState(false);
   const [editInitialSnapshot, setEditInitialSnapshot] = useState<{
     title: string;
-    content: string;
     description: string;
     tagIds: string[];
   } | null>(null);
-  const [reviewPreviewRequest, setReviewPreviewRequest] = useState<OpenDraftRequestItem | null>(
-    null
-  );
   const [assignContextOpened, { open: openAssignContext, close: closeAssignContext }] =
     useDisclosure(false);
   const [assignContextId, setAssignContextId] = useState<string | null>(null);
@@ -281,7 +193,6 @@ export function DocumentPage() {
   const [isTabVisible, setIsTabVisible] = useState<boolean>(
     () => document.visibilityState === 'visible'
   );
-  const editContentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const slugCountsRef = useRef<Record<string, number>>({});
 
   const { data, isPending, isError } = useQuery({
@@ -351,19 +262,6 @@ export function DocumentPage() {
     label: `${c.kind === 'process' ? 'Process' : 'Project'}: ${c.name}`,
   }));
 
-  const { data: draftRequestsData } = useQuery({
-    queryKey: ['document-draft-requests', documentId, 'open'],
-    queryFn: async () => {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/draft-requests?status=open`);
-      if (!res.ok) throw new Error('Failed to load draft requests');
-      return res.json() as Promise<{
-        items: OpenDraftRequestItem[];
-      }>;
-    },
-    enabled: !!documentId && !!data,
-  });
-  const openDraftRequests = draftRequestsData?.items ?? [];
-
   const { data: pdfExportStatus } = useQuery<PdfExportJobStatusResponse>({
     queryKey: ['document-export-pdf-status', documentId, pdfExportJobId],
     queryFn: async () => {
@@ -385,7 +283,6 @@ export function DocumentPage() {
   useEffect(() => {
     if (data) {
       setEditTitle(data.title);
-      setEditContent(data.content);
       setEditDescription(data.description ?? '');
       setEditTagIds(data.documentTags.map((dt) => dt.tag.id));
     }
@@ -419,15 +316,6 @@ export function DocumentPage() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [documentId, pdfExportJobId, queryClient]);
-
-  useEffect(() => {
-    if (mode === 'edit') {
-      const t = setTimeout(() => {
-        editContentTextareaRef.current?.focus();
-      }, 0);
-      return () => clearTimeout(t);
-    }
-  }, [mode]);
 
   useEffect(() => {
     if (data && recentActions && data.scope) {
@@ -609,188 +497,62 @@ export function DocumentPage() {
     if (!documentId || !data) return;
     setSaveLoading(true);
     try {
-      if (data.publishedAt) {
-        const res = await apiFetch(`/api/v1/documents/${documentId}/draft`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: editContent }),
+      const res = await apiFetch(`/api/v1/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTitle.trim() || data.title,
+          ...(editDescription.trim()
+            ? { description: editDescription.trim() }
+            : { description: null }),
+          tagIds: editTagIds,
+        }),
+      });
+      if (res.ok) {
+        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+        void queryClient.invalidateQueries({ queryKey: ['contexts'] });
+        if (data.contextId)
+          void queryClient.invalidateQueries({
+            queryKey: ['contexts', data.contextId, 'documents'],
+          });
+        setMode('view');
+        setEditInitialSnapshot(null);
+        notifications.show({
+          title: 'Gespeichert',
+          message: 'Metadaten wurden aktualisiert.',
+          color: 'green',
         });
-        if (res.ok) {
-          const draft = (await res.json()) as DraftResponse;
-          setDraftUpdatedAt(draft.updatedAt ?? null);
-          setEditInitialSnapshot((prev) =>
-            prev == null
-              ? prev
-              : {
-                  ...prev,
-                  content: editContent,
-                }
-          );
-          notifications.show({
-            title: 'Saved',
-            message: 'Draft gespeichert - veroeffentlichte Version bleibt unveraendert.',
-            color: 'green',
-          });
-        } else {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          notifications.show({
-            title: 'Error',
-            message: body?.error ?? res.statusText,
-            color: 'red',
-          });
-        }
       } else {
-        const res = await apiFetch(`/api/v1/documents/${documentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: editTitle.trim() || data.title,
-            content: editContent,
-            ...(editDescription.trim()
-              ? { description: editDescription.trim() }
-              : { description: null }),
-            tagIds: editTagIds,
-          }),
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        notifications.show({
+          title: 'Fehler',
+          message: body?.error ?? res.statusText,
+          color: 'red',
         });
-        if (res.ok) {
-          void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-          void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-          void queryClient.invalidateQueries({ queryKey: ['contexts'] });
-          if (data?.contextId)
-            void queryClient.invalidateQueries({
-              queryKey: ['contexts', data.contextId, 'documents'],
-            });
-          setMode('view');
-          setEditInitialSnapshot(null);
-          notifications.show({
-            title: 'Saved',
-            message: 'Document was updated.',
-            color: 'green',
-          });
-        } else {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          notifications.show({
-            title: 'Error',
-            message: body?.error ?? res.statusText,
-            color: 'red',
-          });
-        }
       }
     } finally {
       setSaveLoading(false);
     }
   };
 
-  const handleEditClick = async () => {
-    setEditSource('draft');
-    let nextContent = data?.content ?? '';
-    if (data?.publishedAt && documentId) {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/draft`);
-      if (res.ok) {
-        const draft = (await res.json()) as DraftResponse;
-        nextContent = draft.content;
-        setEditContent(draft.content);
-        setDraftBasedOnVersionId(draft.basedOnVersionId ?? null);
-        setDraftUpdatedAt(draft.updatedAt ?? null);
-        setHasConflictMarkers(false);
-      } else {
-        setDraftBasedOnVersionId(null);
-        setDraftUpdatedAt(null);
-        nextContent = data.content ?? '';
-      }
-    }
+  const handleEditClick = () => {
+    if (!data) return;
     setEditInitialSnapshot({
-      title: data?.title ?? '',
-      content: nextContent,
-      description: data?.description ?? '',
-      tagIds: data?.documentTags.map((dt) => dt.tag.id) ?? [],
+      title: data.title,
+      description: data.description ?? '',
+      tagIds: data.documentTags.map((dt) => dt.tag.id),
     });
     setMode('edit');
   };
 
-  const handleSubmitForReview = async () => {
-    if (!documentId) return;
-    setSubmitReviewLoading(true);
-    try {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/draft-requests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draftContent: editContent }),
-      });
-      if (res.status === 201) {
-        void queryClient.invalidateQueries({ queryKey: ['document-draft-requests', documentId] });
-        notifications.show({
-          title: 'Submitted for review',
-          message: 'Your changes have been submitted for review.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setSubmitReviewLoading(false);
-    }
-  };
-
-  const handleMergeReject = async (draftRequestId: string, action: 'merge' | 'reject') => {
-    setMergingRequestId(draftRequestId);
-    try {
-      const res = await apiFetch(`/api/v1/draft-requests/${draftRequestId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      if (res.ok) {
-        void queryClient.invalidateQueries({ queryKey: ['document-draft-requests', documentId] });
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        if (action === 'merge') {
-          void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-          void queryClient.invalidateQueries({ queryKey: ['contexts'] });
-          if (data?.contextId)
-            void queryClient.invalidateQueries({
-              queryKey: ['contexts', data.contextId, 'documents'],
-            });
-          void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
-          void queryClient.invalidateQueries({ queryKey: [...meQueryKey, 'personal-documents'] });
-          setReviewPreviewRequest(null);
-        }
-        notifications.show({
-          title: action === 'merge' ? 'Merged' : 'Rejected',
-          message: `Draft request ${action === 'merge' ? 'merged' : 'rejected'}.`,
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setMergingRequestId(null);
-    }
-  };
-
   const handleCancelEdit = () => {
-    const dirtyPublished =
-      data.publishedAt != null &&
-      editInitialSnapshot != null &&
-      editContent !== editInitialSnapshot.content;
-    const dirtyDraftLike =
-      data.publishedAt == null &&
+    const dirty =
       editInitialSnapshot != null &&
       (editTitle !== editInitialSnapshot.title ||
-        editContent !== editInitialSnapshot.content ||
         editDescription !== editInitialSnapshot.description ||
         editTagIds.join(',') !== editInitialSnapshot.tagIds.join(','));
-    const hasUnsaved = dirtyPublished || dirtyDraftLike;
-    if (hasUnsaved) {
+    if (dirty) {
       const ok = window.confirm(
         'Nicht gespeicherter Fortschritt kann verloren gehen. Wirklich abbrechen?'
       );
@@ -873,110 +635,6 @@ export function DocumentPage() {
       }
     } finally {
       setAssignContextLoading(false);
-    }
-  };
-
-  const handleUpdateToLatest = async () => {
-    if (!documentId || !data?.currentPublishedVersionId) return;
-    setUpdateToLatestLoading(true);
-    try {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/draft/update-to-latest`, {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-        return;
-      }
-      const body = (await res.json()) as
-        | { upToDate: true }
-        | { mergedContent: string; hasConflicts: boolean };
-      if ('upToDate' in body && body.upToDate) {
-        setDraftBasedOnVersionId(data.currentPublishedVersionId);
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        notifications.show({
-          title: 'Up to date',
-          message: 'Your draft is already based on the latest version.',
-          color: 'blue',
-        });
-        return;
-      }
-      const mergeResult = body as { mergedContent: string; hasConflicts: boolean };
-      setEditContent(mergeResult.mergedContent);
-      setHasConflictMarkers(mergeResult.hasConflicts);
-      const putRes = await apiFetch(`/api/v1/documents/${documentId}/draft`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: mergeResult.mergedContent,
-          basedOnVersionId: data.currentPublishedVersionId,
-        }),
-      });
-      if (putRes.ok) {
-        setDraftBasedOnVersionId(data.currentPublishedVersionId);
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        if (mergeResult.hasConflicts) {
-          notifications.show({
-            title: 'Merge completed with conflicts',
-            message:
-              'Conflict markers were inserted. Resolve them in the editor, then save to mark as up to date.',
-            color: 'yellow',
-          });
-        } else {
-          notifications.show({
-            title: 'Updated',
-            message: 'Draft is now based on the latest published version.',
-            color: 'green',
-          });
-        }
-      } else {
-        const errBody = (await putRes.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: errBody?.error ?? putRes.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setUpdateToLatestLoading(false);
-    }
-  };
-
-  const handleSaveAndMarkUpToDate = async () => {
-    if (!documentId || !data?.currentPublishedVersionId) return;
-    setSaveLoading(true);
-    try {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/draft`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: editContent,
-          basedOnVersionId: data.currentPublishedVersionId,
-        }),
-      });
-      if (res.ok) {
-        setDraftBasedOnVersionId(data.currentPublishedVersionId);
-        setHasConflictMarkers(false);
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        notifications.show({
-          title: 'Saved',
-          message: 'Draft saved and marked as based on latest version.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setSaveLoading(false);
     }
   };
 
@@ -1098,12 +756,6 @@ export function DocumentPage() {
   }
 
   const docTitle = mode === 'edit' ? editTitle || 'Untitled' : data.title;
-  const isPublishedEdit = mode === 'edit' && data.publishedAt != null;
-  const isViewingPublishedInEdit = isPublishedEdit && editSource === 'published';
-  const editorContent =
-    isPublishedEdit && editSource === 'published' ? (data.content ?? '') : editContent;
-  const showEditSourceRadio = isPublishedEdit;
-  const reviewCount = openDraftRequests.length;
   const hasNoContext = data.contextId == null;
   const writerNames = [
     ...(data.writers?.users?.map((u) => u.name) ?? []),
@@ -1111,7 +763,6 @@ export function DocumentPage() {
     ...(data.writers?.departments?.map((d) => d.name) ?? []),
   ].filter(Boolean);
 
-  const blocksOnlyView = data.publishedBlocks != null && !(data.content ?? '').trim();
   const publishedPlainFromBlocks =
     data.publishedBlocks != null ? blockDocumentToPlainPreview(data.publishedBlocks).trim() : '';
 
@@ -1129,31 +780,6 @@ export function DocumentPage() {
         </Text>
       </Group>
     );
-    if (mode === 'edit') {
-      metadataItems.push(
-        <Badge
-          key="edit-source"
-          size="sm"
-          variant="light"
-          color={editSource === 'draft' ? 'blue' : 'gray'}
-        >
-          {editSource === 'draft' ? 'Editing draft' : 'Viewing published'}
-        </Badge>
-      );
-      if (draftUpdatedAt) {
-        metadataItems.push(
-          <Text key="draft-saved-at" size="sm" c="dimmed" span>
-            Draft last saved at {new Date(draftUpdatedAt).toLocaleString()}
-          </Text>
-        );
-      } else {
-        metadataItems.push(
-          <Badge key="draft-unsaved" size="sm" variant="light" color="yellow">
-            Draft not saved yet
-          </Badge>
-        );
-      }
-    }
   } else {
     metadataItems.push(
       <Badge key="status" size="sm" variant="light" color="yellow">
@@ -1215,24 +841,10 @@ export function DocumentPage() {
             }
             description={mode === 'view' && data.description ? data.description : undefined}
             metadata={
-              metadataItems.length > 0 || showEditSourceRadio ? (
-                <Flex justify="space-between" align="center" gap="sm" wrap="wrap">
-                  <Group gap="sm" wrap="wrap" align="center">
-                    {metadataItems}
-                  </Group>
-                  {showEditSourceRadio && (
-                    <Radio.Group
-                      value={editSource}
-                      onChange={(v) => setEditSource(v as 'draft' | 'published')}
-                      aria-label="Edit source"
-                    >
-                      <Group gap="md" wrap="nowrap">
-                        <Radio value="draft" label="View my draft" size="xs" />
-                        <Radio value="published" label="View published" size="xs" />
-                      </Group>
-                    </Radio.Group>
-                  )}
-                </Flex>
+              metadataItems.length > 0 ? (
+                <Group gap="sm" wrap="wrap" align="center">
+                  {metadataItems}
+                </Group>
               ) : undefined
             }
             actions={
@@ -1242,25 +854,9 @@ export function DocumentPage() {
                     <Button variant="default" size="sm" onClick={handleCancelEdit}>
                       Cancel
                     </Button>
-                    <Button
-                      size="sm"
-                      loading={saveLoading}
-                      disabled={isViewingPublishedInEdit}
-                      onClick={() => void handleSave()}
-                    >
-                      {data.publishedAt ? 'Save draft' : 'Save'}
+                    <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
+                      Save
                     </Button>
-                    {hasConflictMarkers && data?.currentPublishedVersionId && (
-                      <Button
-                        size="sm"
-                        variant="light"
-                        color="green"
-                        loading={saveLoading}
-                        onClick={() => void handleSaveAndMarkUpToDate()}
-                      >
-                        Save and mark as up to date
-                      </Button>
-                    )}
                   </>
                 )}
                 {data.canWrite && mode === 'view' && (
@@ -1268,70 +864,10 @@ export function DocumentPage() {
                     variant="light"
                     size="36"
                     aria-label="Edit document"
-                    onClick={() => void handleEditClick()}
+                    onClick={handleEditClick}
                   >
                     <IconPencil size={18} />
                   </ActionIcon>
-                )}
-                {data.canWrite && data.publishedAt && mode === 'edit' && (
-                  <Button
-                    variant="light"
-                    size="sm"
-                    leftSection={<IconSend size={14} />}
-                    loading={submitReviewLoading}
-                    disabled={isViewingPublishedInEdit}
-                    onClick={() => void handleSubmitForReview()}
-                  >
-                    Submit for review
-                  </Button>
-                )}
-                {data.canPublish && reviewCount > 0 && (
-                  <Menu shadow="md" position="bottom-end" width={360}>
-                    <Menu.Target>
-                      <Button variant="default" size="sm">
-                        Pending review ({reviewCount})
-                      </Button>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      {openDraftRequests.map((pr, idx) => (
-                        <Box key={pr.id} px="sm" py="xs">
-                          <Text size="xs" c="dimmed">
-                            PR by {pr.submittedByName}, {new Date(pr.submittedAt).toLocaleString()}
-                          </Text>
-                          <Group gap="xs" mt={6} wrap="wrap">
-                            <Button
-                              size="compact-xs"
-                              variant="light"
-                              onClick={() => setReviewPreviewRequest(pr)}
-                            >
-                              View changes
-                            </Button>
-                            <Button
-                              size="compact-xs"
-                              variant="light"
-                              color="green"
-                              leftSection={<IconCheck size={12} />}
-                              loading={mergingRequestId === pr.id}
-                              onClick={() => void handleMergeReject(pr.id, 'merge')}
-                            >
-                              Merge
-                            </Button>
-                            <Button
-                              size="compact-xs"
-                              variant="light"
-                              color="red"
-                              leftSection={<IconX size={12} />}
-                              loading={mergingRequestId === pr.id}
-                              onClick={() => void handleMergeReject(pr.id, 'reject')}
-                            >
-                              Reject
-                            </Button>
-                          </Group>
-                          {idx < openDraftRequests.length - 1 && <Menu.Divider mt="xs" />}
-                        </Box>
-                      ))}
-                    </Menu.Dropdown>
-                  </Menu>
                 )}
                 {mode === 'edit' && data.canPublish && !data.publishedAt && (
                   <Button
@@ -1463,33 +999,6 @@ export function DocumentPage() {
             )}
 
             <Box style={{ flex: 1, minWidth: 0, width: '100%' }}>
-              {data?.publishedAt &&
-                mode === 'edit' &&
-                draftBasedOnVersionId != null &&
-                data.currentPublishedVersionId != null &&
-                draftBasedOnVersionId !== data.currentPublishedVersionId && (
-                  <Alert
-                    variant="light"
-                    color="yellow"
-                    title="Editing based on older version"
-                    style={{ marginBottom: 'var(--mantine-spacing-md)' }}
-                  >
-                    <Text size="sm" mb="xs">
-                      You are editing based on an older version. Update to the latest published
-                      version to avoid conflicts.
-                    </Text>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      leftSection={<IconRefresh size={14} />}
-                      loading={updateToLatestLoading}
-                      onClick={() => void handleUpdateToLatest()}
-                    >
-                      Update to latest version
-                    </Button>
-                  </Alert>
-                )}
-
               <Flex
                 gap={{ base: 'lg', lg: 'xl' }}
                 direction={{ base: 'column', lg: 'row' }}
@@ -1513,187 +1022,68 @@ export function DocumentPage() {
                           slugCountsRef.current = {};
                           return null;
                         })()}
-                        {blocksOnlyView ? (
-                          publishedPlainFromBlocks && data.publishedBlocks != null ? (
-                            <DocumentBlocksPreview
-                              title="Inhalt (aus Blocks)"
-                              doc={data.publishedBlocks}
-                            />
+                        {data.publishedBlocks != null ? (
+                          publishedPlainFromBlocks ? (
+                            <DocumentBlocksPreview title="Inhalt" doc={data.publishedBlocks} />
                           ) : (
                             <Text size="sm" c="dimmed">
-                              Veröffentlichte Version liefert Blocks ohne extrahierbaren Text;
-                              Details im Bereich „Lead-Draft“ unten.
+                              Veröffentlichte Version liefert Blocks ohne extrahierbaren Text. Zum
+                              Pflegen des Lead-Drafts den Bearbeiten-Modus öffnen.
                             </Text>
                           )
                         ) : (
-                          <>
-                            {data.publishedBlocks != null && (
-                              <>
-                                <DocumentBlocksPreview
-                                  title="Lesevorschau aus Blocks"
-                                  doc={data.publishedBlocks}
-                                />
-                                <Text size="xs" c="dimmed" mb="sm">
-                                  Markdown-Export (parallel)
-                                </Text>
-                              </>
-                            )}
-                            <Typography>
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={markdownHeadingComponents}
-                              >
-                                {data.content || ''}
-                              </ReactMarkdown>
-                            </Typography>
-                          </>
+                          <Typography>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={markdownHeadingComponents}
+                            >
+                              {data.content || ''}
+                            </ReactMarkdown>
+                          </Typography>
                         )}
                       </Box>
                     </Card>
                   ) : (
                     <Card withBorder padding="lg">
-                      <Tabs defaultValue="content">
-                        <Tabs.List>
-                          <Tabs.Tab value="content">Content</Tabs.Tab>
-                          <Tabs.Tab value="settings">Settings</Tabs.Tab>
-                        </Tabs.List>
-                        <Tabs.Panel value="content" pt="lg">
-                          {data.blocks != null && !isViewingPublishedInEdit && (
-                            <Alert variant="light" color="blue" mb="md" title="Lead-Draft (Blocks)">
-                              <Text size="sm">
-                                Der gemeinsame Lead-Draft wird als Block-JSON gepflegt (nicht über
-                                dieses Markdown-Feld). Markdown bleibt parallel nutzbar; speichern
-                                Sie Änderungen am Lead-Draft im Bereich „Block-System“ unterhalb des
-                                Editors.
-                              </Text>
-                            </Alert>
-                          )}
-                          <Box style={{ minHeight: 'calc(100vh - 320px)' }}>
-                            <SimpleGrid
-                              cols={{ base: 1, md: 2 }}
-                              spacing="xl"
-                              style={{ alignItems: 'stretch' }}
-                            >
-                              <Box
-                                style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  height: 'max(400px, calc(100vh - 360px))',
-                                }}
-                              >
-                                <Textarea
-                                  ref={editContentTextareaRef}
-                                  label={
-                                    isViewingPublishedInEdit ? 'Markdown (published)' : 'Markdown'
-                                  }
-                                  placeholder="Content (Markdown)"
-                                  value={editorContent}
-                                  onChange={(e) => setEditContent(e.currentTarget.value)}
-                                  disabled={isViewingPublishedInEdit}
-                                  styles={{
-                                    root: {
-                                      flex: 1,
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      minHeight: 0,
-                                    },
-                                    input: {
-                                      fontFamily: 'monospace',
-                                      height: '100%',
-                                      minHeight: 200,
-                                      boxSizing: 'border-box',
-                                    },
-                                    wrapper: {
-                                      flex: 1,
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      minHeight: 0,
-                                    },
-                                  }}
-                                />
-                                {hasConflictMarkers && (
-                                  <Alert
-                                    variant="light"
-                                    color="yellow"
-                                    mt="sm"
-                                    title="Conflict markers"
-                                  >
-                                    <Text size="sm">
-                                      The text contains conflict markers (
-                                      <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>,{' '}
-                                      <code>=======</code>,{' '}
-                                      <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). &quot;Ours&quot;
-                                      is your draft, &quot;Theirs&quot; is the current published
-                                      version. Resolve by editing the text (keep one version or
-                                      combine), then click &quot;Save and mark as up to date&quot;.
-                                    </Text>
-                                  </Alert>
-                                )}
-                              </Box>
-                              <Box
-                                style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  height: 'max(400px, calc(100vh - 360px))',
-                                }}
-                              >
-                                <Text size="sm" c="dimmed" fw={500} mb="sm">
-                                  Preview
-                                </Text>
-                                <Box style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                                  <Box
-                                    style={{
-                                      maxWidth: '65ch',
-                                      padding: 'var(--mantine-spacing-md)',
-                                    }}
-                                  >
-                                    <Typography>
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {editorContent || ''}
-                                      </ReactMarkdown>
-                                    </Typography>
-                                  </Box>
-                                </Box>
-                              </Box>
-                            </SimpleGrid>
-                          </Box>
-                        </Tabs.Panel>
-                        <Tabs.Panel value="settings" pt="lg">
-                          <Stack gap="md">
-                            <TextInput
-                              label="Title"
-                              value={editTitle}
-                              onChange={(e) => setEditTitle(e.currentTarget.value)}
-                              maxLength={500}
-                            />
-                            <TextInput
-                              label="Description"
-                              placeholder="Short description (optional)"
-                              value={editDescription}
-                              onChange={(e) => setEditDescription(e.currentTarget.value)}
-                              maxLength={500}
-                            />
-                            <Group align="flex-end" gap="xs">
-                              <MultiSelect
-                                label="Tags"
-                                placeholder="Select or add tags"
-                                data={tagOptions}
-                                value={editTagIds}
-                                onChange={setEditTagIds}
-                                searchable
-                                clearable
-                                style={{ flex: 1 }}
-                              />
-                              <Button variant="light" size="sm" onClick={openCreateTag}>
-                                Create tag
-                              </Button>
-                              <Button variant="subtle" size="sm" onClick={openManageTags}>
-                                Manage tags
-                              </Button>
-                            </Group>
-                          </Stack>
-                        </Tabs.Panel>
-                      </Tabs>
+                      <Stack gap="md">
+                        <Alert variant="light" color="blue" title="Inhalt bearbeiten">
+                          <Text size="sm">
+                            Fließtext und Struktur werden im Block-System unten über Lead-Draft und
+                            Suggestions gepflegt. Hier nur Titel, Beschreibung und Tags.
+                          </Text>
+                        </Alert>
+                        <TextInput
+                          label="Title"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.currentTarget.value)}
+                          maxLength={500}
+                        />
+                        <TextInput
+                          label="Description"
+                          placeholder="Short description (optional)"
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.currentTarget.value)}
+                          maxLength={500}
+                        />
+                        <Group align="flex-end" gap="xs">
+                          <MultiSelect
+                            label="Tags"
+                            placeholder="Select or add tags"
+                            data={tagOptions}
+                            value={editTagIds}
+                            onChange={setEditTagIds}
+                            searchable
+                            clearable
+                            style={{ flex: 1 }}
+                          />
+                          <Button variant="light" size="sm" onClick={openCreateTag}>
+                            Create tag
+                          </Button>
+                          <Button variant="subtle" size="sm" onClick={openManageTags}>
+                            Manage tags
+                          </Button>
+                        </Group>
+                      </Stack>
                     </Card>
                   )}
                 </Stack>
@@ -1717,7 +1107,7 @@ export function DocumentPage() {
             </Box>
           </Flex>
 
-          {(data.canWrite || data.canPublish) && documentId != null && (
+          {mode === 'edit' && (data.canWrite || data.canPublish) && documentId != null && (
             <Card withBorder padding="lg" mt="xl" maw={1200}>
               <Text fw={600} size="sm" mb="md">
                 Block-System (Lead-Draft & Suggestions)
@@ -1765,27 +1155,6 @@ export function DocumentPage() {
             Move to trash
           </Button>
         </Group>
-      </Modal>
-
-      <Modal
-        opened={reviewPreviewRequest != null}
-        onClose={() => setReviewPreviewRequest(null)}
-        title="Review changes"
-        size="xl"
-        centered
-      >
-        {reviewPreviewRequest == null ? null : (
-          <Stack gap="sm">
-            <Text size="sm" c="dimmed">
-              PR by {reviewPreviewRequest.submittedByName},{' '}
-              {new Date(reviewPreviewRequest.submittedAt).toLocaleString()}
-            </Text>
-            <ReviewDiffView
-              fromContent={data.content ?? ''}
-              toContent={reviewPreviewRequest.draftContent ?? ''}
-            />
-          </Stack>
-        )}
       </Modal>
 
       <Modal

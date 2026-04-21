@@ -12,6 +12,7 @@ import { runFullReindex, runIncrementalReindex } from '../services/search/search
 import { dispatchNotificationEvent } from '../services/notifications/notificationDispatchService.js';
 import { runUserNotificationRetention } from '../services/notifications/notificationRetentionService.js';
 import { backfillAllDocumentBlocks } from '../services/documents/documentBlocksBackfill.js';
+import { documentMarkdownFromRow } from '../services/documents/documentMarkdownSnapshot.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -62,11 +63,22 @@ async function exportDocumentToPdf(
 
   const document = await context.prisma.document.findFirst({
     where: { id: payload.documentId, deletedAt: null },
-    select: { id: true, title: true, content: true },
+    select: {
+      id: true,
+      title: true,
+      publishedAt: true,
+      draftBlocks: true,
+      currentPublishedVersion: { select: { blocks: true } },
+    },
   });
   if (!document) {
     throw new Error('Document not found');
   }
+  const markdownBody = documentMarkdownFromRow({
+    publishedAt: document.publishedAt,
+    draftBlocks: document.draftBlocks,
+    currentPublishedVersion: document.currentPublishedVersion,
+  });
 
   const storage = await getStorage();
   if (!storage) {
@@ -78,7 +90,7 @@ async function exportDocumentToPdf(
   const outputPath = join(workDir, 'output.pdf');
 
   try {
-    await writeFile(inputPath, document.content, 'utf8');
+    await writeFile(inputPath, markdownBody, 'utf8');
     const pandocCommand = process.env.PANDOC_BIN?.trim() || 'pandoc';
     const pandocExtraArgs = (process.env.PANDOC_ARGS ?? '')
       .split(/\s+/)

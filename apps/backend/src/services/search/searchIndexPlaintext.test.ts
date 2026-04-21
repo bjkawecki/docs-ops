@@ -15,7 +15,6 @@ describe('searchIndexPlaintext (EPIC-7)', () => {
       ],
     };
     const t = resolveSearchIndexBodyText({
-      content: 'markdown only',
       draftBlocks: exampleBlockDocumentV0,
       currentPublishedVersion: { blocks: publishedOnly },
     });
@@ -25,7 +24,6 @@ describe('searchIndexPlaintext (EPIC-7)', () => {
 
   it('ohne Published: Draft-Blocks', () => {
     const t = resolveSearchIndexBodyText({
-      content: 'ignored',
       draftBlocks: exampleBlockDocumentV0,
       currentPublishedVersion: null,
     });
@@ -34,12 +32,11 @@ describe('searchIndexPlaintext (EPIC-7)', () => {
     expect(t).toContain('Absatztext');
   });
 
-  it('Fallback: Markdown content', () => {
+  it('ohne Blocks: leerer Index-Body', () => {
     const t = resolveSearchIndexBodyText({
-      content: '**Only** markdown',
       draftBlocks: null,
       currentPublishedVersion: null,
     });
-    expect(t).toBe('**Only** markdown');
+    expect(t).toBe('');
   });
 });

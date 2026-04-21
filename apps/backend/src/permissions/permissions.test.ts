@@ -7,7 +7,6 @@ import {
   canWrite,
   canDeleteDocument,
   canPublishDocument,
-  canMergeDraftRequest,
   canEditLeadDraft,
   canReadLeadDraft,
   canCreateSuggestion,
@@ -16,10 +15,10 @@ import {
 } from './index.js';
 import { hashPassword } from '../auth/password.js';
 import {
-  listUserIdsWhoCanMergeDraftRequestOnDocument,
   listUserIdsWhoCanReadDocument,
   symmetricDiffUserIds,
 } from '../services/notifications/notificationRecipients.js';
+import { emptyBlockDocumentJson } from '../services/documents/documentBlocksBackfill.js';
 
 const TS = `perm-${Date.now()}`;
 
@@ -43,7 +42,6 @@ describe('Permissions (canRead, canWrite)', () => {
   let teamLeaderId: string;
   let otherUserId: string;
   let writerOnlyUserId: string;
-  let draftRequestId: string;
 
   beforeAll(async () => {
     const pw = await hashPassword('test');
@@ -173,7 +171,7 @@ describe('Permissions (canRead, canWrite)', () => {
     const docProcess = await prisma.document.create({
       data: {
         title: `Doc Process ${TS}`,
-        content: '',
+        draftBlocks: emptyBlockDocumentJson(),
         contextId: contextProcessId,
       },
     });
@@ -182,7 +180,7 @@ describe('Permissions (canRead, canWrite)', () => {
     const docPersonal = await prisma.document.create({
       data: {
         title: `Doc Personal ${TS}`,
-        content: '',
+        draftBlocks: emptyBlockDocumentJson(),
         contextId: contextPersonalId,
       },
     });
@@ -205,20 +203,9 @@ describe('Permissions (canRead, canWrite)', () => {
         data: { documentId: docProcessId, departmentId, role: GrantRole.Read },
       }),
     ]);
-
-    const draftRequest = await prisma.draftRequest.create({
-      data: {
-        documentId: docProcessId,
-        draftContent: 'Draft content',
-        status: 'open',
-        submittedById: writerOnlyUserId,
-      },
-    });
-    draftRequestId = draftRequest.id;
   });
 
   afterAll(async () => {
-    if (draftRequestId) await prisma.draftRequest.deleteMany({ where: { id: draftRequestId } });
     const docIds = [docProcessId, docPersonalId].filter((id): id is string => id != null);
     if (docIds.length > 0) {
       await prisma.documentGrantUser.deleteMany({
@@ -419,24 +406,6 @@ describe('Permissions (canRead, canWrite)', () => {
     });
   });
 
-  describe('canMergeDraftRequest', () => {
-    beforeAll(async () => {
-      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
-    });
-    it('isAdmin → canMergeDraftRequest true', async () => {
-      expect(await canMergeDraftRequest(prisma, adminId, draftRequestId)).toBe(true);
-    });
-    it('Scope-Lead (Department Lead) → canMergeDraftRequest true', async () => {
-      expect(await canMergeDraftRequest(prisma, supervisorId, draftRequestId)).toBe(true);
-    });
-    it('nur Writer-Grant (kein Lead) → canMergeDraftRequest false', async () => {
-      expect(await canMergeDraftRequest(prisma, writerOnlyUserId, draftRequestId)).toBe(false);
-    });
-    it('DraftRequest nicht vorhanden → canMergeDraftRequest false', async () => {
-      expect(await canMergeDraftRequest(prisma, adminId, 'non-existent-dr-id')).toBe(false);
-    });
-  });
-
   describe('notificationRecipients', () => {
     beforeAll(async () => {
       await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
@@ -456,20 +425,6 @@ describe('Permissions (canRead, canWrite)', () => {
       expect(ids).not.toContain(writerOnlyUserId);
       expect(ids).toContain(adminId);
       expect(ids).toContain(supervisorId);
-    });
-
-    it('listUserIdsWhoCanMergeDraftRequestOnDocument aligns with canMergeDraftRequest', async () => {
-      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
-      const mergeIds = await listUserIdsWhoCanMergeDraftRequestOnDocument(prisma, docProcessId);
-      expect(mergeIds.length).toBeGreaterThan(0);
-      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
-      for (const uid of mergeIds) {
-        expect(await canMergeDraftRequest(prisma, uid, draftRequestId)).toBe(true);
-      }
-      expect(mergeIds).toContain(adminId);
-      expect(mergeIds).toContain(supervisorId);
-      expect(mergeIds).not.toContain(writerOnlyUserId);
-      expect(mergeIds).not.toContain(teamMemberId);
     });
 
     it('symmetricDiffUserIds', () => {
@@ -507,7 +462,7 @@ describe('requireDocumentAccess (GET /api/v1/documents/:documentId)', () => {
       data: { name: 'Test Personal Process', contextId: ctx.id, ownerId: owner.id },
     });
     const doc = await prisma.document.create({
-      data: { title: 'Test Doc', content: '', contextId: ctx.id },
+      data: { title: 'Test Doc', draftBlocks: emptyBlockDocumentJson(), contextId: ctx.id },
     });
     documentId = doc.id;
   });

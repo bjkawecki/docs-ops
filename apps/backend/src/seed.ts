@@ -13,7 +13,10 @@ import {
   setContextDisplayFromProject,
   setContextDisplayFromSubcontext,
 } from './services/contexts/contextOwnerDisplay.js';
-import { blockDocumentJsonFromMarkdown } from './services/documents/documentBlocksBackfill.js';
+import {
+  blockDocumentJsonFromSeedSections,
+  type SeedDocumentBlockSection,
+} from './services/documents/documentBlocksBackfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve from project root (apps/backend) so it works with tsx and node dist
@@ -48,10 +51,25 @@ function csvRows(path: string): Record<string, string>[] {
 
 type PublishedSeedDocInput = {
   title: string;
-  content: string;
+  /** Block-Inhalt mit Überschriften und Absätzen (ohne Markdown-Quelltext). */
+  sections: SeedDocumentBlockSection[];
   contextId: string;
   createdById?: string | null;
 };
+
+/** Einheitliche Beispiel-Struktur für alle Seed-Dokumente (Überschriften + Fließtext). */
+const SEED_DOCUMENT_SECTIONS: SeedDocumentBlockSection[] = [
+  { type: 'heading', level: 2, text: 'Überblick' },
+  {
+    type: 'paragraph',
+    text: 'Kurzer Beispieltext für den Seed-Datensatz. Hier steht typischer Fließtext ohne Markdown-Zeichen.',
+  },
+  { type: 'heading', level: 3, text: 'Weitere Hinweise' },
+  {
+    type: 'paragraph',
+    text: 'Zweiter inhaltlicher Absatz mit weiteren Informationen zum Dokument. So wirkt die Seite realistischer.',
+  },
+];
 
 /**
  * Legt ein veröffentlichtes Seed-Dokument an: zuerst Draft, dann Version 1, dann Publish in einer Transaktion
@@ -59,10 +77,11 @@ type PublishedSeedDocInput = {
  */
 async function createPublishedSeedDocument(prisma: PrismaClient, input: PublishedSeedDocInput) {
   return prisma.$transaction(async (tx) => {
+    const blocksJson = blockDocumentJsonFromSeedSections(input.sections);
     const doc = await tx.document.create({
       data: {
         title: input.title,
-        content: input.content,
+        draftBlocks: blocksJson,
         contextId: input.contextId,
         ...(input.createdById != null ? { createdById: input.createdById } : {}),
       },
@@ -70,8 +89,7 @@ async function createPublishedSeedDocument(prisma: PrismaClient, input: Publishe
     const version = await tx.documentVersion.create({
       data: {
         documentId: doc.id,
-        content: input.content,
-        blocks: blockDocumentJsonFromMarkdown(input.content),
+        blocks: blocksJson,
         blocksSchemaVersion: 0,
         versionNumber: 1,
         ...(input.createdById != null ? { createdById: input.createdById } : {}),
@@ -298,7 +316,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       for (const title of docTitles) {
         await createPublishedSeedDocument(prisma, {
           title,
-          content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
+          sections: SEED_DOCUMENT_SECTIONS,
           contextId: pCtx.id,
         });
       }
@@ -316,7 +334,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
       for (const title of docTitles) {
         await createPublishedSeedDocument(prisma, {
           title,
-          content: '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n',
+          sections: SEED_DOCUMENT_SECTIONS,
           contextId: projCtx.id,
         });
       }
@@ -430,7 +448,6 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
   }
 
   // --- Dokumente: je 1–2 pro Kontext (Process/Project), optional mit Tags ---
-  const docContent = '# Überschrift\n\nKurzer **Markdown**-Inhalt für Seed.\n';
   for (const [scopeKey, processId] of processByScope) {
     const process = await prisma.process.findUniqueOrThrow({
       where: { id: processId },
@@ -438,7 +455,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     });
     const doc = await createPublishedSeedDocument(prisma, {
       title: seedDocTitle(scopeKey, 'process'),
-      content: docContent,
+      sections: SEED_DOCUMENT_SECTIONS,
       contextId: process.contextId,
     });
     if (process.ownerId && scopeKey.startsWith('company:')) {
@@ -455,7 +472,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     });
     await createPublishedSeedDocument(prisma, {
       title: seedDocTitle(scopeKey, 'project'),
-      content: docContent,
+      sections: SEED_DOCUMENT_SECTIONS,
       contextId: project.contextId,
     });
   }
@@ -471,7 +488,7 @@ export async function runSeedIfNeeded(prisma: PrismaClient): Promise<void> {
     for (const sub of subcontexts) {
       await createPublishedSeedDocument(prisma, {
         title: subcontextTitles[sub.name] ?? sub.name,
-        content: docContent,
+        sections: SEED_DOCUMENT_SECTIONS,
         contextId: sub.contextId,
       });
     }
