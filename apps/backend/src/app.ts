@@ -83,6 +83,15 @@ export async function buildApp(): Promise<FastifyInstance> {
         });
       }
 
+      // Postgres/Netzwerk kurz nicht erreichbar (z. B. Container-Neustart)
+      if (err.code === 'ECONNREFUSED') {
+        return reply.status(503).send({
+          error:
+            'Datenbank vorübergehend nicht erreichbar. Bitte kurz warten und erneut versuchen.',
+          code: 'DATABASE_UNAVAILABLE',
+        });
+      }
+
       // Fastify/HTTP mit statusCode
       if (err.statusCode != null && err.statusCode >= 400) {
         return reply.status(err.statusCode).send({

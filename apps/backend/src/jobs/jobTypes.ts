@@ -28,6 +28,11 @@ export const jobPayloadSchemas = {
     ]),
     requestedByUserId: z.string().cuid().optional(),
   }),
+  /** EPIC-3: Markdown → Block-JSON für `DocumentVersion.blocks` und `Document.draftBlocks` (idempotent). */
+  'documents.blocks.backfill': z.object({
+    documentId: z.string().cuid().optional(),
+    limit: z.number().int().positive().max(500).optional(),
+  }),
 } as const;
 
 export type JobType = keyof typeof jobPayloadSchemas;

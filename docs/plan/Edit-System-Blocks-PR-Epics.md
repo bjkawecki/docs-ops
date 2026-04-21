@@ -44,11 +44,13 @@ flowchart TD
 
 ## EPIC-0 – Entscheidungen festhalten (kein Produktcode oder minimal)
 
-| PR        | Inhalt                                                                                                | Artefakte                                                                                                                                   |
-| --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PR-0a** | ADR: Suggestion-Basis (`draftRevision` vs. `publishedVersion`), Stale-Regel nach Publish/Draft-Update | `docs/platform/` neues ADR oder Abschnitt in bestehendem Lifecycle-Doc                                                                      |
-| **PR-0b** | ADR: Lead-Draft Speicher **A** (Spalten auf `Document`) vs. **B** (eigene Tabelle)                    | gleicher Ort                                                                                                                                |
-| **PR-0c** | Block-Schema **v0** (Feldliste, `schemaVersion`, Beispiel-JSON)                                       | optional `apps/backend/src/lib/blocks/` oder `apps/backend/src/services/documents/blockSchema.ts` nur als Typen + Zod, noch ohne DB-Nutzung |
+**Status: umgesetzt** – ADR [001](../platform/adr/001-blocks-suggestions-lead-draft.md); Block-Zod [blockSchema.ts](../../apps/backend/src/services/documents/blockSchema.ts) + [blockSchema.test.ts](../../apps/backend/src/services/documents/blockSchema.test.ts).
+
+| PR        | Inhalt                                                                                                | Artefakte                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **PR-0a** | ADR: Suggestion-Basis (`draftRevision` vs. `publishedVersion`), Stale-Regel nach Publish/Draft-Update | [docs/platform/adr/001-blocks-suggestions-lead-draft.md](../platform/adr/001-blocks-suggestions-lead-draft.md) (Abschnitte 1–2) |
+| **PR-0b** | ADR: Lead-Draft Speicher **A** (Spalten auf `Document`) vs. **B** (eigene Tabelle)                    | gleiche ADR-Datei (Abschnitt 3)                                                                                                 |
+| **PR-0c** | Block-Schema **v0** (Feldliste, `schemaVersion`, Beispiel-JSON)                                       | `apps/backend/src/services/documents/blockSchema.ts`, Tests `blockSchema.test.ts`                                               |
 
 **Hinweis:** Erst ab **PR-1** echte Prisma-Migrationen, damit 0c optional vorziehbar bleibt.
 
@@ -56,14 +58,16 @@ flowchart TD
 
 ## EPIC-1 – Prisma: additive Felder / neue Modelle
 
-**Dateien:** `apps/backend/prisma/schema.prisma`, neue Migration unter `apps/backend/prisma/migrations/`.
+**Status: umgesetzt** – Migration `20260421220000_edit_system_draft_blocks_suggestions`; Schema: `Document.draftBlocks`, `Document.draftRevision`, `DocumentVersion.blocks`, `DocumentVersion.blocksSchemaVersion`, Modell `DocumentSuggestion` + Enum `DocumentSuggestionStatus`.
 
-| PR        | Inhalt                                                                                                                                                                                                                            | Konkrete Modelle / Felder (Vorschlag) |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **PR-1a** | **Published-Blocks** parallel zu Markdown: z. B. `publishedBlocks Json?`, `publishedSchemaVersion Int?` auf `Document` _oder_ JSON in `DocumentVersion` (entscheidet ADR – Versionierung spricht für Spalte an `DocumentVersion`) | `Document`, `DocumentVersion`         |
-| **PR-1b** | **Lead-Draft** gemäß ADR A/B: z. B. `draftBlocks Json`, `draftRevision Int` auf `Document` _oder_ `DocumentLeadDraft` 1:1                                                                                                         | `Document` oder neues Model           |
-| **PR-1c** | **`DocumentSuggestion`** (Status, `authorId`, `baseDraftRevision`, `ops Json`, Timestamps, optional `resolvedById`, `comment`)                                                                                                    | neues Model + Indizes laut Plan §6.3  |
-| **PR-1d** | Relationen / Indizes nachziehen, `seed.ts` nur falls Testdaten neue Tabellen brauchen                                                                                                                                             | `apps/backend/src/seed.ts`            |
+**Dateien:** `apps/backend/prisma/schema.prisma`, `apps/backend/prisma/migrations/20260421220000_edit_system_draft_blocks_suggestions/migration.sql`.
+
+| PR        | Inhalt                                                                                                                                                                                                                            | Konkrete Modelle / Felder (Vorschlag)                                                                                        |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **PR-1a** | **Published-Blocks** parallel zu Markdown: z. B. `publishedBlocks Json?`, `publishedSchemaVersion Int?` auf `Document` _oder_ JSON in `DocumentVersion` (entscheidet ADR – Versionierung spricht für Spalte an `DocumentVersion`) | **`DocumentVersion`:** `blocks Json?`, `blocksSchemaVersion Int?` (Umsetzung)                                                |
+| **PR-1b** | **Lead-Draft** gemäß ADR A/B: z. B. `draftBlocks Json`, `draftRevision Int` auf `Document` _oder_ `DocumentLeadDraft` 1:1                                                                                                         | **`Document`:** `draftBlocks Json?`, `draftRevision Int` @default(0) (ADR A)                                                 |
+| **PR-1c** | **`DocumentSuggestion`** (Status, `authorId`, `baseDraftRevision`, `ops Json`, Timestamps, optional `resolvedById`, `comment`)                                                                                                    | **Umsetzung:** + optional `publishedVersionId` → `DocumentVersion`, Indizes `(documentId, status)`, `(documentId, authorId)` |
+| **PR-1d** | Relationen / Indizes nachziehen, `seed.ts` nur falls Testdaten neue Tabellen brauchen                                                                                                                                             | User-Relationen für Author/Resolver; **kein** Seed-Zwang (Defaults ausreichend)                                              |
 
 **Wichtig:** `content` (Markdown) **nicht** in PR-1 entfernen – weiterer Lesepfad bis EPIC-9.
 
@@ -71,16 +75,18 @@ flowchart TD
 
 ## EPIC-2 – Block-Validierung und Serialisierung (Backend-Library)
 
+**Status: umgesetzt** – `blockDocumentSchema.ts` (Re-Export PR-2a), `markdownToBlocks.ts`, `blocksToMarkdown.ts`, `blocksPlaintext.ts`, Tests `blockSerialization.test.ts` (neben `blockSchema.test.ts`).
+
 **Dateien (neu oder erweitern):**
 
-- `apps/backend/src/services/documents/` – z. B. `blockDocumentSchema.ts`, `markdownToBlocks.ts`, `blocksToMarkdown.ts` (Namen frei).
-- Tests: `apps/backend/src/services/documents/*.test.ts` (neu) oder bestehendes Testmuster.
+- `apps/backend/src/services/documents/` – `blockSchema.ts` / `blockDocumentSchema.ts`, `markdownToBlocks.ts`, `blocksToMarkdown.ts`, `blocksPlaintext.ts`.
+- Tests: `blockSchema.test.ts`, `blockSerialization.test.ts`.
 
 | PR        | Inhalt                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------ |
-| **PR-2a** | Zod-Schema für Top-Level-Dokument + `blocks[]`, `schemaVersion`; striktes Parse, klare Fehlermeldungen       |
-| **PR-2b** | **Markdown → Blocks** (Import-Pfad für Migration und Upload) + **Blocks → Markdown** (Export für PDF/Pandoc) |
-| **PR-2c** | Plaintext/FTS-Vorbereitung: eine Funktion „searchable string aus Blocks“ (für EPIC-7)                        |
+| --------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **PR-2a** | Zod-Schema für Top-Level-Dokument + `blocks[]`, `schemaVersion`; striktes Parse, klare Fehlermeldungen       | **`blockSchema.ts`** + Re-Export **`blockDocumentSchema.ts`**                                                                                                      |
+| **PR-2b** | **Markdown → Blocks** (Import-Pfad für Migration und Upload) + **Blocks → Markdown** (Export für PDF/Pandoc) | **`markdownToBlocks.ts`** (`markdownToBlockDocumentV0`), **`blocksToMarkdown.ts`** (`blockDocumentV0ToMarkdown`) – minimaler Parser, kein vollständiger CommonMark |
+| **PR-2c** | Plaintext/FTS-Vorbereitung: eine Funktion „searchable string aus Blocks“ (für EPIC-7)                        | **`blocksPlaintext.ts`** (`blockDocumentV0ToSearchableText`)                                                                                                       |
 
 Keine Änderung an Fastify-Routen nötig, wenn nur Library + Tests.
 
@@ -88,17 +94,20 @@ Keine Änderung an Fastify-Routen nötig, wenn nur Library + Tests.
 
 ## EPIC-3 – Datenmigration: bestehende Dokumente
 
+**Status: umgesetzt** – Service `documentBlocksBackfill.ts`, Job `documents.blocks.backfill`, Script `pnpm run backfill-document-blocks`, GET `GET /documents/:id` + `GET .../versions/:versionId` mit Block-Feldern, Publish/Merge/Seed schreiben `blocks` bei neuen Versionen.
+
 **Dateien:**
 
-- Script oder Job: `apps/backend/scripts/` oder Wiederverwendung in `apps/backend/src/jobs/`
-- Aufruf aus Admin/Job: `apps/backend/src/jobs/jobRegistry.ts`, `apps/backend/src/jobs/jobTypes.ts`
-- Leselogik später: `apps/backend/src/permissions/documentLoad.ts`, `apps/backend/src/routes/documents.ts`
+- `apps/backend/src/services/documents/documentBlocksBackfill.ts` (+ `documentBlocksBackfill.test.ts`)
+- `apps/backend/scripts/run-backfill-document-blocks.ts`, `apps/backend/package.json` (`backfill-document-blocks`)
+- `apps/backend/src/jobs/jobRegistry.ts`, `apps/backend/src/jobs/jobTypes.ts`
+- `apps/backend/src/routes/documents.ts`, `apps/backend/src/services/documents/documentService.ts`, `apps/backend/src/seed.ts`
 
 | PR        | Inhalt                                                                                                                                                   |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PR-3a** | Idempotenter Batch-Job: `Document` / `DocumentVersion` mit Markdown → befüllt `publishedBlocks` (oder nur Versionen, je nach ADR), setzt `schemaVersion` |
-| **PR-3b** | **GET-Lesepfad:** Wenn Blocks vorhanden → API liefert Blocks (oder beides: `content` deprecated + `blocks`); wenn nicht → weiter Markdown (Fallback)     |
-| **PR-3c** | Optional: Draft-Initialisierung aus letztem Published für neue Lead-Draft-Spalten                                                                        |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PR-3a** | Idempotenter Batch-Job: `Document` / `DocumentVersion` mit Markdown → befüllt `publishedBlocks` (oder nur Versionen, je nach ADR), setzt `schemaVersion` | **`DocumentVersion.blocks`** + `blocksSchemaVersion: 0`; Job + Script; Filter `blocks`/`draftBlocks` = DB-Null (`Prisma.DbNull`)                                                                                                                           |
+| **PR-3b** | **GET-Lesepfad:** Wenn Blocks vorhanden → API liefert Blocks (oder beides: `content` deprecated + `blocks`); wenn nicht → weiter Markdown (Fallback)     | **`GET /documents/:documentId`:** `draftRevision`, `blocks` (aus `draftBlocks`), `publishedBlocks` + `publishedBlocksSchemaVersion` (aktuelle Version); **`GET .../versions/:versionId`:** `blocks`, `blocksSchemaVersion`; Markdown `content` unverändert |
+| **PR-3c** | Optional: Draft-Initialisierung aus letztem Published für neue Lead-Draft-Spalten                                                                        | **`backfillDocumentDraftBlocks`** aus aktuellem `Document.content` (analog zu Versionen)                                                                                                                                                                   |
 
 Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/routes/schemas/documents.ts` (Response-Shape), ggf. `apps/backend/src/services/documents/documentService.ts`.
 

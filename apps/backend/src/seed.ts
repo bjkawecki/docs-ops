@@ -13,6 +13,7 @@ import {
   setContextDisplayFromProject,
   setContextDisplayFromSubcontext,
 } from './services/contexts/contextOwnerDisplay.js';
+import { blockDocumentJsonFromMarkdown } from './services/documents/documentBlocksBackfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve from project root (apps/backend) so it works with tsx and node dist
@@ -70,6 +71,8 @@ async function createPublishedSeedDocument(prisma: PrismaClient, input: Publishe
       data: {
         documentId: doc.id,
         content: input.content,
+        blocks: blockDocumentJsonFromMarkdown(input.content),
+        blocksSchemaVersion: 0,
         versionNumber: 1,
         ...(input.createdById != null ? { createdById: input.createdById } : {}),
       },

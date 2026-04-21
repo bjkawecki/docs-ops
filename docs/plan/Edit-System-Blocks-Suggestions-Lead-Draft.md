@@ -2,6 +2,8 @@
 
 **Umsetzung in PRs/Epics:** [Edit-System-Blocks-PR-Epics.md](./Edit-System-Blocks-PR-Epics.md) (Phasen, Abhängigkeiten, Dateipfade).
 
+**Architekturentscheidungen (Epic 0):** [ADR 001](../platform/adr/001-blocks-suggestions-lead-draft.md).
+
 ## 1. Zielbild
 
 Umstellung des Dokumenten-Editierens von **Markdown-String als alleinige Quelle** plus **heute im Code noch vorhandenen, persönlichen Entwurfs-/Freigabe-Pfaden** auf ein **strukturiertes Block-Modell (JSON)** mit klar getrennten Schichten:

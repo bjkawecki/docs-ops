@@ -89,6 +89,8 @@ model User {
   documentVersionsCreated  DocumentVersion[]
   draftRequestsSubmitted  DraftRequest[]   @relation("DraftRequestsSubmitted")
   draftRequestsMerged     DraftRequest[]   @relation("DraftRequestsMerged")
+  documentSuggestionsAuthored DocumentSuggestion[] @relation("DocumentSuggestionAuthor")
+  documentSuggestionsResolved   DocumentSuggestion[] @relation("DocumentSuggestionResolvedBy")
   documentDrafts          DocumentDraft[]
   documentAttachmentsUploaded DocumentAttachment[]
   documentCommentsAuthored    DocumentComment[] @relation("DocumentCommentAuthor")
@@ -230,10 +232,15 @@ model DocumentPinnedInScope {
 /// Einzelne inhaltliche Einheit (Markdown). Optional genau ein Kontext (contextId); null = kontextfreier Draft (nur Ersteller/Grants).
 /// Optional: PDF-Version (pdfUrl, z. B. Export-URL aus MinIO). Zugriff über Grants; Rechteableitung siehe docs/platform/datenmodell/Rechteableitung.
 /// Invariante (DB-`CHECK`): Ist `publishedAt` gesetzt, muss `currentPublishedVersionId` gesetzt sein.
+/// Lead-Draft (Edit-System, ADR 001): `draftBlocks` + `draftRevision`; Markdown `content` bleibt bis EPIC-9 parallel.
 model Document {
   id                        String                   @id @default(cuid())
   title                     String
   content                   String                   @db.Text
+  /// Gemeinsamer Lead-Draft als Block-JSON (schemaVersion im JSON); null = noch nicht initialisiert.
+  draftBlocks               Json?
+  /// Erhöht sich bei jedem erfolgreichen PATCH des Lead-Drafts (Optimistic-Concurrency / Suggestion-Basis).
+  draftRevision             Int                      @default(0)
   pdfUrl                    String?                  // URL zur PDF-Version (z. B. MinIO/S3 nach Export)
   contextId                 String?                  // null = kontextfreier Draft; Veröffentlichung nur mit Kontext
   context                   Context?                 @relation(fields: [contextId], references: [id], onDelete: SetNull)
@@ -257,6 +264,7 @@ model Document {
   documentDrafts            DocumentDraft[]
   attachments               DocumentAttachment[]
   comments                  DocumentComment[]
+  suggestions               DocumentSuggestion[]
 }
 
 /// Tag: scope-gebunden (ownerId → Owner), für Kategorisierung und Filterung. Eindeutigkeit pro Scope: (ownerId, name).
@@ -321,11 +329,14 @@ model DocumentComment {
 // --- Versionierung & PR (vgl. docs/plan/Prisma-Schema-Entwurf.md §8) ---
 
 /// Snapshot einer veröffentlichten Version (Full-Version). Nur bei Publish und bei Merge eines PRs.
+/// Optional `blocks` + `blocksSchemaVersion`: Block-JSON pro Version (parallel zu Markdown `content` bis vollständige Umstellung).
 model DocumentVersion {
   id                        String    @id @default(cuid())
   documentId                String
   document                  Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
   content                   String    @db.Text
+  blocks                    Json?
+  blocksSchemaVersion       Int?
   versionNumber             Int
   createdAt                 DateTime  @default(now())
   createdById               String?
@@ -336,9 +347,42 @@ model DocumentVersion {
   currentPublishedForDocument Document?        @relation("CurrentPublishedVersion")
   draftRequestsAsTarget     DraftRequest[]
   documentDraftsBasedOn     DocumentDraft[]
+  suggestionPublishedSnapshots DocumentSuggestion[] @relation("DocumentSuggestionPublishedVersion")
 
   @@index([documentId])
   @@index([documentId, createdAt])
+}
+
+/// Autoren-Vorschlag gegen Lead-Draft (`baseDraftRevision`); Ops als JSON (Edit-System, ADR 001).
+enum DocumentSuggestionStatus {
+  pending
+  accepted
+  rejected
+  withdrawn
+  superseded
+}
+
+model DocumentSuggestion {
+  id                 String                   @id @default(cuid())
+  documentId         String
+  document           Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  authorId           String
+  author             User                     @relation("DocumentSuggestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  status             DocumentSuggestionStatus
+  baseDraftRevision  Int
+  /// Optional: Published-Version zum Zeitpunkt der Erstellung (Audit, ADR 001).
+  publishedVersionId String?
+  publishedVersion   DocumentVersion?         @relation("DocumentSuggestionPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
+  ops                Json
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  resolvedAt         DateTime?
+  resolvedById       String?
+  resolvedBy         User?                    @relation("DocumentSuggestionResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  comment            String?                  @db.Text
+
+  @@index([documentId, status])
+  @@index([documentId, authorId])
 }
 
 /// Pull Request: eingereichter Änderungsvorschlag (draftContent). Merge nur durch Scope-Lead.

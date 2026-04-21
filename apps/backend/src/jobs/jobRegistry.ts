@@ -11,6 +11,7 @@ import { canWrite } from '../permissions/canWrite.js';
 import { runFullReindex, runIncrementalReindex } from '../services/search/searchIndexService.js';
 import { dispatchNotificationEvent } from '../services/notifications/notificationDispatchService.js';
 import { runUserNotificationRetention } from '../services/notifications/notificationRetentionService.js';
+import { backfillAllDocumentBlocks } from '../services/documents/documentBlocksBackfill.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -158,6 +159,17 @@ async function maintenanceCleanup(
   await notImplementedHandler('maintenance.cleanup', payload, context);
 }
 
+async function backfillDocumentBlocksJob(
+  payload: JobPayloadByType['documents.blocks.backfill'],
+  context: JobContext
+): Promise<void> {
+  const result = await backfillAllDocumentBlocks(context.prisma, {
+    documentId: payload.documentId,
+    limit: payload.limit ?? 200,
+  });
+  context.logger.info({ payload, result }, 'documents.blocks.backfill completed');
+}
+
 export const jobDefinitions: ReadonlyArray<JobDefinition> = [
   {
     name: 'documents.export.pdf',
@@ -193,5 +205,12 @@ export const jobDefinitions: ReadonlyArray<JobDefinition> = [
     retryLimit: 2,
     handler: (payload, context) =>
       maintenanceCleanup(payload as JobPayloadByType['maintenance.cleanup'], context),
+  },
+  {
+    name: 'documents.blocks.backfill',
+    schema: jobPayloadSchemas['documents.blocks.backfill'],
+    retryLimit: 1,
+    handler: (payload, context) =>
+      backfillDocumentBlocksJob(payload as JobPayloadByType['documents.blocks.backfill'], context),
   },
 ];

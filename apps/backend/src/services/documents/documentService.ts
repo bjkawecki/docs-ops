@@ -1,4 +1,5 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
+import { blockDocumentJsonFromMarkdown } from './documentBlocksBackfill.js';
 
 /** Metadata-only update payload. No lifecycle fields (publishedAt, archivedAt, deletedAt). */
 export type UpdateDocumentMetadataData = {
@@ -67,6 +68,8 @@ export async function publishDocument(
       data: {
         documentId,
         content: doc.content,
+        blocks: blockDocumentJsonFromMarkdown(doc.content),
+        blocksSchemaVersion: 0,
         versionNumber: 1,
         createdById: userId,
       },

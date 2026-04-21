@@ -8,6 +8,18 @@ import { assertRequiredEnv } from './load-env.js';
 import { prisma } from '../src/db.js';
 import { hashPassword } from '../src/auth/password.js';
 
+const maxDbAttempts = Math.max(1, Number(process.env.CREATE_ADMIN_DB_ATTEMPTS ?? 30));
+const dbRetryDelayMs = Math.max(200, Number(process.env.CREATE_ADMIN_DB_DELAY_MS ?? 1000));
+
+function isTransientConnectionError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const o = e as { code?: string; errorCode?: string; cause?: unknown };
+  const code = o.code ?? o.errorCode;
+  if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'P1001') return true;
+  if (o.cause !== undefined) return isTransientConnectionError(o.cause);
+  return false;
+}
+
 async function main() {
   assertRequiredEnv(['ADMIN_EMAIL', 'ADMIN_PASSWORD']);
 
@@ -51,11 +63,34 @@ async function main() {
   console.log('Admin angelegt:', user.email);
 }
 
-main()
+async function mainWithDbRetries(): Promise<void> {
+  let last: unknown;
+  for (let i = 1; i <= maxDbAttempts; i++) {
+    try {
+      await main();
+      return;
+    } catch (e) {
+      last = e;
+      if (!isTransientConnectionError(e) || i === maxDbAttempts) {
+        throw e;
+      }
+      if (i === 1 || i % 5 === 0) {
+        console.warn(
+          `create-admin: Datenbank kurz nicht erreichbar, erneuter Versuch (${i}/${maxDbAttempts}) …`
+        );
+      }
+      await new Promise((r) => setTimeout(r, dbRetryDelayMs));
+    }
+  }
+  throw last;
+}
+
+mainWithDbRetries()
   .then(() => process.exit(0))
   .catch((e: unknown) => {
-    const err = e as { code?: string; message?: string };
-    if (err?.code === 'ECONNREFUSED') {
+    const err = e as { code?: string; message?: string; errorCode?: string };
+    const code = err?.code ?? err?.errorCode;
+    if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'P1001') {
       console.error(
         'Fehler: Keine Verbindung zur Datenbank. Ist Postgres gestartet? (z. B. make infra oder docker compose up -d postgres). DATABASE_URL prüfen.'
       );

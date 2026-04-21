@@ -6,7 +6,14 @@ const app = await buildApp();
 const port = Number(process.env.PORT) || 8080;
 const host = process.env.HOST ?? '0.0.0.0';
 
-await runSeedIfNeeded(prisma);
+try {
+  await runSeedIfNeeded(prisma);
+} catch (err) {
+  app.log.error(
+    { err },
+    'runSeedIfNeeded fehlgeschlagen — Server startet trotzdem (Migration/DB prüfen)'
+  );
+}
 
 try {
   await app.listen({ port, host });

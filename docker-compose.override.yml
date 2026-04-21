@@ -10,7 +10,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-    command: sh -c "pnpm install && pnpm --filter backend exec prisma migrate deploy && (pnpm --filter backend run create-admin || true) && pnpm --filter backend run dev"
+    command: sh -c "pnpm install && pnpm --filter backend exec tsx scripts/wait-for-database.ts && pnpm --filter backend exec prisma migrate deploy && (pnpm --filter backend run create-admin || true) && pnpm --filter backend run dev"
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,8 +28,9 @@ services:
       ADMIN_NAME: ${ADMIN_NAME:-}
       ADMIN_VORNAME: ${ADMIN_VORNAME:-}
       ADMIN_NACHNAME: ${ADMIN_NACHNAME:-}
+    # /ready prüft DB (SELECT 1); /health wäre ohne DB → Frontend/Worker starten zu früh.
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8080/health || exit 1']
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8080/ready || exit 1']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -44,7 +45,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-    command: sh -c "pnpm --filter backend run worker:dev"
+    command: sh -c "pnpm --filter backend exec tsx scripts/wait-for-database.ts && pnpm --filter backend run worker:dev"
     depends_on:
       postgres:
         condition: service_healthy

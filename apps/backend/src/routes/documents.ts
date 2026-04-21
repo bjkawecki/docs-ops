@@ -44,6 +44,10 @@ import {
   DocumentNotInTrashError,
   DocumentBusinessError,
 } from '../services/documents/documentService.js';
+import {
+  blockDocumentJsonFromMarkdown,
+  parseBlockDocumentFromDb,
+} from '../services/documents/documentBlocksBackfill.js';
 import { buildCatalogDocumentListBase } from '../services/documents/catalogDocumentListWhere.js';
 import { searchDocumentsForUser } from '../services/search/documentSearchService.js';
 import {
@@ -782,7 +786,9 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           ...DOCUMENT_FOR_PERMISSION_INCLUDE,
           documentTags: { include: { tag: { select: { id: true, name: true } } } },
           createdBy: { select: { name: true } },
-          currentPublishedVersion: { select: { versionNumber: true } },
+          currentPublishedVersion: {
+            select: { versionNumber: true, blocks: true, blocksSchemaVersion: true },
+          },
           grantUser: { include: { user: { select: { name: true } } } },
           grantTeam: { include: { team: { select: { name: true } } } },
           grantDepartment: { include: { department: { select: { name: true } } } },
@@ -867,6 +873,10 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         id: doc.id,
         title: doc.title,
         content: doc.content,
+        draftRevision: doc.draftRevision,
+        blocks: parseBlockDocumentFromDb(doc.draftBlocks),
+        publishedBlocks: parseBlockDocumentFromDb(doc.currentPublishedVersion?.blocks ?? null),
+        publishedBlocksSchemaVersion: doc.currentPublishedVersion?.blocksSchemaVersion ?? null,
         pdfUrl: doc.pdfUrl,
         contextId: doc.contextId,
         createdAt: doc.createdAt,
@@ -1083,6 +1093,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           id: true,
           documentId: true,
           content: true,
+          blocks: true,
+          blocksSchemaVersion: true,
           versionNumber: true,
           createdAt: true,
           createdById: true,
@@ -1095,6 +1107,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         id: version.id,
         documentId: version.documentId,
         content: version.content,
+        blocks: parseBlockDocumentFromDb(version.blocks),
+        blocksSchemaVersion: version.blocksSchemaVersion ?? null,
         versionNumber: version.versionNumber,
         createdAt: version.createdAt,
         createdById: version.createdById ?? null,
@@ -1623,6 +1637,8 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
             data: {
               documentId: draftRequest.documentId,
               content: draftRequest.draftContent,
+              blocks: blockDocumentJsonFromMarkdown(draftRequest.draftContent),
+              blocksSchemaVersion: 0,
               versionNumber: nextVersionNumber,
               parentVersionId: doc.currentPublishedVersionId,
               createdById: userId,
