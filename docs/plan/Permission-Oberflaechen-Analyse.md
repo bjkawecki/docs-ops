@@ -61,6 +61,8 @@ Vollständige Liste der HTTP-Endpunkte (aus `backend/src/routes/` + `auth/routes
 
 ### Documents (`documents.ts`)
 
+Zielbild für Bearbeitung veröffentlichter Inhalte: [Edit-System-Plan](Edit-System-Blocks-Suggestions-Lead-Draft.md). Die **vollständige** Route-Liste und jede Permission-Prüfung sind maßgeblich im Quellcode unter `apps/backend/src/routes/documents.ts` (und zugehörigen Services) — die Tabelle nennt die zentralen Les-/Schreib-Pfade.
+
 | Methode | Pfad                                             | PreHandler                                            | Permission im Handler                            |
 | ------- | ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------ |
 | GET     | /documents                                       | requireAuthPreHandler                                 | getReadableCatalogScope (Where-Filter)           |
@@ -77,12 +79,6 @@ Vollständige Liste der HTTP-Endpunkte (aus `backend/src/routes/` + `auth/routes
 | POST    | /documents/:documentId/publish                   | requireAuthPreHandler, requireDocumentAccess('read')  | canPublishDocument                               |
 | GET     | /documents/:documentId/versions                  | requireAuthPreHandler, requireDocumentAccess('read')  | —                                                |
 | GET     | /documents/:documentId/versions/:versionId       | requireAuthPreHandler, requireDocumentAccess('read')  | —                                                |
-| POST    | /documents/:documentId/draft/update-to-latest    | requireAuthPreHandler, requireDocumentAccess('write') | —                                                |
-| GET     | /documents/:documentId/draft                     | requireAuthPreHandler, requireDocumentAccess('write') | —                                                |
-| PUT     | /documents/:documentId/draft                     | requireAuthPreHandler, requireDocumentAccess('write') | —                                                |
-| POST    | /documents/:documentId/draft-requests            | requireAuthPreHandler, requireDocumentAccess('write') | —                                                |
-| GET     | /documents/:documentId/draft-requests            | requireAuthPreHandler, requireDocumentAccess('read')  | —                                                |
-| PATCH   | /draft-requests/:draftRequestId                  | requireAuthPreHandler                                 | canMergeDraftRequest                             |
 | GET     | /documents/:documentId/attachments               | requireAuthPreHandler, requireDocumentAccess('read')  | —                                                |
 | POST    | /documents/:documentId/attachments               | requireAuthPreHandler, requireDocumentAccess('write') | —                                                |
 | GET     | /documents/:documentId/attachments/:attachmentId | requireAuthPreHandler, requireDocumentAccess('read')  | —                                                |
@@ -166,7 +162,6 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 | DELETE /documents/:id                                                        | canDeleteDocument                                             | document/context        | canWriteContext   | low                             |
 | POST /documents/:id/restore                                                  | canDeleteDocument oder canSeeDocumentInTrash                  | document                | Owner/Lead        | low                             |
 | POST /documents/:id/publish                                                  | canPublishDocument                                            | document/context        | canWriteContext   | low                             |
-| PATCH /draft-requests/:id                                                    | canMergeDraftRequest                                          | document/context        | canWriteContext   | low                             |
 | GET/PUT …/grants/\*                                                          | requireDocumentAccess read/write                              | document                | canRead/canWrite  | low                             |
 | GET /contexts/:contextId/documents                                           | canReadContext, canWriteContext                               | context                 | —                 | low                             |
 | GET /processes, /projects                                                    | canReadContext pro Item                                       | context                 | —                 | low                             |
@@ -227,7 +222,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 - **Rechtevererbung:**
   - **Lesen:** canRead (Document) berücksichtigt Company Lead, Department Lead, Owner (ownerUserId), Grants. Leserechte werden „nach oben“ vererbt (Rechtesystem).
   - **Schreiben Kontext:** canWriteContext = Scope-Lead der Owner-Unit oder expliziter Writer-Grant am Dokument. Keine Quer-Vererbung.
-  - **Dokument:** canRead/canWrite/canDeleteDocument/canPublishDocument/canMergeDraftRequest nutzen alle entweder Kontext-Owner (canWriteContext) oder Dokument-Grants; keine Umgehung der Hierarchie.
+  - **Dokument:** canRead/canWrite/canDeleteDocument/canPublishDocument nutzen alle entweder Kontext-Owner (canWriteContext) oder Dokument-Grants; keine Umgehung der Hierarchie.
 
 - **Sonderfälle:**
   - Kontextfreie Dokumente (contextId null): nur createdById und Grants; canPublishDocument = false bis contextId gesetzt.
@@ -257,7 +252,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
    GET /companies, /companies/:id, … können mit canViewCompany/canViewDepartment/canViewTeam abgesichert werden (siehe H.2). Ohne diese Prüfung sieht jeder angemeldete Nutzer die Struktur (Single-Tenant oft gewollt).
 
 2. **Keine weiteren kritischen Lücken**  
-   Alle mutierenden Aktionen (POST/PUT/PATCH/DELETE) auf Dokumenten, Kontexten, Assignments, Pinned, Tags und Admin sind durch Auth + entweder requireDocumentAccess, canWriteContext, canDeleteDocument, canPublishDocument, canMergeDraftRequest, canPinForScope, canView*/canManage*, canReadScopeForOwner/canCreateTagForOwner oder requireAdmin abgesichert. Me-Routen operieren auf effectiveUserId/request.user.id (eigene Ressourcen).
+   Alle mutierenden Aktionen (POST/PUT/PATCH/DELETE) auf Dokumenten, Kontexten, Assignments, Pinned, Tags und Admin sind durch Auth + entweder requireDocumentAccess, canWriteContext, canDeleteDocument, canPublishDocument, canPinForScope, canView*/canManage*, canReadScopeForOwner/canCreateTagForOwner oder requireAdmin abgesichert. Me-Routen operieren auf effectiveUserId/request.user.id (eigene Ressourcen).
 
 ---
 

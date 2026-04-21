@@ -8,16 +8,16 @@ Dieses Dokument vergleicht die **interne Dokumentationsplattform DocsOps** (dies
 
 ## 1. Kurzüberblick
 
-|                | Docmost                                                                       | DocsOps                                                                                            |
-| -------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **Typ**        | Open-Source-Wiki / Knowledge-Base, selbst gehostet                            | Interne Dokumentationsplattform (eigenes Projekt)                                                  |
-| **Vorbilder**  | Notion, Confluence                                                            | Eigenes Modell (Org-Hierarchie, dokumentweise Rechte, PR-Workflow)                                 |
-| **Editor**     | Blockbasiert (TipTap), Echtzeit-Kollaboration                                 | Markdown, klassisches Bearbeiten, Draft/PR-Workflow                                                |
-| **Struktur**   | Workspace → Spaces → Pages                                                    | Company → Department → Team; Kontexte (Process/Project/Subcontext) → Documents                     |
-| **Rechte**     | Space-Level (Viewer / Can Edit / Full Access); Enterprise: Page-Level; Groups | Dokument-Level (Leser/Schreiber), Grants für User/Team/Department; Leads (Team/Department/Company) |
-| **Publishing** | Seiten in Spaces, Version History                                             | Draft vs. Published, PR-Merge nur durch Scope-Lead                                                 |
+|                | Docmost                                                                       | DocsOps                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Typ**        | Open-Source-Wiki / Knowledge-Base, selbst gehostet                            | Interne Dokumentationsplattform (eigenes Projekt)                                                                              |
+| **Vorbilder**  | Notion, Confluence                                                            | Eigenes Modell (Org-Hierarchie, dokumentweise Rechte, Lead-gesteuerte Freigabe)                                                |
+| **Editor**     | Blockbasiert (TipTap), Echtzeit-Kollaboration                                 | Markdown (Übergang); Ziel: blockbasierter Editor laut [Edit-System-Plan](../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md) |
+| **Struktur**   | Workspace → Spaces → Pages                                                    | Company → Department → Team; Kontexte (Process/Project/Subcontext) → Documents                                                 |
+| **Rechte**     | Space-Level (Viewer / Can Edit / Full Access); Enterprise: Page-Level; Groups | Dokument-Level (Leser/Schreiber), Grants für User/Team/Department; Leads (Team/Department/Company)                             |
+| **Publishing** | Seiten in Spaces, Version History                                             | Draft vs. Published; neue veröffentlichte Version nur durch Scope-Lead (Publish)                                               |
 
-Beide Systeme zielen auf **interne Dokumentation**, **Selbsthosting** und **kontrollierte Zugriffsmodelle**. Sie unterscheiden sich vor allem in der **Granularität der Rechte**, der **Rolle der Organisationshierarchie** und dem **Publikationsmodell** (sofortiges gemeinsames Bearbeiten vs. Freigabe-Workflow).
+Beide Systeme zielen auf **interne Dokumentation**, **Selbsthosting** und **kontrollierte Zugriffsmodelle**. Sie unterscheiden sich vor allem in der **Granularität der Rechte**, der **Rolle der Organisationshierarchie** und dem **Publikationsmodell** (sofortiges gemeinsames Bearbeiten vs. Lead-gesteuerte Veröffentlichung).
 
 ---
 
@@ -30,7 +30,7 @@ Beide Systeme zielen auf **interne Dokumentation**, **Selbsthosting** und **kont
 - Typische Block-Typen: Überschrift, Fließtext, Aufzählung, Checkliste, Code, Tabelle, Bild, Zitat, Trennlinie.
 - Bekannte blockbasierte Editoren: Notion, Confluence (neuer Editor), Coda, Slite – bei Docmost der Editor auf Basis von **TipTap**.
 
-**Im Gegensatz dazu:** Ein **nicht blockbasierter** Ansatz nutzt einen durchgehenden Text (oft Markdown), der von oben bis unten bearbeitet wird – z. B. in einem Code-Editor oder Textarea. So arbeitet DocsOps: ein Markdown-Dokument als Ganzes, ohne separate „Blöcke“ pro Absatz.
+**Im Gegensatz dazu:** Ein **nicht blockbasierter** Ansatz nutzt einen durchgehenden Text (oft Markdown), der von oben bis unten bearbeitet wird – z. B. in einem Code-Editor oder Textarea. DocsOps nutzt das **heute** noch so in der UI; das **Zielmodell** ist ein blockbasierter Editor mit JSON-Speicher (siehe [Edit-System-Plan](../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md)).
 
 ---
 
@@ -68,7 +68,7 @@ Rollen auf Workspace-Ebene: **Owner**, **Admin**, **Member**. Auf Space-Ebene: *
 - **Kontexte:** Prozess, Projekt, Unterkontext (Subcontext). Jeder Kontext gehört genau einer **Owner-Unit** (Company, Department, Team oder User). Dokumente gehören **genau einem Kontext** (oder sind kontextfreie Drafts).
 - **Dokumente:** Markdown-Inhalt, Tags, **explizite Zugriffsrechte** pro Dokument (Grants für User, Team, Department mit Rolle Read oder Write).
 - **Rollen:** Team Lead, Department Lead, Company Lead („Scope-Lead“); **Leserechte werden nach oben vererbt**, **Schreibrechte sind lokal** (nur Lead der Owner-Unit oder expliziter Writer-Grant). Keine Quer-Vererbung zwischen parallelen Units.
-- **Publishing:** Dokumente haben Status **Draft** oder **Published** (`publishedAt`). Nur **Scope-Lead** darf veröffentlichen; Änderungen an veröffentlichten Dokumenten laufen über **Pull-Request-Workflow** (DraftRequest), Merge nur durch Scope-Lead.
+- **Publishing:** Dokumente haben Status **Draft** oder **Published** (`publishedAt`). Nur **Scope-Lead** darf **veröffentlichen** (Publish). Änderungen an veröffentlichten Inhalten laufen im Zielbild über **Suggestions** und **Lead-Draft** ([Edit-System-Plan](../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md)).
 - **Weitere Konzepte:** Pinned pro Scope (Team/Department/Company), Trash, Archive; Catalog als übergreifende Dokumentenliste mit Filter/Suche; geplant: Kommentar-Sektion (Kommentar-Rechte = Leserechte).
 
 Details: [Doc-Platform-Konzept](Doc-Platform-Konzept.md), [Rechtesystem](datenmodell/Rechtesystem.md), [Pseudocode Datenmodell](datenmodell/Pseudocode%20Datenmodell.md), [Versionierung](versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md).
@@ -77,15 +77,15 @@ Details: [Doc-Platform-Konzept](Doc-Platform-Konzept.md), [Rechtesystem](datenmo
 
 - **Organisation und Governance:** Feste Hierarchie mit klaren Lead-Rollen und Vererbungsregeln. Company Lead kann alles **lesen** (Governance), schreiben aber nur in eigenen/zugewiesenen Bereichen. Kein „ein Space = eine Rolle“, sondern abgeleitete Rechte aus Organisationsstruktur und expliziten Grants.
 - **Dokument-Level-Rechte:** Pro Dokument können **Leser und Schreiber** explizit vergeben werden (User, Team, Department). Ermöglicht z. B. „nur Abteilung X darf dieses Dokument lesen“ oder „Team A und Team B haben Schreibrecht, alle anderen im Space nur Leserecht“ – ohne dafür viele Spaces oder Unter-Seiten anlegen zu müssen.
-- **Kontrollierter Publikationsprozess:** Draft/Published und PR-Workflow sorgen dafür, dass Änderungen **erst nach Freigabe** (Merge durch Scope-Lead) sichtbar werden. Kein „jeder mit Edit-Recht schreibt sofort live“. Relevant für Prozessdokumentation, Richtlinien, Compliance.
+- **Kontrollierter Publikationsprozess:** Draft/Published und expliziter **Publish** durch den Lead sorgen dafür, dass die für Leser sichtbare Version **erst nach Freigabe** wechselt. Kein „jeder mit Schreibrecht überschreibt sofort die veröffentlichte Fassung“. Relevant für Prozessdokumentation, Richtlinien, Compliance.
 - **Semantik der Kontexte:** Prozess vs. Projekt vs. Unterkontext ist in der Plattform modelliert (nicht nur „Space“). Pinned, Trash, Archive und Drafts sind **pro Scope** (Team, Department, Company, Personal) steuerbar; die Plattform „weiß“, wer Lead in welchem Scope ist.
-- **Markdown als Kerndaten:** Einfacher zu migrieren, mit externen Tools (Pandoc, Git, CI) nutzbar; keine Bindung an einen speziellen Block-Editor. Versionierung als Snapshots (Full-Version bei Publish und bei Merge).
+- **Markdown / Export:** Einfacher zu migrieren, mit externen Tools (Pandoc, Git, CI) nutzbar; Markdown bleibt sinnvoller **Export-** und Migrationspfad. **Versionierung** als Snapshots bei jedem **Publish** ([Versionierung](versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md)).
 
 ### 4.3 Ideale Einsatzszenarien
 
 - Interne Dokumentation mit **klarer Organisationsstruktur** (Firma, Abteilung, Team) und Anforderung an **Governance** („Company Lead soll alles lesen können, aber nicht überall schreiben“).
 - **Differenzierte Sichtbarkeit:** Verschiedene Leser/Schreiber pro Dokument im gleichen Kontext; Dokumente, die nur für bestimmte Teams oder Abteilungen sichtbar sein sollen.
-- **Freigabe vor Veröffentlichung:** Änderungen sollen erst nach Review (PR/Merge) live gehen; Nachvollziehbarkeit, wer was wann freigegeben hat.
+- **Freigabe vor Veröffentlichung:** Änderungen sollen erst nach Review durch den Lead per **Publish** für Leser sichtbar werden; Nachvollziehbarkeit über Snapshots und Metadaten.
 - **Prozess- und Projekt-Dokumentation** mit klarer Trennung (Process vs. Project) und Nutzung von Trash/Archive/Pinned pro Scope.
 
 ---
@@ -94,12 +94,12 @@ Details: [Doc-Platform-Konzept](Doc-Platform-Konzept.md), [Rechtesystem](datenmo
 
 ### 5.1 Editor und Kollaboration
 
-| Aspekt                    | Docmost                                             | DocsOps                                                       |
-| ------------------------- | --------------------------------------------------- | ------------------------------------------------------------- |
-| Editor                    | Blockbasiert (TipTap), Rich-Text-Blöcke             | Markdown, durchgehender Text (Textarea/Editor)                |
-| Gleichzeitige Bearbeitung | Echtzeit-Kollaboration (mehrere Nutzer, eine Seite) | Klassisch: ein Nutzer bearbeitet; PR für veröffentlichte Docs |
-| Konflikte                 | Durch Echtzeit-Sync minimiert                       | Durch Draft/PR und Merge durch eine Person gesteuert          |
-| Ziel                      | Schnelles, gemeinsames Erstellen                    | Kontrollierte Freigabe und klare Verantwortung (Scope-Lead)   |
+| Aspekt                    | Docmost                                             | DocsOps                                                                                            |
+| ------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Editor                    | Blockbasiert (TipTap), Rich-Text-Blöcke             | Markdown, durchgehender Text (Textarea/Editor)                                                     |
+| Gleichzeitige Bearbeitung | Echtzeit-Kollaboration (mehrere Nutzer, eine Seite) | Fokus auf Vorschläge (Suggestions) und Lead-Draft statt parallelem Live-Edit der Published-Version |
+| Konflikte                 | Durch Echtzeit-Sync minimiert                       | Überlappende Vorschläge werden vom Lead sichtbar entschieden (Zielmodell)                          |
+| Ziel                      | Schnelles, gemeinsames Erstellen                    | Kontrollierte Freigabe und klare Verantwortung (Scope-Lead)                                        |
 
 ### 5.2 Rechte und Sichtbarkeit
 
@@ -112,11 +112,11 @@ Details: [Doc-Platform-Konzept](Doc-Platform-Konzept.md), [Rechtesystem](datenmo
 
 ### 5.3 Publishing und Versionierung
 
-| Aspekt                                | Docmost                                                      | DocsOps                                                           |
-| ------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Veröffentlichung                      | Seiten in Spaces sichtbar nach Space-Zugang; Version History | **Draft vs. Published**; nur Scope-Lead setzt publishedAt         |
-| Änderungen an veröffentlichtem Inhalt | Direkt bearbeitbar (mit Edit-Recht) oder Version History     | **PR-Workflow**: Draft einreichen, **Merge nur durch Scope-Lead** |
-| Versionen                             | Version History (typisch pro Seite)                          | Snapshots bei Publish und bei Merge; Full-Version pro Version     |
+| Aspekt                                | Docmost                                                      | DocsOps                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Veröffentlichung                      | Seiten in Spaces sichtbar nach Space-Zugang; Version History | **Draft vs. Published**; nur Scope-Lead setzt publishedAt                                                                    |
+| Änderungen an veröffentlichtem Inhalt | Direkt bearbeitbar (mit Edit-Recht) oder Version History     | **Suggestions**; **Publish** nur durch Scope-Lead ([Edit-System-Plan](../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md)) |
+| Versionen                             | Version History (typisch pro Seite)                          | Snapshots bei **Publish**; Full-Version pro Version                                                                          |
 
 ### 5.4 Struktur und Semantik
 
@@ -144,21 +144,21 @@ Details: [Doc-Platform-Konzept](Doc-Platform-Konzept.md), [Rechtesystem](datenmo
 - **DocsOps:** Dokument-Level-Grants (User, Team, Department) mit Read/Write. Pro Dokument fein steuerbar.
 - **Docmost:** Rechte primär pro Space (oder pro Seite in Enterprise). Feine Steuerung „nur dieses Dokument für Abteilung X“ erfordert viele Spaces oder Page-Level-Permissions (Enterprise).
 
-### 6.3 Änderungen erst nach Freigabe (PR/Merge)
+### 6.3 Änderungen erst nach Freigabe
 
-- **Anforderung:** Änderungen an veröffentlichten Inhalten sollen **nicht sofort** live gehen, sondern **eingereicht** und von einer berechtigten Person **freigegeben** (Merge) werden.
-- **DocsOps:** Draft-Request (PR) mit Merge nur durch Scope-Lead; veröffentlichte Version ändert sich erst nach Merge. Vgl. [Versionierung](versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md).
-- **Docmost:** Fokus auf Echtzeit-Kollaboration; Version History für Nachvollziehbarkeit, aber kein eingebauter „Submit for approval / Merge“-Workflow.
+- **Anforderung:** Änderungen an veröffentlichten Inhalten sollen **nicht sofort** die Leser-Version ändern, sondern **eingereicht** und von einer berechtigten Person **veröffentlicht** werden.
+- **DocsOps:** Autoren liefern **Suggestions**; der **Scope-Lead** integriert im **Lead-Draft** und löst **Publish** aus. Vgl. [Versionierung](versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md) und [Edit-System-Plan](../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md).
+- **Docmost:** Fokus auf Echtzeit-Kollaboration; Version History für Nachvollziehbarkeit, aber kein eingebauter „Submit for approval“-Workflow im DocsOps-Sinne.
 
 ### 6.4 Eine Quelle der Wahrheit für die Organisationsstruktur
 
 - **Anforderung:** Die Plattform soll die **reale Organisationsstruktur** (Company, Department, Team) und **Lead-Rollen** abbilden; Sichtbarkeit von Drafts, Trash, Archive und Catalog soll daraus abgeleitet werden.
-- **DocsOps:** Company/Department/Team und Leads sind Kern des Modells; Drafts/Trash/Archive/Catalog und Rechte (canRead, canWrite, canDeleteDocument, canMergeDraftRequest) leiten sich daraus ab.
+- **DocsOps:** Company/Department/Team und Leads sind Kern des Modells; Drafts/Trash/Archive/Catalog und Rechte (canRead, canWrite, canDeleteDocument, canPublishDocument) leiten sich daraus ab.
 - **Docmost:** Spaces und Groups bilden Bereiche und Gruppen ab; eine strikte „eine Firma, Abteilungen, Teams, Leads“-Logik mit Vererbung ist nicht das primäre Modell.
 
 ### 6.5 Fazit zur Berechtigung
 
-- Wenn **Governance**, **dokumentweise Rechte**, **PR-Freigabe** und **klare Org-Hierarchie** zentrale Anforderungen sind, ist DocsOps **kein überflüssiges Rad**, sondern ein **bewusst anders gedrehtes Rad**: optimiert für kontrollierte, organisationsbewusste Doku mit klaren Freigabe- und Sichtbarkeitsregeln.
+- Wenn **Governance**, **dokumentweise Rechte**, **Freigabe vor Publish** und **klare Org-Hierarchie** zentrale Anforderungen sind, ist DocsOps **kein überflüssiges Rad**, sondern ein **bewusst anders gedrehtes Rad**: optimiert für kontrollierte, organisationsbewusste Doku mit klaren Freigabe- und Sichtbarkeitsregeln.
 - Docmost ist optimiert für **einfache, kollaborative Wikis** mit schnellem Einstieg und Echtzeit-Bearbeitung. Beide Ansätze können in unterschiedlichen Kontexten die bessere Wahl sein.
 
 ---
@@ -167,9 +167,9 @@ Details: [Doc-Platform-Konzept](Doc-Platform-Konzept.md), [Rechtesystem](datenmo
 
 |                    | Docmost                                                                           | DocsOps                                                                               |
 | ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| **Stärke**         | Echtzeit-Kollaboration, blockbasierter Editor, einfache Space-Rechte, produktreif | Org-Hierarchie, dokumentweise Grants, Draft/PR-Workflow, Governance                   |
+| **Stärke**         | Echtzeit-Kollaboration, blockbasierter Editor, einfache Space-Rechte, produktreif | Org-Hierarchie, dokumentweise Grants, Lead-gesteuerter Publish, Governance            |
 | **Rechte**         | Space (und ggf. Page); Groups                                                     | Dokument-Grants + Leads; Lesen nach oben, Schreiben lokal                             |
-| **Publishing**     | Direkt sichtbar im Space; Version History                                         | Draft/Published; Merge durch Scope-Lead                                               |
+| **Publishing**     | Direkt sichtbar im Space; Version History                                         | Draft/Published; Publish durch Scope-Lead                                             |
 | **Beste Wahl für** | Wikis, Knowledge-Bases, kollaboratives Schreiben ohne formale Freigabe            | Interne Doku mit Freigabe-Workflow, differenzierter Sichtbarkeit, klarer Org-Struktur |
 
 Dieses Dokument kann bei Produktentscheidungen („Bauen wir weiter an DocsOps oder setzen wir Docmost ein?“) oder bei der Kommunikation nach außen („Warum eigenes System?“) als Referenz dienen. Bei Änderungen an Docmost oder am DocsOps-Konzept sollte der Vergleich ggf. aktualisiert werden.

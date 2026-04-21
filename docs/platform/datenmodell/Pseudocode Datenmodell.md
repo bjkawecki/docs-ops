@@ -109,7 +109,7 @@ class Zugriffsrecht:
 - dokument: Dokument
 - leser: List[Nutzer | Team | Abteilung] = [] # read
 - schreiber: List[Nutzer | Team | Abteilung] = [] # write (Superuser / Team-Manager)
-- Nutzer mit Leserechten sollen "Pull-Requests" machen können, die von Nutzern mit Schreibrechten genehmigt werden müssen
+- Nutzer mit Schreibrechten sollen **Suggestions** einreichen können; die **Freigabe** neuer veröffentlichter Versionen obliegt dem Scope-Lead (siehe [Edit-System-Plan](../../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md))
   ### Optional: weitere Rollen wie admin, archiv, etc.
 
 ### Beispiel-Logik:

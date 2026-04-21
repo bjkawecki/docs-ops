@@ -129,18 +129,19 @@ Angepinnte **Dokumente** pro Scope (Team, Department, Company) für Dashboard un
 
 ---
 
-## 8. Versionierung & PR (geplant)
+## 8. Versionierung & Bearbeitung (Zielbild)
 
-Snapshots nur bei Veröffentlichung und bei Merge; Pull-Request-Workflow für Dokumente. Noch nicht in `schema.prisma` umgesetzt. Konzept siehe [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md) und [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md#6b-merge-pr-genehmigen).
+<span id="8-versionierung-bearbeitung"></span>
 
-**Vorschlag Tabellen (konzeptionell):**
+Verbindliches Konzept: **[Edit-System: Blocks, Suggestions, Lead-Draft](Edit-System-Blocks-Suggestions-Lead-Draft.md)** mit Snapshots bei **Publish** (siehe auch [Versionierung als Snapshots + Deltas](../platform/versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md), [Rechtesystem 6b](../platform/datenmodell/Rechtesystem.md#6b-freigabe-publish)).
 
-- **Document:** Zusätzlich **publishedAt** (DateTime?, null = Draft) und **currentPublishedVersionId** (→ DocumentVersion?, optional), Verweis auf die aktuell veröffentlichte Version.
-- **DocumentVersion (Snapshot, Full-Version):** id, documentId (→ Document), **content** (Text, vollständiger Inhalt dieser Version), versionNumber (oder aus Reihenfolge ableitbar), createdAt, createdBy (userId), optional parentVersionId (→ DocumentVersion) für Versionenkette. Ein Snapshot wird **nur** bei Veröffentlichung (erste Version) und bei Merge eines PRs erzeugt – nicht beim Speichern eines Drafts. **Full-Version:** Jede Version speichert den vollständigen Inhalt; optional Policy „nur letzte N Versionen behalten“.
-- **DraftRequest (Pull Request):** id, documentId, **draftContent** (Text, eingereichter Inhalt), targetVersionId (→ DocumentVersion, Version gegen die der PR geht), status (open merged rejected), submittedById (userId), submittedAt, mergedAt?, mergedById?, optional comment. Merge nur durch Scope-Lead (canMergeDraftRequest analog zu Rechtesystem 6b). Beim Merge: neue DocumentVersion aus draftContent, Document.currentPublishedVersionId und Document.content aktualisieren.
-- **DocumentDraft (pro User):** Pro Nutzer eine Arbeitskopie pro Dokument (für Bearbeitung an veröffentlichten Dokumenten vor dem PR). id, documentId (→ Document), userId (→ User), **content** (Text), **basedOnVersionId** (→ DocumentVersion?, optional – die Version, auf der dieser Draft basiert), updatedAt. Unique (documentId, userId). Beim Anlegen/Öffnen: basedOnVersionId = currentPublishedVersionId. **„Auf neueste Version updaten“:** Basis = Inhalt von basedOnVersionId, Theirs = aktueller veröffentlichter Inhalt, Ours = draft.content → 3-Wege-Merge; Konflikte anzeigen und lösen; danach DocumentDraft.content = Merged-Ergebnis, basedOnVersionId = currentPublishedVersionId. Beim Einreichen eines PR: DraftRequest aus DocumentDraft.content anlegen.
+**Ziel-Tabellen (konzeptionell, Migration aus heute `schema.prisma`):**
 
-**Cascade:** Document löschen → DocumentVersion, DraftRequest und DocumentDraft (Cascade). User löschen → createdBy/submittedById auf null setzen oder Cascade je nach Anforderung; DocumentDraft (Cascade).
+- **Document:** `publishedAt`, `currentPublishedVersionId`; kanonischer Inhalt künftig als **Block-JSON** (Published) plus separater **Lead-Draft** (JSON) mit Revisionszähler — Details im Edit-System-Plan.
+- **DocumentVersion:** Snapshot der **veröffentlichten** Version zum Zeitpunkt des Publish (Full-Version); optionale Kette über `parentVersionId`.
+- **Suggestion (neu):** Änderungsvorschläge von Schreibern mit Status und Bezug auf Draft-Revision — Felder siehe Edit-System-Plan.
+
+**Ist-Stand im Repo:** `apps/backend/prisma/schema.prisma` kann bis zur Migration noch ältere Hilfsmodelle enthalten; die Plattform-Doku beschreibt das **Zielmodell** in den verlinkten Dokumenten.
 
 ---
 

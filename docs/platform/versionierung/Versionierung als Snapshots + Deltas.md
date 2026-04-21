@@ -1,52 +1,53 @@
 # Versionierung als Snapshots
 
-**Geplant (Phase 2).** Siehe [Umsetzungs-Todo §15](../../plan/Umsetzungs-Todo.md#15-versionierung--pr-workflow).
+**Verbindlicher Ausblick:** Inhaltliche Änderungen an **veröffentlichten** Dokumenten werden über **Suggestions (Autoren)** und **Lead-Draft + Publish** abgebildet; siehe [Edit-System: Blocks, Suggestions, Lead-Draft (Variante A)](../../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md).  
+Kurzreferenz zur Umsetzungsplanung: [Umsetzungs-Todo §15](../../plan/Umsetzungs-Todo.md#15-versionierung--ausblick).
 
 ---
 
 ## 1. Kernidee: Versionierung als Snapshots (Full-Version)
 
-- Dokument = logische Einheit, z. B. Markdown-Datei.
-- **Versionierung nur für veröffentlichte Dokumente:** Version = Snapshot des Dokuments zum Zeitpunkt der **Veröffentlichung** bzw. des **Merge** eines PRs. Keine Versionen für reine Draft-Zustände; Speichern eines Drafts erzeugt keine neue Version.
-- **Full-Version:** Jede Version speichert den **vollständigen** Dokumentinhalt (keine Delta-Speicherung). Einfacher, robuster; Speicherbedarf über optionales Limit „nur letzte N Versionen“ steuerbar.
-- Die veröffentlichte Versionenkette („main“) ist die Sequenz der Snapshots; PR-Drafts verweisen auf einen vorgeschlagenen Stand und werden erst beim Merge zu einem Snapshot.
-- **Versionsvergleich:** Zwei Versionen können in der UI verglichen werden (Diff-Anzeige, z. B. rot/grün), indem die beiden Volltexte verglichen werden (z. B. diff-match-patch).
+- Dokument = logische Einheit; kanonischer Inhalt künftig als **Block-JSON** (nicht mehr ausschließlich ein Markdown-String).
+- **Versionierung für veröffentlichte Dokumente:** Jede **Published**-Ausbaustufe entspricht einem **Snapshot** (vollständiger Inhalt dieser Version). Speichern im Lead-Draft oder Annehmen von Suggestions erzeugt **keine** neue öffentliche Version, bis der Lead **veröffentlicht** (expliziter Schritt).
+- **Full-Version:** Jede gespeicherte Version enthält den **vollständigen** Dokumentinhalt (keine Delta-Speicherung als Pflicht). Optional: Policy „nur letzte N Versionen“.
+- **Versionsvergleich:** Zwei Versionen in der UI vergleichen (z. B. rot/grün), indem die beiden Snapshots verglichen werden (z. B. diff-match-patch auf serialisiertem Text/Markdown).
 
-## 2. Pull-Request / Draft Workflow
+---
 
-Unter „Drafts“ werden zwei Dinge verstanden: (1) **Dokument-Status „draft“** – noch nicht veröffentlichte Dokumente (nur für Autor/Schreiber sichtbar bis zur Veröffentlichung); (2) **PR-/Versions-Draft** – eine eingereichte Änderung an einem (ggf. bereits veröffentlichten) Dokument, die auf Merge wartet.
+## 2. Freigabe und sichtbare Inhalte
 
-- **Nur Writer** (und Scope-Lead) können Drafts/PRs **einreichen** (Draft-Inhalt als Änderungsvorschlag; wird erst beim Merge zu einer neuen Version/Snapshot).
-- **Mergen** (PR genehmigen und in die Hauptversion übernehmen) darf **nur Scope-Lead** (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin). Ein **Writer-Grant** berechtigt zum Einreichen von PRs, **nicht** zum Mergen.
-- Scope-Lead prüfen Drafts, kommentieren, genehmigen oder lehnen ab. Genehmigte PRs werden in den Hauptbranch / Hauptkontext gemergt.
-- Abgelehnte PRs bleiben als historische Drafts erhalten oder werden gelöscht (Garbage Collection).
+- **Unveröffentlichtes Dokument** (`publishedAt == null`): nur für Nutzer mit Schreibrecht (bzw. Lead) sichtbar, bis zur Veröffentlichung.
+- **Veröffentlicht:** Leser sehen den **Snapshot** der aktuellen Version.
+- **Autoren** reichen **Suggestions** ein; **Lead** integriert im **Lead-Draft** und löst **Publish** aus → neuer Snapshot, neue Versionsnummer.
 
-**Konkrete Tabellen (Schema-Entwurf):** Die Entitäten **DocumentVersion** (Snapshot nur bei Veröffentlichung und bei Merge), **DraftRequest** (offener PR) und **DocumentDraft** (pro User eine Arbeitskopie pro Dokument mit **basedOnVersionId**) sind im [Prisma-Schema-Entwurf §8 (Versionierung & PR)](../../plan/Prisma-Schema-Entwurf.md#8-versionierung--pr-geplant) beschrieben. Document-Status (draft/published) siehe dort §3.
+Details zu Rollen, Datenfeldern und API-Oberfläche: [Edit-System-Plan](../../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md).
 
-**Pro-User-Draft und „Auf neueste Version updaten“:** Bei mehreren Bearbeitern hat jeder einen eigenen Draft (DocumentDraft) mit **basedOnVersionId** (die Version, auf der der Draft basiert). Wenn inzwischen eine neuere Version veröffentlicht wurde, kann der Nutzer „Auf neueste Version updaten“ wählen: Backend lädt Basis (Inhalt von basedOnVersionId), Theirs (aktueller veröffentlichter Inhalt), Ours (Draft-Inhalt), führt einen **3-Wege-Merge** aus und liefert das Ergebnis (ggf. mit Konflikt-Markern). Der Nutzer löst Konflikte in der UI auf; der bereinigte Merged-Text wird als neuer Draft gespeichert und basedOnVersionId auf die aktuelle Version gesetzt. So gehen Änderungen im Draft nicht verloren.
+---
 
 ## 3. Speicher und Archivierung
 
-- **Full-Version pro Snapshot:** Jede DocumentVersion enthält den vollständigen Inhalt; keine Delta- oder Blob-Deduplizierung. Einfache Implementierung, direkter Zugriff auf jede Version.
-- **Optionale Begrenzung:** Policy „nur letzte N Versionen behalten“ (z. B. N=5 oder N=10) begrenzt Speicher und bleibt mit Full-Versionen gut handhabbar.
-- **Archivierung / Garbage Collection:** Alte PRs oder abgelehnte Drafts können nach einer Frist gelöscht oder ausgelagert werden. Ältere Versionen außerhalb von „letzte N“ können entfernt werden.
+- **Full-Version pro Snapshot:** jede Zeile in `DocumentVersion` (o. ä.) enthält den vollständigen Inhalt der Version.
+- **Optional:** Begrenzung auf die letzten N Versionen; Aufräumen abgelehnter oder veralteter Vorschlags-Artefakte nach Produktregel.
+
+---
 
 ## 4. Rechte & Ownership
 
-- **Kontextfreie Drafts:** Veröffentlichung und PR-Workflow setzen einen **zugewiesenen Kontext** voraus. Kontextfreie Drafts (contextId null) müssen zuerst per PATCH contextId einem Kontext zugeordnet werden, bevor sie veröffentlicht oder in den PR-Flow genommen werden können.
-- Ownership: Abteilung, Team oder Nutzer → Verantwortlichkeit, nicht automatisch Zugriff.
-- **PR einreichen:** Nur **Writer** (und Scope-Lead) dürfen Drafts/PRs erstellen. **Merge:** ausschließlich **Scope-Lead** (Team/Department/Company Lead der Owner-Unit, Owner bei persönlichen Kontexten, Admin). Writer-Grant berechtigt nicht zum Mergen (vgl. [Rechtesystem 6b](../datenmodell/Rechtesystem.md)).
-- Drafts sind nur für Nutzer sichtbar, die Zugriff auf das Dokument haben.
-- Änderungen werden erst nach Merge öffentlich. Dokumente können zudem einen Status **draft** vs. **published** haben (Draft = bis zur Veröffentlichung nur für Autor/Schreiber sichtbar).
+- **Kontextfreie unveröffentlichte Dokumente:** Veröffentlichung setzt einen **zugewiesenen Kontext** voraus; zuerst per `PATCH` `contextId` setzen, dann Publish (siehe Plattform-Regeln).
+- **Ownership:** Abteilung, Team oder Nutzer → Verantwortlichkeit; Zugriff über Grants und Lead-Regeln, nicht automatisch vererbt.
+- **Freigabe neuer Version:** nur **Scope-Lead** (bzw. Admin / Owner persönlicher Kontexte) im Sinne des Rechtesystems; Schreiber liefern Inhalte über Suggestions, nicht durch direktes Überschreiben der Published-Version.
+
+---
 
 ## 5. Vorteile gegenüber echtem Git für interne Plattformen
 
-- Abstraktion für Nutzer: Kein Git-Wissen nötig, alles läuft über Web-UI.
-- Bessere Rechtekontrolle: Drafts, PRs und Merge explizit durch Superuser gesteuert.
-- Leichtere Skalierung: Versionen in DB; Full-Version pro Snapshot, optional „letzte N Versionen“.
-- Kontextintegration: Dokumente bleiben klar an Prozess, Projekt oder Unterkontext gebunden.
+- Kein Git-Wissen nötig; Ablauf über Web-UI.
+- Explizite Rechte an Dokumenten und Freigabe.
+- Versionen in der Datenbank; nachvollziehbare Snapshots.
+- Klare Einbettung in Prozess/Projekt/Unterkontext.
 
-## Kurz gesagt:
+---
 
-Pseudo-Git = Git-artige Versionierung + PRs + Rechtekontrolle, optimiert für Web-UI und interne Plattformen.
-Jede Version = vollständiger Snapshot (Full-Version); optional Begrenzung auf letzte N Versionen. Versionsvergleich in der UI per Diff zweier Volltexte (z. B. rot/grün).
+## Kurz gesagt
+
+**Snapshots + Lead-gesteuerter Publish** ersetzen parallele Volltext-Entwürfe mit manuellem Zusammenführen als Produktkonzept. Technische Umsetzung und Editorwahl (Tiptap/ProseMirror) stehen im [Edit-System-Plan](../../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md).

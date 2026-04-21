@@ -55,7 +55,7 @@ Company
 
 **Archive:** Archivierte Dokumente (`archivedAt` gesetzt) werden aus normalen Listen ausgeblendet. Archivieren/Entarchivieren (PATCH archivedAt) darf, wer Schreibrecht hat (canWrite). Kontexte (Process/Project) haben ebenfalls `archivedAt`; beim Archivieren kaskadiert der Status auf alle Dokumente des Kontexts.
 
-**Sichtbarkeit Drafts / Trash / Archive (§4b):** Die Tabs Drafts, Trash und Archive werden angezeigt, wenn der Nutzer **Admin** oder **Scope-Lead** ist (Company Lead, Department Lead, Team Lead; Rechte gelten nach unten: Company Lead sieht die Tabs auch in Departments/Teams seiner Firma). Leser ohne Lead-Rolle sehen diese Tabs nicht. Offene Draft Requests (PRs) nur für Schreiber. GET /me/trash und GET /me/archive unterstützen die Scopes **personal**, **company**, **department** und **team**; bei fehlendem Zugriff liefern sie eine **leere Liste** (kein 403).
+**Sichtbarkeit Drafts / Trash / Archive (§4b):** Die Tabs Drafts, Trash und Archive werden angezeigt, wenn der Nutzer **Admin** oder **Scope-Lead** ist (Company Lead, Department Lead, Team Lead; Rechte gelten nach unten: Company Lead sieht die Tabs auch in Departments/Teams seiner Firma). Leser ohne Lead-Rolle sehen diese Tabs nicht. Einträge in **Drafts**, die auf Review oder Freigabe warten, nur für Nutzer mit Schreibrecht (writable). GET /me/trash und GET /me/archive unterstützen die Scopes **personal**, **company**, **department** und **team**; bei fehlendem Zugriff liefern sie eine **leere Liste** (kein 403).
 
 ---
 
@@ -92,7 +92,7 @@ Leserechte werden nach oben vererbt.
 
 Schreibrechte sind nicht vererbbar.
 
-**Regel:** Ein Nutzer darf ein Dokument **bearbeiten** (Inhalt ändern, bei PR-Workflow auch PRs einreichen), wenn er Lead der Owner-Unit ist **oder** explizit Schreibrechte (Writer-Grant) auf diesem Dokument erhalten hat. Keine automatische Schreibvererbung nach oben oder unten. Die **direkte Übernahme in die Hauptversion (Merge)** bleibt Scope-Lead vorbehalten (siehe 6b).
+**Regel:** Ein Nutzer darf ein Dokument **bearbeiten** (Inhalt ändern; im Zielmodell: **Suggestions** einreichen, nicht den Lead-Draft direkt ändern), wenn er Lead der Owner-Unit ist **oder** explizit Schreibrechte (Writer-Grant) auf diesem Dokument erhalten hat. Keine automatische Schreibvererbung nach oben oder unten. Die **Freigabe einer neuen veröffentlichten Version** (Publish aus dem Lead-Draft) bleibt Scope-Lead vorbehalten (siehe 6b).
 
 **Erstellen und Löschen** (Dokumente anlegen oder löschen, Kontexte anlegen oder löschen) sind **nur** dem **Scope-Lead** (und Admin, Owner von persönlichem Prozess/Projekt via ownerUserId) vorbehalten. Ein expliziter Writer-Grant berechtigt **nicht** zum Erstellen oder Löschen.
 
@@ -103,14 +103,16 @@ Schreibrechte sind nicht vererbbar.
 ### 6a. Reader / Writer / Create-Delete
 
 - **Reader:** Expliziter Lese-Grant (GrantRole Read). Berechtigt zum Lesen des Dokuments.
-- **Writer:** Expliziter Schreib-Grant (GrantRole Write). Berechtigt zur **Bearbeitung** des Dokumentinhalts (bei PR-Workflow: PRs einreichen); **nicht** zum Anlegen, Löschen oder **Mergen** von Dokumenten/Kontexten.
+- **Writer:** Expliziter Schreib-Grant (GrantRole Write). Berechtigt zur **Bearbeitung** im Sinne des Produktmodells (**Suggestions** an veröffentlichte Inhalte; kein direktes Überschreiben der Published-Version); **nicht** zum Anlegen, Löschen oder **Veröffentlichen/Freigeben** neuer Versionen von Dokumenten/Kontexten.
 - **Create/Delete:** Dokumente und Kontexte anlegen oder löschen dürfen nur **Scope-Lead** (Team Lead, Department Lead, Company Lead je nach Owner-Unit), Admin und Owner von persönlichem Prozess/Projekt (ownerUserId).
 
 ---
 
-### 6b. Merge (PR genehmigen)
+### 6b. Freigabe / neue Version (veröffentlicht)
 
-**Merge** (eine eingereichte Änderung / PR in die Hauptversion übernehmen) darf **nur Scope-Lead** (Team Lead, Department Lead, Company Lead der Owner-Unit), Admin und Owner von persönlichem Prozess/Projekt (ownerUserId). Ein **Writer-Grant** berechtigt zur **Bearbeitung** des Dokuments und zum **Einreichen von PRs**, **nicht** zum Mergen. Details zum PR-Workflow siehe [Versionierung als Snapshots + Deltas](../versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md).
+<span id="6b-freigabe-publish"></span>
+
+**Veröffentlichen** bzw. **Freigabe einer neuen Version** (Lead-Draft wird zur nächsten **Published**-Version mit neuem Snapshot) darf **nur Scope-Lead** (Team Lead, Department Lead, Company Lead der Owner-Unit), Admin und Owner von persönlichem Prozess/Projekt (ownerUserId). Ein **Writer-Grant** berechtigt zum Einreichen von **Suggestions**, **nicht** zur finalen Freigabe. Details siehe [Versionierung als Snapshots + Deltas](../versionierung/Versionierung%20als%20Snapshots%20+%20Deltas.md) und [Edit-System-Plan](../../plan/Edit-System-Blocks-Suggestions-Lead-Draft.md).
 
 ---
 
