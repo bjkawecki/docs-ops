@@ -1,5 +1,7 @@
 # Plan: Edit-System mit Blocks (JSON), Suggestions und Lead-Draft (Variante A)
 
+**Umsetzung in PRs/Epics:** [Edit-System-Blocks-PR-Epics.md](./Edit-System-Blocks-PR-Epics.md) (Phasen, Abhängigkeiten, Dateipfade).
+
 ## 1. Zielbild
 
 Umstellung des Dokumenten-Editierens von **Markdown-String als alleinige Quelle** plus **heute im Code noch vorhandenen, persönlichen Entwurfs-/Freigabe-Pfaden** auf ein **strukturiertes Block-Modell (JSON)** mit klar getrennten Schichten:
@@ -205,4 +207,4 @@ Das Konzeptpapier `new-edit-system.md` (Repo-Wurzel) bleibt als **Ideengrundlage
 2. **Block-Schema v0** definieren (Zod + Beispiel-JSON).
 3. **API-Skizze** (OpenAPI-artig oder direkt Zod-Routen-Schemas) und Permission-Matrix.
 4. **Migrationsstrategie** für bestehende Dokumente (Pilot-Dokumente, Rollback-Plan).
-5. Eintrag in `docs/plan/Umsetzungs-Todo.md` mit Meilensteinen.
+5. Eintrag in `docs/plan/Umsetzungs-Todo.md` mit Meilensteinen; PR-Reihenfolge siehe [Edit-System-Blocks-PR-Epics.md](./Edit-System-Blocks-PR-Epics.md).

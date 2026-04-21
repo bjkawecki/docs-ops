@@ -4,7 +4,7 @@ Phasen und Abschnitte für die Umsetzung der internen Dokumentationsplattform. S
 
 **Empfohlener Einstieg:** Abschnitt 1 + 2 (Grundgerüst + Datenmodell), dann 3–4 (Auth, Rechte), danach 5–14 (Kern-API, Frontend, Layout, Settings, Admin-UI, Kontexte-Verwaltung, Company Page, Department/Team Pages, Dashboard, Catalog, Dokumente-UI). **Phase 2** (später): Abschnitte 15–20 (Versionierung, MinIO, Async Jobs, Volltextsuche, Deployment-Doku, Layout- & UX-Ergänzungen). **Optional:** Abschnitt 21 (KI-Assistent / Dokumenten-Frage), Abschnitt 22 (Kommentar-Sektion pro Dokument). **Notifications (Konzept & Ausbau):** Abschnitt 23. **Referenz:** [Dokument-Lifecycle-Analyse](Dokument-Lifecycle-Analyse.md) – Zustandsmaschine, Events, Permissions, Seiteneffekte und Inkonsistenzen.
 
-**Geplante Großumstellung Edit-/Kollaborationsmodell:** [Edit-System: Blocks (JSON), Suggestions, Lead-Draft (Variante A)](Edit-System-Blocks-Suggestions-Lead-Draft.md) – ersetzt Markdown-first-Editing schrittweise; Autoren nur Suggestions, Lead kuratiert Draft und published.
+**Geplante Großumstellung Edit-/Kollaborationsmodell:** [Edit-System: Blocks (JSON), Suggestions, Lead-Draft (Variante A)](Edit-System-Blocks-Suggestions-Lead-Draft.md) – ersetzt Markdown-first-Editing schrittweise; Autoren nur Suggestions, Lead kuratiert Draft und published. **PR-/Epic-Aufteilung:** [Edit-System-Blocks-PR-Epics.md](Edit-System-Blocks-PR-Epics.md).
 
 ---
 
