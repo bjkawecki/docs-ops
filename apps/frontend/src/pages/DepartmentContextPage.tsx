@@ -1,7 +1,7 @@
-import { Box, Button, Group, Modal, Text } from '@mantine/core';
+import { Box, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, Fragment, useCallback } from 'react';
+import { useState, Fragment } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { apiFetch } from '../api/client';
@@ -10,14 +10,8 @@ import { TrashTabContent } from '../components/TrashTabContent';
 import { canShowWriteTabs } from '../lib/canShowWriteTabs';
 import { useMe } from '../hooks/useMe';
 import { PageWithTabs } from '../components/PageWithTabs';
-import {
-  CreateContextMenu,
-  EditContextNameModal,
-  NewContextModal,
-  NewDocumentModal,
-} from '../components/contexts';
+import { CreateContextMenu } from '../components/contexts';
 import { IconSitemap } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
 import type {
   DeleteTarget,
   EditTarget,
@@ -30,6 +24,8 @@ import { DepartmentContextOverviewTab } from './departmentContext/DepartmentCont
 import { DepartmentContextProcessesTab } from './departmentContext/DepartmentContextProcessesTab';
 import { DepartmentContextProjectsTab } from './departmentContext/DepartmentContextProjectsTab';
 import { useScopedCatalogDocumentsUrlState } from './contextScope/useScopedCatalogDocumentsUrlState';
+import { ContextScopePageModals } from './contextScope/ContextScopePageModals';
+import { useScopedContextPageChrome } from './contextScope/useScopedContextPageChrome';
 
 type DepartmentRes = { id: string; name: string; companyId?: string; company?: { id: string } };
 
@@ -152,88 +148,27 @@ export function DepartmentContextPage() {
   const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
   const departmentDocs = departmentDocsRes?.items ?? [];
 
-  const invalidateContexts = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ['processes', 'department', departmentId ?? ''],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ['projects', 'department', departmentId ?? ''],
-    });
-    void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-  };
-
-  const handleEditSuccess = () => {
-    invalidateContexts();
-    setEditTarget(null);
-    notifications.show({
-      title: 'Saved',
-      message: 'Name was updated.',
-      color: 'green',
-    });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setDeleteLoading(true);
-    const endpoint = deleteTarget.type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
-    try {
-      const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
-      if (res.status === 204) {
-        invalidateContexts();
-        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
-        setDeleteTarget(null);
-        notifications.show({
-          title: 'Moved to trash',
-          message: 'Context can be restored from the Trash tab.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
   const canWrite = canShowWriteTabs(me, canManage);
-  const baseTabs = [
-    { value: 'overview', label: 'Overview' },
-    { value: 'processes', label: 'Processes' },
-    { value: 'projects', label: 'Projects' },
-    { value: 'documents', label: 'Documents' },
-  ];
-  const writeTabs = [
-    { value: 'drafts', label: 'Drafts' },
-    { value: 'trash', label: 'Trash' },
-    { value: 'archive', label: 'Archive' },
-  ];
-  const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
+  const {
+    invalidateContexts,
+    handleEditSuccess,
+    handleDeleteConfirm,
+    tabs,
+    activeTab,
+    setActiveTab,
+  } = useScopedContextPageChrome({
+    queryClient,
+    searchParams,
+    setSearchParams,
+    canWrite,
+    tabPolicy: 'scoped-with-guard',
+    scope: { kind: 'department', departmentId: departmentId ?? '' },
+    deleteTarget,
+    setEditTarget,
+    setDeleteTarget,
+    setDeleteLoading,
+  });
 
-  const activeTab = searchParams.get('tab') || 'overview';
-
-  const setActiveTab = useCallback(
-    (tab: string) => {
-      setSearchParams(
-        (prev) => {
-          prev.set('tab', tab);
-          return prev;
-        },
-        { replace: true }
-      );
-    },
-    [setSearchParams]
-  );
-
-  useEffect(() => {
-    if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
-      setActiveTab('overview');
-    }
-  }, [canWrite, activeTab, setActiveTab]);
   const processes = processesData ?? [];
   const projects = projectsData ?? [];
   const processesPreview = processes.slice(0, 5);
@@ -339,59 +274,25 @@ export function DepartmentContextPage() {
       </PageWithTabs>
 
       {departmentId != null && (
-        <>
-          <NewContextModal
-            opened={contextModalOpened}
-            onClose={closeContextModal}
-            scope={{ type: 'department', departmentId }}
-            onSuccess={invalidateContexts}
-            initialType={contextInitialType}
-          />
-          <NewDocumentModal
-            opened={documentModalOpened}
-            onClose={closeDocumentModal}
-            scope={{ type: 'department', departmentId }}
-            onSuccess={invalidateContexts}
-          />
-        </>
-      )}
-
-      {editTarget != null && (
-        <EditContextNameModal
-          opened
-          onClose={() => setEditTarget(null)}
-          type={editTarget.type}
-          contextId={editTarget.id}
-          currentName={editTarget.name}
-          onSuccess={handleEditSuccess}
+        <ContextScopePageModals
+          scope={{ type: 'department', departmentId }}
+          contextModalOpened={contextModalOpened}
+          closeContextModal={closeContextModal}
+          documentModalOpened={documentModalOpened}
+          closeDocumentModal={closeDocumentModal}
+          contextInitialType={contextInitialType}
+          onInvalidateContexts={invalidateContexts}
+          editTarget={editTarget}
+          onCloseEdit={() => setEditTarget(null)}
+          onEditSuccess={handleEditSuccess}
+          deleteTarget={deleteTarget}
+          onCloseDelete={() => setDeleteTarget(null)}
+          deleteLoading={deleteLoading}
+          onDeleteConfirm={() => {
+            void handleDeleteConfirm();
+          }}
         />
       )}
-
-      <Modal
-        opened={deleteTarget != null}
-        onClose={() => setDeleteTarget(null)}
-        title="Move to trash"
-        centered
-      >
-        <Text size="sm" c="dimmed" mb="md">
-          This context and its documents will be moved to trash. You can restore them from the Trash
-          tab.
-        </Text>
-        <Group justify="flex-end" gap="xs">
-          <Button variant="default" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={deleteLoading}
-            onClick={() => {
-              void handleDeleteConfirm();
-            }}
-          >
-            Move to trash
-          </Button>
-        </Group>
-      </Modal>
     </Box>
   );
 }

@@ -4,11 +4,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
-import { meQueryKey, useMe } from '../../hooks/useMe';
+import { useMe } from '../../hooks/useMe';
+import { notifyApiErrorResponse } from '../../lib/notifyApiError';
 import { scopeToUrl } from '../../lib/scopeNav';
 import { useRecentItemsActions } from '../../hooks/useRecentItems';
 import type { DocumentLeadDraftPanelHandle } from '../../components/documents/DocumentLeadDraftPanel';
 import type { DocumentSuggestionsPanelHandle } from '../../components/documents/DocumentSuggestionsPanel';
+import {
+  invalidateDocumentArchivedTransitionCaches,
+  invalidateDocumentIndexCaches,
+  invalidateMeDraftsAndPersonalDocuments,
+} from './documentQueryInvalidation';
 import { getBlockDocumentHeadingData } from './blockDocumentHeadings';
 import { withHeadingNumbering } from './documentMarkdown';
 import type { DocumentResponse } from './documentPageTypes';
@@ -181,13 +187,7 @@ export function useDocumentPage() {
     try {
       const res = await apiFetch(`/api/v1/documents/${documentId}`, { method: 'DELETE' });
       if (res.status === 204) {
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-        void queryClient.invalidateQueries({ queryKey: ['contexts'] });
-        if (data?.contextId)
-          void queryClient.invalidateQueries({
-            queryKey: ['contexts', data.contextId, 'documents'],
-          });
+        invalidateDocumentIndexCaches(queryClient, documentId, data?.contextId);
         void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
         closeDelete();
         notifications.show({
@@ -199,12 +199,7 @@ export function useDocumentPage() {
         const target = scope != null ? scopeToUrl(scope) : '/catalog';
         void navigate(target, { replace: true });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setDeleteLoading(false);
@@ -219,13 +214,7 @@ export function useDocumentPage() {
       body: JSON.stringify({ archivedAt: new Date().toISOString() }),
     });
     if (res.ok) {
-      void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
-      void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-      if (data?.contextId)
-        void queryClient.invalidateQueries({
-          queryKey: ['contexts', data.contextId, 'documents'],
-        });
+      invalidateDocumentArchivedTransitionCaches(queryClient, documentId, data?.contextId);
       notifications.show({
         title: 'Archived',
         message: 'Document was archived.',
@@ -235,12 +224,7 @@ export function useDocumentPage() {
       const target = scope != null ? scopeToUrl(scope) : '/catalog';
       void navigate(target, { replace: true });
     } else {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      notifications.show({
-        title: 'Error',
-        message: body?.error ?? res.statusText,
-        color: 'red',
-      });
+      void notifyApiErrorResponse(res);
     }
   };
 
@@ -252,25 +236,14 @@ export function useDocumentPage() {
       body: JSON.stringify({ archivedAt: null }),
     });
     if (res.ok) {
-      void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-      void queryClient.invalidateQueries({ queryKey: ['me', 'archive'] });
-      void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-      if (data?.contextId)
-        void queryClient.invalidateQueries({
-          queryKey: ['contexts', data.contextId, 'documents'],
-        });
+      invalidateDocumentArchivedTransitionCaches(queryClient, documentId, data?.contextId);
       notifications.show({
         title: 'Unarchived',
         message: 'Document was restored to active.',
         color: 'green',
       });
     } else {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      notifications.show({
-        title: 'Error',
-        message: body?.error ?? res.statusText,
-        color: 'red',
-      });
+      void notifyApiErrorResponse(res);
     }
   };
 
@@ -290,13 +263,7 @@ export function useDocumentPage() {
         }),
       });
       if (res.ok) {
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-        void queryClient.invalidateQueries({ queryKey: ['contexts'] });
-        if (data.contextId)
-          void queryClient.invalidateQueries({
-            queryKey: ['contexts', data.contextId, 'documents'],
-          });
+        invalidateDocumentIndexCaches(queryClient, documentId, data.contextId);
         setMode('view');
         setEditInitialSnapshot(null);
         notifications.show({
@@ -305,12 +272,7 @@ export function useDocumentPage() {
           color: 'green',
         });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setSaveLoading(false);
@@ -353,27 +315,15 @@ export function useDocumentPage() {
         method: 'POST',
       });
       if (res.ok) {
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-        void queryClient.invalidateQueries({ queryKey: ['contexts'] });
-        if (data?.contextId)
-          void queryClient.invalidateQueries({
-            queryKey: ['contexts', data.contextId, 'documents'],
-          });
-        void queryClient.invalidateQueries({ queryKey: ['me', 'drafts'] });
-        void queryClient.invalidateQueries({ queryKey: [...meQueryKey, 'personal-documents'] });
+        invalidateDocumentIndexCaches(queryClient, documentId, data?.contextId);
+        invalidateMeDraftsAndPersonalDocuments(queryClient);
         notifications.show({
           title: 'Published',
           message: 'Document was published.',
           color: 'green',
         });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setPublishLoading(false);
@@ -409,12 +359,7 @@ export function useDocumentPage() {
           color: 'green',
         });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setAssignContextLoading(false);
@@ -443,19 +388,13 @@ export function useDocumentPage() {
           color: 'green',
         });
       } else if (res.status === 409) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
+        void notifyApiErrorResponse(res, {
           title: 'Tag exists',
-          message: body?.error ?? 'A tag with this name already exists.',
+          defaultMessage: 'A tag with this name already exists.',
           color: 'yellow',
         });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setCreateTagLoading(false);
@@ -468,20 +407,16 @@ export function useDocumentPage() {
     try {
       const res = await apiFetch(`/api/v1/documents/${documentId}/export-pdf`, { method: 'POST' });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
         if (res.status === 503) {
-          notifications.show({
+          void notifyApiErrorResponse(res, {
             title: 'PDF export currently delayed',
-            message:
-              body?.error ?? 'Queue/worker is currently unavailable. Please try again shortly.',
+            defaultMessage: 'Queue/worker is currently unavailable. Please try again shortly.',
             color: 'yellow',
           });
           return;
         }
-        notifications.show({
+        void notifyApiErrorResponse(res, {
           title: 'PDF export could not be started',
-          message: body?.error ?? res.statusText,
-          color: 'red',
         });
         return;
       }

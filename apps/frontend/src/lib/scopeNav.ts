@@ -1,5 +1,22 @@
 import type { RecentScope } from '../hooks/useRecentItems';
 
+/** Owner-Shape für Breadcrumb-Scope (Kontext-/Subkontext-Seiten). */
+export type BreadcrumbOwner = {
+  companyId?: string | null;
+  departmentId?: string | null;
+  teamId?: string | null;
+  ownerUserId?: string | null;
+};
+
+/** Scope für Metadaten-Link (inkl. Personal), aus Owner-Feldern. */
+export function ownerToScopeForBreadcrumb(owner: BreadcrumbOwner): RecentScope | null {
+  if (owner.ownerUserId) return { type: 'personal' };
+  if (owner.companyId) return { type: 'company', id: owner.companyId };
+  if (owner.departmentId) return { type: 'department', id: owner.departmentId };
+  if (owner.teamId) return { type: 'team', id: owner.teamId };
+  return null;
+}
+
 /**
  * Scope → URL für Navigation (Personal, Company, Department, Team).
  */

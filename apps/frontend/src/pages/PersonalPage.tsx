@@ -1,4 +1,4 @@
-import { Box, Button, Card, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Card, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
@@ -10,16 +10,10 @@ import { DraftsCard } from '../components/DraftsCard';
 import { DraftsTabContent } from '../components/DraftsTabContent';
 import { PageWithTabs } from '../components/PageWithTabs';
 import { TrashTabContent } from '../components/TrashTabContent';
-import {
-  ContextGrid,
-  CreateContextMenu,
-  EditContextNameModal,
-  NewContextModal,
-  NewDocumentModal,
-  ScopeCard,
-} from '../components/contexts';
+import { ContextGrid, CreateContextMenu, ScopeCard } from '../components/contexts';
 import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
+import { ContextScopePageModals } from './contextScope/ContextScopePageModals';
+import { useScopedContextPageChrome } from './contextScope/useScopedContextPageChrome';
 
 type ProcessItem = {
   id: string;
@@ -64,6 +58,7 @@ export function PersonalPage() {
   } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   useMe();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const personalScope = PERSONAL_SCOPE;
 
@@ -98,50 +93,34 @@ export function PersonalPage() {
     },
   });
 
-  const invalidateContexts = () => {
-    void queryClient.invalidateQueries({ queryKey: ['processes', 'personal'] });
-    void queryClient.invalidateQueries({ queryKey: ['projects', 'personal'] });
-    void queryClient.invalidateQueries({ queryKey: [meQueryKey, 'personal-documents'] });
-  };
-
-  const handleEditSuccess = () => {
-    invalidateContexts();
-    setEditTarget(null);
-    notifications.show({
-      title: 'Saved',
-      message: 'Name was updated.',
-      color: 'green',
-    });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setDeleteLoading(true);
-    const endpoint = deleteTarget.type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
-    try {
-      const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
-      if (res.status === 204) {
-        invalidateContexts();
-        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
-        setDeleteTarget(null);
-        setActiveTab('overview');
-        notifications.show({
-          title: 'Moved to trash',
-          message: 'Context can be restored from the Trash tab.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
+  const {
+    invalidateContexts,
+    handleEditSuccess,
+    handleDeleteConfirm,
+    tabs,
+    activeTab,
+    setActiveTab,
+  } = useScopedContextPageChrome({
+    queryClient,
+    searchParams,
+    setSearchParams,
+    canWrite: true,
+    tabPolicy: 'personal-all',
+    scope: { kind: 'personal' },
+    deleteTarget,
+    setEditTarget,
+    setDeleteTarget,
+    setDeleteLoading,
+    onAfterSuccessfulTrashDelete: () => {
+      setSearchParams(
+        (prev) => {
+          prev.set('tab', 'overview');
+          return prev;
+        },
+        { replace: true }
+      );
+    },
+  });
 
   const processes = processesData ?? [];
   const projects = projectsData ?? [];
@@ -149,28 +128,6 @@ export function PersonalPage() {
   const processesPreview = processes.slice(0, 5);
   const projectsPreview = projects.slice(0, 5);
   const docsPreview = personalDocs.slice(0, 5);
-
-  const tabs = [
-    { value: 'overview', label: 'Overview' },
-    { value: 'processes', label: 'Processes' },
-    { value: 'projects', label: 'Projects' },
-    { value: 'documents', label: 'Documents' },
-    { value: 'drafts', label: 'Drafts' },
-    { value: 'trash', label: 'Trash' },
-    { value: 'archive', label: 'Archive' },
-  ];
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'overview';
-
-  const setActiveTab = (tab: string) => {
-    setSearchParams(
-      (prev) => {
-        prev.set('tab', tab);
-        return prev;
-      },
-      { replace: true }
-    );
-  };
 
   const overviewPanel = (
     <Stack gap="md">
@@ -385,57 +342,25 @@ export function PersonalPage() {
         ]}
       </PageWithTabs>
 
-      <NewContextModal
-        opened={contextModalOpened}
-        onClose={closeContextModal}
+      <ContextScopePageModals
         scope={PERSONAL_SCOPE}
-        onSuccess={invalidateContexts}
-        initialType={contextInitialType}
+        documentModalAllowNoContext
+        contextModalOpened={contextModalOpened}
+        closeContextModal={closeContextModal}
+        documentModalOpened={documentModalOpened}
+        closeDocumentModal={closeDocumentModal}
+        contextInitialType={contextInitialType}
+        onInvalidateContexts={invalidateContexts}
+        editTarget={editTarget}
+        onCloseEdit={() => setEditTarget(null)}
+        onEditSuccess={handleEditSuccess}
+        deleteTarget={deleteTarget}
+        onCloseDelete={() => setDeleteTarget(null)}
+        deleteLoading={deleteLoading}
+        onDeleteConfirm={() => {
+          void handleDeleteConfirm();
+        }}
       />
-      <NewDocumentModal
-        opened={documentModalOpened}
-        onClose={closeDocumentModal}
-        scope={PERSONAL_SCOPE}
-        onSuccess={invalidateContexts}
-        allowNoContext
-      />
-
-      {editTarget != null && (
-        <EditContextNameModal
-          opened
-          onClose={() => setEditTarget(null)}
-          type={editTarget.type}
-          contextId={editTarget.id}
-          currentName={editTarget.name}
-          onSuccess={handleEditSuccess}
-        />
-      )}
-
-      <Modal
-        opened={deleteTarget != null}
-        onClose={() => setDeleteTarget(null)}
-        title="Move to trash"
-        centered
-      >
-        <Text size="sm" c="dimmed" mb="md">
-          This context and its documents will be moved to trash. You can restore them from the Trash
-          tab.
-        </Text>
-        <Group justify="flex-end" gap="xs">
-          <Button variant="default" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={deleteLoading}
-            onClick={() => {
-              void handleDeleteConfirm();
-            }}
-          >
-            Move to trash
-          </Button>
-        </Group>
-      </Modal>
     </Box>
   );
 }

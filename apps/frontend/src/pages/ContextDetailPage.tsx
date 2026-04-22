@@ -5,7 +5,6 @@ import {
   Stack,
   Text,
   TextInput,
-  MultiSelect,
   Title,
   Flex,
   Container,
@@ -21,11 +20,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useMe } from '../hooks/useMe';
 import { useRecentItemsActions, type RecentScope } from '../hooks/useRecentItems';
-import { scopeToLabel, scopeToUrl } from '../lib/scopeNav';
+import { notifyApiErrorResponse } from '../lib/notifyApiError';
+import { ownerToScopeForBreadcrumb, scopeToLabel, scopeToUrl } from '../lib/scopeNav';
 import { ContentLink } from '../components/ContentLink';
 import { ContextDocumentsTable } from '../components/contexts/ContextDocumentsTable';
+import { NewDraftDocumentModal } from '../components/contexts/NewDraftDocumentModal';
 import { ProjectSiblingSubnav } from '../components/contexts/ProjectSiblingSubnav';
 import { EditContextNameModal } from '../components/contexts/EditContextNameModal';
+import { submitNewContextDocumentDraft } from './contextScope/submitNewContextDocumentDraft';
 import { useDisclosure } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import { Modal } from '@mantine/core';
@@ -86,12 +88,6 @@ function ownerToScope(owner: OwnerResponse): RecentScope | null {
   if (owner.departmentId) return { type: 'department', id: owner.departmentId };
   if (owner.teamId) return { type: 'team', id: owner.teamId };
   return null;
-}
-
-/** Scope für Metadaten-Link (inkl. Personal). */
-function ownerToScopeForBreadcrumb(owner: OwnerResponse): RecentScope | null {
-  if (owner.ownerUserId) return { type: 'personal' };
-  return ownerToScope(owner);
 }
 
 export interface ContextDetailPageProps {
@@ -229,8 +225,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
       void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
       notifications.show({ title: 'Archived', message: 'Context was archived.', color: 'green' });
     } else {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      notifications.show({ title: 'Error', message: body?.error ?? res.statusText, color: 'red' });
+      void notifyApiErrorResponse(res);
     }
   };
 
@@ -249,12 +244,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           color: 'green',
         });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setDeleteLoading(false);
@@ -263,50 +253,19 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
 
   const handleCreateDocument = async () => {
     if (!data?.contextId) return;
-    const title = newDocTitle.trim();
-    if (!title) {
-      notifications.show({
-        title: 'Title required',
-        message: 'Please enter a document title.',
-        color: 'yellow',
-      });
-      return;
-    }
-    setNewDocLoading(true);
-    try {
-      const res = await apiFetch('/api/v1/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          contextId: data.contextId,
-          tagIds: newDocTagIds,
-        }),
-      });
-      if (res.status === 201) {
-        const doc = (await res.json()) as { id: string };
-        void queryClient.invalidateQueries({ queryKey: ['contexts', data.contextId, 'documents'] });
-        void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
+    await submitNewContextDocumentDraft({
+      contextId: data.contextId,
+      title: newDocTitle,
+      tagIds: newDocTagIds,
+      queryClient,
+      navigate,
+      setLoading: setNewDocLoading,
+      onSuccessCleanup: () => {
         closeNewDoc();
         setNewDocTitle('');
         setNewDocTagIds([]);
-        notifications.show({
-          title: 'Draft created',
-          message: 'Redirecting to document.',
-          color: 'green',
-        });
-        void navigate(`/documents/${doc.id}`);
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setNewDocLoading(false);
-    }
+      },
+    });
   };
 
   const handleCreateSubcontext = async () => {
@@ -338,12 +297,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           color: 'green',
         });
       } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
+        void notifyApiErrorResponse(res);
       }
     } finally {
       setNewSubcontextLoading(false);
@@ -527,34 +481,17 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
         </Stack>
       </Modal>
 
-      <Modal opened={newDocOpened} onClose={closeNewDoc} title="New draft" centered>
-        <Stack gap="md">
-          <TextInput
-            label="Title"
-            value={newDocTitle}
-            onChange={(e) => setNewDocTitle(e.currentTarget.value)}
-            placeholder="Draft title"
-            required
-          />
-          <MultiSelect
-            label="Tags"
-            data={tagOptions}
-            value={newDocTagIds}
-            onChange={setNewDocTagIds}
-            placeholder="Select tags"
-            searchable
-            clearable
-          />
-          <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={closeNewDoc}>
-              Cancel
-            </Button>
-            <Button loading={newDocLoading} onClick={() => void handleCreateDocument()}>
-              Create
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <NewDraftDocumentModal
+        opened={newDocOpened}
+        onClose={closeNewDoc}
+        title={newDocTitle}
+        onTitleChange={setNewDocTitle}
+        tagOptions={tagOptions}
+        tagIds={newDocTagIds}
+        onTagIdsChange={setNewDocTagIds}
+        loading={newDocLoading}
+        onSubmit={handleCreateDocument}
+      />
 
       <EditContextNameModal
         opened={editOpened}

@@ -1,8 +1,7 @@
 import { Box, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { IconUsersGroup } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
@@ -19,6 +18,7 @@ import { TeamOverviewPanel } from './TeamOverviewPanel';
 import { TeamProcessesPanel } from './TeamProcessesPanel';
 import { TeamProjectsPanel } from './TeamProjectsPanel';
 import { useScopedCatalogDocumentsUrlState } from '../contextScope/useScopedCatalogDocumentsUrlState';
+import { useScopedContextPageChrome } from '../contextScope/useScopedContextPageChrome';
 import type {
   DeleteTarget,
   EditTarget,
@@ -151,84 +151,26 @@ export function TeamContextPage() {
   const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
   const teamDocs = teamDocsRes?.items ?? [];
 
-  const invalidateContexts = () => {
-    void queryClient.invalidateQueries({ queryKey: ['processes', 'team', teamId ?? ''] });
-    void queryClient.invalidateQueries({ queryKey: ['projects', 'team', teamId ?? ''] });
-    void queryClient.invalidateQueries({ queryKey: ['catalog-documents'] });
-  };
-
-  const handleEditSuccess = () => {
-    invalidateContexts();
-    setEditTarget(null);
-    notifications.show({
-      title: 'Saved',
-      message: 'Name was updated.',
-      color: 'green',
-    });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setDeleteLoading(true);
-    const endpoint = deleteTarget.type === 'process' ? '/api/v1/processes' : '/api/v1/projects';
-    try {
-      const res = await apiFetch(`${endpoint}/${deleteTarget.id}`, { method: 'DELETE' });
-      if (res.status === 204) {
-        invalidateContexts();
-        void queryClient.invalidateQueries({ queryKey: ['me', 'trash'] });
-        setDeleteTarget(null);
-        notifications.show({
-          title: 'Moved to trash',
-          message: 'Context can be restored from the Trash tab.',
-          color: 'green',
-        });
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        notifications.show({
-          title: 'Error',
-          message: body?.error ?? res.statusText,
-          color: 'red',
-        });
-      }
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
   const canWrite = canShowWriteTabs(me, canManage);
-  const baseTabs = [
-    { value: 'overview', label: 'Overview' },
-    { value: 'processes', label: 'Processes' },
-    { value: 'projects', label: 'Projects' },
-    { value: 'documents', label: 'Documents' },
-  ];
-  const writeTabs = [
-    { value: 'drafts', label: 'Drafts' },
-    { value: 'trash', label: 'Trash' },
-    { value: 'archive', label: 'Archive' },
-  ];
-  const tabs = [...baseTabs, ...(canWrite ? writeTabs : [])];
-
-  const activeTab = searchParams.get('tab') || 'overview';
-
-  const setActiveTab = useCallback(
-    (tab: string) => {
-      setSearchParams(
-        (prev) => {
-          prev.set('tab', tab);
-          return prev;
-        },
-        { replace: true }
-      );
-    },
-    [setSearchParams]
-  );
-
-  useEffect(() => {
-    if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
-      setActiveTab('overview');
-    }
-  }, [canWrite, activeTab, setActiveTab]);
+  const {
+    invalidateContexts,
+    handleEditSuccess,
+    handleDeleteConfirm,
+    tabs,
+    activeTab,
+    setActiveTab,
+  } = useScopedContextPageChrome({
+    queryClient,
+    searchParams,
+    setSearchParams,
+    canWrite,
+    tabPolicy: 'scoped-with-guard',
+    scope: { kind: 'team', teamId: teamId ?? '' },
+    deleteTarget,
+    setEditTarget,
+    setDeleteTarget,
+    setDeleteLoading,
+  });
 
   const processes = processesData ?? [];
   const projects = projectsData ?? [];
