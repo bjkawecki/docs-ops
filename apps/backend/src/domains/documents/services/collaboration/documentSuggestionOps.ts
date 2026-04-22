@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { blockNodeSchema, type BlockDocumentV0, type BlockNode } from './blockSchema.js';
+import { blockNodeSchema, type BlockDocumentV0, type BlockNode } from '../blocks/blockSchema.js';
 
 /**
  * Einzelne Suggestion-Operation (EPIC-5 / PR-5c, ADR 001).

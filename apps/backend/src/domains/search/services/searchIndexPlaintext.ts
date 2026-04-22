@@ -1,5 +1,5 @@
-import { parseBlockDocumentFromDb } from '../../documents/services/documentBlocksBackfill.js';
-import { blockDocumentV0ToSearchableText } from '../../documents/services/blocksPlaintext.js';
+import { parseBlockDocumentFromDb } from '../../documents/services/blocks/documentBlocksBackfill.js';
+import { blockDocumentV0ToSearchableText } from '../../documents/services/blocks/blocksPlaintext.js';
 
 export type SearchIndexBodySource = {
   draftBlocks: unknown;

@@ -3,7 +3,7 @@ import {
   getReadableCatalogScope,
   getWritableCatalogScope,
 } from '../../organisation/permissions/catalogPermissions.js';
-import { buildCatalogDocumentListBase } from '../../documents/services/catalogDocumentListWhere.js';
+import { buildCatalogDocumentListBase } from '../../documents/services/query/catalogDocumentListWhere.js';
 import type { SearchDocumentItem, SearchDocumentsArgs } from './documentSearchTypes.js';
 import { resolveSearchIndexBodyText } from './searchIndexPlaintext.js';
 

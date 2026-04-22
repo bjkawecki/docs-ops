@@ -1,6 +1,6 @@
-import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.js';
-import { safeParseBlockDocumentV0, type BlockDocumentV0 } from './blockSchema.js';
-import { parseBlockDocumentFromDb } from './documentBlocksBackfill.js';
+import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
+import { safeParseBlockDocumentV0, type BlockDocumentV0 } from '../blocks/blockSchema.js';
+import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
 
 export type LeadDraftView = {
   draftRevision: number;

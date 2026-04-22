@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { exampleBlockDocumentV0 } from '../services/blockSchema.js';
+import { exampleBlockDocumentV0 } from '../services/blocks/blockSchema.js';
 import {
   applySuggestionOpsToDocument,
   suggestionOpsArraySchema,
-} from '../services/documentSuggestionOps.js';
+} from '../services/collaboration/documentSuggestionOps.js';
 
 describe('documentSuggestionOps (EPIC-5)', () => {
   it('suggestionOpsArraySchema lehnt leeres Array ab', () => {

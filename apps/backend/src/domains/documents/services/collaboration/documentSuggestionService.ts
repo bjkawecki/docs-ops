@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.js';
-import { DocumentSuggestionStatus } from '../../../../generated/prisma/client.js';
-import { parseBlockDocumentFromDb } from './documentBlocksBackfill.js';
-import { safeParseBlockDocumentV0 } from './blockSchema.js';
+import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
+import { DocumentSuggestionStatus } from '../../../../../generated/prisma/client.js';
+import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
+import { safeParseBlockDocumentV0 } from '../blocks/blockSchema.js';
 import {
   applySuggestionOpsToDocument,
   suggestionOpsArraySchema,

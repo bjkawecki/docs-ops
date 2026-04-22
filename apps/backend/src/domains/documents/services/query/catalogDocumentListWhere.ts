@@ -1,4 +1,4 @@
-import type { Prisma } from '../../../../generated/prisma/client.js';
+import type { Prisma } from '../../../../../generated/prisma/client.js';
 
 /** Subset of catalog / search filters that shape the shared readable + context `where` clause. */
 export type CatalogListScopeFilter = {

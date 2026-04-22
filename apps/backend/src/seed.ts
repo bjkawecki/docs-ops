@@ -16,7 +16,7 @@ import {
 import {
   blockDocumentJsonFromSeedSections,
   type SeedDocumentBlockSection,
-} from './domains/documents/services/documentBlocksBackfill.js';
+} from './domains/documents/services/blocks/documentBlocksBackfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve from project root (apps/backend) so it works with tsx and node dist

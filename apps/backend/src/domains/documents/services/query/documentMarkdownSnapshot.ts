@@ -1,5 +1,5 @@
-import { parseBlockDocumentFromDb } from './documentBlocksBackfill.js';
-import { blockDocumentV0ToMarkdown } from './blocksToMarkdown.js';
+import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
+import { blockDocumentV0ToMarkdown } from '../blocks/blocksToMarkdown.js';
 
 /**
  * Markdown-Snapshot für API-`content`, Kommentar-Anker und PDF-Export (EPIC-9b: kein DB-Feld mehr).

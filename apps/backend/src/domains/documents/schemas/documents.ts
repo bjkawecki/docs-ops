@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DocumentSuggestionStatus } from '../../../../generated/prisma/client.js';
-import { blockDocumentSchemaV0 } from '../services/blockSchema.js';
+import { blockDocumentSchemaV0 } from '../services/blocks/blockSchema.js';
 import { paginationQuerySchema } from '../../organisation/schemas/organisation.js';
 
 export { paginationQuerySchema };
@@ -111,35 +111,37 @@ export const resolveDocumentSuggestionBodySchema = z.object({
 /** Grant-Rolle (API: String). */
 export const grantRoleSchema = z.enum(['Read', 'Write']);
 
+function grantEntrySchema<T extends 'userId' | 'teamId' | 'departmentId'>(idKey: T) {
+  return z.object({
+    [idKey]: z.cuid(),
+    role: grantRoleSchema,
+  }) as z.ZodObject<
+    {
+      [K in T]: z.ZodString;
+    } & {
+      role: typeof grantRoleSchema;
+    }
+  >;
+}
+
+function grantsReplaceBodySchema<T extends 'userId' | 'teamId' | 'departmentId'>(idKey: T) {
+  return z.object({ grants: z.array(grantEntrySchema(idKey)) });
+}
+
 /** Einzelner User-Grant. */
-export const grantUserEntrySchema = z.object({
-  userId: z.cuid(),
-  role: grantRoleSchema,
-});
+export const grantUserEntrySchema = grantEntrySchema('userId');
 /** Body: User-Grants ersetzen. */
-export const putGrantsUsersBodySchema = z.object({
-  grants: z.array(grantUserEntrySchema),
-});
+export const putGrantsUsersBodySchema = grantsReplaceBodySchema('userId');
 
 /** Einzelner Team-Grant. */
-export const grantTeamEntrySchema = z.object({
-  teamId: z.cuid(),
-  role: grantRoleSchema,
-});
+export const grantTeamEntrySchema = grantEntrySchema('teamId');
 /** Body: Team-Grants ersetzen. */
-export const putGrantsTeamsBodySchema = z.object({
-  grants: z.array(grantTeamEntrySchema),
-});
+export const putGrantsTeamsBodySchema = grantsReplaceBodySchema('teamId');
 
 /** Einzelner Department-Grant. */
-export const grantDepartmentEntrySchema = z.object({
-  departmentId: z.cuid(),
-  role: grantRoleSchema,
-});
+export const grantDepartmentEntrySchema = grantEntrySchema('departmentId');
 /** Body: Department-Grants ersetzen. */
-export const putGrantsDepartmentsBodySchema = z.object({
-  grants: z.array(grantDepartmentEntrySchema),
-});
+export const putGrantsDepartmentsBodySchema = grantsReplaceBodySchema('departmentId');
 
 /** Params: tagId. */
 export const tagIdParamSchema = z.object({
@@ -183,7 +185,7 @@ export const createDocumentCommentBodySchema = z
       .transform((s) => s.trim())
       .pipe(z.string().min(1).max(DOCUMENT_COMMENT_TEXT_MAX)),
     parentId: z.string().cuid().optional(),
-    /** Heading slug from document markdown; only for top-level comments. */
+    /** Heading slug from active document blocks; only for top-level comments. */
     anchorHeadingId: z.string().min(1).max(200).optional(),
   })
   .strict()

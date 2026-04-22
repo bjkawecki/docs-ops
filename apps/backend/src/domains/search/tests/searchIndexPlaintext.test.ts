@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exampleBlockDocumentV0 } from '../../documents/services/blockSchema.js';
+import { exampleBlockDocumentV0 } from '../../documents/services/blocks/blockSchema.js';
 import { resolveSearchIndexBodyText } from '../services/searchIndexPlaintext.js';
 
 describe('searchIndexPlaintext (EPIC-7)', () => {

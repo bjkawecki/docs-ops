@@ -18,7 +18,7 @@ import {
   listUserIdsWhoCanReadDocument,
   symmetricDiffUserIds,
 } from '../../notifications/services/notificationRecipients.js';
-import { emptyBlockDocumentJson } from '../services/documentBlocksBackfill.js';
+import { emptyBlockDocumentJson } from '../services/blocks/documentBlocksBackfill.js';
 
 const TS = `perm-${Date.now()}`;
 

@@ -14,8 +14,8 @@ import {
 } from '../../domains/search/services/searchIndexService.js';
 import { dispatchNotificationEvent } from '../../domains/notifications/services/notificationDispatchService.js';
 import { runUserNotificationRetention } from '../../domains/notifications/services/notificationRetentionService.js';
-import { backfillAllDocumentBlocks } from '../../domains/documents/services/documentBlocksBackfill.js';
-import { documentMarkdownFromRow } from '../../domains/documents/services/documentMarkdownSnapshot.js';
+import { backfillAllDocumentBlocks } from '../../domains/documents/services/blocks/documentBlocksBackfill.js';
+import { documentMarkdownFromRow } from '../../domains/documents/services/query/documentMarkdownSnapshot.js';
 
 const execFileAsync = promisify(execFile);
 

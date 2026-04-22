@@ -4,8 +4,8 @@ import type { Prisma } from '../../../../generated/prisma/client.js';
 import { buildApp } from '../../../app.js';
 import { prisma } from '../../../db.js';
 import { hashPassword } from '../../auth/services/password.js';
-import { exampleBlockDocumentV0 } from '../services/blockSchema.js';
-import { blockDocumentJsonFromMarkdown } from '../services/documentBlocksBackfill.js';
+import { exampleBlockDocumentV0 } from '../services/blocks/blockSchema.js';
+import { blockDocumentJsonFromMarkdown } from '../services/blocks/documentBlocksBackfill.js';
 
 const TS = `docs-${Date.now()}`;
 const PASSWORD = 'testpass';

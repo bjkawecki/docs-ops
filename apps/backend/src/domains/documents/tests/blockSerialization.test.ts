@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseBlockDocumentV0 } from '../services/blockSchema.js';
-import { markdownToBlockDocumentV0 } from '../services/markdownToBlocks.js';
-import { blockDocumentV0ToMarkdown } from '../services/blocksToMarkdown.js';
-import { blockDocumentV0ToSearchableText } from '../services/blocksPlaintext.js';
-import { exampleBlockDocumentV0 } from '../services/blockSchema.js';
+import { parseBlockDocumentV0 } from '../services/blocks/blockSchema.js';
+import { markdownToBlockDocumentV0 } from '../services/blocks/markdownToBlocks.js';
+import { blockDocumentV0ToMarkdown } from '../services/blocks/blocksToMarkdown.js';
+import { blockDocumentV0ToSearchableText } from '../services/blocks/blocksPlaintext.js';
+import { exampleBlockDocumentV0 } from '../services/blocks/blockSchema.js';
 
 describe('block serialization (EPIC-2)', () => {
   it('PR-2a: markdown round-trip output parses as v0 document', () => {

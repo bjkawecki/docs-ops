@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../../../app.js';
 import { prisma } from '../../../db.js';
 import { hashPassword } from '../../auth/services/password.js';
-import { emptyBlockDocumentJson } from '../../documents/services/documentBlocksBackfill.js';
+import { emptyBlockDocumentJson } from '../../documents/services/blocks/documentBlocksBackfill.js';
 
 const TEST_EMAIL = `me-test-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'testpass';

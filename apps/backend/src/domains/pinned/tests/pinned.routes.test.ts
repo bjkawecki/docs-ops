@@ -4,7 +4,7 @@ import { buildApp } from '../../../app.js';
 import { prisma } from '../../../db.js';
 import { hashPassword } from '../../auth/services/password.js';
 import { canPinForScope } from '../permissions/pinnedPermissions.js';
-import { emptyBlockDocumentJson } from '../../documents/services/documentBlocksBackfill.js';
+import { emptyBlockDocumentJson } from '../../documents/services/blocks/documentBlocksBackfill.js';
 
 const TS = `pinned-${Date.now()}`;
 const PASSWORD = 'testpass';

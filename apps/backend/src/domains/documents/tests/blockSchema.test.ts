@@ -3,7 +3,7 @@ import {
   exampleBlockDocumentV0,
   parseBlockDocumentV0,
   safeParseBlockDocumentV0,
-} from '../services/blockSchema.js';
+} from '../services/blocks/blockSchema.js';
 
 describe('blockSchema v0', () => {
   it('parses the bundled example', () => {

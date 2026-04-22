@@ -33,6 +33,7 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 *.tree
+reports/
 
 # Test / coverage
 coverage/

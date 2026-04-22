@@ -1,6 +1,6 @@
-import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.js';
-import { DocumentSuggestionStatus } from '../../../../generated/prisma/client.js';
-import { parseBlockDocumentFromDb } from './documentBlocksBackfill.js';
+import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
+import { DocumentSuggestionStatus } from '../../../../../generated/prisma/client.js';
+import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
 
 /** Metadata-only update payload. No lifecycle fields (publishedAt, archivedAt, deletedAt). */
 export type UpdateDocumentMetadataData = {

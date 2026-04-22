@@ -6,8 +6,8 @@ import {
   blockDocumentJsonFromPlainText,
   blockDocumentJsonFromSeedSections,
   parseBlockDocumentFromDb,
-} from '../services/documentBlocksBackfill.js';
-import { exampleBlockDocumentV0 } from '../services/blockSchema.js';
+} from '../services/blocks/documentBlocksBackfill.js';
+import { exampleBlockDocumentV0 } from '../services/blocks/blockSchema.js';
 
 describe('documentBlocksBackfill (EPIC-9b)', () => {
   it('backfillDocumentVersionBlocks ist No-op ohne Markdown-Spalte', async () => {

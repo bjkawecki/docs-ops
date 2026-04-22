@@ -35,6 +35,24 @@ module.exports = tseslint.config(
     },
   },
   {
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ['apps/frontend/src/pages/**/*.tsx'],
+    rules: {
+      'max-lines': ['warn', { max: 600, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ['apps/backend/src/domains/**/routes/**/*.ts'],
+    rules: {
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
     files: ['**/*.js'],
     languageOptions: {
       globals: {
@@ -46,6 +64,15 @@ module.exports = tseslint.config(
     },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+      },
     },
   },
   {
@@ -69,6 +96,7 @@ module.exports = tseslint.config(
   {
     files: ['**/*.test.ts', '**/*.test.tsx'],
     rules: {
+      'max-lines': ['warn', { max: 700, skipBlankLines: true, skipComments: true }],
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
     },
   }

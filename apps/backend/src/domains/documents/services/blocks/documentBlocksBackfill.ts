@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.js';
+import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import { markdownToBlockDocumentV0 } from './markdownToBlocks.js';
 import { safeParseBlockDocumentV0, type BlockDocumentV0, type BlockNode } from './blockSchema.js';
 

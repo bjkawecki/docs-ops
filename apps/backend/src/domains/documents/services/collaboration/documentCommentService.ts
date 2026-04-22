@@ -1,5 +1,5 @@
-import type { PrismaClient } from '../../../../generated/prisma/client.js';
-import { isHeadingSlugInMarkdown } from '../../../shared/utils/markdownHeadingSlugs.js';
+import type { PrismaClient } from '../../../../../generated/prisma/client.js';
+import { isHeadingSlugInBlocks } from '../blocks/blockHeadingSlugs.js';
 
 export const DOCUMENT_COMMENT_TEXT_MAX = 16_000;
 
@@ -100,7 +100,7 @@ export async function createDocumentComment(
     text: string;
     parentId?: string;
     anchorHeadingId?: string;
-    documentContent: string;
+    documentBlocks: unknown;
   }
 ): Promise<CreateDocumentCommentResult> {
   let parentId: string | null = null;
@@ -118,7 +118,7 @@ export async function createDocumentComment(
     if (parent.deletedAt != null) return { ok: false, error: 'parent_deleted' };
     parentId = parent.id;
   } else if (args.anchorHeadingId != null && args.anchorHeadingId !== '') {
-    if (!isHeadingSlugInMarkdown(args.documentContent, args.anchorHeadingId)) {
+    if (!isHeadingSlugInBlocks(args.documentBlocks, args.anchorHeadingId)) {
       return { ok: false, error: 'invalid_anchor' };
     }
     anchorHeadingId = args.anchorHeadingId;
@@ -152,7 +152,7 @@ export async function updateDocumentComment(
     userId: string;
     text?: string;
     anchorHeadingId?: string | null;
-    documentContent: string;
+    documentBlocks: unknown;
   }
 ): Promise<UpdateCommentResult> {
   const existing = await prisma.documentComment.findFirst({
@@ -165,7 +165,7 @@ export async function updateDocumentComment(
   if (args.anchorHeadingId !== undefined) {
     if (existing.parentId != null) return { ok: false, error: 'anchor_only_on_root' };
     if (args.anchorHeadingId != null && args.anchorHeadingId !== '') {
-      if (!isHeadingSlugInMarkdown(args.documentContent, args.anchorHeadingId)) {
+      if (!isHeadingSlugInBlocks(args.documentBlocks, args.anchorHeadingId)) {
         return { ok: false, error: 'invalid_anchor' };
       }
     }
