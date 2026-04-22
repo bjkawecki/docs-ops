@@ -4,7 +4,6 @@ import {
   getEffectiveUserId,
   type RequestWithUser,
 } from '../../../auth/middleware.js';
-import { canReadContext, canWriteContext } from '../../permissions/contextPermissions.js';
 import { setContextDisplayFromSubcontext } from '../../services/contextOwnerDisplay.js';
 import {
   createSubcontextBodySchema,
@@ -13,6 +12,13 @@ import {
   subcontextIdParamSchema,
   updateSubcontextBodySchema,
 } from '../../schemas/contexts.js';
+import {
+  assertReadContextOr403,
+  assertWriteContextOr403,
+  gateReadContextWithWriteHint,
+  getProjectParentContextId,
+  loadSubcontextWithProjectContextForWriteGate,
+} from './context-entity-route-helpers.js';
 
 function registerSubcontextRoutes(app: FastifyInstance): void {
   app.get(
@@ -23,12 +29,8 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
       const { projectId } = projectIdParamSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const project = await prisma.project.findUniqueOrThrow({
-        where: { id: projectId },
-        select: { contextId: true },
-      });
-      const allowed = await canReadContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No access' });
+      const parentContextId = await getProjectParentContextId(prisma, projectId);
+      if (!(await assertReadContextOr403(prisma, userId, parentContextId, reply))) return;
       const [items, total] = await Promise.all([
         prisma.subcontext.findMany({
           where: { projectId },
@@ -50,12 +52,8 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
       const prisma = request.server.prisma;
       const { projectId } = projectIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const project = await prisma.project.findUniqueOrThrow({
-        where: { id: projectId },
-        select: { contextId: true },
-      });
-      const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      const parentContextId = await getProjectParentContextId(prisma, projectId);
+      if (!(await assertWriteContextOr403(prisma, userId, parentContextId, reply))) return;
       const body = createSubcontextBodySchema.parse(request.body);
       const context = await prisma.context.create({ data: {} });
       const subcontext = await prisma.subcontext.create({
@@ -78,9 +76,13 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
         where: { id: subcontextId },
         include: { context: true, project: { include: { owner: true } } },
       });
-      const allowed = await canReadContext(prisma, userId, subcontext.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No access' });
-      const writeAllowed = await canWriteContext(prisma, userId, subcontext.contextId);
+      const writeAllowed = await gateReadContextWithWriteHint(
+        prisma,
+        userId,
+        subcontext.contextId,
+        reply
+      );
+      if (writeAllowed === null) return;
       return reply.send({ ...subcontext, canWriteContext: writeAllowed });
     }
   );
@@ -92,12 +94,10 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
       const prisma = request.server.prisma;
       const { subcontextId } = subcontextIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const subcontext = await prisma.subcontext.findUniqueOrThrow({
-        where: { id: subcontextId },
-        include: { project: { select: { contextId: true } } },
-      });
-      const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      const subcontext = await loadSubcontextWithProjectContextForWriteGate(prisma, subcontextId);
+      if (!(await assertWriteContextOr403(prisma, userId, subcontext.project.contextId, reply))) {
+        return;
+      }
       const body = updateSubcontextBodySchema.parse(request.body);
       const updated = await prisma.subcontext.update({
         where: { id: subcontextId },
@@ -121,12 +121,10 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
       const prisma = request.server.prisma;
       const { subcontextId } = subcontextIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const subcontext = await prisma.subcontext.findUniqueOrThrow({
-        where: { id: subcontextId },
-        include: { project: { select: { contextId: true } } },
-      });
-      const allowed = await canWriteContext(prisma, userId, subcontext.project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      const subcontext = await loadSubcontextWithProjectContextForWriteGate(prisma, subcontextId);
+      if (!(await assertWriteContextOr403(prisma, userId, subcontext.project.contextId, reply))) {
+        return;
+      }
       await prisma.subcontext.delete({ where: { id: subcontextId } });
       return reply.status(204).send();
     }

@@ -8,12 +8,50 @@ import { changedUserIdsFromBeforeAfter } from '../route-support/documentRouteSup
 
 export class UnsupportedScopeWriteGrantError extends Error {}
 
+/** Owner row shape for document context (process / project / subcontext project). */
+const documentContextOwnerSelect = {
+  ownerUserId: true,
+  companyId: true,
+  departmentId: true,
+  teamId: true,
+  team: {
+    select: { departmentId: true, department: { select: { companyId: true } } },
+  },
+} as const;
+
+const listCandidateUsersDocumentSelect = {
+  contextId: true,
+  context: {
+    select: {
+      process: { select: { owner: { select: documentContextOwnerSelect } } },
+      project: { select: { owner: { select: documentContextOwnerSelect } } },
+      subcontext: {
+        select: {
+          project: { select: { owner: { select: documentContextOwnerSelect } } },
+        },
+      },
+    },
+  },
+} as const;
+
 async function readWriteUnion(prisma: PrismaClient, documentId: string): Promise<Set<string>> {
   const [readIds, writeIds] = await Promise.all([
     listUserIdsWhoCanReadDocument(prisma, documentId),
     listUserIdsWhoCanWriteDocument(prisma, documentId),
   ]);
   return new Set<string>([...readIds, ...writeIds]);
+}
+
+async function grantReplaceChangedUsers(
+  prisma: PrismaClient,
+  documentId: string,
+  before: Set<string>
+): Promise<string[]> {
+  const [afterRead, afterWrite] = await Promise.all([
+    listUserIdsWhoCanReadDocument(prisma, documentId),
+    listUserIdsWhoCanWriteDocument(prisma, documentId),
+  ]);
+  return changedUserIdsFromBeforeAfter({ before, afterRead, afterWrite });
 }
 
 export async function getDocumentGrants(prisma: PrismaClient, documentId: string) {
@@ -44,65 +82,7 @@ export async function listCandidateUsersForDocumentGrants(
 ) {
   const doc = await prisma.document.findUnique({
     where: { id: documentId },
-    select: {
-      contextId: true,
-      context: {
-        select: {
-          process: {
-            select: {
-              owner: {
-                select: {
-                  ownerUserId: true,
-                  companyId: true,
-                  departmentId: true,
-                  teamId: true,
-                  team: {
-                    select: { departmentId: true, department: { select: { companyId: true } } },
-                  },
-                },
-              },
-            },
-          },
-          project: {
-            select: {
-              owner: {
-                select: {
-                  ownerUserId: true,
-                  companyId: true,
-                  departmentId: true,
-                  teamId: true,
-                  team: {
-                    select: { departmentId: true, department: { select: { companyId: true } } },
-                  },
-                },
-              },
-            },
-          },
-          subcontext: {
-            select: {
-              project: {
-                select: {
-                  owner: {
-                    select: {
-                      ownerUserId: true,
-                      companyId: true,
-                      departmentId: true,
-                      teamId: true,
-                      team: {
-                        select: {
-                          departmentId: true,
-                          department: { select: { companyId: true } },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    select: listCandidateUsersDocumentSelect,
   });
   if (!doc) return null;
 
@@ -218,13 +198,9 @@ export async function replaceDocumentUserGrants(
     where: { documentId: args.documentId },
     select: { userId: true, role: true },
   });
-  const [afterRead, afterWrite] = await Promise.all([
-    listUserIdsWhoCanReadDocument(prisma, args.documentId),
-    listUserIdsWhoCanWriteDocument(prisma, args.documentId),
-  ]);
   return {
     grants: list,
-    changedUserIds: changedUserIdsFromBeforeAfter({ before, afterRead, afterWrite }),
+    changedUserIds: await grantReplaceChangedUsers(prisma, args.documentId, before),
   };
 }
 
@@ -253,13 +229,9 @@ export async function replaceDocumentTeamGrants(
     where: { documentId: args.documentId },
     select: { teamId: true, role: true },
   });
-  const [afterRead, afterWrite] = await Promise.all([
-    listUserIdsWhoCanReadDocument(prisma, args.documentId),
-    listUserIdsWhoCanWriteDocument(prisma, args.documentId),
-  ]);
   return {
     grants: list,
-    changedUserIds: changedUserIdsFromBeforeAfter({ before, afterRead, afterWrite }),
+    changedUserIds: await grantReplaceChangedUsers(prisma, args.documentId, before),
   };
 }
 
@@ -288,12 +260,8 @@ export async function replaceDocumentDepartmentGrants(
     where: { documentId: args.documentId },
     select: { departmentId: true, role: true },
   });
-  const [afterRead, afterWrite] = await Promise.all([
-    listUserIdsWhoCanReadDocument(prisma, args.documentId),
-    listUserIdsWhoCanWriteDocument(prisma, args.documentId),
-  ]);
   return {
     grants: list,
-    changedUserIds: changedUserIdsFromBeforeAfter({ before, afterRead, afterWrite }),
+    changedUserIds: await grantReplaceChangedUsers(prisma, args.documentId, before),
   };
 }

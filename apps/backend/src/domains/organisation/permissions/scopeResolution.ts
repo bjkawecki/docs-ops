@@ -26,24 +26,38 @@ export async function getContextIdsForScope(
   }
 }
 
-async function getCompanyContextIds(prisma: PrismaClient, companyId: string): Promise<string[]> {
-  const [processContexts, projectContexts] = await Promise.all([
-    prisma.process.findMany({
-      where: { owner: { companyId } },
-      select: { contextId: true },
-    }),
-    prisma.project.findMany({
-      where: { owner: { companyId } },
-      select: {
-        contextId: true,
-        subcontexts: { select: { contextId: true } },
-      },
-    }),
-  ]);
+const processContextIdSelect = { contextId: true } as const;
+
+const projectContextIdsWithSubcontextsSelect = {
+  contextId: true,
+  subcontexts: { select: { contextId: true } },
+} as const;
+
+function flattenProcessAndProjectContextIds(
+  processContexts: Array<{ contextId: string }>,
+  projectContexts: Array<{
+    contextId: string;
+    subcontexts: Array<{ contextId: string }>;
+  }>
+): string[] {
   return [
     ...processContexts.map((p) => p.contextId),
     ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
   ];
+}
+
+async function getCompanyContextIds(prisma: PrismaClient, companyId: string): Promise<string[]> {
+  const [processContexts, projectContexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { owner: { companyId } },
+      select: processContextIdSelect,
+    }),
+    prisma.project.findMany({
+      where: { owner: { companyId } },
+      select: projectContextIdsWithSubcontextsSelect,
+    }),
+  ]);
+  return flattenProcessAndProjectContextIds(processContexts, projectContexts);
 }
 
 async function getDepartmentContextIds(
@@ -59,36 +73,28 @@ async function getDepartmentContextIds(
     await Promise.all([
       prisma.process.findMany({
         where: { owner: { departmentId } },
-        select: { contextId: true },
+        select: processContextIdSelect,
       }),
       prisma.project.findMany({
         where: { owner: { departmentId } },
-        select: {
-          contextId: true,
-          subcontexts: { select: { contextId: true } },
-        },
+        select: projectContextIdsWithSubcontextsSelect,
       }),
       teamIdList.length > 0
         ? prisma.process.findMany({
             where: { owner: { teamId: { in: teamIdList } } },
-            select: { contextId: true },
+            select: processContextIdSelect,
           })
         : Promise.resolve([]),
       teamIdList.length > 0
         ? prisma.project.findMany({
             where: { owner: { teamId: { in: teamIdList } } },
-            select: {
-              contextId: true,
-              subcontexts: { select: { contextId: true } },
-            },
+            select: projectContextIdsWithSubcontextsSelect,
           })
         : Promise.resolve([]),
     ]);
   return [
-    ...deptProcessContexts.map((p) => p.contextId),
-    ...deptProjectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
-    ...teamProcessContexts.map((p) => p.contextId),
-    ...teamProjectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
+    ...flattenProcessAndProjectContextIds(deptProcessContexts, deptProjectContexts),
+    ...flattenProcessAndProjectContextIds(teamProcessContexts, teamProjectContexts),
   ];
 }
 
@@ -96,18 +102,12 @@ async function getTeamContextIds(prisma: PrismaClient, teamId: string): Promise<
   const [processContexts, projectContexts] = await Promise.all([
     prisma.process.findMany({
       where: { owner: { teamId } },
-      select: { contextId: true },
+      select: processContextIdSelect,
     }),
     prisma.project.findMany({
       where: { owner: { teamId } },
-      select: {
-        contextId: true,
-        subcontexts: { select: { contextId: true } },
-      },
+      select: projectContextIdsWithSubcontextsSelect,
     }),
   ]);
-  return [
-    ...processContexts.map((p) => p.contextId),
-    ...projectContexts.flatMap((p) => [p.contextId, ...p.subcontexts.map((s) => s.contextId)]),
-  ];
+  return flattenProcessAndProjectContextIds(processContexts, projectContexts);
 }

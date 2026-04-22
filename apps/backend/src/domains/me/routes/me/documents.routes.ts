@@ -1,13 +1,15 @@
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import {
   requireAuthPreHandler,
   getEffectiveUserId,
   type RequestWithUser,
 } from '../../../auth/middleware.js';
 import { canWriteInScope } from '../../../organisation/permissions/scopeLead.js';
-import { paginationQuerySchema } from '../../../organisation/schemas/organisation.js';
-import { meCanWriteInScopeQuerySchema, meDraftsQuerySchema } from '../../schemas/me.js';
+import {
+  meCanWriteInScopeQuerySchema,
+  meDocumentsListQuerySchema,
+  meDraftsQuerySchema,
+} from '../../schemas/me.js';
 import {
   getDraftsScope,
   getPersonalContextIds,
@@ -26,9 +28,7 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const query = paginationQuerySchema
-        .extend({ publishedOnly: z.coerce.boolean().optional().default(false) })
-        .parse(request.query);
+      const query = meDocumentsListQuerySchema.parse(request.query);
 
       const personalContextIds = await getPersonalContextIds(prisma, userId);
 
@@ -56,9 +56,7 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
   app.get('/me/shared-documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
-    const query = paginationQuerySchema
-      .extend({ publishedOnly: z.coerce.boolean().optional().default(false) })
-      .parse(request.query);
+    const query = meDocumentsListQuerySchema.parse(request.query);
 
     const documentIds = await getSharedDocumentIds(prisma, userId);
     if (documentIds.length === 0) {

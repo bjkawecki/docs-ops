@@ -26,11 +26,8 @@ import {
 import { documentMarkdownFromRow } from '../services/query/documentMarkdownSnapshot.js';
 import { blockDocumentV0ToMarkdown } from '../services/blocks/blocksToMarkdown.js';
 import { parseBlockDocumentFromDb } from '../services/blocks/documentBlocksBackfill.js';
-import {
-  documentIdParamSchema,
-  versionIdParamSchema,
-  attachmentIdParamSchema,
-} from '../schemas/documents.js';
+import { documentIdParamSchema, versionIdParamSchema } from '../schemas/documents.js';
+import { routePrismaUserDocumentId } from './collaboration-route-helpers.js';
 import { enqueueJob, getJobById } from '../../../infrastructure/jobs/client.js';
 import {
   excludeUserIds,
@@ -38,9 +35,10 @@ import {
 } from '../../notifications/services/notificationRecipients.js';
 import {
   buildPdfDownloadFilename,
-  enqueueIncrementalReindexForDocument,
+  enqueueIncrementalReindexForDocumentSafe,
   enqueueNotificationEvent,
 } from '../services/route-support/documentRouteSupport.js';
+import { requireStorageAndDocumentAttachment } from './document-attachment-route-helpers.js';
 
 const QUEUE_RETRY_AFTER_SECONDS = 15;
 const exportPdfStatusParamsSchema = z.object({
@@ -183,9 +181,7 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
 
       const allowed = await canPublishDocument(prisma, userId, documentId);
       if (!allowed) {
@@ -217,18 +213,12 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
         if (!doc) {
           return reply.status(500).send({ error: 'Publish succeeded but document not found' });
         }
-        try {
-          await enqueueIncrementalReindexForDocument({
-            documentId,
-            contextId: doc.contextId,
-            trigger: 'document-updated',
-          });
-        } catch (error) {
-          request.log.warn(
-            { error, documentId },
-            'Failed to enqueue reindex job after document publish'
-          );
-        }
+        await enqueueIncrementalReindexForDocumentSafe(request.log, {
+          documentId,
+          contextId: doc.contextId,
+          trigger: 'document-updated',
+          warnMessage: 'Failed to enqueue reindex job after document publish',
+        });
         try {
           const readerIds = excludeUserIds(
             await listUserIdsWhoCanReadDocument(prisma, documentId),
@@ -278,17 +268,11 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       try {
         await archiveDocument(prisma, documentId);
-        try {
-          await enqueueIncrementalReindexForDocument({
-            documentId,
-            trigger: 'document-updated',
-          });
-        } catch (error) {
-          request.log.warn(
-            { error, documentId },
-            'Failed to enqueue reindex job after document archive'
-          );
-        }
+        await enqueueIncrementalReindexForDocumentSafe(request.log, {
+          documentId,
+          trigger: 'document-updated',
+          warnMessage: 'Failed to enqueue reindex job after document archive',
+        });
         try {
           const actorId = getEffectiveUserId(request as RequestWithUser);
           const readerIds = excludeUserIds(
@@ -420,17 +404,11 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
       }
       try {
         await restoreDocument(prisma, documentId);
-        try {
-          await enqueueIncrementalReindexForDocument({
-            documentId,
-            trigger: 'document-updated',
-          });
-        } catch (error) {
-          request.log.warn(
-            { error, documentId },
-            'Failed to enqueue reindex job after document restore'
-          );
-        }
+        await enqueueIncrementalReindexForDocumentSafe(request.log, {
+          documentId,
+          trigger: 'document-updated',
+          warnMessage: 'Failed to enqueue reindex job after document restore',
+        });
         try {
           const readerIds = excludeUserIds(
             await listUserIdsWhoCanReadDocument(prisma, documentId),
@@ -465,14 +443,9 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const storage = request.server.storage;
-      if (!storage) return reply.status(503).send({ error: 'Storage not available' });
-      const prisma = request.server.prisma;
-      const { documentId, attachmentId } = attachmentIdParamSchema.parse(request.params);
-      const attachment = await prisma.documentAttachment.findFirst({
-        where: { id: attachmentId, documentId },
-      });
-      if (!attachment) return reply.status(404).send({ error: 'Attachment not found' });
+      const loaded = await requireStorageAndDocumentAttachment(request, reply);
+      if (!loaded) return;
+      const { storage, attachment } = loaded;
       const presigned = await storage.getPresignedGetUrl(attachment.objectKey, 60);
       return reply.redirect(presigned, 302);
     }

@@ -32,6 +32,13 @@ export function getDocumentOwner(doc: DocumentForPermission) {
   );
 }
 
+export function isPersonalContextDocumentOwner(
+  owner: ReturnType<typeof getDocumentOwner>,
+  userId: string
+): boolean {
+  return owner?.ownerUserId === userId;
+}
+
 export function getUserReadableTeamIds(user: UserForPermission): Set<string> {
   return new Set([
     ...user.teamMemberships.map((m) => m.team.id),
@@ -77,6 +84,16 @@ export function evaluateBaseDocumentPermission(
     return hasDocumentGrantRole(doc, userId, role, teamIds, getUserDepartmentIds(user));
   }
   return null;
+}
+
+/** Nach `loadPermissionSubject`: nur `evaluateBaseDocumentPermission` (canRead/canWrite). */
+export function basePermissionDecisionAfterLoad(
+  subject: { doc: DocumentForPermission; user: UserForPermission },
+  userId: string,
+  role: GrantRole,
+  teamIds: Set<string>
+): boolean | null {
+  return evaluateBaseDocumentPermission(subject.doc, subject.user, userId, role, teamIds);
 }
 
 export function isCompanyLeadForOwner(
@@ -173,9 +190,8 @@ export async function canRead(
   if (!subject) return false;
   const { doc, user } = subject;
 
-  const baseDecision = evaluateBaseDocumentPermission(
-    doc,
-    user,
+  const baseDecision = basePermissionDecisionAfterLoad(
+    subject,
     userId,
     GrantRole.Read,
     getUserReadableTeamIds(user)
@@ -184,7 +200,7 @@ export async function canRead(
 
   // 3. Owner of personal context (process/project with ownerUserId)
   const owner = getDocumentOwner(doc);
-  if (owner?.ownerUserId === userId) return true;
+  if (isPersonalContextDocumentOwner(owner, userId)) return true;
 
   // 4. Company Lead (contexts with company owner)
   const ownerCompanyId = getContextOwnerCompanyId(doc);

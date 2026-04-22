@@ -33,6 +33,27 @@ export async function enqueueIncrementalReindexForDocument(args: {
   });
 }
 
+/** Wie `enqueueIncrementalReindexForDocument`, Fehler nur loggen (gleiche Warn-Messages wie in den Routen). */
+export async function enqueueIncrementalReindexForDocumentSafe(
+  log: { warn: (meta: Record<string, unknown>, msg: string) => void },
+  params: {
+    documentId: string;
+    contextId?: string | null;
+    trigger: 'document-created' | 'document-updated' | 'document-deleted' | 'manual';
+    warnMessage: string;
+  }
+): Promise<void> {
+  try {
+    await enqueueIncrementalReindexForDocument({
+      documentId: params.documentId,
+      contextId: params.contextId,
+      trigger: params.trigger,
+    });
+  } catch (error: unknown) {
+    log.warn({ error, documentId: params.documentId }, params.warnMessage);
+  }
+}
+
 export async function enqueueNotificationEvent(args: {
   eventType: string;
   targetUserIds: string[];

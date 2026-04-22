@@ -1,30 +1,41 @@
 import type { FastifyInstance } from 'fastify';
+import type { PrismaClient } from '../../../../../generated/prisma/client.js';
 import {
   requireAuthPreHandler,
   getEffectiveUserId,
   type RequestWithUser,
 } from '../../../auth/middleware.js';
 import { canPinForScope } from '../../../pinned/permissions/pinnedPermissions.js';
+import type { MeStorageQuery } from '../../schemas/me.js';
 import { meStorageQuerySchema } from '../../schemas/me.js';
+
+async function assertMeStorageScopeViewAllowed(
+  prisma: PrismaClient,
+  userId: string,
+  query: MeStorageQuery
+): Promise<{ status: 403; error: string } | undefined> {
+  const scope = query.scope ?? 'personal';
+  if (scope === 'team' && query.teamId) {
+    const allowed = await canPinForScope(prisma, userId, 'team', query.teamId);
+    if (!allowed) return { status: 403, error: 'Not allowed to view team storage' };
+  } else if (scope === 'department' && query.departmentId) {
+    const allowed = await canPinForScope(prisma, userId, 'department', query.departmentId);
+    if (!allowed) return { status: 403, error: 'Not allowed to view department storage' };
+  } else if (scope === 'company' && query.companyId) {
+    const allowed = await canPinForScope(prisma, userId, 'company', query.companyId);
+    if (!allowed) return { status: 403, error: 'Not allowed to view company storage' };
+  }
+  return undefined;
+}
 
 function registerMeStorageRoutes(app: FastifyInstance): void {
   app.get('/me/storage', { preHandler: requireAuthPreHandler }, async (request, reply) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const query = meStorageQuerySchema.parse(request.query);
+    const denied = await assertMeStorageScopeViewAllowed(prisma, userId, query);
+    if (denied) return reply.status(denied.status).send({ error: denied.error });
     const scope = query.scope ?? 'personal';
-
-    if (scope === 'team' && query.teamId) {
-      const allowed = await canPinForScope(prisma, userId, 'team', query.teamId);
-      if (!allowed) return reply.status(403).send({ error: 'Not allowed to view team storage' });
-    } else if (scope === 'department' && query.departmentId) {
-      const allowed = await canPinForScope(prisma, userId, 'department', query.departmentId);
-      if (!allowed)
-        return reply.status(403).send({ error: 'Not allowed to view department storage' });
-    } else if (scope === 'company' && query.companyId) {
-      const allowed = await canPinForScope(prisma, userId, 'company', query.companyId);
-      if (!allowed) return reply.status(403).send({ error: 'Not allowed to view company storage' });
-    }
 
     let userIds: string[];
     if (scope === 'personal') {

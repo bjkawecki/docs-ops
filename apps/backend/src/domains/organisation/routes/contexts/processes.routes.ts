@@ -4,11 +4,6 @@ import {
   getEffectiveUserId,
   type RequestWithUser,
 } from '../../../auth/middleware.js';
-import {
-  canReadContext,
-  canWriteContext,
-  canCreateProcessOrProjectForOwner,
-} from '../../permissions/contextPermissions.js';
 import { setContextDisplayFromProcess } from '../../services/contextOwnerDisplay.js';
 import {
   createProcessBodySchema,
@@ -17,6 +12,18 @@ import {
   updateProcessBodySchema,
 } from '../../schemas/contexts.js';
 import { ownerWhereFromQuery, parseIsoDateOrNull } from './route-helpers.js';
+import {
+  assertWriteContextOr403,
+  gateReadContextWithWriteHint,
+} from './context-entity-route-helpers.js';
+import {
+  assertCanCreateProcessOrProjectOr403,
+  ownerOptsFromProcessProjectCreateBody,
+} from './context-create-route-helpers.js';
+import {
+  contextDocumentsPreviewInclude,
+  filterEntitiesWithContextIdByReadAccess,
+} from './context-list-helpers.js';
 import { findOrCreateOwner } from '../../services/contexts/owner.service.js';
 import {
   setArchivedAtForContextDocuments,
@@ -41,14 +48,7 @@ function registerProcessRoutes(app: FastifyInstance): void {
         where,
         include: {
           context: {
-            include: {
-              documents: {
-                where: { deletedAt: null },
-                take: 5,
-                orderBy: { updatedAt: 'desc' },
-                select: { id: true, title: true },
-              },
-            },
+            include: contextDocumentsPreviewInclude,
           },
           owner: true,
         },
@@ -58,14 +58,7 @@ function registerProcessRoutes(app: FastifyInstance): void {
       }),
       prisma.process.count({ where }),
     ]);
-    const allowed = await Promise.all(
-      all.map(async (process) =>
-        (await canReadContext(prisma, userId, process.contextId)) ? process : null
-      )
-    );
-    const rawItems = allowed.filter(
-      (process): process is NonNullable<typeof process> => process !== null
-    );
+    const rawItems = await filterEntitiesWithContextIdByReadAccess(prisma, userId, all);
     const items = rawItems.map((process) => ({
       id: process.id,
       name: process.name,
@@ -80,20 +73,20 @@ function registerProcessRoutes(app: FastifyInstance): void {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createProcessBodySchema.parse(request.body);
-    const allowed = await canCreateProcessOrProjectForOwner(prisma, userId, {
-      companyId: body.companyId ?? undefined,
-      departmentId: body.departmentId ?? undefined,
-      teamId: body.teamId ?? undefined,
-      ownerUserId: body.personal === true ? userId : undefined,
-    });
-    if (!allowed) return reply.status(403).send({ error: 'Permission denied to create process' });
+    const ownerOpts = ownerOptsFromProcessProjectCreateBody(body, userId);
+    if (
+      !(await assertCanCreateProcessOrProjectOr403(
+        prisma,
+        userId,
+        ownerOpts,
+        reply,
+        'Permission denied to create process'
+      ))
+    ) {
+      return;
+    }
 
-    const owner = await findOrCreateOwner(prisma, {
-      companyId: body.companyId ?? undefined,
-      departmentId: body.departmentId ?? undefined,
-      teamId: body.teamId ?? undefined,
-      ownerUserId: body.personal === true ? userId : undefined,
-    });
+    const owner = await findOrCreateOwner(prisma, ownerOpts);
     const context = await prisma.context.create({ data: {} });
     const process = await prisma.process.create({
       data: {
@@ -118,11 +111,13 @@ function registerProcessRoutes(app: FastifyInstance): void {
         where: { id: processId },
         include: { context: true, owner: true },
       });
-      const [readAllowed, writeAllowed] = await Promise.all([
-        canReadContext(prisma, userId, process.contextId),
-        canWriteContext(prisma, userId, process.contextId),
-      ]);
-      if (!readAllowed) return reply.status(403).send({ error: 'No access' });
+      const writeAllowed = await gateReadContextWithWriteHint(
+        prisma,
+        userId,
+        process.contextId,
+        reply
+      );
+      if (writeAllowed === null) return;
       return reply.send({ ...process, canWriteContext: writeAllowed });
     }
   );
@@ -138,8 +133,7 @@ function registerProcessRoutes(app: FastifyInstance): void {
         where: { id: processId },
         select: { contextId: true },
       });
-      const allowed = await canWriteContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, process.contextId, reply))) return;
 
       const body = updateProcessBodySchema.parse(request.body);
       const data: { name?: string; deletedAt?: Date | null; archivedAt?: Date | null } = {};
@@ -177,8 +171,7 @@ function registerProcessRoutes(app: FastifyInstance): void {
         where: { id: processId },
         select: { contextId: true },
       });
-      const allowed = await canWriteContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, process.contextId, reply))) return;
 
       await softDeleteProcessWithDocuments(prisma, processId, process.contextId);
       return reply.status(204).send();
@@ -199,8 +192,7 @@ function registerProcessRoutes(app: FastifyInstance): void {
       if (process.deletedAt == null) {
         return reply.status(400).send({ error: 'Process is not in trash' });
       }
-      const allowed = await canWriteContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, process.contextId, reply))) return;
 
       await restoreProcessWithDocuments(prisma, processId, process.contextId);
       return reply.status(204).send();
@@ -221,8 +213,7 @@ function registerProcessRoutes(app: FastifyInstance): void {
       if (process.archivedAt == null) {
         return reply.status(400).send({ error: 'Process is not archived' });
       }
-      const allowed = await canWriteContext(prisma, userId, process.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, process.contextId, reply))) return;
 
       await unarchiveProcessWithDocuments(prisma, processId, process.contextId);
       return reply.status(204).send();

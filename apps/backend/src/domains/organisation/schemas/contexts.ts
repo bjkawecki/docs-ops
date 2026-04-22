@@ -28,26 +28,29 @@ const createProcessProjectBase = z.object({
   personal: z.literal(true).optional(),
 });
 
+const exactlyOneOrgScopeOrPersonalRefine = (
+  data: z.infer<typeof createProcessProjectBase>
+): boolean => {
+  const org =
+    [data.companyId, data.departmentId, data.teamId].filter((x) => x != null).length === 1;
+  const personal = data.personal === true;
+  return (org && !personal) || (!org && personal);
+};
+
+const exactlyOneOrgScopeOrPersonalRefineMessage = {
+  message: 'Exactly one of companyId, departmentId, teamId or personal must be set',
+} as const;
+
 /** Body: Process anlegen (genau einer: companyId, departmentId, teamId oder personal). */
 export const createProcessBodySchema = createProcessProjectBase.refine(
-  (data) => {
-    const org =
-      [data.companyId, data.departmentId, data.teamId].filter((x) => x != null).length === 1;
-    const personal = data.personal === true;
-    return (org && !personal) || (!org && personal);
-  },
-  { message: 'Exactly one of companyId, departmentId, teamId or personal must be set' }
+  exactlyOneOrgScopeOrPersonalRefine,
+  exactlyOneOrgScopeOrPersonalRefineMessage
 );
 
 /** Body: Project anlegen (genau einer: companyId, departmentId, teamId oder personal). */
 export const createProjectBodySchema = createProcessProjectBase.refine(
-  (data) => {
-    const org =
-      [data.companyId, data.departmentId, data.teamId].filter((x) => x != null).length === 1;
-    const personal = data.personal === true;
-    return (org && !personal) || (!org && personal);
-  },
-  { message: 'Exactly one of companyId, departmentId, teamId or personal must be set' }
+  exactlyOneOrgScopeOrPersonalRefine,
+  exactlyOneOrgScopeOrPersonalRefineMessage
 );
 
 /** Body: Process/Project/Subcontext aktualisieren. */

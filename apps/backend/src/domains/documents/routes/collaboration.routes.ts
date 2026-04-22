@@ -1,35 +1,15 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
-import {
-  requireAuthPreHandler,
-  preHandlerWrap,
-  getEffectiveUserId,
-  type RequestWithUser,
-} from '../../auth/middleware.js';
+import type { FastifyInstance } from 'fastify';
+import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import { requireAuthPreHandler, preHandlerWrap } from '../../auth/middleware.js';
 import {
   requireDocumentAccess,
   canModerateDocumentComments,
   canReadLeadDraft,
   canEditLeadDraft,
-  canCreateSuggestion,
-  canReadSuggestions,
-  canResolveSuggestion,
 } from '../permissions/index.js';
 import { loadDocument } from '../permissions/canRead.js';
+import type { DocumentForPermission } from '../permissions/documentLoad.js';
 import { getLeadDraftForUser, patchLeadDraft } from '../services/lifecycle/leadDraftService.js';
-import {
-  acceptDocumentSuggestion,
-  createDocumentSuggestion,
-  listDocumentSuggestions,
-  rejectDocumentSuggestion,
-  LeadDraftNotInitializedError,
-  StaleSuggestionError,
-  SuggestionForbiddenError,
-  SuggestionInvalidStateError,
-  SuggestionNotFoundError,
-  SuggestionOpsValidationError,
-  SuggestionParentDocumentNotFoundError,
-  withdrawDocumentSuggestion,
-} from '../services/collaboration/documentSuggestionService.js';
 import {
   createDocumentComment,
   deleteDocumentComment,
@@ -44,16 +24,9 @@ import {
   serializeCommentRow,
   serializeCommentTree,
 } from '../services/route-support/documentCommentRouteSupport.js';
-import { serializeDocumentSuggestion } from '../services/route-support/documentSuggestionRouteSupport.js';
 import {
-  documentIdParamSchema,
   patchLeadDraftBodySchema,
-  listDocumentSuggestionsQuerySchema,
-  createDocumentSuggestionBodySchema,
-  resolveDocumentSuggestionBodySchema,
-  suggestionIdParamSchema,
   paginationQuerySchema,
-  documentCommentIdParamSchema,
   createDocumentCommentBodySchema,
   patchDocumentCommentBodySchema,
 } from '../schemas/documents.js';
@@ -62,55 +35,21 @@ import {
   listUserIdsWhoCanReadDocument,
 } from '../../notifications/services/notificationRecipients.js';
 import { enqueueNotificationEvent } from '../services/route-support/documentRouteSupport.js';
+import {
+  routePrismaUserDocumentCommentIds,
+  routePrismaUserDocumentId,
+} from './collaboration-route-helpers.js';
+import { registerCollaborationSuggestionRoutes } from './collaboration-suggestions.routes.js';
 
-function parseSuggestionParams(params: unknown): { documentId: string; suggestionId: string } {
-  return suggestionIdParamSchema.parse(params);
-}
-
-function parseDocumentId(params: unknown): string {
-  return documentIdParamSchema.parse(params).documentId;
-}
-
-async function ensureSuggestionCreateAllowed(
-  prisma: FastifyInstance['prisma'],
+async function loadDocumentWithCommentModeration(
+  prisma: PrismaClient,
   userId: string,
-  documentId: string,
-  reply: FastifyReply,
-  message: string
-): Promise<boolean> {
-  const allowed = await canCreateSuggestion(prisma, userId, documentId);
-  if (!allowed) {
-    await reply.status(403).send({ error: message });
-    return false;
-  }
-  return true;
-}
-
-async function ensureSuggestionResolveAllowed(
-  prisma: FastifyInstance['prisma'],
-  userId: string,
-  documentId: string,
-  reply: FastifyReply,
-  message: string
-): Promise<boolean> {
-  const allowed = await canResolveSuggestion(prisma, userId, documentId);
-  if (!allowed) {
-    await reply.status(403).send({ error: message });
-    return false;
-  }
-  return true;
-}
-
-function handleSuggestionNotFoundOrInvalidState(err: unknown, reply: FastifyReply): boolean {
-  if (err instanceof SuggestionNotFoundError) {
-    reply.status(404).send({ error: 'Suggestion not found' });
-    return true;
-  }
-  if (err instanceof SuggestionInvalidStateError) {
-    reply.status(400).send({ error: err.message });
-    return true;
-  }
-  return false;
+  documentId: string
+): Promise<{ doc: DocumentForPermission; canModerate: boolean } | null> {
+  const doc = await loadDocument(prisma, documentId);
+  if (!doc) return null;
+  const canModerate = await canModerateDocumentComments(prisma, userId, doc);
+  return { doc, canModerate };
 }
 
 export const registerCollaborationRoutes = (app: FastifyInstance): void => {
@@ -123,9 +62,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const documentId = parseDocumentId(request.params);
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
 
       const [canReadLead, canEdit] = await Promise.all([
         canReadLeadDraft(prisma, userId, documentId),
@@ -160,9 +97,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const documentId = parseDocumentId(request.params);
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
 
       const canEdit = await canEditLeadDraft(prisma, userId, documentId);
       if (!canEdit) {
@@ -214,198 +149,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     }
   );
 
-  /** GET Suggestions (EPIC-5): nur Writer/Lead wie Lead-Draft-Lesen. */
-  app.get<{ Params: { documentId: string }; Querystring: Record<string, string | undefined> }>(
-    '/documents/:documentId/suggestions',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const documentId = parseDocumentId(request.params);
-      const query = listDocumentSuggestionsQuerySchema.parse(request.query ?? {});
-
-      const allowed = await canReadSuggestions(prisma, userId, documentId);
-      if (!allowed) {
-        return reply
-          .status(403)
-          .send({ error: 'Kein Zugriff auf Suggestions für dieses Dokument.' });
-      }
-
-      const rows = await listDocumentSuggestions(prisma, documentId, {
-        status: query.status,
-      });
-      return reply.send(rows.map(serializeDocumentSuggestion));
-    }
-  );
-
-  /** POST Suggestion anlegen (Autor, Schreibrecht). */
-  app.post<{ Params: { documentId: string } }>(
-    '/documents/:documentId/suggestions',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const documentId = parseDocumentId(request.params);
-      if (
-        !(await ensureSuggestionCreateAllowed(
-          prisma,
-          userId,
-          documentId,
-          reply,
-          'Nur Schreibende können Suggestions anlegen.'
-        ))
-      ) {
-        return;
-      }
-
-      const body = createDocumentSuggestionBodySchema.parse(request.body);
-      try {
-        const row = await createDocumentSuggestion(prisma, documentId, userId, {
-          baseDraftRevision: body.baseDraftRevision,
-          ops: body.ops,
-          publishedVersionId: body.publishedVersionId,
-        });
-        return reply.status(201).send(serializeDocumentSuggestion(row));
-      } catch (err) {
-        if (err instanceof SuggestionParentDocumentNotFoundError) {
-          return reply.status(404).send({ error: 'Document not found' });
-        }
-        if (err instanceof StaleSuggestionError) {
-          return reply.status(409).send({
-            error: 'Lead-Draft-Revision passt nicht (Vorschlag veraltet).',
-            code: 'stale_suggestion',
-          });
-        }
-        if (err instanceof SuggestionOpsValidationError) {
-          return reply.status(400).send({
-            error: err.message,
-            details: err.issues,
-          });
-        }
-        throw err;
-      }
-    }
-  );
-
-  /** POST Suggestion zurückziehen (Autor, nur pending). */
-  app.post<{ Params: { documentId: string; suggestionId: string } }>(
-    '/documents/:documentId/suggestions/:suggestionId/withdraw',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, suggestionId } = parseSuggestionParams(request.params);
-      if (!(await ensureSuggestionCreateAllowed(prisma, userId, documentId, reply, 'Forbidden'))) {
-        return;
-      }
-
-      try {
-        const row = await withdrawDocumentSuggestion(prisma, documentId, suggestionId, userId);
-        return reply.send(serializeDocumentSuggestion(row));
-      } catch (err) {
-        if (handleSuggestionNotFoundOrInvalidState(err, reply)) return;
-        if (err instanceof SuggestionForbiddenError) {
-          return reply.status(403).send({ error: err.message });
-        }
-        throw err;
-      }
-    }
-  );
-
-  /** POST Suggestion annehmen (Lead): Ops auf Lead-Draft anwenden, Revision erhöhen. */
-  app.post<{ Params: { documentId: string; suggestionId: string } }>(
-    '/documents/:documentId/suggestions/:suggestionId/accept',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, suggestionId } = parseSuggestionParams(request.params);
-      if (
-        !(await ensureSuggestionResolveAllowed(
-          prisma,
-          userId,
-          documentId,
-          reply,
-          'Nur der Scope-Lead kann Suggestions annehmen.'
-        ))
-      ) {
-        return;
-      }
-
-      const body = resolveDocumentSuggestionBodySchema.parse(request.body ?? {});
-      try {
-        const result = await acceptDocumentSuggestion(
-          prisma,
-          documentId,
-          suggestionId,
-          userId,
-          body
-        );
-        reply.header('ETag', `"${result.draftRevision}"`);
-        return reply.send({
-          suggestion: serializeDocumentSuggestion(result.suggestion),
-          draftRevision: result.draftRevision,
-          blocks: result.blocks,
-        });
-      } catch (err) {
-        if (handleSuggestionNotFoundOrInvalidState(err, reply)) return;
-        if (err instanceof StaleSuggestionError) {
-          return reply.status(409).send({
-            error: 'Suggestion oder Lead-Draft wurde zwischenzeitlich geändert.',
-            code: 'stale_suggestion',
-          });
-        }
-        if (err instanceof SuggestionOpsValidationError) {
-          return reply.status(400).send({ error: err.message, details: err.issues });
-        }
-        if (err instanceof LeadDraftNotInitializedError) {
-          return reply.status(400).send({ error: err.message });
-        }
-        throw err;
-      }
-    }
-  );
-
-  /** POST Suggestion ablehnen (Lead). */
-  app.post<{ Params: { documentId: string; suggestionId: string } }>(
-    '/documents/:documentId/suggestions/:suggestionId/reject',
-    {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
-    },
-    async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, suggestionId } = parseSuggestionParams(request.params);
-      if (
-        !(await ensureSuggestionResolveAllowed(
-          prisma,
-          userId,
-          documentId,
-          reply,
-          'Nur der Scope-Lead kann Suggestions ablehnen.'
-        ))
-      ) {
-        return;
-      }
-
-      const body = resolveDocumentSuggestionBodySchema.parse(request.body ?? {});
-      try {
-        const row = await rejectDocumentSuggestion(prisma, documentId, suggestionId, userId, body);
-        return reply.send(serializeDocumentSuggestion(row));
-      } catch (err) {
-        if (handleSuggestionNotFoundOrInvalidState(err, reply)) return;
-        throw err;
-      }
-    }
-  );
+  registerCollaborationSuggestionRoutes(app);
 
   /** GET Document comments (canRead). Top-level only (parentId null); pagination. */
   app.get<{ Params: { documentId: string }; Querystring: Record<string, string | undefined> }>(
@@ -414,13 +158,11 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const documentId = parseDocumentId(request.params);
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
       const query = paginationQuerySchema.parse(request.query ?? {});
-      const doc = await loadDocument(prisma, documentId);
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      const canModerate = await canModerateDocumentComments(prisma, userId, doc);
+      const loaded = await loadDocumentWithCommentModeration(prisma, userId, documentId);
+      if (!loaded) return reply.status(404).send({ error: 'Document not found' });
+      const { canModerate } = loaded;
       const { items, total } = await listDocumentComments(prisma, documentId, {
         limit: query.limit,
         offset: query.offset,
@@ -441,9 +183,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const documentId = parseDocumentId(request.params);
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
       const parsed = createDocumentCommentBodySchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({
@@ -503,9 +243,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, commentId } = documentCommentIdParamSchema.parse(request.params);
+      const { prisma, userId, documentId, commentId } = routePrismaUserDocumentCommentIds(request);
       const body = patchDocumentCommentBodySchema.parse(request.body);
       const docSnapshot = await loadDocumentCommentAnchorSnapshot(prisma, documentId);
       if (!docSnapshot) return reply.status(404).send({ error: 'Document not found' });
@@ -535,12 +273,10 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, commentId } = documentCommentIdParamSchema.parse(request.params);
-      const doc = await loadDocument(prisma, documentId);
-      if (!doc) return reply.status(404).send({ error: 'Document not found' });
-      const canModerate = await canModerateDocumentComments(prisma, userId, doc);
+      const { prisma, userId, documentId, commentId } = routePrismaUserDocumentCommentIds(request);
+      const loaded = await loadDocumentWithCommentModeration(prisma, userId, documentId);
+      if (!loaded) return reply.status(404).send({ error: 'Document not found' });
+      const { canModerate } = loaded;
       const result = await deleteDocumentComment(prisma, {
         documentId,
         commentId,

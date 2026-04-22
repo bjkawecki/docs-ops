@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import {
   requireAuthPreHandler,
   requireAdminPreHandler,
@@ -18,6 +19,64 @@ import {
   setOwnerDisplayName,
 } from '../../organisation/services/contextOwnerDisplay.js';
 import { GrantRole } from '../../../../generated/prisma/client.js';
+
+async function requireExistingAdminUserIdOr404(
+  prisma: PrismaClient,
+  userId: string,
+  reply: FastifyReply
+): Promise<string | undefined> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!user) {
+    void reply.status(404).send({ error: 'User not found.' });
+    return undefined;
+  }
+  return user.id;
+}
+
+async function requireLocalPasswordUserIdOrRespond(
+  prisma: PrismaClient,
+  userId: string,
+  reply: FastifyReply,
+  ssoIneligibleMessage: string
+): Promise<string | undefined> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, passwordHash: true },
+  });
+  if (!user) {
+    void reply.status(404).send({ error: 'User not found.' });
+    return undefined;
+  }
+  if (user.passwordHash == null) {
+    void reply.status(400).send({ error: ssoIneligibleMessage });
+    return undefined;
+  }
+  return user.id;
+}
+
+function addTeamMembershipCatalogRow(
+  r: {
+    userId: string;
+    team: { id: string; name: string; department: { id: string; name: string } } | null;
+  },
+  teamsByUser: Map<string, Array<{ id: string; name: string; departmentName: string }>>,
+  departmentsByUser: Map<string, Array<{ id: string; name: string }>>
+): void {
+  if (!r.team?.department) return;
+  const list = teamsByUser.get(r.userId) ?? [];
+  if (!list.some((t) => t.id === r.team.id)) {
+    list.push({ id: r.team.id, name: r.team.name, departmentName: r.team.department.name });
+  }
+  teamsByUser.set(r.userId, list);
+  const deptList = departmentsByUser.get(r.userId) ?? [];
+  if (!deptList.some((d) => d.id === r.team.department.id)) {
+    deptList.push({ id: r.team.department.id, name: r.team.department.name });
+  }
+  departmentsByUser.set(r.userId, deptList);
+}
 
 const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   const preAdmin = [requireAuthPreHandler, requireAdminPreHandler];
@@ -132,30 +191,10 @@ const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const departmentsByUser = new Map<string, Array<{ id: string; name: string }>>();
     const departmentsAsLeadByUser = new Map<string, Array<{ id: string; name: string }>>();
     for (const r of teamMemberRows) {
-      if (!r.team?.department) continue;
-      const list = teamsByUser.get(r.userId) ?? [];
-      if (!list.some((t) => t.id === r.team.id)) {
-        list.push({ id: r.team.id, name: r.team.name, departmentName: r.team.department.name });
-      }
-      teamsByUser.set(r.userId, list);
-      const deptList = departmentsByUser.get(r.userId) ?? [];
-      if (!deptList.some((d) => d.id === r.team.department.id)) {
-        deptList.push({ id: r.team.department.id, name: r.team.department.name });
-      }
-      departmentsByUser.set(r.userId, deptList);
+      addTeamMembershipCatalogRow(r, teamsByUser, departmentsByUser);
     }
     for (const r of teamLeadRows) {
-      if (!r.team?.department) continue;
-      const list = teamsByUser.get(r.userId) ?? [];
-      if (!list.some((t) => t.id === r.team.id)) {
-        list.push({ id: r.team.id, name: r.team.name, departmentName: r.team.department.name });
-      }
-      teamsByUser.set(r.userId, list);
-      const deptList = departmentsByUser.get(r.userId) ?? [];
-      if (!deptList.some((d) => d.id === r.team.department.id)) {
-        deptList.push({ id: r.team.department.id, name: r.team.department.name });
-      }
-      departmentsByUser.set(r.userId, deptList);
+      addTeamMembershipCatalogRow(r, teamsByUser, departmentsByUser);
     }
     for (const r of departmentLeadRows) {
       const deptList = departmentsByUser.get(r.userId) ?? [];
@@ -245,22 +284,17 @@ const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     { preHandler: preAdmin },
     async (request, reply) => {
       const { userId } = userIdParamSchema.parse(request.params);
-      const user = await request.server.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
-      if (!user) {
-        return reply.status(404).send({ error: 'User not found.' });
-      }
+      const prisma = request.server.prisma;
+      if (!(await requireExistingAdminUserIdOr404(prisma, userId, reply))) return;
       const [storageBytesUsed, documentsAsWriterCount, draftsCount] = await Promise.all([
-        request.server.prisma.documentAttachment.aggregate({
+        prisma.documentAttachment.aggregate({
           where: { uploadedById: userId },
           _sum: { sizeBytes: true },
         }),
-        request.server.prisma.documentGrantUser.count({
+        prisma.documentGrantUser.count({
           where: { userId, role: GrantRole.Write },
         }),
-        request.server.prisma.document.count({
+        prisma.document.count({
           where: {
             createdById: userId,
             publishedAt: null,
@@ -284,13 +318,8 @@ const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const { userId } = userIdParamSchema.parse(request.params);
       const query = listUserDocumentsQuerySchema.parse(request.query);
-      const user = await request.server.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
-      if (!user) {
-        return reply.status(404).send({ error: 'User not found.' });
-      }
+      const prisma = request.server.prisma;
+      if (!(await requireExistingAdminUserIdOr404(prisma, userId, reply))) return;
       const whereDoc = {
         deletedAt: null,
         grantUser: {
@@ -301,14 +330,14 @@ const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         }),
       };
       const [items, total] = await Promise.all([
-        request.server.prisma.document.findMany({
+        prisma.document.findMany({
           where: whereDoc,
           select: { id: true, title: true },
           orderBy: { title: 'asc' },
           take: query.limit,
           skip: query.offset,
         }),
-        request.server.prisma.document.count({ where: whereDoc }),
+        prisma.document.count({ where: whereDoc }),
       ]);
       return reply.send({
         items,
@@ -431,22 +460,17 @@ const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     async (request, reply) => {
       const { userId } = userIdParamSchema.parse(request.params);
       const body = resetPasswordBodySchema.parse(request.body);
-
-      const user = await request.server.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, passwordHash: true },
-      });
-      if (!user) {
-        return reply.status(404).send({ error: 'User not found.' });
-      }
-      if (user.passwordHash == null) {
-        return reply.status(400).send({
-          error: 'This user has no local login (SSO). Password cannot be set.',
-        });
-      }
+      const prisma = request.server.prisma;
+      const id = await requireLocalPasswordUserIdOrRespond(
+        prisma,
+        userId,
+        reply,
+        'This user has no local login (SSO). Password cannot be set.'
+      );
+      if (id === undefined) return;
 
       const passwordHash = await hashPassword(body.newPassword);
-      await request.server.prisma.user.update({
+      await prisma.user.update({
         where: { id: userId },
         data: { passwordHash },
       });
@@ -460,19 +484,13 @@ const adminUsersRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     { preHandler: preAdmin },
     async (request, reply) => {
       const { userId } = userIdParamSchema.parse(request.params);
-
-      const user = await request.server.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, passwordHash: true },
-      });
-      if (!user) {
-        return reply.status(404).send({ error: 'User not found.' });
-      }
-      if (user.passwordHash == null) {
-        return reply.status(400).send({
-          error: 'This user has no local login (SSO). Password reset is not applicable.',
-        });
-      }
+      const id = await requireLocalPasswordUserIdOrRespond(
+        request.server.prisma,
+        userId,
+        reply,
+        'This user has no local login (SSO). Password reset is not applicable.'
+      );
+      if (id === undefined) return;
 
       // Placeholder: später z. B. Reset-Token anlegen und E-Mail versenden
       return reply.status(204).send();

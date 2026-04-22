@@ -18,7 +18,6 @@ import {
   replaceDocumentDepartmentGrants,
   replaceDocumentTeamGrants,
   replaceDocumentUserGrants,
-  UnsupportedScopeWriteGrantError,
 } from '../services/collaboration/documentGrantsService.js';
 import {
   documentIdParamSchema,
@@ -29,8 +28,10 @@ import {
   createTagBodySchema,
   getTagsQuerySchema,
 } from '../schemas/documents.js';
-import { excludeUserIds } from '../../notifications/services/notificationRecipients.js';
-import { enqueueNotificationEvent } from '../services/route-support/documentRouteSupport.js';
+import {
+  handleUnsupportedScopeWriteGrant,
+  notifyDocumentGrantsChanged,
+} from './grants-tags-route-helpers.js';
 
 export const registerGrantsTagsRoutes = (app: FastifyInstance): void => {
   /** GET Grants (User, Team, Department) – requireDocumentAccess('read'). */
@@ -66,21 +67,12 @@ export const registerGrantsTagsRoutes = (app: FastifyInstance): void => {
       const { documentId } = documentIdParamSchema.parse(request.params);
       const { grants } = putGrantsUsersBodySchema.parse(request.body);
       const result = await replaceDocumentUserGrants(prisma, { documentId, grants });
-      try {
-        const targets = excludeUserIds(result.changedUserIds, actorUserId);
-        if (targets.length > 0) {
-          await enqueueNotificationEvent({
-            eventType: 'document-grants-changed',
-            targetUserIds: targets,
-            payload: { documentId, changedByUserId: actorUserId },
-          });
-        }
-      } catch (error) {
-        request.log.warn(
-          { error, documentId },
-          'Failed to enqueue notification job after user grants update'
-        );
-      }
+      await notifyDocumentGrantsChanged(request, {
+        documentId,
+        actorUserId,
+        changedUserIds: result.changedUserIds,
+        logMessage: 'Failed to enqueue notification job after user grants update',
+      });
       return reply.send({ grants: result.grants });
     }
   );
@@ -98,26 +90,15 @@ export const registerGrantsTagsRoutes = (app: FastifyInstance): void => {
       try {
         result = await replaceDocumentTeamGrants(prisma, { documentId, grants });
       } catch (error) {
-        if (error instanceof UnsupportedScopeWriteGrantError) {
-          return reply.status(400).send({ error: error.message });
-        }
+        if (handleUnsupportedScopeWriteGrant(reply, error)) return;
         throw error;
       }
-      try {
-        const targets = excludeUserIds(result.changedUserIds, actorUserId);
-        if (targets.length > 0) {
-          await enqueueNotificationEvent({
-            eventType: 'document-grants-changed',
-            targetUserIds: targets,
-            payload: { documentId, changedByUserId: actorUserId },
-          });
-        }
-      } catch (error) {
-        request.log.warn(
-          { error, documentId },
-          'Failed to enqueue notification job after team grants update'
-        );
-      }
+      await notifyDocumentGrantsChanged(request, {
+        documentId,
+        actorUserId,
+        changedUserIds: result.changedUserIds,
+        logMessage: 'Failed to enqueue notification job after team grants update',
+      });
       return reply.send({ grants: result.grants });
     }
   );
@@ -135,26 +116,15 @@ export const registerGrantsTagsRoutes = (app: FastifyInstance): void => {
       try {
         result = await replaceDocumentDepartmentGrants(prisma, { documentId, grants });
       } catch (error) {
-        if (error instanceof UnsupportedScopeWriteGrantError) {
-          return reply.status(400).send({ error: error.message });
-        }
+        if (handleUnsupportedScopeWriteGrant(reply, error)) return;
         throw error;
       }
-      try {
-        const targets = excludeUserIds(result.changedUserIds, actorUserId);
-        if (targets.length > 0) {
-          await enqueueNotificationEvent({
-            eventType: 'document-grants-changed',
-            targetUserIds: targets,
-            payload: { documentId, changedByUserId: actorUserId },
-          });
-        }
-      } catch (error) {
-        request.log.warn(
-          { error, documentId },
-          'Failed to enqueue notification job after department grants update'
-        );
-      }
+      await notifyDocumentGrantsChanged(request, {
+        documentId,
+        actorUserId,
+        changedUserIds: result.changedUserIds,
+        logMessage: 'Failed to enqueue notification job after department grants update',
+      });
       return reply.send({ grants: result.grants });
     }
   );

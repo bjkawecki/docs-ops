@@ -29,7 +29,6 @@ import { emptyBlockDocumentJson } from '../services/blocks/documentBlocksBackfil
 import { documentMarkdownFromRow } from '../services/query/documentMarkdownSnapshot.js';
 import {
   documentIdParamSchema,
-  attachmentIdParamSchema,
   createDocumentBodySchema,
   updateDocumentBodySchema,
 } from '../schemas/documents.js';
@@ -39,12 +38,14 @@ import {
   listUserIdsWhoCanReadOrWriteDocument,
 } from '../../notifications/services/notificationRecipients.js';
 import {
-  enqueueIncrementalReindexForDocument,
+  enqueueIncrementalReindexForDocumentSafe,
   enqueueNotificationEvent,
   buildDocumentDetailResponse,
   patchTouchesReaderVisibleFields,
   readerVisibleContentChanged,
 } from '../services/route-support/documentRouteSupport.js';
+import { requireStorageAndDocumentAttachment } from './document-attachment-route-helpers.js';
+import { routePrismaUserDocumentId } from './collaboration-route-helpers.js';
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -190,14 +191,9 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
     },
     async (request, reply) => {
-      const storage = request.server.storage;
-      if (!storage) return reply.status(503).send({ error: 'Storage not available' });
-      const prisma = request.server.prisma;
-      const { documentId, attachmentId } = attachmentIdParamSchema.parse(request.params);
-      const attachment = await prisma.documentAttachment.findFirst({
-        where: { id: attachmentId, documentId },
-      });
-      if (!attachment) return reply.status(404).send({ error: 'Attachment not found' });
+      const loaded = await requireStorageAndDocumentAttachment(request, reply);
+      if (!loaded) return;
+      const { storage, prisma, attachmentId, attachment } = loaded;
       await storage.deleteObject(attachment.objectKey);
       await prisma.documentAttachment.delete({ where: { id: attachmentId } });
       return reply.status(204).send();
@@ -209,9 +205,7 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
       preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
     },
     async (request, reply) => {
-      const prisma = request.server.prisma;
-      const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
       const doc = await prisma.document.findFirst({
         where: { id: documentId },
         include: {
@@ -274,18 +268,12 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
         where: { id: doc.id },
         select: DOCUMENT_CREATE_SELECT,
       });
-      try {
-        await enqueueIncrementalReindexForDocument({
-          documentId: doc.id,
-          contextId: null,
-          trigger: 'document-created',
-        });
-      } catch (error) {
-        request.log.warn(
-          { error, documentId: doc.id },
-          'Failed to enqueue reindex job after document creation'
-        );
-      }
+      await enqueueIncrementalReindexForDocumentSafe(request.log, {
+        documentId: doc.id,
+        contextId: null,
+        trigger: 'document-created',
+        warnMessage: 'Failed to enqueue reindex job after document creation',
+      });
       return reply.status(201).send(buildCreatedDocumentResponse(created));
     }
 
@@ -324,18 +312,12 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
       where: { id: doc.id },
       select: DOCUMENT_CREATE_SELECT,
     });
-    try {
-      await enqueueIncrementalReindexForDocument({
-        documentId: doc.id,
-        contextId: created.contextId,
-        trigger: 'document-created',
-      });
-    } catch (error) {
-      request.log.warn(
-        { error, documentId: doc.id },
-        'Failed to enqueue reindex job after document creation'
-      );
-    }
+    await enqueueIncrementalReindexForDocumentSafe(request.log, {
+      documentId: doc.id,
+      contextId: created.contextId,
+      trigger: 'document-created',
+      warnMessage: 'Failed to enqueue reindex job after document creation',
+    });
     return reply.status(201).send(buildCreatedDocumentResponse(created));
   });
   app.patch(
@@ -399,18 +381,12 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
           description: body.description,
           tagIds: body.tagIds,
         });
-        try {
-          await enqueueIncrementalReindexForDocument({
-            documentId,
-            contextId: doc.contextId,
-            trigger: 'document-updated',
-          });
-        } catch (error) {
-          request.log.warn(
-            { error, documentId },
-            'Failed to enqueue reindex job after document update'
-          );
-        }
+        await enqueueIncrementalReindexForDocumentSafe(request.log, {
+          documentId,
+          contextId: doc.contextId,
+          trigger: 'document-updated',
+          warnMessage: 'Failed to enqueue reindex job after document update',
+        });
         try {
           if (
             shouldConsiderReaderNotification &&
@@ -485,17 +461,11 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
         );
       }
       await deleteDocument(prisma, documentId);
-      try {
-        await enqueueIncrementalReindexForDocument({
-          documentId,
-          trigger: 'document-deleted',
-        });
-      } catch (error) {
-        request.log.warn(
-          { error, documentId },
-          'Failed to enqueue reindex job after document delete'
-        );
-      }
+      await enqueueIncrementalReindexForDocumentSafe(request.log, {
+        documentId,
+        trigger: 'document-deleted',
+        warnMessage: 'Failed to enqueue reindex job after document delete',
+      });
       try {
         await enqueueNotificationEvent({
           eventType: 'document-deleted',

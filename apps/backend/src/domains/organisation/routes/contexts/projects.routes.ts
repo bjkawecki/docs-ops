@@ -4,11 +4,6 @@ import {
   getEffectiveUserId,
   type RequestWithUser,
 } from '../../../auth/middleware.js';
-import {
-  canReadContext,
-  canWriteContext,
-  canCreateProcessOrProjectForOwner,
-} from '../../permissions/contextPermissions.js';
 import { setContextDisplayFromProject } from '../../services/contextOwnerDisplay.js';
 import {
   createProjectBodySchema,
@@ -17,6 +12,18 @@ import {
   updateProjectBodySchema,
 } from '../../schemas/contexts.js';
 import { ownerWhereFromQuery, parseIsoDateOrNull } from './route-helpers.js';
+import {
+  assertWriteContextOr403,
+  gateReadContextWithWriteHint,
+} from './context-entity-route-helpers.js';
+import {
+  assertCanCreateProcessOrProjectOr403,
+  ownerOptsFromProcessProjectCreateBody,
+} from './context-create-route-helpers.js';
+import {
+  contextDocumentsPreviewInclude,
+  filterEntitiesWithContextIdByReadAccess,
+} from './context-list-helpers.js';
 import { findOrCreateOwner } from '../../services/contexts/owner.service.js';
 import {
   getProjectContextIds,
@@ -42,14 +49,7 @@ function registerProjectRoutes(app: FastifyInstance): void {
         where,
         include: {
           context: {
-            include: {
-              documents: {
-                where: { deletedAt: null },
-                take: 5,
-                orderBy: { updatedAt: 'desc' },
-                select: { id: true, title: true },
-              },
-            },
+            include: contextDocumentsPreviewInclude,
           },
           owner: true,
           subcontexts: { select: { id: true, name: true } },
@@ -60,14 +60,7 @@ function registerProjectRoutes(app: FastifyInstance): void {
       }),
       prisma.project.count({ where }),
     ]);
-    const allowed = await Promise.all(
-      all.map(async (project) =>
-        (await canReadContext(prisma, userId, project.contextId)) ? project : null
-      )
-    );
-    const rawItems = allowed.filter(
-      (project): project is NonNullable<typeof project> => project !== null
-    );
+    const rawItems = await filterEntitiesWithContextIdByReadAccess(prisma, userId, all);
     const items = rawItems.map((project) => ({
       id: project.id,
       name: project.name,
@@ -83,20 +76,20 @@ function registerProjectRoutes(app: FastifyInstance): void {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const body = createProjectBodySchema.parse(request.body);
-    const allowed = await canCreateProcessOrProjectForOwner(prisma, userId, {
-      companyId: body.companyId ?? undefined,
-      departmentId: body.departmentId ?? undefined,
-      teamId: body.teamId ?? undefined,
-      ownerUserId: body.personal === true ? userId : undefined,
-    });
-    if (!allowed) return reply.status(403).send({ error: 'Permission denied to create project' });
+    const ownerOpts = ownerOptsFromProcessProjectCreateBody(body, userId);
+    if (
+      !(await assertCanCreateProcessOrProjectOr403(
+        prisma,
+        userId,
+        ownerOpts,
+        reply,
+        'Permission denied to create project'
+      ))
+    ) {
+      return;
+    }
 
-    const owner = await findOrCreateOwner(prisma, {
-      companyId: body.companyId ?? undefined,
-      departmentId: body.departmentId ?? undefined,
-      teamId: body.teamId ?? undefined,
-      ownerUserId: body.personal === true ? userId : undefined,
-    });
+    const owner = await findOrCreateOwner(prisma, ownerOpts);
     const context = await prisma.context.create({ data: {} });
     const project = await prisma.project.create({
       data: {
@@ -118,11 +111,13 @@ function registerProjectRoutes(app: FastifyInstance): void {
       where: { id: projectId },
       include: { context: true, owner: true, subcontexts: true },
     });
-    const [readAllowed, writeAllowed] = await Promise.all([
-      canReadContext(prisma, userId, project.contextId),
-      canWriteContext(prisma, userId, project.contextId),
-    ]);
-    if (!readAllowed) return reply.status(403).send({ error: 'No access' });
+    const writeAllowed = await gateReadContextWithWriteHint(
+      prisma,
+      userId,
+      project.contextId,
+      reply
+    );
+    if (writeAllowed === null) return;
     return reply.send({ ...project, canWriteContext: writeAllowed });
   });
 
@@ -137,8 +132,7 @@ function registerProjectRoutes(app: FastifyInstance): void {
         where: { id: projectId },
         select: { contextId: true },
       });
-      const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, project.contextId, reply))) return;
 
       const contextIds = await getProjectContextIds(prisma, projectId);
       const body = updateProjectBodySchema.parse(request.body);
@@ -176,8 +170,7 @@ function registerProjectRoutes(app: FastifyInstance): void {
         where: { id: projectId },
         select: { contextId: true },
       });
-      const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, project.contextId, reply))) return;
 
       const contextIds = await getProjectContextIds(prisma, projectId);
       await softDeleteProjectWithDocuments(prisma, projectId, contextIds);
@@ -199,8 +192,7 @@ function registerProjectRoutes(app: FastifyInstance): void {
       if (project.deletedAt == null) {
         return reply.status(400).send({ error: 'Project is not in trash' });
       }
-      const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, project.contextId, reply))) return;
 
       const contextIds = await getProjectContextIds(prisma, projectId);
       await restoreProjectWithDocuments(prisma, projectId, contextIds);
@@ -222,8 +214,7 @@ function registerProjectRoutes(app: FastifyInstance): void {
       if (project.archivedAt == null) {
         return reply.status(400).send({ error: 'Project is not archived' });
       }
-      const allowed = await canWriteContext(prisma, userId, project.contextId);
-      if (!allowed) return reply.status(403).send({ error: 'No write permission' });
+      if (!(await assertWriteContextOr403(prisma, userId, project.contextId, reply))) return;
 
       const contextIds = await getProjectContextIds(prisma, projectId);
       await unarchiveProjectWithDocuments(prisma, projectId, contextIds);

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginationQuerySchema } from '../../organisation/schemas/organisation.js';
 
 /** Body: PATCH /me – eigenes Profil (nur Anzeigename). E-Mail über Account. */
 export const patchMeBodySchema = z.object({
@@ -66,6 +67,12 @@ export const patchAccountBodySchema = z.object({
 export type PatchAccountBody = z.infer<typeof patchAccountBodySchema>;
 export { MIN_PASSWORD_LENGTH };
 
+/** Query: GET /me/personal-documents, GET /me/shared-documents (Pagination + optional publishedOnly). */
+export const meDocumentsListQuerySchema = paginationQuerySchema.extend({
+  publishedOnly: z.coerce.boolean().optional().default(false),
+});
+export type MeDocumentsListQuery = z.infer<typeof meDocumentsListQuerySchema>;
+
 /** Params: DELETE /me/sessions/:sessionId */
 export const sessionIdParamSchema = z.object({
   sessionId: z.string().min(1, 'Session-ID erforderlich'),
@@ -114,52 +121,49 @@ export const meStorageQuerySchema = z
   );
 export type MeStorageQuery = z.infer<typeof meStorageQuerySchema>;
 
+const meTrashArchiveListBaseFields = {
+  scope: z.enum(['personal', 'company', 'department', 'team']),
+  companyId: z.string().cuid().optional(),
+  departmentId: z.string().cuid().optional(),
+  teamId: z.string().cuid().optional(),
+  type: z.enum(['document', 'process', 'project']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+} satisfies Record<string, z.ZodTypeAny>;
+
+function refineMeTrashArchiveOrgScopeIds(q: {
+  scope: 'personal' | 'company' | 'department' | 'team';
+  companyId?: string | undefined;
+  departmentId?: string | undefined;
+  teamId?: string | undefined;
+}): boolean {
+  if (q.scope === 'company') return q.companyId != null;
+  if (q.scope === 'department') return q.departmentId != null;
+  if (q.scope === 'team') return q.teamId != null;
+  return true;
+}
+
+const meTrashArchiveOrgScopeRefine = {
+  message: 'companyId/departmentId/teamId required for scope company/department/team',
+} as const;
+
 /** Query: GET /me/trash – scope, type filter, sort, pagination. */
 export const meTrashQuerySchema = z
   .object({
-    scope: z.enum(['personal', 'company', 'department', 'team']),
-    companyId: z.string().cuid().optional(),
-    departmentId: z.string().cuid().optional(),
-    teamId: z.string().cuid().optional(),
-    type: z.enum(['document', 'process', 'project']).optional(),
+    ...meTrashArchiveListBaseFields,
     sortBy: z.enum(['deletedAt', 'title']).default('deletedAt'),
-    sortOrder: z.enum(['asc', 'desc']).default('desc'),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
-    offset: z.coerce.number().int().min(0).default(0),
   })
-  .refine(
-    (q) => {
-      if (q.scope === 'company') return q.companyId != null;
-      if (q.scope === 'department') return q.departmentId != null;
-      if (q.scope === 'team') return q.teamId != null;
-      return true;
-    },
-    { message: 'companyId/departmentId/teamId required for scope company/department/team' }
-  );
+  .refine(refineMeTrashArchiveOrgScopeIds, meTrashArchiveOrgScopeRefine);
 export type MeTrashQuery = z.infer<typeof meTrashQuerySchema>;
 
 /** Query: GET /me/archive – same as trash, sortBy uses archivedAt. */
 export const meArchiveQuerySchema = z
   .object({
-    scope: z.enum(['personal', 'company', 'department', 'team']),
-    companyId: z.string().cuid().optional(),
-    departmentId: z.string().cuid().optional(),
-    teamId: z.string().cuid().optional(),
-    type: z.enum(['document', 'process', 'project']).optional(),
+    ...meTrashArchiveListBaseFields,
     sortBy: z.enum(['archivedAt', 'title']).default('archivedAt'),
-    sortOrder: z.enum(['asc', 'desc']).default('desc'),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
-    offset: z.coerce.number().int().min(0).default(0),
   })
-  .refine(
-    (q) => {
-      if (q.scope === 'company') return q.companyId != null;
-      if (q.scope === 'department') return q.departmentId != null;
-      if (q.scope === 'team') return q.teamId != null;
-      return true;
-    },
-    { message: 'companyId/departmentId/teamId required for scope company/department/team' }
-  );
+  .refine(refineMeTrashArchiveOrgScopeIds, meTrashArchiveOrgScopeRefine);
 export type MeArchiveQuery = z.infer<typeof meArchiveQuerySchema>;
 
 /** Query: GET /me/can-write-in-scope – scope and scope id (company, department, or team). */
@@ -170,15 +174,7 @@ export const meCanWriteInScopeQuerySchema = z
     departmentId: z.string().cuid().optional(),
     teamId: z.string().cuid().optional(),
   })
-  .refine(
-    (q) => {
-      if (q.scope === 'company') return q.companyId != null;
-      if (q.scope === 'department') return q.departmentId != null;
-      if (q.scope === 'team') return q.teamId != null;
-      return true;
-    },
-    { message: 'companyId/departmentId/teamId required for scope company/department/team' }
-  );
+  .refine(refineMeTrashArchiveOrgScopeIds, meTrashArchiveOrgScopeRefine);
 export type MeCanWriteInScopeQuery = z.infer<typeof meCanWriteInScopeQuerySchema>;
 
 /** Response: GET /me/can-write-in-scope. */

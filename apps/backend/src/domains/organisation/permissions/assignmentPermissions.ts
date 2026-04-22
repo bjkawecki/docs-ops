@@ -10,7 +10,61 @@ import {
   isTeamLeadInDepartment,
   isTeamMember,
   loadActiveUser,
+  type LoadedUser,
 } from './userAccessPredicates.js';
+
+const teamAccessSelect = { id: true, departmentId: true } as const;
+
+async function loadUserAndTeam(
+  prisma: PrismaClient,
+  userId: string,
+  teamId: string
+): Promise<{ user: LoadedUser; team: { id: string; departmentId: string } } | null> {
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return null;
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: teamAccessSelect,
+  });
+  if (!team) return null;
+  return { user, team };
+}
+
+async function loadUserAndDepartment(
+  prisma: PrismaClient,
+  userId: string,
+  departmentId: string
+): Promise<{ user: LoadedUser } | null> {
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return null;
+  const department = await prisma.department.findUnique({
+    where: { id: departmentId },
+    select: { id: true },
+  });
+  if (!department) return null;
+  return { user };
+}
+
+async function loadUserAndCompany(
+  prisma: PrismaClient,
+  userId: string,
+  companyId: string
+): Promise<{ user: LoadedUser } | null> {
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return null;
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+  if (!company) return null;
+  return { user };
+}
+
+function teamDeptLeadOrAdmin(row: { user: LoadedUser; team: { departmentId: string } }): boolean {
+  if (row.user.isAdmin) return true;
+  if (isDepartmentLead(row.user, row.team.departmentId)) return true;
+  return false;
+}
 
 /**
  * Prüft, ob der Nutzer TeamMember für das Team anlegen/entfernen darf.
@@ -21,18 +75,10 @@ export async function canManageTeamMembers(
   userId: string,
   teamId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { id: true, departmentId: true },
-  });
-  if (!team) return false;
-
-  if (user.isAdmin) return true;
-  if (isDepartmentLead(user, team.departmentId)) return true;
-  if (isTeamLead(user, teamId)) return true;
+  const row = await loadUserAndTeam(prisma, userId, teamId);
+  if (!row) return false;
+  if (teamDeptLeadOrAdmin(row)) return true;
+  if (isTeamLead(row.user, teamId)) return true;
   return false;
 }
 
@@ -45,18 +91,9 @@ export async function canManageTeamLeaders(
   userId: string,
   teamId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { departmentId: true },
-  });
-  if (!team) return false;
-
-  if (user.isAdmin) return true;
-  if (isDepartmentLead(user, team.departmentId)) return true;
-  return false;
+  const row = await loadUserAndTeam(prisma, userId, teamId);
+  if (!row) return false;
+  return teamDeptLeadOrAdmin(row);
 }
 
 /**
@@ -68,16 +105,9 @@ export async function canManageDepartmentLeads(
   userId: string,
   departmentId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const department = await prisma.department.findUnique({
-    where: { id: departmentId },
-    select: { id: true },
-  });
-  if (!department) return false;
-
-  return user.isAdmin;
+  const row = await loadUserAndDepartment(prisma, userId, departmentId);
+  if (!row) return false;
+  return row.user.isAdmin;
 }
 
 /**
@@ -89,19 +119,11 @@ export async function canViewTeam(
   userId: string,
   teamId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { departmentId: true },
-  });
-  if (!team) return false;
-
-  if (user.isAdmin) return true;
-  if (isDepartmentLead(user, team.departmentId)) return true;
-  if (isTeamMember(user, teamId)) return true;
-  if (isTeamLead(user, teamId)) return true;
+  const row = await loadUserAndTeam(prisma, userId, teamId);
+  if (!row) return false;
+  if (teamDeptLeadOrAdmin(row)) return true;
+  if (isTeamMember(row.user, teamId)) return true;
+  if (isTeamLead(row.user, teamId)) return true;
   return false;
 }
 
@@ -114,15 +136,9 @@ export async function canViewDepartment(
   userId: string,
   departmentId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const department = await prisma.department.findUnique({
-    where: { id: departmentId },
-    select: { id: true },
-  });
-  if (!department) return false;
-
+  const row = await loadUserAndDepartment(prisma, userId, departmentId);
+  if (!row) return false;
+  const { user } = row;
   if (user.isAdmin) return true;
   if (isDepartmentLead(user, departmentId)) return true;
   const isTeamLeadInDept = isTeamLeadInDepartment(user, departmentId);
@@ -141,16 +157,9 @@ export async function canManageCompanyLeads(
   userId: string,
   companyId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { id: true },
-  });
-  if (!company) return false;
-
-  return user.isAdmin;
+  const row = await loadUserAndCompany(prisma, userId, companyId);
+  if (!row) return false;
+  return row.user.isAdmin;
 }
 
 /**
@@ -162,15 +171,9 @@ export async function canViewCompany(
   userId: string,
   companyId: string
 ): Promise<boolean> {
-  const user = await loadActiveUser(prisma, userId);
-  if (!user) return false;
-
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { id: true },
-  });
-  if (!company) return false;
-
+  const row = await loadUserAndCompany(prisma, userId, companyId);
+  if (!row) return false;
+  const { user } = row;
   if (user.isAdmin) return true;
   if (isCompanyLead(user, companyId)) return true;
   const deptLeadInCompany = isDeptLeadInCompany(user, companyId);

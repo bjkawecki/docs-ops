@@ -173,6 +173,24 @@ export type ResolveSuggestionCommentInput = {
   comment?: string | null;
 };
 
+const suggestionResolvedRowInclude = {
+  author: { select: { id: true, name: true } },
+  resolvedBy: { select: { id: true, name: true } },
+} as const;
+
+function buildSuggestionResolveUpdateData(
+  resolverUserId: string,
+  input: ResolveSuggestionCommentInput,
+  status: typeof DocumentSuggestionStatus.accepted | typeof DocumentSuggestionStatus.rejected
+) {
+  return {
+    status,
+    resolvedAt: new Date(),
+    resolvedById: resolverUserId,
+    comment: input.comment?.trim() ? input.comment.trim() : null,
+  };
+}
+
 export async function rejectDocumentSuggestion(
   prisma: PrismaClient,
   documentId: string,
@@ -191,16 +209,12 @@ export async function rejectDocumentSuggestion(
 
   return prisma.documentSuggestion.update({
     where: { id: row.id },
-    data: {
-      status: DocumentSuggestionStatus.rejected,
-      resolvedAt: new Date(),
-      resolvedById: resolverUserId,
-      comment: input.comment?.trim() ? input.comment.trim() : null,
-    },
-    include: {
-      author: { select: { id: true, name: true } },
-      resolvedBy: { select: { id: true, name: true } },
-    },
+    data: buildSuggestionResolveUpdateData(
+      resolverUserId,
+      input,
+      DocumentSuggestionStatus.rejected
+    ),
+    include: suggestionResolvedRowInclude,
   });
 }
 
@@ -266,16 +280,12 @@ export async function acceptDocumentSuggestion(
 
     const saved = await tx.documentSuggestion.update({
       where: { id: suggestionId },
-      data: {
-        status: DocumentSuggestionStatus.accepted,
-        resolvedAt: new Date(),
-        resolvedById: resolverUserId,
-        comment: input.comment?.trim() ? input.comment.trim() : null,
-      },
-      include: {
-        author: { select: { id: true, name: true } },
-        resolvedBy: { select: { id: true, name: true } },
-      },
+      data: buildSuggestionResolveUpdateData(
+        resolverUserId,
+        input,
+        DocumentSuggestionStatus.accepted
+      ),
+      include: suggestionResolvedRowInclude,
     });
 
     return { suggestion: saved, draftRevision: doc.draftRevision + 1, blocks: validated.data };

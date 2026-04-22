@@ -32,6 +32,46 @@ export const trashArchiveContextSelect = {
   },
 } as const;
 
+const trashArchiveProcessProjectSelect = {
+  id: true,
+  name: true,
+  contextId: true,
+  deletedAt: true,
+  archivedAt: true,
+} as const;
+
+function trashOrArchiveProcessProjectWhereForTeam(mode: 'trash' | 'archive', teamId: string) {
+  return mode === 'trash'
+    ? { deletedAt: { not: null }, owner: { teamId } }
+    : { archivedAt: { not: null }, deletedAt: null, owner: { teamId } };
+}
+
+function trashOrArchiveProcessProjectWhereForContexts(
+  mode: 'trash' | 'archive',
+  scopeContextIds: string[]
+) {
+  return mode === 'trash'
+    ? { deletedAt: { not: null }, contextId: { in: scopeContextIds } }
+    : {
+        archivedAt: { not: null },
+        deletedAt: null,
+        contextId: { in: scopeContextIds },
+      };
+}
+
+function trashOrArchiveDocumentWhereInContexts(
+  mode: 'trash' | 'archive',
+  scopeContextIds: string[]
+) {
+  return mode === 'trash'
+    ? { deletedAt: { not: null }, contextId: { in: scopeContextIds } }
+    : {
+        deletedAt: null,
+        archivedAt: { not: null },
+        contextId: { in: scopeContextIds },
+      };
+}
+
 /**
  * Builds the list of trash or archive items for an org scope (company/department/team).
  * Personal scope is handled separately in the route.
@@ -59,63 +99,23 @@ export async function getTrashOrArchiveItems(
     scopeRef.type === 'team'
       ? await Promise.all([
           prisma.process.findMany({
-            where: isTrash
-              ? { deletedAt: { not: null }, owner: { teamId: scopeRef.teamId } }
-              : { archivedAt: { not: null }, deletedAt: null, owner: { teamId: scopeRef.teamId } },
-            select: {
-              id: true,
-              name: true,
-              contextId: true,
-              deletedAt: true,
-              archivedAt: true,
-            },
+            where: trashOrArchiveProcessProjectWhereForTeam(mode, scopeRef.teamId),
+            select: trashArchiveProcessProjectSelect,
           }),
           prisma.project.findMany({
-            where: isTrash
-              ? { deletedAt: { not: null }, owner: { teamId: scopeRef.teamId } }
-              : { archivedAt: { not: null }, deletedAt: null, owner: { teamId: scopeRef.teamId } },
-            select: {
-              id: true,
-              name: true,
-              contextId: true,
-              deletedAt: true,
-              archivedAt: true,
-            },
+            where: trashOrArchiveProcessProjectWhereForTeam(mode, scopeRef.teamId),
+            select: trashArchiveProcessProjectSelect,
           }),
         ])
       : scopeContextIds.length > 0
         ? await Promise.all([
             prisma.process.findMany({
-              where: isTrash
-                ? { deletedAt: { not: null }, contextId: { in: scopeContextIds } }
-                : {
-                    archivedAt: { not: null },
-                    deletedAt: null,
-                    contextId: { in: scopeContextIds },
-                  },
-              select: {
-                id: true,
-                name: true,
-                contextId: true,
-                deletedAt: true,
-                archivedAt: true,
-              },
+              where: trashOrArchiveProcessProjectWhereForContexts(mode, scopeContextIds),
+              select: trashArchiveProcessProjectSelect,
             }),
             prisma.project.findMany({
-              where: isTrash
-                ? { deletedAt: { not: null }, contextId: { in: scopeContextIds } }
-                : {
-                    archivedAt: { not: null },
-                    deletedAt: null,
-                    contextId: { in: scopeContextIds },
-                  },
-              select: {
-                id: true,
-                name: true,
-                contextId: true,
-                deletedAt: true,
-                archivedAt: true,
-              },
+              where: trashOrArchiveProcessProjectWhereForContexts(mode, scopeContextIds),
+              select: trashArchiveProcessProjectSelect,
             }),
           ])
         : [[], []];
@@ -127,13 +127,7 @@ export async function getTrashOrArchiveItems(
     scopeContextIds.length > 0
       ? await prisma.document
           .findMany({
-            where: isTrash
-              ? { deletedAt: { not: null }, contextId: { in: scopeContextIds } }
-              : {
-                  deletedAt: null,
-                  archivedAt: { not: null },
-                  contextId: { in: scopeContextIds },
-                },
+            where: trashOrArchiveDocumentWhereInContexts(mode, scopeContextIds),
             select: { id: true },
           })
           .then((r) => r.map((d) => d.id))
