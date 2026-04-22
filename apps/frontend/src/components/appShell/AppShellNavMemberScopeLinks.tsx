@@ -1,7 +1,6 @@
-import { Link } from 'react-router-dom';
-import { NavLink, Text } from '@mantine/core';
 import { IconBuildingSkyscraper, IconSitemap, IconUsersGroup } from '@tabler/icons-react';
 import { isActive } from './appShellNavUtils.js';
+import { AppShellScopeNavLink } from './AppShellScopeNavLink';
 
 type Props = {
   pathname: string;
@@ -22,27 +21,21 @@ export function AppShellNavMemberScopeLinks({
   departmentCounts,
   teamCounts,
 }: Props) {
+  const departmentBadge =
+    userDepartmentId !== undefined ? departmentCounts[userDepartmentId] : undefined;
+  const teamBadge = userTeamId !== undefined ? teamCounts[userTeamId] : undefined;
+
   return (
     <>
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to="/company"
         label="Company"
         active={isActive('/company', pathname)}
         leftSection={<IconBuildingSkyscraper size={18} />}
-        rightSection={
-          companyCount !== undefined && companyCount > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {companyCount}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={companyCount}
       />
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to={userDepartmentId ? `/department/${userDepartmentId}` : '/department'}
         label="Department"
         active={
@@ -51,34 +44,18 @@ export function AppShellNavMemberScopeLinks({
             : isActive('/department', pathname)
         }
         leftSection={<IconSitemap size={18} />}
-        rightSection={
-          userDepartmentId &&
-          departmentCounts[userDepartmentId] !== undefined &&
-          departmentCounts[userDepartmentId] > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {departmentCounts[userDepartmentId]}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={departmentBadge}
       />
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to={userTeamId ? `/team/${userTeamId}` : '/team'}
         label="Team"
         active={
           userTeamId ? isActive(`/team/${userTeamId}`, pathname) : isActive('/team', pathname)
         }
         leftSection={<IconUsersGroup size={18} />}
-        rightSection={
-          userTeamId && teamCounts[userTeamId] !== undefined && teamCounts[userTeamId] > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {teamCounts[userTeamId]}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={teamBadge}
       />
     </>
   );

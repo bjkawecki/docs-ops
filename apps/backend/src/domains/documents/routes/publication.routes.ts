@@ -42,7 +42,7 @@ import { requireStorageAndDocumentAttachment } from './document-attachment-route
 
 const QUEUE_RETRY_AFTER_SECONDS = 15;
 const exportPdfStatusParamsSchema = z.object({
-  documentId: z.string().cuid(),
+  documentId: z.cuid(),
   jobId: z.string().min(1),
 });
 

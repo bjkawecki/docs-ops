@@ -65,15 +65,16 @@ function addTeamMembershipCatalogRow(
   teamsByUser: Map<string, Array<{ id: string; name: string; departmentName: string }>>,
   departmentsByUser: Map<string, Array<{ id: string; name: string }>>
 ): void {
-  if (!r.team?.department) return;
+  const team = r.team;
+  if (!team?.department) return;
   const list = teamsByUser.get(r.userId) ?? [];
-  if (!list.some((t) => t.id === r.team.id)) {
-    list.push({ id: r.team.id, name: r.team.name, departmentName: r.team.department.name });
+  if (!list.some((t) => t.id === team.id)) {
+    list.push({ id: team.id, name: team.name, departmentName: team.department.name });
   }
   teamsByUser.set(r.userId, list);
   const deptList = departmentsByUser.get(r.userId) ?? [];
-  if (!deptList.some((d) => d.id === r.team.department.id)) {
-    deptList.push({ id: r.team.department.id, name: r.team.department.name });
+  if (!deptList.some((d) => d.id === team.department.id)) {
+    deptList.push({ id: team.department.id, name: team.department.name });
   }
   departmentsByUser.set(r.userId, deptList);
 }

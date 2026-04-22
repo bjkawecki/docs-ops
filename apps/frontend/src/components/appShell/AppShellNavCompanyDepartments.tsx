@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import type { DepartmentWithTeams } from './appShellNavUtils.js';
 import { isActive } from './appShellNavUtils.js';
+import { AppShellScopeNavLink } from './AppShellScopeNavLink';
 
 type Props = {
   pathname: string;
@@ -42,21 +43,13 @@ export function AppShellNavCompanyDepartments({
 
   return (
     <>
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to="/company"
         label="Company"
         active={isActive('/company', pathname)}
         leftSection={<IconBuildingSkyscraper size={18} />}
-        rightSection={
-          companyCount !== undefined && companyCount > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {companyCount}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={companyCount}
       />
       <Box
         data-sidebar-parent

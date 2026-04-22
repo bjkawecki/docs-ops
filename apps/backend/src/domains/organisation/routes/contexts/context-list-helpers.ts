@@ -18,5 +18,5 @@ export async function filterEntitiesWithContextIdByReadAccess<T extends { contex
   const allowed = await Promise.all(
     rows.map(async (row) => ((await canReadContext(prisma, userId, row.contextId)) ? row : null))
   );
-  return allowed.filter((row): row is T => row !== null);
+  return allowed.filter((row) => row !== null) as T[];
 }

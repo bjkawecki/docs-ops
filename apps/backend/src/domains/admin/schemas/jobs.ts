@@ -7,7 +7,7 @@ export const listAdminJobsQuerySchema = z.object({
   state: z
     .enum(['created', 'retry', 'active', 'completed', 'cancelled', 'failed', 'expired'])
     .optional(),
-  requestedByUserId: z.string().cuid().optional(),
+  requestedByUserId: z.cuid().optional(),
   search: z.string().min(1).max(255).optional(),
 });
 

@@ -36,7 +36,7 @@ export const createTeamBodySchema = z.object({
 /** Body: Team aktualisieren (Name und/oder Abteilung wechseln). */
 export const updateTeamBodySchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  departmentId: z.string().cuid().optional(),
+  departmentId: z.cuid().optional(),
 });
 
 /** Params: companyId. */

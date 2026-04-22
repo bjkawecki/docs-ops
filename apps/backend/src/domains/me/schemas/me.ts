@@ -11,7 +11,7 @@ export type PatchMeBody = z.infer<typeof patchMeBodySchema>;
 /** Body: PATCH /me/preferences – Theme, Sidebar-Pin, Locale, Zuletzt angesehene pro Scope. */
 const recentItemSchema = z.object({
   type: z.enum(['process', 'project', 'document']),
-  id: z.string().cuid(),
+  id: z.cuid(),
   name: z.string().max(255).optional(),
 });
 
@@ -83,9 +83,9 @@ export type SessionIdParam = z.infer<typeof sessionIdParamSchema>;
 const draftsScopeSchema = z
   .object({
     scope: z.enum(['personal', 'shared']).optional(),
-    companyId: z.string().cuid().optional(),
-    departmentId: z.string().cuid().optional(),
-    teamId: z.string().cuid().optional(),
+    companyId: z.cuid().optional(),
+    departmentId: z.cuid().optional(),
+    teamId: z.cuid().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
   })
@@ -105,9 +105,9 @@ export type MeDraftsQuery = z.infer<typeof meDraftsQuerySchema>;
 export const meStorageQuerySchema = z
   .object({
     scope: z.enum(['personal', 'team', 'department', 'company']).optional(),
-    teamId: z.string().cuid().optional(),
-    departmentId: z.string().cuid().optional(),
-    companyId: z.string().cuid().optional(),
+    teamId: z.cuid().optional(),
+    departmentId: z.cuid().optional(),
+    companyId: z.cuid().optional(),
   })
   .refine(
     (q) => {
@@ -123,9 +123,9 @@ export type MeStorageQuery = z.infer<typeof meStorageQuerySchema>;
 
 const meTrashArchiveListBaseFields = {
   scope: z.enum(['personal', 'company', 'department', 'team']),
-  companyId: z.string().cuid().optional(),
-  departmentId: z.string().cuid().optional(),
-  teamId: z.string().cuid().optional(),
+  companyId: z.cuid().optional(),
+  departmentId: z.cuid().optional(),
+  teamId: z.cuid().optional(),
   type: z.enum(['document', 'process', 'project']).optional(),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -170,9 +170,9 @@ export type MeArchiveQuery = z.infer<typeof meArchiveQuerySchema>;
 export const meCanWriteInScopeQuerySchema = z
   .object({
     scope: z.enum(['company', 'department', 'team']),
-    companyId: z.string().cuid().optional(),
-    departmentId: z.string().cuid().optional(),
-    teamId: z.string().cuid().optional(),
+    companyId: z.cuid().optional(),
+    departmentId: z.cuid().optional(),
+    teamId: z.cuid().optional(),
   })
   .refine(refineMeTrashArchiveOrgScopeIds, meTrashArchiveOrgScopeRefine);
 export type MeCanWriteInScopeQuery = z.infer<typeof meCanWriteInScopeQuerySchema>;

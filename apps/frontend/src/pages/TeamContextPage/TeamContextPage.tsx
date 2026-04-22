@@ -18,6 +18,7 @@ import { TeamDocumentsPanel } from './TeamDocumentsPanel';
 import { TeamOverviewPanel } from './TeamOverviewPanel';
 import { TeamProcessesPanel } from './TeamProcessesPanel';
 import { TeamProjectsPanel } from './TeamProjectsPanel';
+import { useScopedCatalogDocumentsUrlState } from '../contextScope/useScopedCatalogDocumentsUrlState';
 import type {
   DeleteTarget,
   EditTarget,
@@ -102,16 +103,19 @@ export function TeamContextPage() {
   const teamScope = teamId != null ? { type: 'team' as const, id: teamId } : null;
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const docsSortBy = searchParams.get('docsSortBy') ?? 'updatedAt';
-  const docsSortOrder = searchParams.get('docsSortOrder') ?? 'desc';
-  const docsPage = Math.max(1, parseInt(searchParams.get('docsPage') ?? '1', 10));
-  const docsLimitParam = searchParams.get('docsLimit');
-  const docsLimit = docsLimitParam
-    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 10))
-    : 10;
-  const docsOffset = (docsPage - 1) * docsLimit;
-  const docsSearch = searchParams.get('docsSearch') ?? '';
-  const docsContextType = searchParams.get('docsContextType') ?? '';
+  const {
+    docsSortBy,
+    docsSortOrder,
+    docsPage,
+    docsLimit,
+    docsOffset,
+    docsSearch,
+    docsContextType,
+    setDocsFilter,
+    setDocsSort,
+    setDocsPage,
+    setDocsLimit,
+  } = useScopedCatalogDocumentsUrlState(searchParams, setSearchParams);
 
   const teamDocumentsParams = [
     teamId ?? '',
@@ -146,56 +150,6 @@ export function TeamContextPage() {
   const docsTotal = teamDocsRes?.total ?? 0;
   const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
   const teamDocs = teamDocsRes?.items ?? [];
-
-  const setDocsFilter = useCallback(
-    (key: string, value: string | null) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (value == null || value === '') next.delete(key);
-        else next.set(key, value);
-        next.delete('docsPage');
-        return next;
-      });
-    },
-    [setSearchParams]
-  );
-
-  const setDocsSort = useCallback(
-    (col: string) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        const order = docsSortBy === col && docsSortOrder === 'desc' ? 'asc' : 'desc';
-        next.set('docsSortBy', col);
-        next.set('docsSortOrder', order);
-        next.delete('docsPage');
-        return next;
-      });
-    },
-    [docsSortBy, docsSortOrder, setSearchParams]
-  );
-
-  const setDocsPage = useCallback(
-    (p: number) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set('docsPage', String(p));
-        return next;
-      });
-    },
-    [setSearchParams]
-  );
-
-  const setDocsLimit = useCallback(
-    (value: number) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set('docsLimit', String(value));
-        next.delete('docsPage');
-        return next;
-      });
-    },
-    [setSearchParams]
-  );
 
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({ queryKey: ['processes', 'team', teamId ?? ''] });

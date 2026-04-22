@@ -10,13 +10,13 @@ export const listPinnedQuerySchema = z.object({
 
 /** Params: pinned item id. */
 export const pinnedIdParamSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
 });
 
 /** Body: Document in Scope anpinnen. */
 export const createPinnedBodySchema = z.object({
   scopeType: pinnedScopeTypeSchema,
   scopeId: z.string().min(1),
-  documentId: z.string().cuid(),
+  documentId: z.cuid(),
   order: z.number().int().min(0).optional(),
 });

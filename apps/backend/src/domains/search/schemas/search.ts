@@ -4,7 +4,7 @@ import { paginationQuerySchema } from '../../organisation/schemas/organisation.j
 export const searchDocumentsQuerySchema = paginationQuerySchema.extend({
   q: z.string().min(1).max(300),
   contextType: z.enum(['process', 'project']).optional(),
-  companyId: z.string().cuid().optional(),
-  departmentId: z.string().cuid().optional(),
-  teamId: z.string().cuid().optional(),
+  companyId: z.cuid().optional(),
+  departmentId: z.cuid().optional(),
+  teamId: z.cuid().optional(),
 });

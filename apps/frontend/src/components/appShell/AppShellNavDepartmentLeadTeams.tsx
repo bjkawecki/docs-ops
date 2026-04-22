@@ -8,6 +8,7 @@ import {
   IconUsersGroup,
 } from '@tabler/icons-react';
 import { isActive } from './appShellNavUtils.js';
+import { AppShellScopeNavLink } from './AppShellScopeNavLink';
 
 type TeamItem = { id: string; name: string };
 
@@ -36,37 +37,21 @@ export function AppShellNavDepartmentLeadTeams({
 }: Props) {
   return (
     <>
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to="/company"
         label="Company"
         active={isActive('/company', pathname)}
         leftSection={<IconBuildingSkyscraper size={18} />}
-        rightSection={
-          companyCount !== undefined && companyCount > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {companyCount}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={companyCount}
       />
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to={`/department/${departmentId}`}
         label="Department"
         active={isActive(`/department/${departmentId}`, pathname)}
         leftSection={<IconSitemap size={18} />}
-        rightSection={
-          departmentCounts[departmentId] !== undefined && departmentCounts[departmentId] > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {departmentCounts[departmentId]}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={departmentCounts[departmentId]}
       />
       <Box
         data-sidebar-parent

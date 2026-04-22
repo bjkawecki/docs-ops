@@ -6,17 +6,17 @@ export type { PaginationQuery };
 
 /** Query: Liste Prozesse (Pagination + optional nach Company/Department/Team/User filtern). */
 export const processListQuerySchema = paginationQuerySchema.extend({
-  companyId: z.string().cuid().optional(),
-  departmentId: z.string().cuid().optional(),
-  teamId: z.string().cuid().optional(),
+  companyId: z.cuid().optional(),
+  departmentId: z.cuid().optional(),
+  teamId: z.cuid().optional(),
   ownerUserId: z.enum(['me']).optional(),
 });
 
 /** Query: Liste Projekte (Pagination + optional nach Company/Department/Team/User filtern). */
 export const projectListQuerySchema = paginationQuerySchema.extend({
-  companyId: z.string().cuid().optional(),
-  departmentId: z.string().cuid().optional(),
-  teamId: z.string().cuid().optional(),
+  companyId: z.cuid().optional(),
+  departmentId: z.cuid().optional(),
+  teamId: z.cuid().optional(),
   ownerUserId: z.enum(['me']).optional(),
 });
 

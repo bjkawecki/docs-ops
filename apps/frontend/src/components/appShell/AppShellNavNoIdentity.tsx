@@ -1,7 +1,6 @@
-import { Link } from 'react-router-dom';
-import { NavLink, Text } from '@mantine/core';
 import { IconBuildingSkyscraper, IconSitemap, IconUsersGroup } from '@tabler/icons-react';
 import { isActive } from './appShellNavUtils.js';
+import { AppShellScopeNavLink } from './AppShellScopeNavLink';
 
 type Props = {
   pathname: string;
@@ -12,39 +11,27 @@ type Props = {
 export function AppShellNavNoIdentity({ pathname, navLinkStyles, companyCount }: Props) {
   return (
     <>
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to="/company"
         label="Company"
         active={isActive('/company', pathname)}
         leftSection={<IconBuildingSkyscraper size={18} />}
-        rightSection={
-          companyCount !== undefined && companyCount > 0 ? (
-            <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-              {companyCount}
-            </Text>
-          ) : null
-        }
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
+        badgeCount={companyCount}
       />
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to="/department"
         label="Department"
         active={isActive('/department', pathname)}
         leftSection={<IconSitemap size={18} />}
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
       />
-      <NavLink
-        data-sidebar-link
-        component={Link}
+      <AppShellScopeNavLink
         to="/team"
         label="Team"
         active={isActive('/team', pathname)}
         leftSection={<IconUsersGroup size={18} />}
-        styles={navLinkStyles}
+        navLinkStyles={navLinkStyles}
       />
     </>
   );

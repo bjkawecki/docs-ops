@@ -191,7 +191,14 @@ function registerMeTrashArchiveRoutes(app: FastifyInstance): void {
     if (query.scope === 'personal') {
       await appendPersonalTrashItems(prisma, userId, allItems);
     } else {
-      const scopeRef = orgScopeRefFromMeOrgQuery(query);
+      const scopeRef = orgScopeRefFromMeOrgQuery(
+        query as {
+          scope: 'company' | 'department' | 'team';
+          companyId?: string;
+          departmentId?: string;
+          teamId?: string;
+        }
+      );
       const result = await getTrashOrArchiveItems(prisma, userId, scopeRef, 'trash');
       if ('emptyReason' in result) {
         return sendEmptyMeTrashArchivePage(reply, query);
@@ -215,7 +222,14 @@ function registerMeTrashArchiveRoutes(app: FastifyInstance): void {
     if (query.scope === 'personal') {
       await appendPersonalArchiveItems(prisma, userId, allItems);
     } else {
-      const scopeRef = orgScopeRefFromMeOrgQuery(query);
+      const scopeRef = orgScopeRefFromMeOrgQuery(
+        query as {
+          scope: 'company' | 'department' | 'team';
+          companyId?: string;
+          departmentId?: string;
+          teamId?: string;
+        }
+      );
       const result = await getTrashOrArchiveItems(prisma, userId, scopeRef, 'archive');
       if ('emptyReason' in result) {
         return sendEmptyMeTrashArchivePage(reply, query);

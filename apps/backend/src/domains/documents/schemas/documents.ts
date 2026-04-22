@@ -11,7 +11,7 @@ function normalizeToCuidArray(v: unknown): string[] {
   if (typeof v === 'string') return [v];
   return [];
 }
-const cuidArray = z.preprocess(normalizeToCuidArray, z.array(z.string().cuid()));
+const cuidArray = z.preprocess(normalizeToCuidArray, z.array(z.cuid()));
 
 /** Query: GET /documents (catalog list) – pagination + filters + sort. */
 export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
@@ -69,7 +69,7 @@ export const attachmentIdParamSchema = z.object({
 export const createDocumentBodySchema = z
   .object({
     title: z.string().min(1).max(500),
-    contextId: z.string().cuid().optional(),
+    contextId: z.cuid().optional(),
     tagIds: z.array(z.cuid()).optional().default([]),
     description: z.string().max(500).trim().optional(),
   })
@@ -80,7 +80,7 @@ export const createDocumentBodySchema = z
 /** Body: Dokument-Metadaten aktualisieren (title, contextId, description, tagIds). Lifecycle nur über dedizierte Endpoints. */
 export const updateDocumentBodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
-  contextId: z.string().cuid().optional().nullable(),
+  contextId: z.cuid().optional().nullable(),
   tagIds: z.array(z.cuid()).optional(),
   description: z.string().max(500).trim().optional().nullable(),
 });
@@ -100,7 +100,7 @@ export const listDocumentSuggestionsQuerySchema = z.object({
 export const createDocumentSuggestionBodySchema = z.object({
   baseDraftRevision: z.number().int().min(0),
   ops: z.unknown(),
-  publishedVersionId: z.string().cuid().optional().nullable(),
+  publishedVersionId: z.cuid().optional().nullable(),
 });
 
 /** Body: POST accept/reject (Lead, optional Kommentar). */
@@ -145,13 +145,13 @@ export const putGrantsDepartmentsBodySchema = grantsReplaceBodySchema('departmen
 
 /** Params: tagId. */
 export const tagIdParamSchema = z.object({
-  tagId: z.string().cuid(),
+  tagId: z.cuid(),
 });
 
 /** Query: GET /tags – Scope via ownerId oder contextId (mindestens einer nötig). */
 export const getTagsQuerySchema = z.object({
-  ownerId: z.string().cuid().optional(),
-  contextId: z.string().cuid().optional(),
+  ownerId: z.cuid().optional(),
+  contextId: z.cuid().optional(),
 });
 
 /** Body: Tag anlegen (scope-gebunden). ownerId oder contextId (wird auf ownerId aufgelöst). */
@@ -162,8 +162,8 @@ export const createTagBodySchema = z
       .min(1)
       .max(100)
       .transform((s) => s.trim()),
-    ownerId: z.string().cuid().optional(),
-    contextId: z.string().cuid().optional(),
+    ownerId: z.cuid().optional(),
+    contextId: z.cuid().optional(),
   })
   .refine((data) => data.ownerId != null || data.contextId != null, {
     message: 'ownerId or contextId is required',
@@ -173,8 +173,8 @@ const DOCUMENT_COMMENT_TEXT_MAX = 16_000;
 
 /** Params: documentId + commentId. */
 export const documentCommentIdParamSchema = z.object({
-  documentId: z.string().cuid(),
-  commentId: z.string().cuid(),
+  documentId: z.cuid(),
+  commentId: z.cuid(),
 });
 
 /** Body: POST document comment. */
@@ -184,7 +184,7 @@ export const createDocumentCommentBodySchema = z
       .string()
       .transform((s) => s.trim())
       .pipe(z.string().min(1).max(DOCUMENT_COMMENT_TEXT_MAX)),
-    parentId: z.string().cuid().optional(),
+    parentId: z.cuid().optional(),
     /** Heading slug from active document blocks; only for top-level comments. */
     anchorHeadingId: z.string().min(1).max(200).optional(),
   })

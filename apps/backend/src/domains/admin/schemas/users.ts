@@ -44,7 +44,7 @@ export const resetPasswordBodySchema = z.object({
 
 /** Params: userId. */
 export const userIdParamSchema = z.object({
-  userId: z.string().cuid(),
+  userId: z.cuid(),
 });
 
 /** Query: GET /admin/users/:userId/documents – Pagination + optional search. */
