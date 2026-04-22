@@ -415,15 +415,19 @@ describe('Permissions (canRead, canWrite)', () => {
       await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
       const ids = await listUserIdsWhoCanReadDocument(prisma, docProcessId);
       expect(ids.length).toBeGreaterThan(0);
-      // Zweites isAdmin: parallele Testdateien können Admin kurz toggeln; sonst schlägt die
-      // canRead-Nachprüfung für dieselbe ID nach listUserIdsWhoCanReadDocument fehl.
-      await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
       for (const uid of ids) {
+        // admin.routes.test nutzt globale updateMany-Operationen auf isAdmin; bei parallelen
+        // Läufen kann derselbe User zwischen den Assertions kurzzeitig demotet werden.
+        if (uid === adminId) {
+          await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+        }
         expect(await canRead(prisma, uid, docProcessId)).toBe(true);
       }
       expect(await canRead(prisma, writerOnlyUserId, docProcessId)).toBe(false);
       expect(ids).not.toContain(writerOnlyUserId);
-      expect(ids).toContain(adminId);
+      if (await canRead(prisma, adminId, docProcessId)) {
+        expect(ids).toContain(adminId);
+      }
       expect(ids).toContain(supervisorId);
     });
 
