@@ -1,5 +1,4 @@
-import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from 'fastify';
-import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import {
   requireAuthPreHandler,
   getEffectiveUserId,
@@ -10,7 +9,6 @@ import {
   canManageTeamLeaders,
   canManageDepartmentLeads,
   canManageCompanyLeads,
-  canViewTeam,
   canViewDepartment,
   canViewCompany,
 } from '../permissions/index.js';
@@ -24,28 +22,11 @@ import {
   departmentIdUserIdParamSchema,
   addAssignmentBodySchema,
 } from '../schemas/assignments.js';
-
-async function verifyTeamAndAssignmentUserExist(
-  prisma: PrismaClient,
-  teamId: string,
-  bodyUserId: string,
-  reply: FastifyReply
-): Promise<boolean> {
-  const team = await prisma.team.findUnique({ where: { id: teamId } });
-  if (!team) {
-    void reply.status(404).send({ error: 'Team not found' });
-    return false;
-  }
-  const user = await prisma.user.findUnique({
-    where: { id: bodyUserId },
-    select: { id: true, deletedAt: true },
-  });
-  if (!user || user.deletedAt) {
-    void reply.status(404).send({ error: 'User not found' });
-    return false;
-  }
-  return true;
-}
+import {
+  createTeamLeadAfterVerify,
+  createTeamMemberAfterVerify,
+  sendTeamAssignmentListIfAllowed,
+} from './assignments-route-helpers.js';
 
 const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- Company Lead ---
@@ -130,32 +111,25 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  // --- Team-Mitglieder ---
-  app.get(
-    '/teams/:teamId/members',
-    { preHandler: requireAuthPreHandler },
-    async (request, reply) => {
+  // --- Team-Mitglieder / Team-Leads (GET-Listen) ---
+  for (const { path, source } of [
+    { path: '/teams/:teamId/members' as const, source: 'member' as const },
+    { path: '/teams/:teamId/team-leads' as const, source: 'lead' as const },
+  ]) {
+    app.get(path, { preHandler: requireAuthPreHandler }, async (request, reply) => {
       const { teamId } = teamIdParamSchema.parse(request.params);
       const query = assignmentListQuerySchema.parse(request.query);
       const userId = getEffectiveUserId(request as RequestWithUser);
-
-      const allowed = await canViewTeam(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'No access to this team' });
-
-      const [items, total] = await Promise.all([
-        request.server.prisma.teamMember.findMany({
-          where: { teamId },
-          include: { user: { select: { id: true, name: true } } },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { userId: 'asc' },
-        }),
-        request.server.prisma.teamMember.count({ where: { teamId } }),
-      ]);
-      const list = items.map((m) => ({ id: m.user.id, name: m.user.name }));
-      return reply.send({ items: list, total, limit: query.limit, offset: query.offset });
-    }
-  );
+      await sendTeamAssignmentListIfAllowed(
+        request.server.prisma,
+        userId,
+        teamId,
+        query,
+        reply,
+        source
+      );
+    });
+  }
 
   app.post(
     '/teams/:teamId/members',
@@ -168,20 +142,13 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const allowed = await canManageTeamMembers(request.server.prisma, userId, teamId);
       if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
-      if (
-        !(await verifyTeamAndAssignmentUserExist(request.server.prisma, teamId, body.userId, reply))
-      ) {
-        return;
-      }
-
-      const existing = await request.server.prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId, userId: body.userId } },
-      });
-      if (existing) return reply.status(409).send({ error: 'User is already a member' });
-
-      await request.server.prisma.teamMember.create({
-        data: { teamId, userId: body.userId },
-      });
+      const ok = await createTeamMemberAfterVerify(
+        request.server.prisma,
+        teamId,
+        body.userId,
+        reply
+      );
+      if (!ok) return;
       return reply.status(201).send({ teamId, userId: body.userId });
     }
   );
@@ -213,33 +180,6 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  // --- Team Lead ---
-  app.get(
-    '/teams/:teamId/team-leads',
-    { preHandler: requireAuthPreHandler },
-    async (request, reply) => {
-      const { teamId } = teamIdParamSchema.parse(request.params);
-      const query = assignmentListQuerySchema.parse(request.query);
-      const userId = getEffectiveUserId(request as RequestWithUser);
-
-      const allowed = await canViewTeam(request.server.prisma, userId, teamId);
-      if (!allowed) return reply.status(403).send({ error: 'No access to this team' });
-
-      const [items, total] = await Promise.all([
-        request.server.prisma.teamLead.findMany({
-          where: { teamId },
-          include: { user: { select: { id: true, name: true } } },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { userId: 'asc' },
-        }),
-        request.server.prisma.teamLead.count({ where: { teamId } }),
-      ]);
-      const list = items.map((l) => ({ id: l.user.id, name: l.user.name }));
-      return reply.send({ items: list, total, limit: query.limit, offset: query.offset });
-    }
-  );
-
   app.post(
     '/teams/:teamId/team-leads',
     { preHandler: requireAuthPreHandler },
@@ -251,29 +191,8 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const allowed = await canManageTeamLeaders(request.server.prisma, userId, teamId);
       if (!allowed) return reply.status(403).send({ error: 'Permission denied' });
 
-      if (
-        !(await verifyTeamAndAssignmentUserExist(request.server.prisma, teamId, body.userId, reply))
-      ) {
-        return;
-      }
-
-      const existing = await request.server.prisma.teamLead.findUnique({
-        where: { teamId_userId: { teamId, userId: body.userId } },
-      });
-      if (existing) return reply.status(409).send({ error: 'User is already team lead' });
-
-      const isMember = await request.server.prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId, userId: body.userId } },
-      });
-      if (!isMember) {
-        return reply.status(409).send({
-          error: 'User must be a team member before being assigned as team lead.',
-        });
-      }
-
-      await request.server.prisma.teamLead.create({
-        data: { teamId, userId: body.userId },
-      });
+      const ok = await createTeamLeadAfterVerify(request.server.prisma, teamId, body.userId, reply);
+      if (!ok) return;
       return reply.status(201).send({ teamId, userId: body.userId });
     }
   );

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '../../../../../generated/prisma/client.js';
+import { distinctUserIdsForTeamIds } from '../../../organisation/services/teamMemberIds.js';
 import {
   requireAuthPreHandler,
   getEffectiveUserId,
@@ -52,11 +53,7 @@ function registerMeStorageRoutes(app: FastifyInstance): void {
         select: { id: true },
       });
       const teamIds = teams.map((team) => team.id);
-      const members = await prisma.teamMember.findMany({
-        where: { teamId: { in: teamIds } },
-        select: { userId: true },
-      });
-      userIds = [...new Set(members.map((member) => member.userId))];
+      userIds = await distinctUserIdsForTeamIds(prisma, teamIds);
     } else if (scope === 'company' && query.companyId) {
       const departments = await prisma.department.findMany({
         where: { companyId: query.companyId },
@@ -68,11 +65,7 @@ function registerMeStorageRoutes(app: FastifyInstance): void {
         select: { id: true },
       });
       const teamIds = teams.map((team) => team.id);
-      const members = await prisma.teamMember.findMany({
-        where: { teamId: { in: teamIds } },
-        select: { userId: true },
-      });
-      userIds = [...new Set(members.map((member) => member.userId))];
+      userIds = await distinctUserIdsForTeamIds(prisma, teamIds);
     } else {
       userIds = [userId];
     }

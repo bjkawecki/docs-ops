@@ -27,6 +27,10 @@ import {
   departmentIdParamSchema,
   teamIdParamSchema,
 } from '../schemas/organisation.js';
+import {
+  listCompanyDepartmentsPaged,
+  listDepartmentTeamsPaged,
+} from './organisation-route-helpers.js';
 
 const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   // --- Companies ---
@@ -147,21 +151,8 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
       const { companyId } = companyIdParamSchema.parse(request.params);
-      const allowed = await canViewCompany(prisma, userId, companyId);
-      if (!allowed)
-        return reply.status(403).send({ error: 'Permission denied to view this company' });
       const query = paginationQuerySchema.parse(request.query);
-      const [items, total] = await Promise.all([
-        prisma.department.findMany({
-          where: { companyId },
-          include: { teams: true },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { name: 'asc' },
-        }),
-        prisma.department.count({ where: { companyId } }),
-      ]);
-      return reply.send({ items, total, limit: query.limit, offset: query.offset });
+      await listCompanyDepartmentsPaged(prisma, userId, companyId, query, reply);
     }
   );
 
@@ -252,21 +243,8 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
       const { departmentId } = departmentIdParamSchema.parse(request.params);
-      const allowed = await canViewDepartment(prisma, userId, departmentId);
-      if (!allowed)
-        return reply.status(403).send({ error: 'Permission denied to view this department' });
       const query = paginationQuerySchema.parse(request.query);
-      const [items, total] = await Promise.all([
-        prisma.team.findMany({
-          where: { departmentId },
-          include: { department: true },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { name: 'asc' },
-        }),
-        prisma.team.count({ where: { departmentId } }),
-      ]);
-      return reply.send({ items, total, limit: query.limit, offset: query.offset });
+      await listDepartmentTeamsPaged(prisma, userId, departmentId, query, reply);
     }
   );
 

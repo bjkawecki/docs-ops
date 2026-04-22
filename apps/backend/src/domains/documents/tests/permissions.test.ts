@@ -413,22 +413,34 @@ describe('Permissions (canRead, canWrite)', () => {
 
     it('listUserIdsWhoCanReadDocument: recipients pass canRead; writer-only grant excluded', async () => {
       await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
-      const ids = await listUserIdsWhoCanReadDocument(prisma, docProcessId);
-      expect(ids.length).toBeGreaterThan(0);
-      for (const uid of ids) {
-        // admin.routes.test nutzt globale updateMany-Operationen auf isAdmin; bei parallelen
-        // Läufen kann derselbe User zwischen den Assertions kurzzeitig demotet werden.
-        if (uid === adminId) {
+
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const ids = await listUserIdsWhoCanReadDocument(prisma, docProcessId);
+          expect(ids.length).toBeGreaterThan(0);
+          for (const uid of ids) {
+            // admin.routes.test u. a. nutzen globale isAdmin-Updates; bei parallelen Suites kann
+            // jeder in der Liste betroffene Admin kurzzeitig demotet sein — Re-List nach Retry.
+            if (uid === adminId) {
+              await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
+            }
+            expect(await canRead(prisma, uid, docProcessId)).toBe(true);
+          }
+          expect(await canRead(prisma, writerOnlyUserId, docProcessId)).toBe(false);
+          expect(ids).not.toContain(writerOnlyUserId);
+          if (await canRead(prisma, adminId, docProcessId)) {
+            expect(ids).toContain(adminId);
+          }
+          expect(ids).toContain(supervisorId);
+          return;
+        } catch (e) {
+          lastError = e;
+          await new Promise((r) => setTimeout(r, 30));
           await prisma.user.update({ where: { id: adminId }, data: { isAdmin: true } });
         }
-        expect(await canRead(prisma, uid, docProcessId)).toBe(true);
       }
-      expect(await canRead(prisma, writerOnlyUserId, docProcessId)).toBe(false);
-      expect(ids).not.toContain(writerOnlyUserId);
-      if (await canRead(prisma, adminId, docProcessId)) {
-        expect(ids).toContain(adminId);
-      }
-      expect(ids).toContain(supervisorId);
+      throw lastError;
     });
 
     it('symmetricDiffUserIds', () => {

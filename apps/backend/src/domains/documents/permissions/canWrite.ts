@@ -2,14 +2,13 @@ import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.j
 import { GrantRole } from '../../../../generated/prisma/client.js';
 import type { DocumentForPermission } from './documentLoad.js';
 import {
-  basePermissionDecisionAfterLoad,
   getDocumentOwner,
   getUserDepartmentIds,
   getUserLeaderTeamIds,
   hasDocumentGrantRole,
   isCompanyLeadForOwner,
   isPersonalContextDocumentOwner,
-  loadPermissionSubject,
+  loadPermissionSubjectAndBaseDecision,
 } from './canRead.js';
 
 /**
@@ -21,17 +20,16 @@ export async function canWrite(
   userId: string,
   documentOrId: string | DocumentForPermission
 ): Promise<boolean> {
-  const subject = await loadPermissionSubject(prisma, userId, documentOrId);
-  if (!subject) return false;
-  const { doc, user } = subject;
-
-  const baseDecision = basePermissionDecisionAfterLoad(
-    subject,
+  const loaded = await loadPermissionSubjectAndBaseDecision(
+    prisma,
     userId,
+    documentOrId,
     GrantRole.Write,
-    getUserLeaderTeamIds(user)
+    getUserLeaderTeamIds
   );
-  if (baseDecision !== null) return baseDecision;
+  if (!loaded) return false;
+  const { doc, user } = loaded.subject;
+  if (loaded.baseDecision !== null) return loaded.baseDecision;
 
   // 3. Owner of personal context (process/project with ownerUserId)
   const owner = getDocumentOwner(doc);

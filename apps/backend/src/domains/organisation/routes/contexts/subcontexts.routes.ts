@@ -17,7 +17,7 @@ import {
   assertWriteContextOr403,
   gateReadContextWithWriteHint,
   getProjectParentContextId,
-  loadSubcontextWithProjectContextForWriteGate,
+  withSubcontextProjectWriteGate,
 } from './context-entity-route-helpers.js';
 
 function registerSubcontextRoutes(app: FastifyInstance): void {
@@ -94,23 +94,27 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
       const prisma = request.server.prisma;
       const { subcontextId } = subcontextIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const subcontext = await loadSubcontextWithProjectContextForWriteGate(prisma, subcontextId);
-      if (!(await assertWriteContextOr403(prisma, userId, subcontext.project.contextId, reply))) {
-        return;
-      }
-      const body = updateSubcontextBodySchema.parse(request.body);
-      const updated = await prisma.subcontext.update({
-        where: { id: subcontextId },
-        data: body,
-        include: { context: true, project: true },
-      });
-      if (body.name != null) {
-        await prisma.context.update({
-          where: { id: subcontext.contextId },
-          data: { displayName: body.name },
-        });
-      }
-      return reply.send(updated);
+      await withSubcontextProjectWriteGate(
+        prisma,
+        userId,
+        subcontextId,
+        reply,
+        async (subcontext) => {
+          const body = updateSubcontextBodySchema.parse(request.body);
+          const updated = await prisma.subcontext.update({
+            where: { id: subcontextId },
+            data: body,
+            include: { context: true, project: true },
+          });
+          if (body.name != null) {
+            await prisma.context.update({
+              where: { id: subcontext.contextId },
+              data: { displayName: body.name },
+            });
+          }
+          void reply.send(updated);
+        }
+      );
     }
   );
 
@@ -121,12 +125,10 @@ function registerSubcontextRoutes(app: FastifyInstance): void {
       const prisma = request.server.prisma;
       const { subcontextId } = subcontextIdParamSchema.parse(request.params);
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const subcontext = await loadSubcontextWithProjectContextForWriteGate(prisma, subcontextId);
-      if (!(await assertWriteContextOr403(prisma, userId, subcontext.project.contextId, reply))) {
-        return;
-      }
-      await prisma.subcontext.delete({ where: { id: subcontextId } });
-      return reply.status(204).send();
+      await withSubcontextProjectWriteGate(prisma, userId, subcontextId, reply, async () => {
+        await prisma.subcontext.delete({ where: { id: subcontextId } });
+        void reply.status(204).send();
+      });
     }
   );
 }

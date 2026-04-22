@@ -6,18 +6,7 @@ import {
   teamIdParamSchema,
 } from '../../organisation/schemas/organisation.js';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
-
-async function distinctUserIdsFromTeamMembers(
-  prisma: PrismaClient,
-  teamIds: string[]
-): Promise<string[]> {
-  if (teamIds.length === 0) return [];
-  const members = await prisma.teamMember.findMany({
-    where: { teamId: { in: teamIds } },
-    select: { userId: true },
-  });
-  return [...new Set(members.map((m) => m.userId))];
-}
+import { distinctUserIdsForTeamIds } from '../../organisation/services/teamMemberIds.js';
 
 async function getOwnerScopeDocumentAndContextCounts(
   prisma: PrismaClient,
@@ -95,7 +84,7 @@ const adminOrganisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { id: true },
       });
       const teamIds = teams.map((t) => t.id);
-      const userIds = await distinctUserIdsFromTeamMembers(prisma, teamIds);
+      const userIds = await distinctUserIdsForTeamIds(prisma, teamIds);
       const owners = await prisma.owner.findMany({
         where: { companyId },
         select: { id: true },
@@ -142,7 +131,7 @@ const adminOrganisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         select: { id: true },
       });
       const teamIds = teams.map((t) => t.id);
-      const userIds = await distinctUserIdsFromTeamMembers(prisma, teamIds);
+      const userIds = await distinctUserIdsForTeamIds(prisma, teamIds);
       const owners = await prisma.owner.findMany({
         where: { departmentId },
         select: { id: true },

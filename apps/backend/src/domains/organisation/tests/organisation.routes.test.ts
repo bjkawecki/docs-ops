@@ -115,14 +115,22 @@ describe('Organisation (Companies, Departments, Teams)', () => {
       companyId = body.id;
       companyCreatedInTest = true;
     } else if (res.statusCode === 409 || res.statusCode === 403) {
+      // Firma existiert bereits (409) oder Admin-Bit parallel entzogen (403): companyId aus Liste oder DB.
       const listRes = await app.inject({
         method: 'GET',
         url: '/api/v1/companies',
         headers: { cookie: getCookieHeader(loginRes.headers['set-cookie']) },
       });
-      const list = listRes.json() as { items: { id: string }[] };
-      expect(list.items.length).toBeGreaterThanOrEqual(1);
-      companyId = list.items[0].id;
+      expect(listRes.statusCode).toBe(200);
+      const list = listRes.json() as { items?: { id: string }[] };
+      const items = list.items ?? [];
+      if (items.length > 0) {
+        companyId = items[0].id;
+      } else {
+        const existing = await prisma.company.findFirst({ orderBy: { name: 'asc' } });
+        expect(existing).toBeTruthy();
+        companyId = existing!.id;
+      }
       companyCreatedInTest = false;
     }
   });

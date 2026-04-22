@@ -167,6 +167,28 @@ export async function loadPermissionSubject(
   return { doc, user };
 }
 
+/** Gemeinsamer Einstieg für canRead/canWrite: Subject laden + Basisentscheidung (ohne weitere Schritte). */
+export async function loadPermissionSubjectAndBaseDecision(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  userId: string,
+  documentOrId: string | DocumentForPermission,
+  role: GrantRole,
+  teamIdsForBase: (user: UserForPermission) => Set<string>
+): Promise<{
+  subject: { doc: DocumentForPermission; user: UserForPermission };
+  baseDecision: boolean | null;
+} | null> {
+  const subject = await loadPermissionSubject(prisma, userId, documentOrId);
+  if (!subject) return null;
+  const baseDecision = basePermissionDecisionAfterLoad(
+    subject,
+    userId,
+    role,
+    teamIdsForBase(subject.user)
+  );
+  return { subject, baseDecision };
+}
+
 /** Ermittelt die Company-Owner-ID des Dokument-Kontexts (Process/Project/Subcontext), falls Owner eine Company ist. */
 function getContextOwnerCompanyId(doc: DocumentForPermission): string | null {
   return getDocumentOwner(doc)?.companyId ?? null;
@@ -186,17 +208,16 @@ export async function canRead(
   userId: string,
   documentOrId: string | DocumentForPermission
 ): Promise<boolean> {
-  const subject = await loadPermissionSubject(prisma, userId, documentOrId);
-  if (!subject) return false;
-  const { doc, user } = subject;
-
-  const baseDecision = basePermissionDecisionAfterLoad(
-    subject,
+  const loaded = await loadPermissionSubjectAndBaseDecision(
+    prisma,
     userId,
+    documentOrId,
     GrantRole.Read,
-    getUserReadableTeamIds(user)
+    getUserReadableTeamIds
   );
-  if (baseDecision !== null) return baseDecision;
+  if (!loaded) return false;
+  const { doc, user } = loaded.subject;
+  if (loaded.baseDecision !== null) return loaded.baseDecision;
 
   // 3. Owner of personal context (process/project with ownerUserId)
   const owner = getDocumentOwner(doc);

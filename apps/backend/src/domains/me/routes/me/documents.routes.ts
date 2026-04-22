@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import {
   requireAuthPreHandler,
   getEffectiveUserId,
@@ -21,6 +22,33 @@ import {
   scopeRefFromQuery,
 } from './route-helpers.js';
 
+function emptyMeDocumentsListBody(query: { limit: number; offset: number }) {
+  return {
+    items: [] as const,
+    total: 0,
+    limit: query.limit,
+    offset: query.offset,
+  };
+}
+
+function activeMeDocumentsWhereBase(query: { publishedOnly?: boolean }) {
+  return {
+    deletedAt: null,
+    archivedAt: null,
+    ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
+  };
+}
+
+async function sendMeDocumentsPage(
+  prisma: PrismaClient,
+  reply: FastifyReply,
+  where: Prisma.DocumentWhereInput,
+  query: { limit: number; offset: number }
+) {
+  const { items, total } = await listMeDocumentsPage(prisma, where, query.limit, query.offset);
+  return reply.send({ items, total, limit: query.limit, offset: query.offset });
+}
+
 function registerMeDocumentsRoutes(app: FastifyInstance): void {
   app.get(
     '/me/personal-documents',
@@ -33,23 +61,15 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
       const personalContextIds = await getPersonalContextIds(prisma, userId);
 
       if (personalContextIds.length === 0) {
-        return reply.send({
-          items: [],
-          total: 0,
-          limit: query.limit,
-          offset: query.offset,
-        });
+        return reply.send(emptyMeDocumentsListBody(query));
       }
 
       const where = {
         contextId: { in: personalContextIds },
-        deletedAt: null,
-        archivedAt: null,
-        ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
+        ...activeMeDocumentsWhereBase(query),
       };
 
-      const { items, total } = await listMeDocumentsPage(prisma, where, query.limit, query.offset);
-      return reply.send({ items, total, limit: query.limit, offset: query.offset });
+      return sendMeDocumentsPage(prisma, reply, where, query);
     }
   );
 
@@ -60,23 +80,15 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
 
     const documentIds = await getSharedDocumentIds(prisma, userId);
     if (documentIds.length === 0) {
-      return reply.send({
-        items: [],
-        total: 0,
-        limit: query.limit,
-        offset: query.offset,
-      });
+      return reply.send(emptyMeDocumentsListBody(query));
     }
 
     const where = {
       id: { in: documentIds },
-      deletedAt: null,
-      archivedAt: null,
-      ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
+      ...activeMeDocumentsWhereBase(query),
     };
 
-    const { items, total } = await listMeDocumentsPage(prisma, where, query.limit, query.offset);
-    return reply.send({ items, total, limit: query.limit, offset: query.offset });
+    return sendMeDocumentsPage(prisma, reply, where, query);
   });
 
   app.get(

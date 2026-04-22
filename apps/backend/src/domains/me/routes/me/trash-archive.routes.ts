@@ -154,6 +154,13 @@ function sortMeTrashArchiveItems(
   });
 }
 
+function sendEmptyMeTrashArchivePage(
+  reply: FastifyReply,
+  query: { limit: number; offset: number }
+) {
+  return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+}
+
 function sendMeTrashArchivePage(
   reply: FastifyReply,
   allItems: MeTrashArchiveItem[],
@@ -187,7 +194,7 @@ function registerMeTrashArchiveRoutes(app: FastifyInstance): void {
       const scopeRef = orgScopeRefFromMeOrgQuery(query);
       const result = await getTrashOrArchiveItems(prisma, userId, scopeRef, 'trash');
       if ('emptyReason' in result) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+        return sendEmptyMeTrashArchivePage(reply, query);
       }
       allItems.push(...result.items);
     }
@@ -211,7 +218,7 @@ function registerMeTrashArchiveRoutes(app: FastifyInstance): void {
       const scopeRef = orgScopeRefFromMeOrgQuery(query);
       const result = await getTrashOrArchiveItems(prisma, userId, scopeRef, 'archive');
       if ('emptyReason' in result) {
-        return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+        return sendEmptyMeTrashArchivePage(reply, query);
       }
       allItems.push(...result.items);
     }
