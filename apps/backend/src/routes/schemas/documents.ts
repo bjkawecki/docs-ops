@@ -16,9 +16,9 @@ const cuidArray = z.preprocess(normalizeToCuidArray, z.array(z.string().cuid()))
 /** Query: GET /documents (catalog list) – pagination + filters + sort. */
 export const catalogDocumentsQuerySchema = paginationQuerySchema.extend({
   contextType: z.enum(['process', 'project']).optional(),
-  companyId: z.string().cuid().optional(),
-  departmentId: z.string().cuid().optional(),
-  teamId: z.string().cuid().optional(),
+  companyId: z.cuid().optional(),
+  departmentId: z.cuid().optional(),
+  teamId: z.cuid().optional(),
   tagIds: cuidArray.optional().default([]),
   search: z.string().min(1).optional(),
   /** If true, only return documents that have been published (publishedAt set). */

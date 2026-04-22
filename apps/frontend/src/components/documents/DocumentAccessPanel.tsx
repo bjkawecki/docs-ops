@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Group, MultiSelect, Stack, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 
@@ -60,17 +60,20 @@ export function DocumentAccessPanel({ documentId, canEditAccess }: Props) {
     () => new Set((userOptionsQuery.data?.items ?? []).map((u) => u.id)),
     [userOptionsQuery.data]
   );
-  const filterToCandidates = (userIds: string[]) => {
-    if (candidateUserIdSet.size === 0) return userIds;
-    return userIds.filter((id) => candidateUserIdSet.has(id));
-  };
+  const filterToCandidates = useCallback(
+    (userIds: string[]) => {
+      if (candidateUserIdSet.size === 0) return userIds;
+      return userIds.filter((id) => candidateUserIdSet.has(id));
+    },
+    [candidateUserIdSet]
+  );
 
   useEffect(() => {
     const grants = grantsQuery.data;
     if (!grants) return;
     const writeIds = grants.users.filter((g) => g.role === 'Write').map((g) => g.userId);
     setUserWriteIds(sorted(filterToCandidates(writeIds)));
-  }, [grantsQuery.data, candidateUserIdSet]);
+  }, [grantsQuery.data, filterToCandidates]);
 
   const dirty = useMemo(() => {
     const grants = grantsQuery.data;
@@ -79,7 +82,7 @@ export function DocumentAccessPanel({ documentId, canEditAccess }: Props) {
       filterToCandidates(grants.users.filter((g) => g.role === 'Write').map((g) => g.userId))
     );
     return JSON.stringify(usersServer) !== JSON.stringify(sorted(userWriteIds));
-  }, [grantsQuery.data, userWriteIds, candidateUserIdSet]);
+  }, [grantsQuery.data, userWriteIds, filterToCandidates]);
 
   const save = async () => {
     if (!canEditAccess) return;
