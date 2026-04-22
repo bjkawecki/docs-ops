@@ -10,7 +10,7 @@ import { documentsRoutes } from './routes/documents.js';
 import assignmentsRoutes from './routes/assignments.js';
 import meRoutes from './routes/me.js';
 import pinnedRoutes from './routes/pinned.js';
-import adminRoutes from './routes/admin.js';
+import adminRoutes from './routes/admin/index.js';
 import searchRoutes from './routes/search.js';
 
 const require = createRequire(import.meta.url);

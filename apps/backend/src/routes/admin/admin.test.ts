@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { buildApp } from '../app.js';
-import { prisma } from '../db.js';
-import { hashPassword } from '../auth/password.js';
-import { IMPERSONATE_COOKIE_NAME } from '../auth/middleware.js';
+import { buildApp } from '../../app.js';
+import { prisma } from '../../db.js';
+import { hashPassword } from '../../auth/password.js';
+import { IMPERSONATE_COOKIE_NAME } from '../../auth/middleware.js';
 
 const TS = Date.now();
 const ADMIN_EMAIL = `admin-${TS}@example.com`;
@@ -292,6 +292,47 @@ describe('Admin routes (GET/POST/PATCH /admin/users, reset-password)', () => {
       payload: { newPassword: 'newpass123' },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('GET /api/v1/admin/jobs ohne Cookie → 401', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/admin/jobs' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('GET /api/v1/admin/jobs/health als Admin → 200 oder 503 (queue-abhängig)', async () => {
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/jobs/health',
+      headers: { cookie },
+    });
+    expect([200, 503]).toContain(res.statusCode);
+    const body = res.json() as { status?: string };
+    expect(typeof body).toBe('object');
+    expect(body.status).toBeDefined();
+  });
+
+  it('GET /api/v1/admin/companies/:id/stats für unbekannte Company → 404', async () => {
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/companies/cmi1234567890123456789012/stats',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('GET /api/v1/admin/departments/member-counts als Admin → 200 + Objekt', async () => {
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/departments/member-counts',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as Record<string, number>;
+    expect(body).not.toBeNull();
+    expect(typeof body).toBe('object');
   });
 
   describe('Impersonation', () => {
