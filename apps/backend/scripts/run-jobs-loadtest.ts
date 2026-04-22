@@ -1,6 +1,6 @@
 import './load-env.js';
 import { prisma } from '../src/db.js';
-import { enqueueJob } from '../src/jobs/client.js';
+import { enqueueJob } from '../src/infrastructure/jobs/client.js';
 
 const COUNT = Math.max(1, Number(process.env.JOB_LOADTEST_COUNT ?? 200));
 const CONCURRENCY = Math.max(1, Number(process.env.JOB_LOADTEST_CONCURRENCY ?? 20));

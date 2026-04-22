@@ -6,17 +6,17 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PrismaClient } from '../generated/prisma/client.js';
-import { hashPassword } from './auth/password.js';
+import { hashPassword } from './domains/auth/services/password.js';
 import {
   setOwnerDisplayName,
   setContextDisplayFromProcess,
   setContextDisplayFromProject,
   setContextDisplayFromSubcontext,
-} from './services/contexts/contextOwnerDisplay.js';
+} from './domains/organisation/services/contextOwnerDisplay.js';
 import {
   blockDocumentJsonFromSeedSections,
   type SeedDocumentBlockSection,
-} from './services/documents/documentBlocksBackfill.js';
+} from './domains/documents/services/documentBlocksBackfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve from project root (apps/backend) so it works with tsx and node dist

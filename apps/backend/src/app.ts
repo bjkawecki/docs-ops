@@ -1,17 +1,19 @@
 import { createRequire } from 'node:module';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
-import { prisma } from './db.js';
-import { initStorage } from './storage/index.js';
-import { authRoutes } from './auth/routes.js';
-import { organisationRoutes } from './routes/organisation.js';
-import { contextRoutes } from './routes/contexts.js';
-import { documentsRoutes } from './routes/documents.js';
-import assignmentsRoutes from './routes/assignments.js';
-import meRoutes from './routes/me.js';
-import pinnedRoutes from './routes/pinned.js';
-import adminRoutes from './routes/admin/index.js';
-import searchRoutes from './routes/search.js';
+import { prisma } from './infrastructure/db/prisma.js';
+import { initStorage } from './infrastructure/storage/index.js';
+import { authRoutes } from './domains/auth/routes/index.js';
+import {
+  organisationRoutes,
+  contextRoutes,
+  assignmentsRoutes,
+} from './domains/organisation/routes/index.js';
+import { documentsRoutes } from './domains/documents/routes/index.js';
+import { meRoutes } from './domains/me/routes/index.js';
+import { pinnedRoutes } from './domains/pinned/routes/index.js';
+import adminRoutes from './domains/admin/routes/index.js';
+import { searchRoutes } from './domains/search/routes/index.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { name: string; version: string };

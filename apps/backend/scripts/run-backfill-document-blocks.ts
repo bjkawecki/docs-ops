@@ -8,7 +8,7 @@
  */
 import './load-env.js';
 import { prisma } from '../src/db.js';
-import { backfillAllDocumentBlocks } from '../src/services/documents/documentBlocksBackfill.js';
+import { backfillAllDocumentBlocks } from '../src/domains/documents/services/documentBlocksBackfill.js';
 
 function parseArgs(): { documentId?: string } {
   const documentIdArg = process.argv.find((a) => a.startsWith('--documentId='));

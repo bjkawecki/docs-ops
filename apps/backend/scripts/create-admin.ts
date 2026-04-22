@@ -6,7 +6,7 @@
  */
 import { assertRequiredEnv } from './load-env.js';
 import { prisma } from '../src/db.js';
-import { hashPassword } from '../src/auth/password.js';
+import { hashPassword } from '../src/domains/auth/services/password.js';
 
 const maxDbAttempts = Math.max(1, Number(process.env.CREATE_ADMIN_DB_ATTEMPTS ?? 30));
 const dbRetryDelayMs = Math.max(200, Number(process.env.CREATE_ADMIN_DB_DELAY_MS ?? 1000));

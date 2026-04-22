@@ -10,7 +10,7 @@ import {
   setContextDisplayFromProcess,
   setContextDisplayFromProject,
   setContextDisplayFromSubcontext,
-} from '../src/services/contexts/contextOwnerDisplay.js';
+} from '../src/domains/organisation/services/contextOwnerDisplay.js';
 
 async function main() {
   const owners = await prisma.owner.findMany({ select: { id: true } });
