@@ -3,13 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
-import type { MeResponse } from '../../api/me-types';
-
-type DocumentScope =
-  | { type: 'personal'; name?: string | null }
-  | { type: 'company'; id: string; name?: string | null }
-  | { type: 'department'; id: string; name?: string | null }
-  | { type: 'team'; id: string; name?: string | null };
 
 type GrantsResponse = {
   users: { userId: string; role: 'Read' | 'Write' }[];
@@ -17,10 +10,12 @@ type GrantsResponse = {
   departments: { departmentId: string; role: 'Read' | 'Write' }[];
 };
 
+type CandidateUsersResponse = {
+  items: { id: string; name: string; email: string | null }[];
+};
+
 type Props = {
   documentId: string;
-  scope: DocumentScope | null;
-  me: MeResponse | undefined;
   canEditAccess: boolean;
 };
 
@@ -28,11 +23,9 @@ function sorted(list: string[]): string[] {
   return [...list].sort((a, b) => a.localeCompare(b));
 }
 
-export function DocumentAccessPanel({ documentId, scope, me, canEditAccess }: Props) {
+export function DocumentAccessPanel({ documentId, canEditAccess }: Props) {
   const queryClient = useQueryClient();
   const [userWriteIds, setUserWriteIds] = useState<string[]>([]);
-  const [teamWriteIds, setTeamWriteIds] = useState<string[]>([]);
-  const [departmentWriteIds, setDepartmentWriteIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const grantsQuery = useQuery({
@@ -45,121 +38,48 @@ export function DocumentAccessPanel({ documentId, scope, me, canEditAccess }: Pr
     enabled: !!documentId,
   });
 
-  const departmentsQuery = useQuery({
-    queryKey: [
-      'document',
-      documentId,
-      'access',
-      'departments',
-      scope?.type,
-      scope?.type !== 'personal' ? (scope as { id?: string })?.id : null,
-    ],
+  const userOptionsQuery = useQuery<CandidateUsersResponse>({
+    queryKey: ['document', documentId, 'access', 'users'],
     queryFn: async () => {
-      if (!scope)
-        return [] as { id: string; name: string; teams?: { id: string; name: string }[] }[];
-      if (scope.type === 'company') {
-        const res = await apiFetch(`/api/v1/companies/${scope.id}/departments?limit=200`);
-        if (!res.ok) throw new Error('Failed to load departments.');
-        const body = (await res.json()) as {
-          items: { id: string; name: string; teams?: { id: string; name: string }[] }[];
-        };
-        return body.items;
-      }
-      if (scope.type === 'department') {
-        return [{ id: scope.id, name: scope.name ?? 'Department', teams: [] }];
-      }
-      if (scope.type === 'team') {
-        const found = me?.identity.teams.find((t) => t.teamId === scope.id);
-        if (!found) return [];
-        return [{ id: found.departmentId, name: found.departmentName, teams: [] }];
-      }
-      return [];
+      const res = await apiFetch(`/api/v1/documents/${documentId}/grants/candidate-users`);
+      if (!res.ok) throw new Error('Failed to load users.');
+      return (await res.json()) as CandidateUsersResponse;
     },
-    enabled: !!documentId && !!scope && scope.type !== 'personal',
+    enabled: !!documentId,
   });
 
-  const teamsQuery = useQuery({
-    queryKey: [
-      'document',
-      documentId,
-      'access',
-      'teams',
-      scope?.type,
-      scope?.type !== 'personal' ? (scope as { id?: string })?.id : null,
-    ],
-    queryFn: async () => {
-      if (!scope) return [] as { id: string; name: string }[];
-      if (scope.type === 'company') {
-        const depts = departmentsQuery.data ?? [];
-        return depts.flatMap((d) => d.teams ?? []);
-      }
-      if (scope.type === 'department') {
-        const res = await apiFetch(`/api/v1/departments/${scope.id}/teams?limit=200`);
-        if (!res.ok) throw new Error('Failed to load teams.');
-        const body = (await res.json()) as { items: { id: string; name: string }[] };
-        return body.items;
-      }
-      if (scope.type === 'team') {
-        return [{ id: scope.id, name: scope.name ?? 'Team' }];
-      }
-      return [];
-    },
-    enabled: !!documentId && !!scope && scope.type !== 'personal',
-  });
-
-  const userOptionsQuery = useQuery({
-    queryKey: ['document', documentId, 'access', 'users', me?.user.isAdmin === true],
-    queryFn: async () => {
-      if (me?.user.isAdmin) {
-        const res = await apiFetch('/api/v1/admin/users?limit=200&includeDeactivated=false');
-        if (!res.ok) throw new Error('Failed to load users.');
-        const body = (await res.json()) as { items: { id: string; name: string }[] };
-        return body.items;
-      }
-      const grants = grantsQuery.data;
-      if (!grants) return [] as { id: string; name: string }[];
-      return grants.users.map((g) => ({ id: g.userId, name: g.userId }));
-    },
-    enabled: !!documentId && grantsQuery.isSuccess,
-  });
+  const userOptions = useMemo(
+    () =>
+      (userOptionsQuery.data?.items ?? []).map((u) => ({
+        value: u.id,
+        label: u.email ? `${u.name} (${u.email})` : u.name,
+      })),
+    [userOptionsQuery.data]
+  );
+  const candidateUserIdSet = useMemo(
+    () => new Set((userOptionsQuery.data?.items ?? []).map((u) => u.id)),
+    [userOptionsQuery.data]
+  );
+  const filterToCandidates = (userIds: string[]) => {
+    if (candidateUserIdSet.size === 0) return userIds;
+    return userIds.filter((id) => candidateUserIdSet.has(id));
+  };
 
   useEffect(() => {
     const grants = grantsQuery.data;
     if (!grants) return;
-    setUserWriteIds(sorted(grants.users.filter((g) => g.role === 'Write').map((g) => g.userId)));
-    setTeamWriteIds(sorted(grants.teams.filter((g) => g.role === 'Write').map((g) => g.teamId)));
-    setDepartmentWriteIds(
-      sorted(grants.departments.filter((g) => g.role === 'Write').map((g) => g.departmentId))
-    );
-  }, [grantsQuery.data]);
-
-  const userOptions = useMemo(
-    () => (userOptionsQuery.data ?? []).map((u) => ({ value: u.id, label: u.name })),
-    [userOptionsQuery.data]
-  );
-  const teamOptions = useMemo(
-    () => (teamsQuery.data ?? []).map((t) => ({ value: t.id, label: t.name })),
-    [teamsQuery.data]
-  );
-  const departmentOptions = useMemo(
-    () => (departmentsQuery.data ?? []).map((d) => ({ value: d.id, label: d.name })),
-    [departmentsQuery.data]
-  );
+    const writeIds = grants.users.filter((g) => g.role === 'Write').map((g) => g.userId);
+    setUserWriteIds(sorted(filterToCandidates(writeIds)));
+  }, [grantsQuery.data, candidateUserIdSet]);
 
   const dirty = useMemo(() => {
     const grants = grantsQuery.data;
     if (!grants) return false;
-    const usersServer = sorted(grants.users.filter((g) => g.role === 'Write').map((g) => g.userId));
-    const teamsServer = sorted(grants.teams.filter((g) => g.role === 'Write').map((g) => g.teamId));
-    const departmentsServer = sorted(
-      grants.departments.filter((g) => g.role === 'Write').map((g) => g.departmentId)
+    const usersServer = sorted(
+      filterToCandidates(grants.users.filter((g) => g.role === 'Write').map((g) => g.userId))
     );
-    return (
-      JSON.stringify(usersServer) !== JSON.stringify(sorted(userWriteIds)) ||
-      JSON.stringify(teamsServer) !== JSON.stringify(sorted(teamWriteIds)) ||
-      JSON.stringify(departmentsServer) !== JSON.stringify(sorted(departmentWriteIds))
-    );
-  }, [departmentWriteIds, grantsQuery.data, teamWriteIds, userWriteIds]);
+    return JSON.stringify(usersServer) !== JSON.stringify(sorted(userWriteIds));
+  }, [grantsQuery.data, userWriteIds, candidateUserIdSet]);
 
   const save = async () => {
     if (!canEditAccess) return;
@@ -183,25 +103,13 @@ export function DocumentAccessPanel({ documentId, scope, me, canEditAccess }: Pr
         ],
       };
       const teamPayload = {
-        grants: [
-          ...sorted([...new Set(teamRead)]).map((teamId) => ({ teamId, role: 'Read' as const })),
-          ...sorted([...new Set(teamWriteIds)]).map((teamId) => ({
-            teamId,
-            role: 'Write' as const,
-          })),
-        ],
+        grants: sorted([...new Set(teamRead)]).map((teamId) => ({ teamId, role: 'Read' as const })),
       };
       const departmentPayload = {
-        grants: [
-          ...sorted([...new Set(departmentRead)]).map((departmentId) => ({
-            departmentId,
-            role: 'Read' as const,
-          })),
-          ...sorted([...new Set(departmentWriteIds)]).map((departmentId) => ({
-            departmentId,
-            role: 'Write' as const,
-          })),
-        ],
+        grants: sorted([...new Set(departmentRead)]).map((departmentId) => ({
+          departmentId,
+          role: 'Read' as const,
+        })),
       };
 
       const [ru, rt, rd] = await Promise.all([
@@ -264,46 +172,34 @@ export function DocumentAccessPanel({ documentId, scope, me, canEditAccess }: Pr
         </Alert>
       )}
 
+      {userOptionsQuery.isError && (
+        <Alert color="yellow" variant="light" title="User list unavailable">
+          Eligible scope users could not be loaded.
+        </Alert>
+      )}
+
+      {canEditAccess &&
+        userOptions.length === 0 &&
+        !userOptionsQuery.isPending &&
+        !userOptionsQuery.isError && (
+          <Alert color="yellow" variant="light" title="No eligible users found">
+            No scope users with read access are currently available for write assignment.
+          </Alert>
+        )}
+
       <Box>
         <MultiSelect
           label="User write access"
           placeholder={
-            me?.user.isAdmin
-              ? 'Select users with write access'
-              : 'Only existing user grants are visible'
+            canEditAccess ? 'Select users with write access' : 'Write access is read-only'
           }
           data={userOptions}
           value={userWriteIds}
           onChange={setUserWriteIds}
           searchable
           clearable
-          disabled={!canEditAccess || userOptions.length === 0}
-        />
-      </Box>
-
-      <Box>
-        <MultiSelect
-          label="Team write access"
-          placeholder="Select teams with write access"
-          data={teamOptions}
-          value={teamWriteIds}
-          onChange={setTeamWriteIds}
-          searchable
-          clearable
-          disabled={!canEditAccess || teamOptions.length === 0}
-        />
-      </Box>
-
-      <Box>
-        <MultiSelect
-          label="Department write access"
-          placeholder="Select departments with write access"
-          data={departmentOptions}
-          value={departmentWriteIds}
-          onChange={setDepartmentWriteIds}
-          searchable
-          clearable
-          disabled={!canEditAccess || departmentOptions.length === 0}
+          disabled={!canEditAccess || userOptionsQuery.isPending || userOptions.length === 0}
+          nothingFoundMessage="No matching users"
         />
       </Box>
 

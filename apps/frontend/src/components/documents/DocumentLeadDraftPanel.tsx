@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Modal, Stack, Text, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, Stack, Text, Textarea, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useCallback,
@@ -16,12 +16,22 @@ import type {
   DocumentSuggestionItem,
   LeadDraftResponse,
 } from '../../api/document-types';
+import { IconInfoCircle } from '@tabler/icons-react';
 import { innerTextFromBlockNode } from '../../lib/blockDocumentTiptap';
 import { LeadDraftTiptapEditor, type LeadDraftTiptapEditorHandle } from './LeadDraftTiptapEditor';
 
 const POLL_MS = 15_000;
 
-const emptyDoc: BlockDocumentV0 = { schemaVersion: 0, blocks: [] };
+const emptyDoc: BlockDocumentV0 = {
+  schemaVersion: 0,
+  blocks: [
+    {
+      id: 'initial-paragraph',
+      type: 'paragraph',
+      content: [{ id: 'initial-text', type: 'text', attrs: {}, meta: { text: '' } }],
+    },
+  ],
+};
 
 type Props = {
   documentId: string;
@@ -58,6 +68,26 @@ function blockLabel(doc: BlockDocumentV0, blockId: string): string {
   if (!b) return blockId;
   const text = innerTextFromBlockNode(b).trim();
   return text.length > 0 ? text.slice(0, 64) : `${b.type} (${blockId.slice(0, 6)})`;
+}
+
+function nodeHasVisibleText(node: unknown): boolean {
+  if (node == null || typeof node !== 'object') return false;
+  const rec = node as Record<string, unknown>;
+  const meta = rec.meta;
+  if (meta != null && typeof meta === 'object') {
+    const text = (meta as Record<string, unknown>).text;
+    if (typeof text === 'string' && text.trim().length > 0) return true;
+  }
+  const content = rec.content;
+  if (Array.isArray(content)) {
+    return content.some((child) => nodeHasVisibleText(child));
+  }
+  return false;
+}
+
+function isDocumentEffectivelyEmpty(doc: BlockDocumentV0 | null | undefined): boolean {
+  if (!doc || !Array.isArray(doc.blocks) || doc.blocks.length === 0) return true;
+  return !doc.blocks.some((block) => nodeHasVisibleText(block));
 }
 
 export const DocumentLeadDraftPanel = forwardRef<DocumentLeadDraftPanelHandle, Props>(
@@ -254,6 +284,37 @@ export const DocumentLeadDraftPanel = forwardRef<DocumentLeadDraftPanelHandle, P
         ),
       [canPublish, currentUserId, suggestionsQuery.data]
     );
+    const publishedFallbackAvailable = !isDocumentEffectivelyEmpty(fallbackBlocks);
+    const draftLooksEmpty = isDocumentEffectivelyEmpty(appliedDoc);
+
+    const handleResetDraftFromPublished = useCallback(async () => {
+      if (!canEdit || !fallbackBlocks || isDocumentEffectivelyEmpty(fallbackBlocks)) return;
+      const expectedRevision = appliedRevision ?? incomingRevision;
+      const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expectedRevision,
+          blocks: fallbackBlocks,
+        }),
+      });
+      if (!res.ok) {
+        notifications.show({
+          color: 'red',
+          title: 'Reset failed',
+          message: 'Could not reset draft from the published version.',
+        });
+        await q.refetch();
+        return;
+      }
+      notifications.show({
+        color: 'green',
+        message: 'Draft reset to published content.',
+      });
+      await queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+      await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
+      await q.refetch();
+    }, [appliedRevision, canEdit, documentId, fallbackBlocks, incomingRevision, q, queryClient]);
 
     useImperativeHandle(
       ref,
@@ -316,9 +377,19 @@ export const DocumentLeadDraftPanel = forwardRef<DocumentLeadDraftPanelHandle, P
           </Alert>
         )}
         <Group gap="md">
-          <Text size="sm">
-            <strong>Revision:</strong> {appliedRevision ?? incomingRevision}
-          </Text>
+          <Group gap={6} align="center">
+            <Text size="sm">
+              <strong>Draft revision:</strong> {appliedRevision ?? incomingRevision}
+            </Text>
+            <Tooltip
+              multiline
+              w={280}
+              withArrow
+              label="Internal revision number of the shared draft. It increments on every draft update and prevents accidental overwrites when multiple users edit concurrently."
+            >
+              <IconInfoCircle size={14} color="var(--mantine-color-dimmed)" />
+            </Tooltip>
+          </Group>
           <Text size="sm" c={canEdit ? 'teal' : 'dimmed'}>
             {canEdit ? 'You can edit this draft.' : 'Read-only access.'}
           </Text>
@@ -329,6 +400,24 @@ export const DocumentLeadDraftPanel = forwardRef<DocumentLeadDraftPanelHandle, P
             </Text>
           )}
         </Group>
+        {canEdit && draftLooksEmpty && publishedFallbackAvailable && (
+          <Alert color="yellow" variant="light" title="Draft is currently empty">
+            <Stack gap="xs">
+              <Text size="sm">
+                The shared draft has no visible text, but a published version with content exists.
+              </Text>
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => void handleResetDraftFromPublished()}
+                >
+                  Reset draft to published
+                </Button>
+              </Group>
+            </Stack>
+          </Alert>
+        )}
 
         <LeadDraftTiptapEditor
           ref={editorRef}

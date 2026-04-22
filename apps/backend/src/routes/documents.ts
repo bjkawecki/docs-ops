@@ -107,6 +107,7 @@ import {
   excludeUserIds,
   listUserIdsWhoCanReadDocument,
   listUserIdsWhoCanReadOrWriteDocument,
+  listUserIdsWhoCanWriteContext,
   listUserIdsWhoCanWriteDocument,
   symmetricDiffUserIds,
 } from '../services/notifications/notificationRecipients.js';
@@ -2177,6 +2178,169 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
+  /** GET Kandidaten für nutzerbasiertes Write-Granting (Scope-User ohne implizite Writer). */
+  app.get(
+    '/documents/:documentId/grants/candidate-users',
+    { preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))] },
+    async (request, reply) => {
+      const prisma = request.server.prisma;
+      const { documentId } = documentIdParamSchema.parse(request.params);
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: {
+          contextId: true,
+          context: {
+            select: {
+              process: {
+                select: {
+                  owner: {
+                    select: {
+                      ownerUserId: true,
+                      companyId: true,
+                      departmentId: true,
+                      teamId: true,
+                      team: {
+                        select: { departmentId: true, department: { select: { companyId: true } } },
+                      },
+                    },
+                  },
+                },
+              },
+              project: {
+                select: {
+                  owner: {
+                    select: {
+                      ownerUserId: true,
+                      companyId: true,
+                      departmentId: true,
+                      teamId: true,
+                      team: {
+                        select: { departmentId: true, department: { select: { companyId: true } } },
+                      },
+                    },
+                  },
+                },
+              },
+              subcontext: {
+                select: {
+                  project: {
+                    select: {
+                      owner: {
+                        select: {
+                          ownerUserId: true,
+                          companyId: true,
+                          departmentId: true,
+                          teamId: true,
+                          team: {
+                            select: {
+                              departmentId: true,
+                              department: { select: { companyId: true } },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!doc) return reply.status(404).send({ error: 'Document not found' });
+      const owner =
+        doc.context?.process?.owner ??
+        doc.context?.project?.owner ??
+        doc.context?.subcontext?.project?.owner ??
+        null;
+
+      const ownerUserId = owner?.ownerUserId ?? null;
+      const ownerCompanyId = owner?.companyId ?? owner?.team?.department?.companyId ?? null;
+      const ownerDepartmentId = owner?.departmentId ?? owner?.team?.departmentId ?? null;
+      const ownerTeamId = owner?.teamId ?? null;
+
+      const scopeUserIds = new Set<string>();
+      if (ownerUserId != null) scopeUserIds.add(ownerUserId);
+      if (ownerCompanyId != null) {
+        const [members, teamLeads, departmentLeads, companyLeads] = await Promise.all([
+          prisma.teamMember.findMany({
+            where: { team: { department: { companyId: ownerCompanyId } } },
+            select: { userId: true },
+          }),
+          prisma.teamLead.findMany({
+            where: { team: { department: { companyId: ownerCompanyId } } },
+            select: { userId: true },
+          }),
+          prisma.departmentLead.findMany({
+            where: { department: { companyId: ownerCompanyId } },
+            select: { userId: true },
+          }),
+          prisma.companyLead.findMany({
+            where: { companyId: ownerCompanyId },
+            select: { userId: true },
+          }),
+        ]);
+        for (const row of members) scopeUserIds.add(row.userId);
+        for (const row of teamLeads) scopeUserIds.add(row.userId);
+        for (const row of departmentLeads) scopeUserIds.add(row.userId);
+        for (const row of companyLeads) scopeUserIds.add(row.userId);
+      } else if (ownerDepartmentId != null) {
+        const [members, teamLeads, departmentLeads] = await Promise.all([
+          prisma.teamMember.findMany({
+            where: { team: { departmentId: ownerDepartmentId } },
+            select: { userId: true },
+          }),
+          prisma.teamLead.findMany({
+            where: { team: { departmentId: ownerDepartmentId } },
+            select: { userId: true },
+          }),
+          prisma.departmentLead.findMany({
+            where: { departmentId: ownerDepartmentId },
+            select: { userId: true },
+          }),
+        ]);
+        for (const row of members) scopeUserIds.add(row.userId);
+        for (const row of teamLeads) scopeUserIds.add(row.userId);
+        for (const row of departmentLeads) scopeUserIds.add(row.userId);
+      } else if (ownerTeamId != null) {
+        const [members, teamLeads] = await Promise.all([
+          prisma.teamMember.findMany({
+            where: { teamId: ownerTeamId },
+            select: { userId: true },
+          }),
+          prisma.teamLead.findMany({
+            where: { teamId: ownerTeamId },
+            select: { userId: true },
+          }),
+        ]);
+        for (const row of members) scopeUserIds.add(row.userId);
+        for (const row of teamLeads) scopeUserIds.add(row.userId);
+      }
+
+      const implicitWriterIds =
+        doc.contextId != null
+          ? await listUserIdsWhoCanWriteContext(prisma, doc.contextId)
+          : (
+              await prisma.user.findMany({
+                where: { isAdmin: true, deletedAt: null },
+                select: { id: true },
+              })
+            ).map((u) => u.id);
+      const implicitWriterSet = new Set(implicitWriterIds);
+      const candidateIds = [...scopeUserIds].filter((id) => !implicitWriterSet.has(id));
+      if (candidateIds.length === 0) return reply.send({ items: [] });
+
+      const users = await prisma.user.findMany({
+        where: { id: { in: candidateIds }, deletedAt: null },
+        select: { id: true, name: true, email: true },
+        orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      });
+      return reply.send({
+        items: users.map((u) => ({ id: u.id, name: u.name ?? u.email ?? u.id, email: u.email })),
+      });
+    }
+  );
+
   /** PUT User-Grants ersetzen – requireDocumentAccess('write'). */
   app.put(
     '/documents/:documentId/grants/users',
@@ -2231,6 +2395,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const actorUserId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const { grants } = putGrantsTeamsBodySchema.parse(request.body);
+      if (grants.some((g) => g.role === 'Write')) {
+        return reply.status(400).send({
+          error: 'Team write grants are not supported. Assign write access to individual users.',
+        });
+      }
       const beforeUnion = new Set([
         ...(await listUserIdsWhoCanReadDocument(prisma, documentId)),
         ...(await listUserIdsWhoCanWriteDocument(prisma, documentId)),
@@ -2276,6 +2445,12 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const actorUserId = getEffectiveUserId(request as RequestWithUser);
       const { documentId } = documentIdParamSchema.parse(request.params);
       const { grants } = putGrantsDepartmentsBodySchema.parse(request.body);
+      if (grants.some((g) => g.role === 'Write')) {
+        return reply.status(400).send({
+          error:
+            'Department write grants are not supported. Assign write access to individual users.',
+        });
+      }
       const beforeUnion = new Set([
         ...(await listUserIdsWhoCanReadDocument(prisma, documentId)),
         ...(await listUserIdsWhoCanWriteDocument(prisma, documentId)),

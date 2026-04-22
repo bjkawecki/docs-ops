@@ -397,6 +397,8 @@ export function DocumentPage() {
 
   const headings = useMemo(() => (data ? getHeadingsFromMarkdown(data.content ?? '') : []), [data]);
   const numberedHeadings = useMemo(() => withHeadingNumbering(headings), [headings]);
+  const hasDraftBlocks = (data?.blocks?.blocks?.length ?? 0) > 0;
+  const hasPublishedBlocks = (data?.publishedBlocks?.blocks?.length ?? 0) > 0;
   const markdownHeadingComponents = useMemo(() => {
     const makeH = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
       function HeadingWithId({ children, ...rest }: { children?: ReactNode }) {
@@ -1145,16 +1147,16 @@ export function DocumentPage() {
                           {data.canWrite && <Tabs.Tab value="access">Access</Tabs.Tab>}
                         </Tabs.List>
                         <Tabs.Panel value="draft" pt="md">
-                          {data.blocks == null && data.publishedBlocks == null && (
+                          {!hasDraftBlocks && !hasPublishedBlocks && (
                             <Alert
                               color="yellow"
                               variant="light"
                               mb="md"
-                              title="Draft not initialized"
+                              title="Draft content is empty"
                             >
                               <Text size="sm">
-                                This document has no draft blocks yet. Saving will initialize the
-                                draft.
+                                No block content is currently available for this document. Save the
+                                draft once to initialize it.
                               </Text>
                             </Alert>
                           )}
@@ -1219,8 +1221,6 @@ export function DocumentPage() {
                           <Tabs.Panel value="access" pt="md">
                             <DocumentAccessPanel
                               documentId={documentId!}
-                              scope={data.scope}
-                              me={me}
                               canEditAccess={!!data.canWrite}
                             />
                           </Tabs.Panel>
