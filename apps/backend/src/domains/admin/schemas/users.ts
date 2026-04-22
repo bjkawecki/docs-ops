@@ -21,8 +21,6 @@ export const listUsersQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 });
 
-export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
-
 /** Body: POST /admin/users – Nutzer anlegen. */
 export const createUserBodySchema = z.object({
   name: z.string().min(1).max(255),
@@ -30,8 +28,6 @@ export const createUserBodySchema = z.object({
   password: z.string().min(8).max(255),
   isAdmin: z.boolean().optional().default(false),
 });
-
-export type CreateUserBody = z.infer<typeof createUserBodySchema>;
 
 /** Body: PATCH /admin/users/:userId – Nutzer bearbeiten / Deaktivierung / Reaktivierung. */
 export const updateUserBodySchema = z.object({
@@ -41,14 +37,10 @@ export const updateUserBodySchema = z.object({
   deletedAt: z.union([z.string().datetime(), z.null()]).optional(),
 });
 
-export type UpdateUserBody = z.infer<typeof updateUserBodySchema>;
-
 /** Body: POST /admin/users/:userId/reset-password. */
 export const resetPasswordBodySchema = z.object({
   newPassword: z.string().min(8).max(255),
 });
-
-export type ResetPasswordBody = z.infer<typeof resetPasswordBodySchema>;
 
 /** Params: userId. */
 export const userIdParamSchema = z.object({
@@ -61,5 +53,3 @@ export const listUserDocumentsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   search: z.string().min(1).max(255).optional(),
 });
-
-export type ListUserDocumentsQuery = z.infer<typeof listUserDocumentsQuerySchema>;

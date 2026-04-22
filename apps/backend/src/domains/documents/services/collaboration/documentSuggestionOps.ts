@@ -32,12 +32,6 @@ export type SuggestionOp = z.infer<typeof suggestionOpSchema>;
 
 export const suggestionOpsArraySchema = z.array(suggestionOpSchema).min(1);
 
-export function parseSuggestionOps(
-  input: unknown
-): ReturnType<typeof suggestionOpsArraySchema.safeParse> {
-  return suggestionOpsArraySchema.safeParse(input);
-}
-
 function findTopLevelIndex(blocks: BlockNode[], blockId: string): number {
   return blocks.findIndex((b) => b.id === blockId);
 }

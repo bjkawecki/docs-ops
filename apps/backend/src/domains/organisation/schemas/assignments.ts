@@ -6,8 +6,6 @@ export const assignmentListQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-export type AssignmentListQuery = z.infer<typeof assignmentListQuerySchema>;
-
 /** Params: teamId. */
 export const teamIdParamSchema = z.object({
   teamId: z.cuid(),
@@ -45,5 +43,3 @@ export const departmentIdUserIdParamSchema = z.object({
 export const addAssignmentBodySchema = z.object({
   userId: z.cuid(),
 });
-
-export type AddAssignmentBody = z.infer<typeof addAssignmentBodySchema>;

@@ -4,5 +4,3 @@ import { z } from 'zod';
 export const impersonateBodySchema = z.object({
   userId: z.string().min(1),
 });
-
-export type ImpersonateBody = z.infer<typeof impersonateBodySchema>;

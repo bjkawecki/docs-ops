@@ -1,8 +1,6 @@
 import type { PrismaClient } from '../../../../../generated/prisma/client.js';
 import { isHeadingSlugInBlocks } from '../blocks/blockHeadingSlugs.js';
 
-export const DOCUMENT_COMMENT_TEXT_MAX = 16_000;
-
 export type DocumentCommentRow = {
   id: string;
   documentId: string;
