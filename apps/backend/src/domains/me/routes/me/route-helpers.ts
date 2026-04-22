@@ -37,6 +37,23 @@ const ownerScopeSelect = {
   displayName: true,
 } as const;
 
+const meDocumentsSelect = {
+  id: true,
+  title: true,
+  contextId: true,
+  createdAt: true,
+  updatedAt: true,
+  documentTags: { include: { tag: { select: { id: true, name: true } } } },
+} as const;
+
+function mapContextIdRows(rows: Array<{ contextId: string }>): string[] {
+  return rows.map((item) => item.contextId);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
 function notificationPayloadAsRecord(payload: unknown): Record<string, unknown> {
   if (payload != null && typeof payload === 'object' && !Array.isArray(payload)) {
     return payload as Record<string, unknown>;
@@ -144,62 +161,17 @@ async function getDraftsScope(
     };
   }
   if (query.scope === 'personal') {
-    const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
-      prisma.process.findMany({
-        where: { deletedAt: null, owner: { ownerUserId: userId } },
-        select: { contextId: true },
-      }),
-      prisma.project.findMany({
-        where: { deletedAt: null, owner: { ownerUserId: userId } },
-        select: { contextId: true },
-      }),
-      prisma.subcontext.findMany({
-        where: { project: { owner: { ownerUserId: userId } } },
-        select: { contextId: true },
-      }),
-    ]);
+    const personalContextIds = await getPersonalContextIds(prisma, userId);
     return {
-      scopeContextIds: [
-        ...processContexts.map((item) => item.contextId),
-        ...projectContexts.map((item) => item.contextId),
-        ...subcontextContexts.map((item) => item.contextId),
-      ],
+      scopeContextIds: personalContextIds,
       scopeDocumentIds: [],
     };
   }
   if (query.scope === 'shared') {
-    const [userGrantDocIds, teamGrantDocIds, deptGrantDocIds] = await Promise.all([
-      prisma.documentGrantUser
-        .findMany({ where: { userId }, select: { documentId: true } })
-        .then((rows) => rows.map((row) => row.documentId)),
-      prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }).then((teamIds) =>
-        prisma.documentGrantTeam
-          .findMany({
-            where: { teamId: { in: teamIds.map((team) => team.teamId) } },
-            select: { documentId: true },
-          })
-          .then((rows) => rows.map((row) => row.documentId))
-      ),
-      prisma.teamMember
-        .findMany({
-          where: { userId },
-          include: { team: { select: { departmentId: true } } },
-        })
-        .then((members) => [...new Set(members.map((member) => member.team.departmentId))])
-        .then((departmentIds) =>
-          departmentIds.length === 0
-            ? Promise.resolve([] as string[])
-            : prisma.documentGrantDepartment
-                .findMany({
-                  where: { departmentId: { in: departmentIds } },
-                  select: { documentId: true },
-                })
-                .then((rows) => rows.map((row) => row.documentId))
-        ),
-    ]);
+    const sharedDocumentIds = await getSharedDocumentIds(prisma, userId);
     return {
       scopeContextIds: [],
-      scopeDocumentIds: [...new Set([...userGrantDocIds, ...teamGrantDocIds, ...deptGrantDocIds])],
+      scopeDocumentIds: sharedDocumentIds,
     };
   }
 
@@ -226,9 +198,9 @@ async function getDraftsScope(
 
   return {
     scopeContextIds: [
-      ...processContexts.map((item) => item.contextId),
-      ...projectContexts.map((item) => item.contextId),
-      ...subcontextContexts.map((item) => item.contextId),
+      ...mapContextIdRows(processContexts),
+      ...mapContextIdRows(projectContexts),
+      ...mapContextIdRows(subcontextContexts),
     ],
     scopeDocumentIds: [],
   };
@@ -236,6 +208,88 @@ async function getDraftsScope(
 
 async function getWritableScope(prisma: PrismaClient, userId: string) {
   return getWritableCatalogScope(prisma, userId);
+}
+
+async function getPersonalContextIds(prisma: PrismaClient, userId: string): Promise<string[]> {
+  const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
+    prisma.process.findMany({
+      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      select: { contextId: true },
+    }),
+    prisma.project.findMany({
+      where: { deletedAt: null, owner: { ownerUserId: userId } },
+      select: { contextId: true },
+    }),
+    prisma.subcontext.findMany({
+      where: { project: { owner: { ownerUserId: userId } } },
+      select: { contextId: true },
+    }),
+  ]);
+
+  return [
+    ...mapContextIdRows(processContexts),
+    ...mapContextIdRows(projectContexts),
+    ...mapContextIdRows(subcontextContexts),
+  ];
+}
+
+async function getSharedDocumentIds(prisma: PrismaClient, userId: string): Promise<string[]> {
+  const [teamIds, teamMembersWithDepartment] = await Promise.all([
+    prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }),
+    prisma.teamMember.findMany({
+      where: { userId },
+      include: { team: { select: { departmentId: true } } },
+    }),
+  ]);
+  const departmentIds = uniqueStrings(
+    teamMembersWithDepartment.map((member) => member.team.departmentId)
+  );
+
+  const [userGrantDocIds, teamGrantDocIds, deptGrantDocIds] = await Promise.all([
+    prisma.documentGrantUser
+      .findMany({ where: { userId }, select: { documentId: true } })
+      .then((rows) => rows.map((row) => row.documentId)),
+    teamIds.length === 0
+      ? Promise.resolve([] as string[])
+      : prisma.documentGrantTeam
+          .findMany({
+            where: { teamId: { in: teamIds.map((team) => team.teamId) } },
+            select: { documentId: true },
+          })
+          .then((rows) => rows.map((row) => row.documentId)),
+    departmentIds.length === 0
+      ? Promise.resolve([] as string[])
+      : prisma.documentGrantDepartment
+          .findMany({
+            where: { departmentId: { in: departmentIds } },
+            select: { documentId: true },
+          })
+          .then((rows) => rows.map((row) => row.documentId)),
+  ]);
+
+  return uniqueStrings([...userGrantDocIds, ...teamGrantDocIds, ...deptGrantDocIds]);
+}
+
+async function listMeDocumentsPage(
+  prisma: PrismaClient,
+  where: Prisma.DocumentWhereInput,
+  limit: number,
+  offset: number
+): Promise<{
+  items: Array<Prisma.DocumentGetPayload<{ select: typeof meDocumentsSelect }>>;
+  total: number;
+}> {
+  const [items, total] = await Promise.all([
+    prisma.document.findMany({
+      where,
+      select: meDocumentsSelect,
+      take: limit,
+      skip: offset,
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.document.count({ where }),
+  ]);
+  return { items, total };
 }
 
 export {
@@ -247,4 +301,7 @@ export {
   userPreferencesFromJson,
   getDraftsScope,
   getWritableScope,
+  getPersonalContextIds,
+  getSharedDocumentIds,
+  listMeDocumentsPage,
 };

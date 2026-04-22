@@ -8,7 +8,7 @@ import {
 import { DOCUMENT_FOR_PERMISSION_INCLUDE, type DocumentForPermission } from './documentLoad.js';
 
 /** User mit Relationen für Rechteprüfung (canRead/canWrite). */
-type UserForPermission = {
+export type UserForPermission = {
   id: string;
   isAdmin: boolean;
   deletedAt: Date | null;
@@ -22,6 +22,61 @@ type UserForPermission = {
   departmentLeads: { departmentId: string; department: { companyId: string } }[];
   companyLeads: { companyId: string }[];
 };
+
+export function getDocumentOwner(doc: DocumentForPermission) {
+  return (
+    doc.context?.process?.owner ??
+    doc.context?.project?.owner ??
+    doc.context?.subcontext?.project?.owner ??
+    null
+  );
+}
+
+export function getUserReadableTeamIds(user: UserForPermission): Set<string> {
+  return new Set([
+    ...user.teamMemberships.map((m) => m.team.id),
+    ...user.leadOfTeams.map((l) => l.teamId),
+  ]);
+}
+
+export function getUserLeaderTeamIds(user: UserForPermission): Set<string> {
+  return new Set(user.leadOfTeams.map((l) => l.teamId));
+}
+
+export function getUserDepartmentIds(user: UserForPermission): Set<string> {
+  return new Set([
+    ...user.teamMemberships.map((m) => m.team.departmentId),
+    ...user.leadOfTeams.map((l) => l.team.departmentId),
+  ]);
+}
+
+export function hasDocumentGrantRole(
+  doc: DocumentForPermission,
+  userId: string,
+  role: GrantRole,
+  teamIds: Set<string>,
+  departmentIds: Set<string>
+): boolean {
+  if (doc.grantUser.some((g) => g.userId === userId && g.role === role)) return true;
+  if (doc.grantTeam.some((g) => g.role === role && teamIds.has(g.teamId))) return true;
+  if (doc.grantDepartment.some((g) => g.role === role && departmentIds.has(g.departmentId)))
+    return true;
+  return false;
+}
+
+export function isCompanyLeadForOwner(
+  user: UserForPermission,
+  owner: ReturnType<typeof getDocumentOwner>
+): boolean {
+  const companyId = owner?.companyId ?? null;
+  return companyId != null && user.companyLeads.some((c) => c.companyId === companyId);
+}
+
+function getOwnerDepartmentId(owner: ReturnType<typeof getDocumentOwner>): string | null {
+  if (!owner) return null;
+  if (owner.departmentId) return owner.departmentId;
+  return owner.team?.departmentId ?? null;
+}
 
 /** Für canRead/canWrite: User mit Relationen laden. Export für canWrite. */
 export async function loadUser(
@@ -69,35 +124,12 @@ export async function loadDocument(
 
 /** Ermittelt die Company-Owner-ID des Dokument-Kontexts (Process/Project/Subcontext), falls Owner eine Company ist. */
 function getContextOwnerCompanyId(doc: DocumentForPermission): string | null {
-  if (!doc.context) return null;
-  const ctx = doc.context;
-  const owner = ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
-  return owner?.companyId ?? null;
+  return getDocumentOwner(doc)?.companyId ?? null;
 }
 
 /** Returns the department id of the document context owner (Process/Project/Subcontext). */
 function getContextOwnerDepartmentId(doc: DocumentForPermission): string | null {
-  if (!doc.context) return null;
-  const ctx = doc.context;
-  if (ctx.process?.owner) {
-    const o = ctx.process.owner;
-    if (o.departmentId) return o.departmentId;
-    if (o.team?.departmentId) return o.team.departmentId;
-    return null;
-  }
-  if (ctx.project?.owner) {
-    const o = ctx.project.owner;
-    if (o.departmentId) return o.departmentId;
-    if (o.team?.departmentId) return o.team.departmentId;
-    return null;
-  }
-  if (ctx.subcontext?.project?.owner) {
-    const o = ctx.subcontext.project.owner;
-    if (o.departmentId) return o.departmentId;
-    if (o.team?.departmentId) return o.team.departmentId;
-    return null;
-  }
-  return null;
+  return getOwnerDepartmentId(getDocumentOwner(doc));
 }
 
 /**
@@ -123,40 +155,22 @@ export async function canRead(
   // 2. Context-free document (contextId null): only creator and explicit grants
   if (doc.contextId == null || doc.context == null) {
     if (doc.createdById === userId) return true;
-    const userTeamIds = new Set([
-      ...user.teamMemberships.map((m) => m.team.id),
-      ...user.leadOfTeams.map((l) => l.teamId),
-    ]);
-    const userDepartmentIds = new Set([
-      ...user.teamMemberships.map((m) => m.team.departmentId),
-      ...user.leadOfTeams.map((l) => l.team.departmentId),
-    ]);
-    if (doc.grantUser.some((g) => g.userId === userId && g.role === GrantRole.Read)) return true;
-    if (doc.grantTeam.some((g) => g.role === GrantRole.Read && userTeamIds.has(g.teamId)))
-      return true;
-    if (
-      doc.grantDepartment.some(
-        (g) => g.role === GrantRole.Read && userDepartmentIds.has(g.departmentId)
-      )
-    )
-      return true;
-    return false;
+    return hasDocumentGrantRole(
+      doc,
+      userId,
+      GrantRole.Read,
+      getUserReadableTeamIds(user),
+      getUserDepartmentIds(user)
+    );
   }
 
   // 3. Owner of personal context (process/project with ownerUserId)
-  const owner =
-    doc.context.process?.owner ??
-    doc.context.project?.owner ??
-    doc.context.subcontext?.project?.owner ??
-    null;
+  const owner = getDocumentOwner(doc);
   if (owner?.ownerUserId === userId) return true;
 
   // 4. Company Lead (contexts with company owner)
   const ownerCompanyId = getContextOwnerCompanyId(doc);
-  if (ownerCompanyId !== null) {
-    const isCompanyLead = user.companyLeads.some((c) => c.companyId === ownerCompanyId);
-    if (isCompanyLead) return true;
-  }
+  if (ownerCompanyId !== null && isCompanyLeadForOwner(user, owner)) return true;
 
   // 5. Department Lead (contexts with department/team owner)
   const ownerDeptId = getContextOwnerDepartmentId(doc);
@@ -166,24 +180,17 @@ export async function canRead(
   }
 
   // 6. Explicit grants (Team Lead sieht Team-Grants wie Mitglieder)
-  const userTeamIds = new Set([
-    ...user.teamMemberships.map((m) => m.team.id),
-    ...user.leadOfTeams.map((l) => l.teamId),
-  ]);
-  const userDepartmentIds = new Set([
-    ...user.teamMemberships.map((m) => m.team.departmentId),
-    ...user.leadOfTeams.map((l) => l.team.departmentId),
-  ]);
-
-  if (doc.grantUser.some((g) => g.userId === userId && g.role === GrantRole.Read)) return true;
-  if (doc.grantTeam.some((g) => g.role === GrantRole.Read && userTeamIds.has(g.teamId)))
-    return true;
   if (
-    doc.grantDepartment.some(
-      (g) => g.role === GrantRole.Read && userDepartmentIds.has(g.departmentId)
+    hasDocumentGrantRole(
+      doc,
+      userId,
+      GrantRole.Read,
+      getUserReadableTeamIds(user),
+      getUserDepartmentIds(user)
     )
-  )
+  ) {
     return true;
+  }
 
   // 7. Veröffentlichte Dokumente: Leserecht wie Kontext-Leserecht (analog canReadContext / Katalog).
   // Ohne diesen Schritt sehen Nutzer Einträge im Katalog, scheitern aber an GET /documents/:id.
@@ -197,11 +204,7 @@ export async function canRead(
  * Document (ohne Prisma-Roundtrip, kein Zyklus zu contextPermissions).
  */
 function userCanReadDocumentContext(doc: DocumentForPermission, user: UserForPermission): boolean {
-  const owner =
-    doc.context?.process?.owner ??
-    doc.context?.project?.owner ??
-    doc.context?.subcontext?.project?.owner ??
-    null;
+  const owner = getDocumentOwner(doc);
   if (!owner) return false;
 
   const companyId = owner.companyId;

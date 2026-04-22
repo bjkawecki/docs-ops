@@ -1,7 +1,7 @@
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { GrantRole } from '../../../../generated/prisma/client.js';
 import type { DocumentForPermission } from '../../documents/permissions/documentLoad.js';
-import { canRead, loadDocument } from '../../documents/permissions/canRead.js';
+import { canRead, getDocumentOwner, loadDocument } from '../../documents/permissions/canRead.js';
 
 /** Must match `notifications.send` job schema max length. */
 export const NOTIFICATION_TARGET_USER_IDS_MAX = 1000;
@@ -30,38 +30,10 @@ export function symmetricDiffUserIds(before: Set<string>, after: Set<string>): s
   return [...out];
 }
 
-function getContextOwnerCompanyId(doc: DocumentForPermission): string | null {
-  if (!doc.context) return null;
-  const owner =
-    doc.context.process?.owner ??
-    doc.context.project?.owner ??
-    doc.context.subcontext?.project?.owner ??
-    null;
-  return owner?.companyId ?? null;
-}
-
-function getContextOwnerDepartmentId(doc: DocumentForPermission): string | null {
-  if (!doc.context) return null;
-  const ctx = doc.context;
-  if (ctx.process?.owner) {
-    const o = ctx.process.owner;
-    if (o.departmentId) return o.departmentId;
-    if (o.team?.departmentId) return o.team.departmentId;
-    return null;
-  }
-  if (ctx.project?.owner) {
-    const o = ctx.project.owner;
-    if (o.departmentId) return o.departmentId;
-    if (o.team?.departmentId) return o.team.departmentId;
-    return null;
-  }
-  if (ctx.subcontext?.project?.owner) {
-    const o = ctx.subcontext.project.owner;
-    if (o.departmentId) return o.departmentId;
-    if (o.team?.departmentId) return o.team.departmentId;
-    return null;
-  }
-  return null;
+function getOwnerDepartmentId(owner: ReturnType<typeof getDocumentOwner>): string | null {
+  if (!owner) return null;
+  if (owner.departmentId) return owner.departmentId;
+  return owner.team?.departmentId ?? null;
 }
 
 async function addActiveAdminIds(prisma: PrismaClient, into: Set<string>): Promise<void> {
@@ -127,7 +99,7 @@ async function addTeamLeadUserIdsForTeams(
   for (const r of leads) into.add(r.userId);
 }
 
-async function addUsersInDepartmentsForReadGrant(
+async function addUsersInDepartmentsForGrant(
   prisma: PrismaClient,
   departmentIds: string[],
   into: Set<string>
@@ -145,22 +117,73 @@ async function addUsersInDepartmentsForReadGrant(
   for (const r of leads) into.add(r.userId);
 }
 
-async function addUsersInDepartmentsForWriteGrant(
+function grantTeamIds(doc: DocumentForPermission, role: GrantRole): string[] {
+  return doc.grantTeam.filter((g) => g.role === role).map((g) => g.teamId);
+}
+
+function grantDepartmentIds(doc: DocumentForPermission, role: GrantRole): string[] {
+  return doc.grantDepartment.filter((g) => g.role === role).map((g) => g.departmentId);
+}
+
+function addGrantUserIds(doc: DocumentForPermission, role: GrantRole, into: Set<string>): void {
+  for (const g of doc.grantUser) {
+    if (g.role === role) into.add(g.userId);
+  }
+}
+
+async function addGrantRecipientsByRole(
   prisma: PrismaClient,
-  departmentIds: string[],
-  into: Set<string>
+  doc: DocumentForPermission,
+  role: GrantRole,
+  into: Set<string>,
+  teamMode: 'members-and-leads' | 'leads-only'
 ): Promise<void> {
-  if (departmentIds.length === 0) return;
-  const members = await prisma.teamMember.findMany({
-    where: { team: { departmentId: { in: departmentIds } } },
-    select: { userId: true },
-  });
-  const leads = await prisma.teamLead.findMany({
-    where: { team: { departmentId: { in: departmentIds } } },
-    select: { userId: true },
-  });
-  for (const r of members) into.add(r.userId);
-  for (const r of leads) into.add(r.userId);
+  addGrantUserIds(doc, role, into);
+  const teamIds = grantTeamIds(doc, role);
+  if (teamMode === 'members-and-leads') {
+    await addTeamMemberUserIdsForTeams(prisma, teamIds, into);
+  } else {
+    await addTeamLeadUserIdsForTeams(prisma, teamIds, into);
+  }
+  const departmentIds = grantDepartmentIds(doc, role);
+  await addUsersInDepartmentsForGrant(prisma, departmentIds, into);
+}
+
+async function collectDocumentCandidateIdsByRole(
+  prisma: PrismaClient,
+  doc: DocumentForPermission,
+  role: GrantRole
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  await addActiveAdminIds(prisma, ids);
+
+  if (doc.contextId == null || doc.context == null) {
+    if (doc.createdById) ids.add(doc.createdById);
+    await addGrantRecipientsByRole(
+      prisma,
+      doc,
+      role,
+      ids,
+      role === GrantRole.Read ? 'members-and-leads' : 'leads-only'
+    );
+    return ids;
+  }
+
+  const owner = getDocumentOwner(doc);
+  if (owner?.ownerUserId) ids.add(owner.ownerUserId);
+  if (owner?.companyId) await addCompanyLeadUserIds(prisma, owner.companyId, ids);
+  if (role === GrantRole.Read) {
+    const ownerDeptId = getOwnerDepartmentId(owner);
+    if (ownerDeptId) await addDepartmentLeadUserIds(prisma, ownerDeptId, ids);
+  }
+  await addGrantRecipientsByRole(
+    prisma,
+    doc,
+    role,
+    ids,
+    role === GrantRole.Read ? 'members-and-leads' : 'leads-only'
+  );
+  return ids;
 }
 
 /**
@@ -175,48 +198,7 @@ export async function listUserIdsWhoCanReadDocument(
   const doc = await loadDocument(prisma, documentId);
   if (!doc) return [];
 
-  const ids = new Set<string>();
-  await addActiveAdminIds(prisma, ids);
-
-  if (doc.contextId == null || doc.context == null) {
-    if (doc.createdById) ids.add(doc.createdById);
-    for (const g of doc.grantUser) {
-      if (g.role === GrantRole.Read) ids.add(g.userId);
-    }
-    const readTeamIds = doc.grantTeam.filter((g) => g.role === GrantRole.Read).map((g) => g.teamId);
-    await addTeamMemberUserIdsForTeams(prisma, readTeamIds, ids);
-    const readDeptIds = doc.grantDepartment
-      .filter((g) => g.role === GrantRole.Read)
-      .map((g) => g.departmentId);
-    await addUsersInDepartmentsForReadGrant(prisma, readDeptIds, ids);
-  } else {
-    const owner =
-      doc.context.process?.owner ??
-      doc.context.project?.owner ??
-      doc.context.subcontext?.project?.owner ??
-      null;
-    if (owner?.ownerUserId) ids.add(owner.ownerUserId);
-
-    const ownerCompanyId = getContextOwnerCompanyId(doc);
-    if (ownerCompanyId !== null) {
-      await addCompanyLeadUserIds(prisma, ownerCompanyId, ids);
-    }
-
-    const ownerDeptId = getContextOwnerDepartmentId(doc);
-    if (ownerDeptId !== null) {
-      await addDepartmentLeadUserIds(prisma, ownerDeptId, ids);
-    }
-
-    for (const g of doc.grantUser) {
-      if (g.role === GrantRole.Read) ids.add(g.userId);
-    }
-    const readTeamIds = doc.grantTeam.filter((g) => g.role === GrantRole.Read).map((g) => g.teamId);
-    await addTeamMemberUserIdsForTeams(prisma, readTeamIds, ids);
-    const readDeptIds = doc.grantDepartment
-      .filter((g) => g.role === GrantRole.Read)
-      .map((g) => g.departmentId);
-    await addUsersInDepartmentsForReadGrant(prisma, readDeptIds, ids);
-  }
+  const ids = await collectDocumentCandidateIdsByRole(prisma, doc, GrantRole.Read);
 
   const active = await filterActiveUserIds(prisma, [...ids]);
   const verified: string[] = [];
@@ -236,47 +218,7 @@ export async function listUserIdsWhoCanWriteDocument(
   const doc = await loadDocument(prisma, documentId);
   if (!doc) return [];
 
-  const ids = new Set<string>();
-  await addActiveAdminIds(prisma, ids);
-
-  if (doc.contextId == null || doc.context == null) {
-    if (doc.createdById) ids.add(doc.createdById);
-    for (const g of doc.grantUser) {
-      if (g.role === GrantRole.Write) ids.add(g.userId);
-    }
-    const writeTeamIds = doc.grantTeam
-      .filter((g) => g.role === GrantRole.Write)
-      .map((g) => g.teamId);
-    await addTeamLeadUserIdsForTeams(prisma, writeTeamIds, ids);
-    const writeDeptIds = doc.grantDepartment
-      .filter((g) => g.role === GrantRole.Write)
-      .map((g) => g.departmentId);
-    await addUsersInDepartmentsForWriteGrant(prisma, writeDeptIds, ids);
-  } else {
-    const owner =
-      doc.context.process?.owner ??
-      doc.context.project?.owner ??
-      doc.context.subcontext?.project?.owner ??
-      null;
-    if (owner?.ownerUserId) ids.add(owner.ownerUserId);
-
-    const companyId = owner?.companyId ?? null;
-    if (companyId !== null) {
-      await addCompanyLeadUserIds(prisma, companyId, ids);
-    }
-
-    for (const g of doc.grantUser) {
-      if (g.role === GrantRole.Write) ids.add(g.userId);
-    }
-    const writeTeamIds = doc.grantTeam
-      .filter((g) => g.role === GrantRole.Write)
-      .map((g) => g.teamId);
-    await addTeamLeadUserIdsForTeams(prisma, writeTeamIds, ids);
-    const writeDeptIds = doc.grantDepartment
-      .filter((g) => g.role === GrantRole.Write)
-      .map((g) => g.departmentId);
-    await addUsersInDepartmentsForWriteGrant(prisma, writeDeptIds, ids);
-  }
+  const ids = await collectDocumentCandidateIdsByRole(prisma, doc, GrantRole.Write);
 
   return filterActiveUserIds(prisma, [...ids]);
 }

@@ -10,8 +10,11 @@ import { paginationQuerySchema } from '../../../organisation/schemas/organisatio
 import { meCanWriteInScopeQuerySchema, meDraftsQuerySchema } from '../../schemas/me.js';
 import {
   getDraftsScope,
+  getPersonalContextIds,
+  getSharedDocumentIds,
   getScopeFromOwner,
   getWritableScope,
+  listMeDocumentsPage,
   ownerScopeSelect,
   scopeRefFromQuery,
 } from './route-helpers.js';
@@ -27,25 +30,7 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
         .extend({ publishedOnly: z.coerce.boolean().optional().default(false) })
         .parse(request.query);
 
-      const [processContexts, projectContexts, subcontextContexts] = await Promise.all([
-        prisma.process.findMany({
-          where: { deletedAt: null, owner: { ownerUserId: userId } },
-          select: { contextId: true },
-        }),
-        prisma.project.findMany({
-          where: { deletedAt: null, owner: { ownerUserId: userId } },
-          select: { contextId: true },
-        }),
-        prisma.subcontext.findMany({
-          where: { project: { owner: { ownerUserId: userId } } },
-          select: { contextId: true },
-        }),
-      ]);
-      const personalContextIds = [
-        ...processContexts.map((item) => item.contextId),
-        ...projectContexts.map((item) => item.contextId),
-        ...subcontextContexts.map((item) => item.contextId),
-      ];
+      const personalContextIds = await getPersonalContextIds(prisma, userId);
 
       if (personalContextIds.length === 0) {
         return reply.send({
@@ -63,23 +48,7 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
         ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
       };
 
-      const [items, total] = await Promise.all([
-        prisma.document.findMany({
-          where,
-          select: {
-            id: true,
-            title: true,
-            contextId: true,
-            createdAt: true,
-            updatedAt: true,
-            documentTags: { include: { tag: { select: { id: true, name: true } } } },
-          },
-          take: query.limit,
-          skip: query.offset,
-          orderBy: { updatedAt: 'desc' },
-        }),
-        prisma.document.count({ where }),
-      ]);
+      const { items, total } = await listMeDocumentsPage(prisma, where, query.limit, query.offset);
       return reply.send({ items, total, limit: query.limit, offset: query.offset });
     }
   );
@@ -91,37 +60,7 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
       .extend({ publishedOnly: z.coerce.boolean().optional().default(false) })
       .parse(request.query);
 
-    const [userGrantDocIds, teamGrantDocIds, deptGrantDocIds] = await Promise.all([
-      prisma.documentGrantUser
-        .findMany({ where: { userId }, select: { documentId: true } })
-        .then((rows) => rows.map((row) => row.documentId)),
-      prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }).then((teamIds) =>
-        prisma.documentGrantTeam
-          .findMany({
-            where: { teamId: { in: teamIds.map((team) => team.teamId) } },
-            select: { documentId: true },
-          })
-          .then((rows) => rows.map((row) => row.documentId))
-      ),
-      prisma.teamMember
-        .findMany({
-          where: { userId },
-          include: { team: { select: { departmentId: true } } },
-        })
-        .then((members) => [...new Set(members.map((member) => member.team.departmentId))])
-        .then((departmentIds) =>
-          departmentIds.length === 0
-            ? Promise.resolve([] as string[])
-            : prisma.documentGrantDepartment
-                .findMany({
-                  where: { departmentId: { in: departmentIds } },
-                  select: { documentId: true },
-                })
-                .then((rows) => rows.map((row) => row.documentId))
-        ),
-    ]);
-
-    const documentIds = [...new Set([...userGrantDocIds, ...teamGrantDocIds, ...deptGrantDocIds])];
+    const documentIds = await getSharedDocumentIds(prisma, userId);
     if (documentIds.length === 0) {
       return reply.send({
         items: [],
@@ -138,23 +77,7 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
       ...(query.publishedOnly ? { publishedAt: { not: null } } : {}),
     };
 
-    const [items, total] = await Promise.all([
-      prisma.document.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          contextId: true,
-          createdAt: true,
-          updatedAt: true,
-          documentTags: { include: { tag: { select: { id: true, name: true } } } },
-        },
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.document.count({ where }),
-    ]);
+    const { items, total } = await listMeDocumentsPage(prisma, where, query.limit, query.offset);
     return reply.send({ items, total, limit: query.limit, offset: query.offset });
   });
 

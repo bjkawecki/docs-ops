@@ -35,6 +35,15 @@ type ContextWithOwner = {
   } | null;
 };
 
+type OwnerScopeOptions = {
+  companyId?: string;
+  departmentId?: string;
+  teamId?: string;
+  ownerUserId?: string;
+};
+
+type LoadedUser = NonNullable<Awaited<ReturnType<typeof loadUser>>>;
+
 async function loadContext(
   prisma: PrismaClient,
   contextId: string
@@ -107,6 +116,71 @@ function getOwnerFromContext(ctx: ContextWithOwner): {
   };
 }
 
+function isCompanyLead(user: LoadedUser, companyId: string): boolean {
+  return user.companyLeads.some((c) => c.companyId === companyId);
+}
+
+function isDepartmentLead(user: LoadedUser, departmentId: string): boolean {
+  return user.departmentLeads.some((d) => d.departmentId === departmentId);
+}
+
+function isTeamLead(user: LoadedUser, teamId: string): boolean {
+  return user.leadOfTeams.some((l) => l.teamId === teamId);
+}
+
+async function canWriteInOwnerScope(
+  prisma: PrismaClient,
+  user: LoadedUser,
+  userId: string,
+  opts: OwnerScopeOptions
+): Promise<boolean> {
+  if (opts.ownerUserId !== undefined && opts.ownerUserId === userId) return true;
+  if (opts.companyId && isCompanyLead(user, opts.companyId)) return true;
+
+  if (opts.departmentId) {
+    if (isDepartmentLead(user, opts.departmentId)) return true;
+    const department = await prisma.department.findUnique({
+      where: { id: opts.departmentId },
+      select: { companyId: true },
+    });
+    if (department?.companyId && isCompanyLead(user, department.companyId)) return true;
+  }
+
+  if (opts.teamId) {
+    if (isTeamLead(user, opts.teamId)) return true;
+    const team = await prisma.team.findUnique({
+      where: { id: opts.teamId },
+      include: { department: { select: { id: true, companyId: true } } },
+    });
+    if (!team?.department) return false;
+    if (isDepartmentLead(user, team.department.id)) return true;
+    if (team.department.companyId && isCompanyLead(user, team.department.companyId)) return true;
+  }
+
+  return false;
+}
+
+function canReadInOwnerScope(user: LoadedUser, userId: string, opts: OwnerScopeOptions): boolean {
+  if (opts.ownerUserId === userId) return true;
+
+  if (opts.companyId) {
+    if (isCompanyLead(user, opts.companyId)) return true;
+    if (user.departmentLeads.some((d) => d.department.companyId === opts.companyId)) return true;
+    if (user.leadOfTeams.some((l) => l.team.department.companyId === opts.companyId)) return true;
+    if (user.teamMemberships.some((m) => m.team.department.companyId === opts.companyId))
+      return true;
+  }
+
+  if (opts.departmentId) {
+    if (isDepartmentLead(user, opts.departmentId)) return true;
+    if (user.leadOfTeams.some((l) => l.team.departmentId === opts.departmentId)) return true;
+    if (user.teamMemberships.some((m) => m.team.departmentId === opts.departmentId)) return true;
+  }
+
+  if (opts.teamId && user.teamMemberships.some((m) => m.team.id === opts.teamId)) return true;
+  return false;
+}
+
 /**
  * Checks if the user may create a process/project for the given owner (companyId, departmentId, teamId or ownerUserId).
  * Personal (ownerUserId): only the user themselves. Org: Admin, Company/Department/Team Lead as per hierarchy.
@@ -119,41 +193,7 @@ export async function canCreateProcessOrProjectForOwner(
   const user = await loadUser(prisma, userId);
   if (!user || user.deletedAt !== null) return false;
   if (user.isAdmin) return true;
-  if (opts.ownerUserId !== undefined && opts.ownerUserId === userId) return true;
-  if (opts.companyId) {
-    const isCompanyLead = user.companyLeads.some((c) => c.companyId === opts.companyId);
-    if (isCompanyLead) return true;
-  }
-  if (opts.departmentId) {
-    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === opts.departmentId);
-    if (isDeptLead) return true;
-    const department = await prisma.department.findUnique({
-      where: { id: opts.departmentId },
-      select: { companyId: true },
-    });
-    if (department?.companyId) {
-      const isCompanyLead = user.companyLeads.some((c) => c.companyId === department.companyId);
-      if (isCompanyLead) return true;
-    }
-  }
-  if (opts.teamId) {
-    const isTeamLead = user.leadOfTeams.some((l) => l.teamId === opts.teamId);
-    if (isTeamLead) return true;
-    const team = await prisma.team.findUnique({
-      where: { id: opts.teamId },
-      include: { department: { select: { id: true, companyId: true } } },
-    });
-    if (team?.department) {
-      const dept = team.department;
-      const isDeptLead = user.departmentLeads.some((d) => d.departmentId === dept.id);
-      if (isDeptLead) return true;
-      if (dept.companyId) {
-        const isCompanyLead = user.companyLeads.some((c) => c.companyId === dept.companyId);
-        if (isCompanyLead) return true;
-      }
-    }
-  }
-  return false;
+  return canWriteInOwnerScope(prisma, user, userId, opts);
 }
 
 /**
@@ -174,42 +214,12 @@ export async function canWriteContext(
   if (user.isAdmin) return true;
 
   const { companyId, departmentId, teamId, ownerUserId } = getOwnerFromContext(ctx);
-  if (ownerUserId !== null && ownerUserId === userId) return true;
-
-  if (companyId) {
-    const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
-    if (isCompanyLead) return true;
-  }
-  if (departmentId) {
-    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
-    if (isDeptLead) return true;
-    const department = await prisma.department.findUnique({
-      where: { id: departmentId },
-      select: { companyId: true },
-    });
-    if (department?.companyId) {
-      const isCompanyLead = user.companyLeads.some((c) => c.companyId === department.companyId);
-      if (isCompanyLead) return true;
-    }
-  }
-  if (teamId) {
-    const isTeamLead = user.leadOfTeams.some((l) => l.teamId === teamId);
-    if (isTeamLead) return true;
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: { department: { select: { id: true, companyId: true } } },
-    });
-    if (team?.department) {
-      const dept = team.department;
-      const isDeptLead = user.departmentLeads.some((d) => d.departmentId === dept.id);
-      if (isDeptLead) return true;
-      if (dept.companyId) {
-        const isCompanyLead = user.companyLeads.some((c) => c.companyId === dept.companyId);
-        if (isCompanyLead) return true;
-      }
-    }
-  }
-  return false;
+  return canWriteInOwnerScope(prisma, user, userId, {
+    companyId: companyId ?? undefined,
+    departmentId: departmentId ?? undefined,
+    teamId: teamId ?? undefined,
+    ownerUserId: ownerUserId ?? undefined,
+  });
 }
 
 /**
@@ -230,37 +240,12 @@ export async function canReadContext(
   if (user.isAdmin) return true;
 
   const { companyId, departmentId, teamId, ownerUserId } = getOwnerFromContext(ctx);
-  if (ownerUserId !== null && ownerUserId === userId) return true;
-
-  if (companyId) {
-    const isCompanyLead = user.companyLeads.some((c) => c.companyId === companyId);
-    if (isCompanyLead) return true;
-    const isDeptLeadInCompany = user.departmentLeads.some(
-      (d) => d.department.companyId === companyId
-    );
-    if (isDeptLeadInCompany) return true;
-    const isTeamLeadInCompany = user.leadOfTeams.some(
-      (l) => l.team.department.companyId === companyId
-    );
-    if (isTeamLeadInCompany) return true;
-    const isMemberInCompany = user.teamMemberships.some(
-      (m) => m.team.department.companyId === companyId
-    );
-    if (isMemberInCompany) return true;
-  }
-  if (departmentId) {
-    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === departmentId);
-    if (isDeptLead) return true;
-    const isTeamLeadInDept = user.leadOfTeams.some((l) => l.team.departmentId === departmentId);
-    if (isTeamLeadInDept) return true;
-    const isMemberInDept = user.teamMemberships.some((m) => m.team.departmentId === departmentId);
-    if (isMemberInDept) return true;
-  }
-  if (teamId) {
-    const isMember = user.teamMemberships.some((m) => m.team.id === teamId);
-    if (isMember) return true;
-  }
-  return false;
+  return canReadInOwnerScope(user, userId, {
+    companyId: companyId ?? undefined,
+    departmentId: departmentId ?? undefined,
+    teamId: teamId ?? undefined,
+    ownerUserId: ownerUserId ?? undefined,
+  });
 }
 
 /**
@@ -312,23 +297,7 @@ export async function canReadScopeForOwner(
   const user = await loadUser(prisma, userId);
   if (!user || user.deletedAt !== null) return false;
   if (user.isAdmin) return true;
-  if (opts.ownerUserId === userId) return true;
-  if (opts.companyId) {
-    if (user.companyLeads.some((c) => c.companyId === opts.companyId)) return true;
-    if (user.departmentLeads.some((d) => d.department.companyId === opts.companyId)) return true;
-    if (user.leadOfTeams.some((l) => l.team.department.companyId === opts.companyId)) return true;
-    if (user.teamMemberships.some((m) => m.team.department.companyId === opts.companyId))
-      return true;
-  }
-  if (opts.departmentId) {
-    if (user.departmentLeads.some((d) => d.departmentId === opts.departmentId)) return true;
-    if (user.leadOfTeams.some((l) => l.team.departmentId === opts.departmentId)) return true;
-    if (user.teamMemberships.some((m) => m.team.departmentId === opts.departmentId)) return true;
-  }
-  if (opts.teamId) {
-    if (user.teamMemberships.some((m) => m.team.id === opts.teamId)) return true;
-  }
-  return false;
+  return canReadInOwnerScope(user, userId, opts);
 }
 
 /**
