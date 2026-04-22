@@ -21,7 +21,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type SubmitEvent } from 'react';
 import { IconDotsVertical } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 import { COLOR_SCHEME_STORAGE_KEY } from '../../constants';
@@ -163,7 +163,7 @@ export function SettingsGeneralTab() {
     },
   });
 
-  const handleSubmitEdit = (e: React.FormEvent) => {
+  const handleSubmitEdit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     patchMe.mutate({ name });
   };

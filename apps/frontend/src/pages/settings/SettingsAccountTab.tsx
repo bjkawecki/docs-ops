@@ -13,7 +13,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type SubmitEvent } from 'react';
 import { apiFetch } from '../../api/client';
 import { useMe, meQueryKey } from '../../hooks/useMe';
 
@@ -82,13 +82,13 @@ export function SettingsAccountTab() {
     },
   });
 
-  const handleSubmitChangeEmail = (e: React.FormEvent) => {
+  const handleSubmitChangeEmail = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newEmail.trim()) return;
     patchAccount.mutate({ email: newEmail.trim(), currentPassword });
   };
 
-  const handleSubmitChangePassword = (e: React.FormEvent) => {
+  const handleSubmitChangePassword = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       notifications.show({

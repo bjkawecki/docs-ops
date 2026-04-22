@@ -1,6 +1,10 @@
 import { Box, Code, List, Stack, Text, Title } from '@mantine/core';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { BlockDocumentV0, BlockNodeV0 } from '../../api/document-types';
+import {
+  getBlockDocumentHeadingData,
+  nodeText,
+} from '../../pages/documentPage/blockDocumentHeadings';
 
 function walkNode(node: BlockNodeV0): string {
   if (node.type === 'text') {
@@ -24,17 +28,21 @@ function headingOrder(attrs: Record<string, unknown> | undefined): 1 | 2 | 3 | 4
   return 2;
 }
 
-/** Ein Top-Level-Block für die Lesevorschau (Überschriften sichtbar absetzen). */
-function renderPreviewBlock(block: BlockNodeV0): ReactNode {
-  switch (block.type) {
+function renderNode(node: BlockNodeV0, anchorMap: ReadonlyMap<string, string>): ReactNode {
+  switch (node.type) {
     case 'heading': {
-      const order = headingOrder(block.attrs);
-      const label = walkNode(block);
-      if (!label.trim()) return null;
-      return <Title order={order}>{label}</Title>;
+      const label = nodeText(node).trim();
+      const display = label.length > 0 ? label : '(Untitled)';
+      const anchorId = anchorMap.get(node.id);
+      const order = headingOrder(node.attrs);
+      return (
+        <Title order={order} id={anchorId}>
+          {display}
+        </Title>
+      );
     }
     case 'paragraph': {
-      const t = walkNode(block);
+      const t = walkNode(node);
       if (!t.trim()) return null;
       return (
         <Text size="sm" c="var(--mantine-color-text)" style={{ whiteSpace: 'pre-wrap' }}>
@@ -43,30 +51,45 @@ function renderPreviewBlock(block: BlockNodeV0): ReactNode {
       );
     }
     case 'bullet_list': {
-      const items = block.content ?? [];
+      const items = node.content ?? [];
       if (items.length === 0) return null;
       return (
         <List type="unordered" size="sm" spacing="xs" withPadding>
           {items.map((item) => (
-            <List.Item key={item.id}>
-              <Text size="sm" component="span" style={{ whiteSpace: 'pre-wrap' }}>
-                {walkNode(item)}
-              </Text>
-            </List.Item>
+            <List.Item key={item.id}>{renderNode(item, anchorMap)}</List.Item>
           ))}
         </List>
       );
     }
+    case 'list_item': {
+      const parts = node.content ?? [];
+      if (parts.length === 0) return null;
+      return (
+        <Stack gap={4}>
+          {parts.map((c) => (
+            <Fragment key={c.id}>{renderNode(c, anchorMap)}</Fragment>
+          ))}
+        </Stack>
+      );
+    }
     case 'code': {
-      const body = walkNode(block);
+      const body = walkNode(node);
       return (
         <Code block w="100%" style={{ whiteSpace: 'pre-wrap' }}>
           {body}
         </Code>
       );
     }
+    case 'text': {
+      const t = node.meta?.text;
+      return typeof t === 'string' && t.length > 0 ? (
+        <Text size="sm" component="span" style={{ whiteSpace: 'pre-wrap' }}>
+          {t}
+        </Text>
+      ) : null;
+    }
     default: {
-      const t = walkNode(block);
+      const t = walkNode(node);
       if (!t.trim()) return null;
       return (
         <Text size="sm" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
@@ -90,19 +113,20 @@ type Props = {
   doc: BlockDocumentV0 | null;
 };
 
-/** Lesevorschau aus Blocks — Überschriften und Listen werden typografisch unterschieden. */
+/** Lesevorschau aus Blocks — Überschriften inkl. Anker-IDs (TOC / Kommentar-Slugs). */
 export function DocumentBlocksPreview({ title, doc }: Props) {
   if (doc == null || doc.blocks.length === 0) return null;
   const text = blockDocumentToPlainPreview(doc);
   if (!text.trim()) return null;
+  const { anchorIdByBlockNodeId } = getBlockDocumentHeadingData(doc);
   return (
-    <Box mb="md">
+    <Box mb="md" className="document-content">
       <Text size="xs" tt="uppercase" fw={600} c="dimmed" mb="xs">
         {title}
       </Text>
       <Stack gap="md">
         {doc.blocks.map((block) => {
-          const el = renderPreviewBlock(block);
+          const el = renderNode(block, anchorIdByBlockNodeId);
           if (el == null) return null;
           return <Box key={block.id}>{el}</Box>;
         })}
