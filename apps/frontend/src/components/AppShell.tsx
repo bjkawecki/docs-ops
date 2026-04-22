@@ -283,7 +283,7 @@ export function AppShell() {
   const { data: catalogCount } = useQuery({
     queryKey: ['catalog-documents', 'count', 'catalog'],
     queryFn: async (): Promise<number> => {
-      const res = await apiFetch('/api/v1/documents?publishedOnly=true&limit=1&offset=0');
+      const res = await apiFetch('/api/v1/documents?limit=1&offset=0');
       if (!res.ok) throw new Error('Failed to load count');
       const data = (await res.json()) as { total: number };
       return data.total;

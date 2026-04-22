@@ -214,21 +214,21 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-9 – Legacy abschalten
 
-**Status: PR-9a/9c umgesetzt** – `DOCUMENT_LEGACY_DRAFT_ENABLED` (Default: **an** außer `NODE_ENV=production`); bei **aus** antworten die Legacy-Routen mit **410 Gone** + `code: legacy_document_draft_disabled`; `GET /me/drafts` ohne offene PRs. Prisma-Modelle mit `@deprecated` markiert. Frontend `DocumentPage` blendet PR-/persönlichen-Draft-UI aus. **PR-9b** (Tabellen-DROP) bewusst offen bis Datenmigration.
+**Status: umgesetzt (PR-9a/9b/9c)** – Legacy-Pfad für persönlichen Markdown-Entwurf/PR wurde entfernt: `DocumentDraft` + `DraftRequest` gedroppt, Legacy-Routen entfernt, `Document.content` + `DocumentVersion.content` aus der DB entfernt. API-`content` wird nun als Snapshot aus Blocks abgeleitet (Lesepfad/PDF/Kommentare). Frontend blendet alten PR-/persönlichen-Draft-Flow aus.
 
 **Dateien:**
 
-- `apps/backend/src/config/legacyDocumentDraft.ts` (+ Tests)
-- `apps/backend/prisma/schema.prisma` – `@deprecated` auf `DocumentDraft` / `DraftRequest`
+- `apps/backend/prisma/schema.prisma` (ohne `DocumentDraft` / `DraftRequest`; ohne `Document.content`/`DocumentVersion.content`)
+- `apps/backend/prisma/migrations/20260421230000_epic_9b_remove_legacy_draft_and_content/migration.sql`
 - `apps/backend/src/routes/documents.ts`, `apps/backend/src/routes/me.ts`
-- `apps/frontend/src/pages/DocumentPage.tsx`
-- `docs/plan/Env-und-Config.md`, `.cursor/rules/document-lifecycle.mdc`
+- `apps/backend/src/services/documents/documentMarkdownSnapshot.ts`
+- `apps/frontend/src/pages/DocumentPage.tsx`, `apps/frontend/src/pages/ReviewsPage.tsx`
 
-| PR        | Inhalt                                                                            |
-| --------- | --------------------------------------------------------------------------------- |
-| **PR-9a** | Env-Schalter; Legacy-HTTP 410; `/me/drafts` ohne PR-Liste; DocumentPage angepasst |
-| **PR-9b** | Offen: Tabellen `DocumentDraft` / `DraftRequest` nach Datenmigration entfernen    |
-| **PR-9c** | Env-Doku + Lifecycle-Regel; Epic-Status (diese Datei)                             |
+| PR        | Inhalt                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------- |
+| **PR-9a** | Env-Schalter; Legacy-HTTP 410; `/me/drafts` ohne PR-Liste; DocumentPage angepasst                                   |
+| **PR-9b** | Erledigt: Tabellen `DocumentDraft` / `DraftRequest` entfernt; `Document.content`/`DocumentVersion.content` gedroppt |
+| **PR-9c** | Env-Doku + Lifecycle-Regel; Epic-Status (diese Datei)                                                               |
 
 ---
 

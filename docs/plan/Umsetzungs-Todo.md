@@ -285,12 +285,12 @@ Im **Zielmodell** lösen sich Konflikte aus **überlappenden Suggestions** (fach
 
 ### 15e. Drafts-Listen-UI (Tab, Card, Dashboard)
 
-[x] **API:** GET `/api/v1/me/drafts` (Query: scope, companyId, departmentId, teamId; optional scope=shared). Response: u. a. unveröffentlichte Dokumente und einträge für ausstehende Reviews (konkrete Felder am Code ausrichten).
-[x] **Drafts-Tab:** Auf Scope-Pages Tab „Drafts“ mit unveröffentlichten Dokumenten und Einträgen, die auf Bearbeitung/Freigabe warten.
-[x] **Drafts-Card:** Auf Overview-Seiten Card „Drafts“ (z. B. neueste 5).
-[x] **Dashboard-Block:** Startseite „Drafts / Pending review“ (aggregiert).
+[x] **API:** GET `/api/v1/me/drafts` (Query: scope, companyId, departmentId, teamId; optional scope=shared). Response liefert unveröffentlichte Dokumente; Legacy-Review-PR-Einträge entfallen seit EPIC-9.
+[x] **Drafts-Tab:** Auf Scope-Pages Tab „Drafts“ mit unveröffentlichten Dokumenten (ohne Legacy-PR-Liste).
+[x] **Drafts-Card:** Auf Overview-Seiten Card „Drafts“ (z. B. neueste 5 unveröffentlichte Dokumente).
+[x] **Dashboard-Block:** Startseite mit Draft-Übersicht; alte Pending-Review-PR-Anzeige ist abgelöst.
 
-**Ergebnis 15e:** Zentrale Übersicht über unveröffentlichte Dokumente und ausstehende Reviews.
+**Ergebnis 15e:** Zentrale Übersicht über unveröffentlichte Dokumente; Legacy-Review-PRs wurden in EPIC-9 durch Suggestions/Lead-Draft abgelöst.
 
 **Nächste große Ausbaustufe:** Datenmodell und APIs für **Blocks**, **Lead-Draft**, **Suggestions** gemäß [Edit-System-Plan](Edit-System-Blocks-Suggestions-Lead-Draft.md); bestehende Hilfsrouten schrittweise zurückfahren oder auf das Zielmodell mappen.
 
@@ -298,7 +298,7 @@ Im **Zielmodell** lösen sich Konflikte aus **überlappenden Suggestions** (fach
 
 ## 16. Objekt-Speicher (MinIO)
 
-Basis für PDF-Export-Downloads (§17); Markdown-Inhalte bleiben in der DB, Binärdateien in MinIO.
+Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System als Block-JSON (Lead-Draft/Versionen), Binärdateien in MinIO.
 
 [x] S3-Client (MinIO) im Backend anbinden
 [x] Upload/Download für Anhänge, Bilder und Exporte (z. B. PDF aus §17) in Dokumenten

@@ -322,6 +322,16 @@ describe('Documents routes (publish, versions, lead-draft)', () => {
       expect(body.items[0]).toHaveProperty('versionNumber');
       expect(body.items[0]).toHaveProperty('createdAt');
     });
+
+    it('read-only → 403', async () => {
+      const cookie = await loginAs(`reader-only-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/${publishedDocId}/versions`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(403);
+    });
   });
 
   describe('GET /documents/:documentId/versions/:versionId', () => {
@@ -346,6 +356,16 @@ describe('Documents routes (publish, versions, lead-draft)', () => {
       const body = res.json() as { content: string; versionNumber: number };
       expect(body).toHaveProperty('content');
       expect(body.versionNumber).toBe(1);
+    });
+
+    it('read-only → 403', async () => {
+      const cookie = await loginAs(`reader-only-${TS}@example.com`);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/${publishedDocId}/versions/${versionId}`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(403);
     });
   });
 

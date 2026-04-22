@@ -566,7 +566,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   app.get<{ Params: { documentId: string } }>(
     '/documents/:documentId/pdf',
     {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
     },
     async (request, reply) => {
       const prisma = request.server.prisma;
@@ -632,7 +632,7 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   app.get<{ Params: { documentId: string; jobId: string } }>(
     '/documents/:documentId/export-pdf/:jobId',
     {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
     },
     async (request, reply) => {
       const prisma = request.server.prisma;
@@ -1061,11 +1061,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** GET Versionsliste – alle Versionen des Dokuments (canRead). */
+  /** GET Versionsliste – nur für Nutzer mit Schreibrecht am Dokument. */
   app.get<{ Params: { documentId: string } }>(
     '/documents/:documentId/versions',
     {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
     },
     async (request, reply) => {
       const prisma = request.server.prisma;
@@ -1100,11 +1100,11 @@ const documentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** GET Einzelversion – Inhalt einer Version (canRead auf Dokument). */
+  /** GET Einzelversion – nur für Nutzer mit Schreibrecht am Dokument. */
   app.get<{ Params: { documentId: string; versionId: string } }>(
     '/documents/:documentId/versions/:versionId',
     {
-      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('read'))],
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('write'))],
     },
     async (request, reply) => {
       const prisma = request.server.prisma;

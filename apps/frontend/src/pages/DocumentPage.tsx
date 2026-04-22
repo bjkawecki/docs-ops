@@ -888,13 +888,15 @@ export function DocumentPage() {
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
-                    <Menu.Item
-                      component={Link}
-                      to={`/documents/${documentId}/versions`}
-                      leftSection={<IconHistory size={14} />}
-                    >
-                      History
-                    </Menu.Item>
+                    {data.canWrite && (
+                      <Menu.Item
+                        component={Link}
+                        to={`/documents/${documentId}/versions`}
+                        leftSection={<IconHistory size={14} />}
+                      >
+                        History
+                      </Menu.Item>
+                    )}
                     <Menu.Item
                       leftSection={<IconDownload size={14} />}
                       disabled={pdfExportLoading}
