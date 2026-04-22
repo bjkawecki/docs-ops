@@ -341,7 +341,11 @@ export function AdminUsersTab() {
       }
     },
     onSuccess: () => {
-      notifications.show({ title: 'User deleted', color: 'green' });
+      notifications.show({
+        title: 'User deleted',
+        message: 'The user was removed.',
+        color: 'green',
+      });
       setDeleteUserConfirmUser(null);
       setDetailUser(null);
       invalidateUsers();
@@ -1272,7 +1276,11 @@ function AssignmentsCardForm({
       if (departmentLeadId && !user.departmentsAsLead?.some((d) => d.id === departmentLeadId)) {
         await addDepartmentLead.mutateAsync(departmentLeadId);
       }
-      notifications.show({ title: 'Assignments updated', color: 'green' });
+      notifications.show({
+        title: 'Assignments updated',
+        message: 'Team and department assignments were saved.',
+        color: 'green',
+      });
       onSave();
     } catch {
       // errors already shown

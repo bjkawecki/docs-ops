@@ -28,6 +28,16 @@ const LS_KEY_PREFIX = 'docsops.documentComments.open.';
 const TOGGLE_STRIP_WIDTH = 32;
 const WIDTH_OPEN = 300;
 const WIDTH_CLOSED = 48;
+const COMMENT_META_ICON_SIZE = 16;
+const COMMENT_META_COUNT_TEXT_STYLE: CSSProperties = {
+  lineHeight: 1,
+  whiteSpace: 'nowrap',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  fontSize: '12px',
+  fontVariantNumeric: 'tabular-nums',
+};
 
 export type DocumentCommentItem = {
   id: string;
@@ -569,7 +579,15 @@ export function DocumentCommentsSection({
         bg="body"
       >
         {panelOpen ? (
-          <Box style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <Box
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              ...(isRail ? { width: WIDTH_OPEN, minWidth: WIDTH_OPEN } : {}),
+            }}
+          >
             <ScrollArea
               className="document-comments-inner-scroll"
               style={{ flex: 1 }}
@@ -584,9 +602,18 @@ export function DocumentCommentsSection({
               >
                 <Group gap="xs" mb="xs" wrap="nowrap" align="center">
                   <Group gap={4} wrap="nowrap" align="center">
-                    <IconMessage size={18} color="var(--mantine-color-dimmed)" aria-hidden />
+                    <IconMessage
+                      size={COMMENT_META_ICON_SIZE}
+                      color="var(--mantine-color-dimmed)"
+                      aria-hidden
+                    />
                     {listQuery.data != null && !listQuery.isError && (
-                      <Text component="span" size="sm" c="dimmed" aria-hidden>
+                      <Text
+                        component="span"
+                        c="dimmed"
+                        aria-hidden
+                        style={COMMENT_META_COUNT_TEXT_STYLE}
+                      >
                         ({total})
                       </Text>
                     )}
@@ -615,21 +642,13 @@ export function DocumentCommentsSection({
               minWidth: 0,
             }}
           >
-            <IconMessage size={16} color="var(--mantine-color-dimmed)" aria-hidden />
+            <IconMessage
+              size={COMMENT_META_ICON_SIZE}
+              color="var(--mantine-color-dimmed)"
+              aria-hidden
+            />
             {listQuery.data != null && !listQuery.isError && (
-              <Text
-                component="span"
-                c="dimmed"
-                style={{
-                  lineHeight: 1,
-                  whiteSpace: 'nowrap',
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  fontSize: '9px',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
+              <Text component="span" c="dimmed" style={COMMENT_META_COUNT_TEXT_STYLE}>
                 ({total})
               </Text>
             )}

@@ -31,7 +31,16 @@ export function ProjectSiblingSubnav({ variant, siblings }: ProjectSiblingSubnav
   const sectionLabel = variant === 'process' ? 'All Processes' : 'All Projects';
 
   return (
-    <Box w={{ base: '100%', lg: 280 }} style={{ flexShrink: 0 }} data-context-sibling-nav>
+    <Box
+      w={{ base: '100%', lg: 280 }}
+      style={{
+        flexShrink: 0,
+        border: '1px solid var(--mantine-color-default-border)',
+        borderRadius: 'var(--mantine-radius-md)',
+        padding: 'var(--mantine-spacing-sm)',
+      }}
+      data-context-sibling-nav
+    >
       <Text
         tt="uppercase"
         fz="xs"

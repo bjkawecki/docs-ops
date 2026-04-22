@@ -1,9 +1,22 @@
-import { Accordion, Alert, Box, Button, Group, Stack, Text, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, Stack, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
-import type { BlockDocumentV0, LeadDraftResponse } from '../../api/document-types';
+import type {
+  BlockDocumentV0,
+  DocumentSuggestionItem,
+  LeadDraftResponse,
+} from '../../api/document-types';
+import { innerTextFromBlockNode } from '../../lib/blockDocumentTiptap';
 import { LeadDraftTiptapEditor, type LeadDraftTiptapEditorHandle } from './LeadDraftTiptapEditor';
 
 const POLL_MS = 15_000;
@@ -12,162 +25,431 @@ const emptyDoc: BlockDocumentV0 = { schemaVersion: 0, blocks: [] };
 
 type Props = {
   documentId: string;
-  /** Tab sichtbar → periodisches Nachladen (EPIC-8c). */
   refetchWhenVisible: boolean;
+  canPublish: boolean;
+  currentUserId?: string;
+  isAdmin?: boolean;
+  fallbackBlocks?: BlockDocumentV0 | null;
+  onDirtyChange?: (dirty: boolean) => void;
+  onLastSyncedChange?: (iso: string | null) => void;
 };
 
-export function DocumentLeadDraftPanel({ documentId, refetchWhenVisible }: Props) {
-  const queryClient = useQueryClient();
-  const editorRef = useRef<LeadDraftTiptapEditorHandle>(null);
-  const [accordionRaw, setAccordionRaw] = useState<string | null>(null);
-  const [rawJson, setRawJson] = useState('');
+export type DocumentLeadDraftPanelHandle = {
+  saveDraft: () => Promise<boolean>;
+  loadLatestServerDraft: () => void;
+};
 
-  const q = useQuery({
-    queryKey: ['document', documentId, 'lead-draft'],
-    queryFn: async () => {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`);
-      if (res.status === 403) return { forbidden: true as const };
-      if (res.status === 404) throw new Error('not-found');
-      if (!res.ok) throw new Error('lead-draft');
-      return res.json() as Promise<LeadDraftResponse>;
-    },
-    enabled: !!documentId,
-    refetchInterval: refetchWhenVisible ? POLL_MS : false,
-  });
-
-  const data = q.data;
-  const canEdit = data && !('forbidden' in data) && data.canEdit;
-  const revision = data && !('forbidden' in data) ? data.draftRevision : 0;
-
-  const serverDoc = useMemo<BlockDocumentV0>(() => {
-    if (!data || 'forbidden' in data) return emptyDoc;
-    return data.blocks ?? { schemaVersion: 0, blocks: [] };
-  }, [data]);
-
-  const serverFingerprint = useMemo(() => JSON.stringify(serverDoc), [serverDoc]);
-
-  useEffect(() => {
-    if (accordionRaw !== 'raw') return;
-    const doc = editorRef.current?.getBlockDocument() ?? serverDoc;
-    setRawJson(JSON.stringify(doc, null, 2));
-  }, [accordionRaw, serverFingerprint, serverDoc]);
-
-  const handleSave = useCallback(async () => {
-    if (!data || 'forbidden' in data) return;
-    const parsed = editorRef.current?.getBlockDocument() ?? serverDoc;
-    if (parsed.schemaVersion !== 0 || !Array.isArray(parsed.blocks)) {
-      notifications.show({
-        color: 'red',
-        title: 'Ungültiges Dokument',
-        message: 'Erwartet schemaVersion: 0 und blocks: Array',
-      });
-      return;
+function affectedBlockIds(ops: unknown): string[] {
+  if (!Array.isArray(ops)) return [];
+  const ids: string[] = [];
+  for (const op of ops) {
+    if (op == null || typeof op !== 'object') continue;
+    const r = op as Record<string, unknown>;
+    if (r.op === 'deleteBlock' || r.op === 'replaceBlock') {
+      if (typeof r.blockId === 'string') ids.push(r.blockId);
     }
-    const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        expectedRevision: revision,
-        blocks: parsed,
-      }),
-    });
-    if (res.status === 409) {
-      notifications.show({
-        color: 'yellow',
-        title: 'Konflikt',
-        message: 'Lead-Draft wurde zwischenzeitlich geändert. Bitte neu laden.',
-      });
-      await q.refetch();
-      return;
-    }
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: unknown };
-      const msg = typeof err.error === 'string' ? err.error : res.statusText;
-      notifications.show({
-        color: 'red',
-        title: 'Speichern fehlgeschlagen',
-        message: msg,
-      });
-      return;
-    }
-    notifications.show({ color: 'green', message: 'Lead-Draft gespeichert.' });
-    await queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-    await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
-    await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'suggestions'] });
-    await q.refetch();
-  }, [data, documentId, queryClient, q, revision, serverDoc]);
-
-  if (q.isPending) {
-    return (
-      <Text size="sm" c="dimmed">
-        Lead-Draft wird geladen…
-      </Text>
-    );
+    if (r.op === 'insertAfter' && typeof r.afterBlockId === 'string') ids.push(r.afterBlockId);
   }
-  if (q.isError) {
-    return (
-      <Alert color="red" title="Fehler">
-        Lead-Draft konnte nicht geladen werden.
-      </Alert>
-    );
-  }
-  if (data && 'forbidden' in data) {
-    return (
-      <Text size="sm" c="dimmed">
-        Kein Zugriff auf den gemeinsamen Lead-Draft (nur für Bearbeitende mit Schreib- oder
-        Lead-Recht).
-      </Text>
-    );
-  }
-
-  return (
-    <Stack gap="sm">
-      <Group gap="md">
-        <Text size="sm">
-          <strong>Revision:</strong> {revision}
-        </Text>
-        <Text size="sm" c={canEdit ? 'teal' : 'dimmed'}>
-          {canEdit ? 'Sie können den Lead-Draft bearbeiten.' : 'Nur Lesen (kein Lead-Draft-PATCH).'}
-        </Text>
-      </Group>
-
-      <LeadDraftTiptapEditor
-        ref={editorRef}
-        sourceDocument={serverDoc}
-        contentFingerprint={serverFingerprint}
-        editable={!!canEdit}
-      />
-
-      <Accordion
-        variant="contained"
-        chevronPosition="right"
-        value={accordionRaw}
-        onChange={(v) => setAccordionRaw(v)}
-      >
-        <Accordion.Item value="raw">
-          <Accordion.Control>Roh-JSON (Fallback / Debugging)</Accordion.Control>
-          <Accordion.Panel>
-            <Textarea
-              readOnly
-              minRows={10}
-              autosize
-              maxRows={24}
-              value={rawJson}
-              styles={{
-                input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 },
-              }}
-            />
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
-
-      {canEdit && (
-        <Box>
-          <Button size="sm" onClick={() => void handleSave()}>
-            Lead-Draft speichern
-          </Button>
-        </Box>
-      )}
-    </Stack>
-  );
+  return [...new Set(ids)];
 }
+
+function blockLabel(doc: BlockDocumentV0, blockId: string): string {
+  const b = doc.blocks.find((x) => x.id === blockId);
+  if (!b) return blockId;
+  const text = innerTextFromBlockNode(b).trim();
+  return text.length > 0 ? text.slice(0, 64) : `${b.type} (${blockId.slice(0, 6)})`;
+}
+
+export const DocumentLeadDraftPanel = forwardRef<DocumentLeadDraftPanelHandle, Props>(
+  function DocumentLeadDraftPanel(
+    {
+      documentId,
+      refetchWhenVisible,
+      canPublish,
+      currentUserId,
+      isAdmin = false,
+      fallbackBlocks = null,
+      onDirtyChange,
+      onLastSyncedChange,
+    },
+    ref
+  ) {
+    const queryClient = useQueryClient();
+    const editorRef = useRef<LeadDraftTiptapEditorHandle>(null);
+    const [dirty, setDirty] = useState(false);
+    const [rawJsonOpened, setRawJsonOpened] = useState(false);
+    const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+    const [appliedRevision, setAppliedRevision] = useState<number | null>(null);
+    const [appliedDoc, setAppliedDoc] = useState<BlockDocumentV0>(fallbackBlocks ?? emptyDoc);
+    const [remotePending, setRemotePending] = useState<{
+      revision: number;
+      doc: BlockDocumentV0;
+    } | null>(null);
+
+    useEffect(() => {
+      onDirtyChange?.(dirty);
+    }, [dirty, onDirtyChange]);
+    useEffect(() => {
+      onLastSyncedChange?.(lastSyncedAt);
+    }, [lastSyncedAt, onLastSyncedChange]);
+
+    const q = useQuery({
+      queryKey: ['document', documentId, 'lead-draft'],
+      queryFn: async () => {
+        const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`);
+        if (res.status === 403) return { forbidden: true as const };
+        if (res.status === 404) throw new Error('not-found');
+        if (!res.ok) throw new Error('lead-draft');
+        return res.json() as Promise<LeadDraftResponse>;
+      },
+      enabled: !!documentId,
+      refetchInterval: refetchWhenVisible && !dirty ? POLL_MS : false,
+    });
+
+    const suggestionsQuery = useQuery({
+      queryKey: ['document', documentId, 'suggestions'],
+      queryFn: async () => {
+        const res = await apiFetch(`/api/v1/documents/${documentId}/suggestions`);
+        if (res.status === 403) return [] as DocumentSuggestionItem[];
+        if (!res.ok) throw new Error('suggestions');
+        return res.json() as Promise<DocumentSuggestionItem[]>;
+      },
+      enabled: !!documentId,
+      refetchInterval: refetchWhenVisible ? POLL_MS : false,
+    });
+
+    const data = q.data;
+    const canEdit = data && !('forbidden' in data) && data.canEdit;
+    const incomingRevision = data && !('forbidden' in data) ? data.draftRevision : 0;
+
+    const serverDoc = useMemo<BlockDocumentV0>(() => {
+      if (!data || 'forbidden' in data) return emptyDoc;
+      return data.blocks ?? fallbackBlocks ?? emptyDoc;
+    }, [data, fallbackBlocks]);
+
+    const serverFingerprint = useMemo(() => JSON.stringify(serverDoc), [serverDoc]);
+    const appliedFingerprint = useMemo(() => JSON.stringify(appliedDoc), [appliedDoc]);
+
+    const applyIncoming = useCallback((revision: number, doc: BlockDocumentV0) => {
+      setAppliedRevision(revision);
+      setAppliedDoc(doc);
+      setDirty(false);
+      setRemotePending(null);
+      const now = new Date().toISOString();
+      setLastSyncedAt(now);
+    }, []);
+
+    useEffect(() => {
+      if (!data || 'forbidden' in data) return;
+      if (appliedRevision == null) {
+        applyIncoming(incomingRevision, serverDoc);
+        return;
+      }
+      const changed =
+        incomingRevision !== appliedRevision || serverFingerprint !== appliedFingerprint;
+      if (!changed) return;
+      if (dirty) {
+        setRemotePending({ revision: incomingRevision, doc: serverDoc });
+        return;
+      }
+      applyIncoming(incomingRevision, serverDoc);
+    }, [
+      appliedFingerprint,
+      appliedRevision,
+      applyIncoming,
+      data,
+      dirty,
+      incomingRevision,
+      serverDoc,
+      serverFingerprint,
+    ]);
+
+    const handleSave = useCallback(async () => {
+      if (!data || 'forbidden' in data) return false;
+      const parsed = editorRef.current?.getBlockDocument() ?? appliedDoc;
+      const expectedRevision = appliedRevision ?? incomingRevision;
+      if (parsed.schemaVersion !== 0 || !Array.isArray(parsed.blocks)) {
+        notifications.show({
+          color: 'red',
+          title: 'Invalid draft',
+          message: 'Expected schemaVersion: 0 and blocks array.',
+        });
+        return false;
+      }
+      const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expectedRevision,
+          blocks: parsed,
+        }),
+      });
+      if (res.status === 409) {
+        notifications.show({
+          color: 'yellow',
+          title: 'Conflict detected',
+          message: 'Draft changed on server while you were editing.',
+        });
+        await q.refetch();
+        return false;
+      }
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: unknown };
+        const msg = typeof err.error === 'string' ? err.error : res.statusText;
+        notifications.show({
+          color: 'red',
+          title: 'Save failed',
+          message: msg,
+        });
+        return false;
+      }
+      const body = (await res.json().catch(() => null)) as {
+        draftRevision: number;
+        blocks: BlockDocumentV0;
+      } | null;
+      const nextRevision = body?.draftRevision ?? expectedRevision + 1;
+      const nextDoc = body?.blocks ?? parsed;
+      applyIncoming(nextRevision, nextDoc);
+      notifications.show({ color: 'green', message: 'Draft saved.' });
+      await queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+      await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
+      await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'suggestions'] });
+      await q.refetch();
+      return true;
+    }, [
+      appliedDoc,
+      appliedRevision,
+      applyIncoming,
+      data,
+      documentId,
+      incomingRevision,
+      q,
+      queryClient,
+    ]);
+
+    const runSuggestionAction = useCallback(
+      async (url: string, successMessage: string, failMessage: string) => {
+        const res = await apiFetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        if (!res.ok) {
+          notifications.show({ color: 'red', message: failMessage });
+          return;
+        }
+        notifications.show({ color: 'green', message: successMessage });
+        await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'suggestions'] });
+        await queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
+        await suggestionsQuery.refetch();
+        await q.refetch();
+      },
+      [documentId, q, queryClient, suggestionsQuery]
+    );
+
+    const pendingSuggestions = useMemo(
+      () =>
+        (suggestionsQuery.data ?? []).filter(
+          (s) => s.status === 'pending' && (canPublish || s.authorId === currentUserId)
+        ),
+      [canPublish, currentUserId, suggestionsQuery.data]
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        saveDraft: async () => {
+          if (!canEdit) return false;
+          return handleSave();
+        },
+        loadLatestServerDraft: () => {
+          if (remotePending) applyIncoming(remotePending.revision, remotePending.doc);
+        },
+      }),
+      [applyIncoming, canEdit, handleSave, remotePending]
+    );
+
+    if (q.isPending) {
+      return (
+        <Text size="sm" c="dimmed">
+          Loading draft...
+        </Text>
+      );
+    }
+    if (q.isError) {
+      return (
+        <Alert color="red" title="Error">
+          Draft could not be loaded.
+        </Alert>
+      );
+    }
+    if (data && 'forbidden' in data) {
+      return (
+        <Text size="sm" c="dimmed">
+          No access to the shared draft.
+        </Text>
+      );
+    }
+
+    return (
+      <Stack gap="sm">
+        {remotePending && (
+          <Alert color="yellow" title="Remote update available">
+            <Stack gap="xs">
+              <Text size="sm">
+                A newer draft revision is available on the server. Your local unsaved changes are
+                kept until you decide.
+              </Text>
+              <Group gap="xs">
+                <Button
+                  size="compact-sm"
+                  variant="light"
+                  onClick={() => applyIncoming(remotePending.revision, remotePending.doc)}
+                >
+                  Load latest
+                </Button>
+                <Button size="compact-sm" variant="default" onClick={() => setRemotePending(null)}>
+                  Keep mine
+                </Button>
+              </Group>
+            </Stack>
+          </Alert>
+        )}
+        <Group gap="md">
+          <Text size="sm">
+            <strong>Revision:</strong> {appliedRevision ?? incomingRevision}
+          </Text>
+          <Text size="sm" c={canEdit ? 'teal' : 'dimmed'}>
+            {canEdit ? 'You can edit this draft.' : 'Read-only access.'}
+          </Text>
+          {dirty && <Badge color="orange">Unsaved changes</Badge>}
+          {lastSyncedAt && (
+            <Text size="xs" c="dimmed">
+              Last synced: {new Date(lastSyncedAt).toLocaleTimeString()}
+            </Text>
+          )}
+        </Group>
+
+        <LeadDraftTiptapEditor
+          ref={editorRef}
+          sourceDocument={appliedDoc}
+          contentFingerprint={appliedFingerprint}
+          baselineFingerprint={appliedFingerprint}
+          editable={!!canEdit}
+          onDirtyChange={setDirty}
+          onSaveShortcut={() => {
+            void handleSave();
+          }}
+          inlineSuggestionBar={
+            pendingSuggestions.length > 0 ? (
+              <Group gap="xs" wrap="wrap">
+                {pendingSuggestions.map((s) => {
+                  const blocks = affectedBlockIds(s.ops);
+                  return (
+                    <Group key={s.id} gap={6} wrap="wrap">
+                      <Badge variant="light" color="grape">
+                        Suggestion by {s.authorName ?? 'Unknown'}
+                      </Badge>
+                      {blocks.map((id) => (
+                        <Badge key={`${s.id}-${id}`} variant="outline" color="gray">
+                          {blockLabel(appliedDoc, id)}
+                        </Badge>
+                      ))}
+                      {canPublish && (
+                        <>
+                          <Button
+                            size="compact-xs"
+                            color="green"
+                            variant="light"
+                            onClick={() =>
+                              void runSuggestionAction(
+                                `/api/v1/documents/${documentId}/suggestions/${s.id}/accept`,
+                                'Suggestion accepted.',
+                                'Could not accept suggestion.'
+                              )
+                            }
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            size="compact-xs"
+                            color="red"
+                            variant="light"
+                            onClick={() =>
+                              void runSuggestionAction(
+                                `/api/v1/documents/${documentId}/suggestions/${s.id}/reject`,
+                                'Suggestion rejected.',
+                                'Could not reject suggestion.'
+                              )
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {!canPublish && currentUserId === s.authorId && (
+                        <Button
+                          size="compact-xs"
+                          variant="light"
+                          onClick={() =>
+                            void runSuggestionAction(
+                              `/api/v1/documents/${documentId}/suggestions/${s.id}/withdraw`,
+                              'Suggestion withdrawn.',
+                              'Could not withdraw suggestion.'
+                            )
+                          }
+                        >
+                          Withdraw
+                        </Button>
+                      )}
+                    </Group>
+                  );
+                })}
+              </Group>
+            ) : null
+          }
+        />
+        <Group justify="space-between" gap="xs">
+          <Group gap="xs">
+            {canEdit && (
+              <Button size="sm" onClick={() => void handleSave()}>
+                Save draft
+              </Button>
+            )}
+          </Group>
+          {isAdmin && (
+            <Button
+              size="xs"
+              variant="subtle"
+              onClick={() => {
+                setRawJsonOpened(true);
+              }}
+            >
+              View raw JSON
+            </Button>
+          )}
+        </Group>
+        <Modal
+          opened={rawJsonOpened}
+          onClose={() => setRawJsonOpened(false)}
+          title="Raw draft JSON"
+          centered
+          size="xl"
+        >
+          <Textarea
+            readOnly
+            minRows={12}
+            autosize
+            maxRows={28}
+            value={JSON.stringify(editorRef.current?.getBlockDocument() ?? appliedDoc, null, 2)}
+            styles={{
+              input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 },
+            }}
+          />
+        </Modal>
+      </Stack>
+    );
+  }
+);
+
+DocumentLeadDraftPanel.displayName = 'DocumentLeadDraftPanel';

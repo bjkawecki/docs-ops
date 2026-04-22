@@ -1,7 +1,15 @@
-import { Box, Button, Group, Text } from '@mantine/core';
+import { Badge, Box, Button, Group, Text } from '@mantine/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useReducer } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useReducer,
+  useRef,
+  type ReactNode,
+} from 'react';
 import type { BlockDocumentV0 } from '../../api/document-types';
 import {
   blockDocumentToTiptapJson,
@@ -12,6 +20,7 @@ import classes from './LeadDraftTiptapEditor.module.css';
 
 export type LeadDraftTiptapEditorHandle = {
   getBlockDocument: () => BlockDocumentV0;
+  getCurrentBlockFingerprint: () => string;
 };
 
 type Props = {
@@ -19,12 +28,44 @@ type Props = {
   sourceDocument: BlockDocumentV0;
   /** Z. B. `JSON.stringify(blocks)` – bei Änderung wird `setContent` ausgeführt. */
   contentFingerprint: string;
+  /** Basis für Dirty-Erkennung (normalerweise letzter synchronisierter Serverstand). */
+  baselineFingerprint: string;
   editable: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  onSaveShortcut?: () => void;
+  onSubmitShortcut?: () => void;
+  inlineSuggestionBar?: ReactNode;
 };
 
 export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Props>(
-  function LeadDraftTiptapEditor({ sourceDocument, contentFingerprint, editable }, ref) {
+  function LeadDraftTiptapEditor(
+    {
+      sourceDocument,
+      contentFingerprint,
+      baselineFingerprint,
+      editable,
+      onDirtyChange,
+      onSaveShortcut,
+      onSubmitShortcut,
+      inlineSuggestionBar,
+    },
+    ref
+  ) {
     const [, bumpToolbar] = useReducer((n: number) => n + 1, 0);
+    const dirtyRef = useRef(false);
+    const onDirtyChangeRef = useRef(onDirtyChange);
+    const onSaveShortcutRef = useRef(onSaveShortcut);
+    const onSubmitShortcutRef = useRef(onSubmitShortcut);
+
+    useEffect(() => {
+      onDirtyChangeRef.current = onDirtyChange;
+    }, [onDirtyChange]);
+    useEffect(() => {
+      onSaveShortcutRef.current = onSaveShortcut;
+    }, [onSaveShortcut]);
+    useEffect(() => {
+      onSubmitShortcutRef.current = onSubmitShortcut;
+    }, [onSubmitShortcut]);
 
     const extensions = useMemo(
       () => [
@@ -46,9 +87,32 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
       extensions,
       editable,
       content: blockDocumentToTiptapJson(sourceDocument),
+      onUpdate: ({ editor: e }) => {
+        const current = tiptapJsonToBlockDocument(e.getJSON());
+        const dirty = JSON.stringify(current) !== baselineFingerprint;
+        if (dirtyRef.current !== dirty) {
+          dirtyRef.current = dirty;
+          onDirtyChangeRef.current?.(dirty);
+        }
+      },
       editorProps: {
         attributes: {
           spellcheck: 'true',
+        },
+        handleKeyDown: (_view, event) => {
+          const isMeta = event.metaKey || event.ctrlKey;
+          if (!isMeta) return false;
+          if (event.key.toLowerCase() === 's') {
+            event.preventDefault();
+            onSaveShortcutRef.current?.();
+            return true;
+          }
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            onSubmitShortcutRef.current?.();
+            return true;
+          }
+          return false;
         },
       },
     });
@@ -59,6 +123,10 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
         getBlockDocument: () => {
           if (!editor) return { schemaVersion: 0, blocks: [] };
           return tiptapJsonToBlockDocument(editor.getJSON());
+        },
+        getCurrentBlockFingerprint: () => {
+          if (!editor) return JSON.stringify({ schemaVersion: 0, blocks: [] });
+          return JSON.stringify(tiptapJsonToBlockDocument(editor.getJSON()));
         },
       }),
       [editor]
@@ -85,6 +153,8 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
       const cur = editor.getJSON();
       if (JSON.stringify(cur) === JSON.stringify(nextJson)) return;
       editor.commands.setContent(nextJson, false);
+      dirtyRef.current = false;
+      onDirtyChangeRef.current?.(false);
     }, [contentFingerprint, editor, sourceDocument]);
 
     if (!editor) {
@@ -97,6 +167,14 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
 
     return (
       <Box>
+        {inlineSuggestionBar != null && <Box mb="sm">{inlineSuggestionBar}</Box>}
+        {!editable && (
+          <Group gap="xs" mb="sm">
+            <Badge size="sm" variant="light" color="gray">
+              Read only
+            </Badge>
+          </Group>
+        )}
         {editable && (
           <Group gap="xs" mb="sm" wrap="wrap">
             <Button
@@ -125,7 +203,7 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
               variant={editor.isActive('bulletList') ? 'filled' : 'light'}
               onClick={() => editor.chain().focus().toggleBulletList().run()}
             >
-              Liste
+              List
             </Button>
             <Button
               size="compact-xs"
@@ -139,7 +217,7 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
               variant="subtle"
               onClick={() => editor.chain().focus().setParagraph().run()}
             >
-              Absatz
+              Paragraph
             </Button>
           </Group>
         )}

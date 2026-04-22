@@ -65,7 +65,12 @@ export function NotificationsPage() {
           >
             <Box
               w={{ base: '100%', lg: 280 }}
-              style={{ flexShrink: 0 }}
+              style={{
+                flexShrink: 0,
+                border: '1px solid var(--mantine-color-default-border)',
+                borderRadius: 'var(--mantine-radius-md)',
+                padding: 'var(--mantine-spacing-sm)',
+              }}
               data-notifications-type-nav
             >
               <Text

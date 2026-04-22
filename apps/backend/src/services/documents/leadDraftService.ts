@@ -20,14 +20,21 @@ export async function getLeadDraftForUser(
   if (!opts.canReadLead) return { ok: false, error: 'forbidden' };
   const doc = await prisma.document.findFirst({
     where: { id: documentId, deletedAt: null },
-    select: { draftRevision: true, draftBlocks: true },
+    select: {
+      draftRevision: true,
+      draftBlocks: true,
+      currentPublishedVersion: { select: { blocks: true } },
+    },
   });
   if (!doc) return { ok: false, error: 'not_found' };
+  const draftBlocks =
+    parseBlockDocumentFromDb(doc.draftBlocks) ??
+    parseBlockDocumentFromDb(doc.currentPublishedVersion?.blocks ?? null);
   return {
     ok: true,
     view: {
       draftRevision: doc.draftRevision,
-      blocks: parseBlockDocumentFromDb(doc.draftBlocks),
+      blocks: draftBlocks,
       canEdit: opts.canEdit,
     },
   };

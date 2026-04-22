@@ -7,17 +7,17 @@ export function ReviewsPage() {
     <Box>
       <PageHeader
         title="Reviews"
-        description="Frühere Markdown-Draft-Requests (PRs) sind entfernt; Inhalte laufen über Lead-Draft und Suggestions."
+        description="Legacy markdown draft requests are removed. Review flows run through draft suggestions."
       />
       <Stack gap="md">
-        <Alert variant="light" color="blue" title="Nicht mehr verfügbar">
+        <Alert variant="light" color="blue" title="No longer available">
           <Text size="sm" mb="sm">
-            Es gibt keine offenen Draft-Requests mehr. Änderungen an veröffentlichten Dokumenten
-            koordinieren Sie über das Block-System (Suggestions) auf der jeweiligen Dokumentseite.
+            There are no open draft requests anymore. Coordinate changes on published documents via
+            suggestions on each document page.
           </Text>
           <Group gap="xs">
             <Button component={Link} to="/catalog" size="sm" variant="light">
-              Zum Katalog
+              Open catalog
             </Button>
             <Button component={Link} to="/" size="sm" variant="subtle">
               Dashboard

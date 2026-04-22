@@ -34,7 +34,7 @@ import { PageHeader } from '../components/PageHeader';
 import { scopeToUrl } from '../lib/scopeNav';
 import { useRecentItemsActions } from '../hooks/useRecentItems';
 import { useDisclosure } from '@mantine/hooks';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { notifications } from '@mantine/notifications';
 import {
   IconArchive,
@@ -54,7 +54,12 @@ import {
   blockDocumentToPlainPreview,
 } from '../components/documents/DocumentBlocksPreview';
 import { DocumentLeadDraftPanel } from '../components/documents/DocumentLeadDraftPanel';
-import { DocumentSuggestionsPanel } from '../components/documents/DocumentSuggestionsPanel';
+import type { DocumentLeadDraftPanelHandle } from '../components/documents/DocumentLeadDraftPanel';
+import {
+  DocumentSuggestionsPanel,
+  type DocumentSuggestionsPanelHandle,
+} from '../components/documents/DocumentSuggestionsPanel';
+import { DocumentAccessPanel } from '../components/documents/DocumentAccessPanel';
 
 /** Erzeugt URL-Slug aus Überschriftentext (für Anker-IDs). */
 function slugify(text: string): string {
@@ -160,6 +165,21 @@ type PdfExportJobStatusResponse = {
   error: string | null;
 };
 
+function withHeadingNumbering(headings: { level: number; text: string; id: string }[]) {
+  const counters = [0, 0, 0, 0, 0, 0];
+  return headings.map((heading) => {
+    const idx = Math.min(Math.max(heading.level, 1), 6) - 1;
+    counters[idx] += 1;
+    for (let i = idx + 1; i < counters.length; i += 1) counters[i] = 0;
+    const parts = counters.slice(0, idx + 1).filter((n) => n > 0);
+    const numbering = parts.length <= 1 ? `${parts[0]}.` : parts.join('.');
+    return {
+      ...heading,
+      numbering,
+    };
+  });
+}
+
 export function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
@@ -193,6 +213,12 @@ export function DocumentPage() {
   const [isTabVisible, setIsTabVisible] = useState<boolean>(
     () => document.visibilityState === 'visible'
   );
+  const [editTab, setEditTab] = useState<'draft' | 'suggestions' | 'metadata' | 'access'>('draft');
+  const [leadDraftDirty, setLeadDraftDirty] = useState(false);
+  const [leadDraftLastSynced, setLeadDraftLastSynced] = useState<string | null>(null);
+  const leadDraftPanelRef = useRef<DocumentLeadDraftPanelHandle>(null);
+  const suggestionsPanelRef = useRef<DocumentSuggestionsPanelHandle>(null);
+  const handleSaveShortcutRef = useRef<() => Promise<void>>(async () => {});
   const slugCountsRef = useRef<Record<string, number>>({});
 
   const { data, isPending, isError } = useQuery({
@@ -370,6 +396,7 @@ export function DocumentPage() {
   }, [pdfExportStatus, lastPdfExportStatus, queryClient, documentId]);
 
   const headings = useMemo(() => (data ? getHeadingsFromMarkdown(data.content ?? '') : []), [data]);
+  const numberedHeadings = useMemo(() => withHeadingNumbering(headings), [headings]);
   const markdownHeadingComponents = useMemo(() => {
     const makeH = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
       function HeadingWithId({ children, ...rest }: { children?: ReactNode }) {
@@ -493,7 +520,7 @@ export function DocumentPage() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!documentId || !data) return;
     setSaveLoading(true);
     try {
@@ -519,14 +546,14 @@ export function DocumentPage() {
         setMode('view');
         setEditInitialSnapshot(null);
         notifications.show({
-          title: 'Gespeichert',
-          message: 'Metadaten wurden aktualisiert.',
+          title: 'Saved',
+          message: 'Document metadata updated.',
           color: 'green',
         });
       } else {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         notifications.show({
-          title: 'Fehler',
+          title: 'Error',
           message: body?.error ?? res.statusText,
           color: 'red',
         });
@@ -534,10 +561,12 @@ export function DocumentPage() {
     } finally {
       setSaveLoading(false);
     }
-  };
+  }, [data, documentId, editDescription, editTagIds, editTitle, queryClient]);
 
   const handleEditClick = () => {
     if (!data) return;
+    setEditTab('draft');
+    setLeadDraftDirty(false);
     setEditInitialSnapshot({
       title: data.title,
       description: data.description ?? '',
@@ -547,19 +576,19 @@ export function DocumentPage() {
   };
 
   const handleCancelEdit = () => {
-    const dirty =
+    const dirtyMetadata =
       editInitialSnapshot != null &&
       (editTitle !== editInitialSnapshot.title ||
         editDescription !== editInitialSnapshot.description ||
         editTagIds.join(',') !== editInitialSnapshot.tagIds.join(','));
+    const dirty = dirtyMetadata || leadDraftDirty;
     if (dirty) {
-      const ok = window.confirm(
-        'Nicht gespeicherter Fortschritt kann verloren gehen. Wirklich abbrechen?'
-      );
+      const ok = window.confirm('Unsaved progress may be lost. Cancel editing anyway?');
       if (!ok) return;
     }
     setMode('view');
     setEditInitialSnapshot(null);
+    setLeadDraftDirty(false);
   };
 
   const handlePublish = async () => {
@@ -725,6 +754,32 @@ export function DocumentPage() {
     }
   };
 
+  useEffect(() => {
+    handleSaveShortcutRef.current = handleSave;
+  }, [handleSave]);
+
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const withMeta = event.metaKey || event.ctrlKey;
+      if (!withMeta) return;
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (editTab === 'draft') {
+          void leadDraftPanelRef.current?.saveDraft();
+        } else {
+          void handleSaveShortcutRef.current();
+        }
+      }
+      if (event.key === 'Enter' && editTab === 'suggestions') {
+        event.preventDefault();
+        void suggestionsPanelRef.current?.submitFromShortcut();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editTab, mode]);
+
   if (isPending) {
     return (
       <Stack gap="md">
@@ -757,6 +812,12 @@ export function DocumentPage() {
 
   const docTitle = mode === 'edit' ? editTitle || 'Untitled' : data.title;
   const hasNoContext = data.contextId == null;
+  const metadataDirty =
+    editInitialSnapshot != null &&
+    (editTitle !== editInitialSnapshot.title ||
+      editDescription !== editInitialSnapshot.description ||
+      editTagIds.join(',') !== editInitialSnapshot.tagIds.join(','));
+  const hasUnsavedChanges = metadataDirty || leadDraftDirty;
   const writerNames = [
     ...(data.writers?.users?.map((u) => u.name) ?? []),
     ...(data.writers?.teams?.map((t) => t.name) ?? []),
@@ -820,6 +881,13 @@ export function DocumentPage() {
       );
     });
   }
+  if (mode === 'edit' && hasUnsavedChanges) {
+    metadataItems.push(
+      <Badge key="unsaved" size="sm" variant="light" color="orange">
+        Unsaved changes
+      </Badge>
+    );
+  }
 
   return (
     <>
@@ -854,9 +922,22 @@ export function DocumentPage() {
                     <Button variant="default" size="sm" onClick={handleCancelEdit}>
                       Cancel
                     </Button>
-                    <Button size="sm" loading={saveLoading} onClick={() => void handleSave()}>
-                      Save
+                    <Button
+                      size="sm"
+                      loading={saveLoading}
+                      onClick={() =>
+                        void (editTab === 'draft'
+                          ? leadDraftPanelRef.current?.saveDraft()
+                          : handleSave())
+                      }
+                    >
+                      {editTab === 'draft' ? 'Save draft' : 'Save'}
                     </Button>
+                    {editTab === 'draft' && leadDraftLastSynced && (
+                      <Text size="xs" c="dimmed">
+                        Last synced {new Date(leadDraftLastSynced).toLocaleTimeString()}
+                      </Text>
+                    )}
                   </>
                 )}
                 {data.canWrite && mode === 'view' && (
@@ -962,7 +1043,14 @@ export function DocumentPage() {
             {mode === 'view' && headings.length > 0 && (
               <Box
                 w={{ base: '100%', lg: 280 }}
-                style={{ flexShrink: 0, position: 'sticky', top: 'var(--mantine-spacing-xl)' }}
+                style={{
+                  flexShrink: 0,
+                  position: 'sticky',
+                  top: 'var(--mantine-spacing-xl)',
+                  border: '1px solid var(--mantine-color-default-border)',
+                  borderRadius: 'var(--mantine-radius-md)',
+                  padding: 'var(--mantine-spacing-sm)',
+                }}
               >
                 <Text
                   tt="uppercase"
@@ -975,11 +1063,11 @@ export function DocumentPage() {
                   Table of Contents
                 </Text>
                 <Stack component="nav" gap={2}>
-                  {headings.map((h) => (
+                  {numberedHeadings.map((h) => (
                     <NavLink
                       key={h.id}
                       href={`#${h.id}`}
-                      label={h.text}
+                      label={`${h.numbering} ${h.text}`}
                       onClick={(e) => {
                         e.preventDefault();
                         document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' });
@@ -1026,11 +1114,10 @@ export function DocumentPage() {
                         })()}
                         {data.publishedBlocks != null ? (
                           publishedPlainFromBlocks ? (
-                            <DocumentBlocksPreview title="Inhalt" doc={data.publishedBlocks} />
+                            <DocumentBlocksPreview title="Content" doc={data.publishedBlocks} />
                           ) : (
                             <Text size="sm" c="dimmed">
-                              Veröffentlichte Version liefert Blocks ohne extrahierbaren Text. Zum
-                              Pflegen des Lead-Drafts den Bearbeiten-Modus öffnen.
+                              Published blocks do not contain extractable text for this preview.
                             </Text>
                           )
                         ) : (
@@ -1047,45 +1134,98 @@ export function DocumentPage() {
                     </Card>
                   ) : (
                     <Card withBorder padding="lg">
-                      <Stack gap="md">
-                        <Alert variant="light" color="blue" title="Inhalt bearbeiten">
-                          <Text size="sm">
-                            Fließtext und Struktur werden im Block-System unten über Lead-Draft und
-                            Suggestions gepflegt. Hier nur Titel, Beschreibung und Tags.
-                          </Text>
-                        </Alert>
-                        <TextInput
-                          label="Title"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.currentTarget.value)}
-                          maxLength={500}
-                        />
-                        <TextInput
-                          label="Description"
-                          placeholder="Short description (optional)"
-                          value={editDescription}
-                          onChange={(e) => setEditDescription(e.currentTarget.value)}
-                          maxLength={500}
-                        />
-                        <Group align="flex-end" gap="xs">
-                          <MultiSelect
-                            label="Tags"
-                            placeholder="Select or add tags"
-                            data={tagOptions}
-                            value={editTagIds}
-                            onChange={setEditTagIds}
-                            searchable
-                            clearable
-                            style={{ flex: 1 }}
+                      <Tabs
+                        value={editTab}
+                        onChange={(v) => setEditTab((v as typeof editTab) ?? 'draft')}
+                      >
+                        <Tabs.List>
+                          <Tabs.Tab value="draft">Draft</Tabs.Tab>
+                          <Tabs.Tab value="suggestions">Suggestions</Tabs.Tab>
+                          <Tabs.Tab value="metadata">Metadata</Tabs.Tab>
+                          {data.canWrite && <Tabs.Tab value="access">Access</Tabs.Tab>}
+                        </Tabs.List>
+                        <Tabs.Panel value="draft" pt="md">
+                          {data.blocks == null && data.publishedBlocks == null && (
+                            <Alert
+                              color="yellow"
+                              variant="light"
+                              mb="md"
+                              title="Draft not initialized"
+                            >
+                              <Text size="sm">
+                                This document has no draft blocks yet. Saving will initialize the
+                                draft.
+                              </Text>
+                            </Alert>
+                          )}
+                          <DocumentLeadDraftPanel
+                            ref={leadDraftPanelRef}
+                            documentId={documentId!}
+                            refetchWhenVisible={isTabVisible}
+                            canPublish={!!data.canPublish}
+                            currentUserId={me?.user?.id}
+                            isAdmin={me?.user?.isAdmin === true}
+                            fallbackBlocks={data.publishedBlocks ?? null}
+                            onDirtyChange={setLeadDraftDirty}
+                            onLastSyncedChange={setLeadDraftLastSynced}
                           />
-                          <Button variant="light" size="sm" onClick={openCreateTag}>
-                            Create tag
-                          </Button>
-                          <Button variant="subtle" size="sm" onClick={openManageTags}>
-                            Manage tags
-                          </Button>
-                        </Group>
-                      </Stack>
+                        </Tabs.Panel>
+                        <Tabs.Panel value="suggestions" pt="md">
+                          <DocumentSuggestionsPanel
+                            ref={suggestionsPanelRef}
+                            documentId={documentId!}
+                            currentUserId={me?.user?.id}
+                            canPublish={!!data.canPublish}
+                            leadDraftBlocks={data.blocks ?? data.publishedBlocks ?? null}
+                            refetchWhenVisible={isTabVisible}
+                          />
+                        </Tabs.Panel>
+                        <Tabs.Panel value="metadata" pt="md">
+                          <Stack gap="md">
+                            <TextInput
+                              label="Title"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.currentTarget.value)}
+                              maxLength={500}
+                            />
+                            <TextInput
+                              label="Description"
+                              placeholder="Short description (optional)"
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.currentTarget.value)}
+                              maxLength={500}
+                            />
+                            <Group align="flex-end" gap="xs">
+                              <MultiSelect
+                                label="Tags"
+                                placeholder="Select or add tags"
+                                data={tagOptions}
+                                value={editTagIds}
+                                onChange={setEditTagIds}
+                                searchable
+                                clearable
+                                style={{ flex: 1 }}
+                              />
+                              <Button variant="light" size="sm" onClick={openCreateTag}>
+                                Create tag
+                              </Button>
+                              <Button variant="subtle" size="sm" onClick={openManageTags}>
+                                Manage tags
+                              </Button>
+                            </Group>
+                          </Stack>
+                        </Tabs.Panel>
+                        {data.canWrite && (
+                          <Tabs.Panel value="access" pt="md">
+                            <DocumentAccessPanel
+                              documentId={documentId!}
+                              scope={data.scope}
+                              me={me}
+                              canEditAccess={!!data.canWrite}
+                            />
+                          </Tabs.Panel>
+                        )}
+                      </Tabs>
                     </Card>
                   )}
                 </Stack>
@@ -1108,34 +1248,6 @@ export function DocumentPage() {
               </Flex>
             </Box>
           </Flex>
-
-          {mode === 'edit' && (data.canWrite || data.canPublish) && documentId != null && (
-            <Card withBorder padding="lg" mt="xl" maw={1200}>
-              <Text fw={600} size="sm" mb="md">
-                Block-System (Lead-Draft & Suggestions)
-              </Text>
-              <Tabs defaultValue="lead">
-                <Tabs.List>
-                  <Tabs.Tab value="lead">Lead-Draft (API)</Tabs.Tab>
-                  <Tabs.Tab value="suggestions">Suggestions</Tabs.Tab>
-                </Tabs.List>
-                <Tabs.Panel value="lead" pt="md">
-                  <DocumentLeadDraftPanel
-                    documentId={documentId}
-                    refetchWhenVisible={isTabVisible}
-                  />
-                </Tabs.Panel>
-                <Tabs.Panel value="suggestions" pt="md">
-                  <DocumentSuggestionsPanel
-                    documentId={documentId}
-                    currentUserId={me?.user?.id}
-                    canPublish={!!data.canPublish}
-                    refetchWhenVisible={isTabVisible}
-                  />
-                </Tabs.Panel>
-              </Tabs>
-            </Card>
-          )}
         </Paper>
       </Container>
 
