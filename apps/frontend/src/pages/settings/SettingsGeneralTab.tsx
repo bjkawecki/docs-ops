@@ -26,7 +26,7 @@ import { IconDotsVertical } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 import { COLOR_SCHEME_STORAGE_KEY } from '../../constants';
 import { useMe, meQueryKey } from '../../hooks/useMe';
-import type { UserPreferences } from '../../components/ThemeFromPreferences';
+import type { UserPreferences } from '../../components/system/ThemeFromPreferences';
 import {
   PRIMARY_COLOR_PRESETS,
   PRIMARY_COLOR_PRESET_LABELS,

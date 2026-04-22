@@ -1,0 +1,15 @@
+import { Card, Text } from '@mantine/core';
+import { PageHeader } from '../../components/ui/PageHeader';
+
+export function TemplatesPage() {
+  return (
+    <>
+      <PageHeader title="Templates" description="Templates – content to follow." />
+      <Card withBorder padding="md">
+        <Text size="sm" c="dimmed">
+          Content to follow.
+        </Text>
+      </Card>
+    </>
+  );
+}

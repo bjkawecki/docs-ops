@@ -1,6 +1,6 @@
 import { Badge, Group, Table, Text } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { ContentLink } from '../ContentLink';
+import { ContentLink } from '../ui/ContentLink';
 
 export type ContextDocumentsTableRow = {
   id: string;

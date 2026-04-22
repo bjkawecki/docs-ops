@@ -2,7 +2,7 @@ import { Box, Button, Card, Group, Stack, Text } from '@mantine/core';
 import { useMantineTheme } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ContentLink } from '../ContentLink';
+import { ContentLink } from '../ui/ContentLink';
 
 /** One "View more" control: always the same Link-Button. Dashboard: real link (to). Scope tabs: to="#" + onClick with preventDefault. Same look and hover everywhere. */
 export function ViewMoreButton({ to, onClick }: { to?: string; onClick?: () => void }) {

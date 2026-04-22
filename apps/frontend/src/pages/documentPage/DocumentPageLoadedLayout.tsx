@@ -43,7 +43,7 @@ import {
 import { DocumentAccessPanel } from '../../components/documents/DocumentAccessPanel';
 import { DocumentCommentsSection } from '../../components/documents/DocumentCommentsSection';
 import { DocumentDocBreadcrumbs } from '../../components/documents/DocumentDocBreadcrumbs';
-import { PageHeader } from '../../components/PageHeader';
+import { PageHeader } from '../../components/ui/PageHeader';
 import type { DocumentResponse, PdfExportJobStatusResponse } from './documentPageTypes';
 
 export type DocumentPageLoadedLayoutProps = {

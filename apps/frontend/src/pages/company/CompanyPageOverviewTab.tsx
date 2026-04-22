@@ -1,4 +1,4 @@
-import { DraftsCard } from '../../components/DraftsCard';
+import { DraftsCard } from '../../components/trashArchive';
 import { ScopedContextOverviewCards } from '../contextScope/ScopedContextOverviewCards';
 import type {
   ProcessItem,

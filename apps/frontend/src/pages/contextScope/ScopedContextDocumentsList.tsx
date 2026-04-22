@@ -1,5 +1,5 @@
 import { Card, Group, Pagination, Select, Stack, Table, Text, TextInput } from '@mantine/core';
-import { SortableTableTh } from '../../components/SortableTableTh';
+import { SortableTableTh } from '../../components/ui/SortableTableTh';
 import { formatTableDate } from '../../lib/formatDate';
 
 export type ScopedContextDocumentRow = {

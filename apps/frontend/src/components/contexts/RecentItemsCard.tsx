@@ -2,7 +2,7 @@ import { Group, Stack, Text } from '@mantine/core';
 import { IconBriefcase, IconFileText, IconRoute } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { RecentItem, RecentItemType } from '../../hooks/useRecentItems';
-import { ContentLink } from '../ContentLink';
+import { ContentLink } from '../ui/ContentLink';
 import { SectionCard } from './SectionCard';
 
 /** Icon for a recent item by type (document / process / project). Used in RecentItemsCard and ScopeRecentColumn. */

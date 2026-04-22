@@ -4,7 +4,7 @@ import { notifications } from '@mantine/notifications';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../api/client';
 import { meQueryKey, useMe } from '../../hooks/useMe';
-import type { UserPreferences } from '../../components/ThemeFromPreferences';
+import type { UserPreferences } from '../../components/system/ThemeFromPreferences';
 
 export function SettingsNotificationsTab() {
   const queryClient = useQueryClient();

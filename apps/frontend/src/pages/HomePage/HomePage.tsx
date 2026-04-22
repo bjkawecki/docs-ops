@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/client';
-import { DocopsLogo } from '../../components/DocopsLogo';
+import { DocopsLogo } from '../../components/appShell/DocopsLogo';
 import { useMe } from '../../hooks/useMe';
 import { useMeDrafts } from '../../hooks/useMeDrafts';
 import { useResolvedColorScheme } from '../../hooks/useResolvedColorScheme';

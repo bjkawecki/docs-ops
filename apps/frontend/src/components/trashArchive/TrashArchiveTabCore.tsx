@@ -16,7 +16,7 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../../api/client';
 import { formatTableDate } from '../../lib/formatDate';
-import { SortableTableTh } from '../SortableTableTh';
+import { SortableTableTh } from '../ui/SortableTableTh';
 import type { TrashArchiveItem, TrashArchiveTabBaseProps } from './trashArchiveTypes';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
