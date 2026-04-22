@@ -48,6 +48,93 @@ import {
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
+const DOCUMENT_CREATE_SELECT = {
+  id: true,
+  title: true,
+  draftBlocks: true,
+  publishedAt: true,
+  pdfUrl: true,
+  contextId: true,
+  createdAt: true,
+  updatedAt: true,
+  description: true,
+  createdById: true,
+  createdBy: { select: { name: true } },
+  documentTags: { include: { tag: { select: { id: true, name: true } } } },
+  currentPublishedVersion: { select: { blocks: true } },
+} as const;
+
+type CreatedDocumentResponseRow = {
+  publishedAt: Date | null;
+  draftBlocks: unknown;
+  currentPublishedVersion: { blocks: unknown } | null;
+  createdBy?: { name: string } | null;
+};
+
+function buildCreatedDocumentResponse<T extends CreatedDocumentResponseRow>(created: T) {
+  return {
+    ...created,
+    content: documentMarkdownFromRow({
+      publishedAt: created.publishedAt,
+      draftBlocks: created.draftBlocks,
+      currentPublishedVersion: created.currentPublishedVersion,
+    }),
+    createdByName: created.createdBy?.name ?? null,
+    writers: { users: [], teams: [], departments: [] },
+  };
+}
+
+async function validateContextWriteAccess(
+  prisma: FastifyInstance['prisma'],
+  userId: string,
+  contextId: string,
+  reply: { status: (code: number) => { send: (body: unknown) => unknown } },
+  forbiddenMessage: string
+): Promise<boolean> {
+  const context = await prisma.context.findUnique({
+    where: { id: contextId },
+    select: { id: true },
+  });
+  if (!context) {
+    await reply.status(404).send({ error: 'Context not found' });
+    return false;
+  }
+  const allowed = await canWriteContext(prisma, userId, contextId);
+  if (!allowed) {
+    await reply.status(403).send({ error: forbiddenMessage });
+    return false;
+  }
+  return true;
+}
+
+async function validateTagsForContext(
+  prisma: FastifyInstance['prisma'],
+  contextId: string,
+  tagIds: string[],
+  reply: { status: (code: number) => { send: (body: unknown) => unknown } }
+): Promise<boolean> {
+  if (tagIds.length === 0) return true;
+  const contextOwnerId = await getContextOwnerId(prisma, contextId);
+  if (!contextOwnerId) {
+    await reply
+      .status(400)
+      .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
+    return false;
+  }
+  const tags = await prisma.tag.findMany({
+    where: { id: { in: tagIds } },
+    select: { id: true, ownerId: true },
+  });
+  const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
+  if (invalid || tags.length !== tagIds.length) {
+    await reply
+      .status(400)
+      .send({ error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.' });
+    return false;
+  }
+  return true;
+}
+
 export const registerContentRoutes = (app: FastifyInstance): void => {
   app.post<{
     Params: { documentId: string };
@@ -185,21 +272,7 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
       });
       const created = await prisma.document.findUniqueOrThrow({
         where: { id: doc.id },
-        select: {
-          id: true,
-          title: true,
-          draftBlocks: true,
-          publishedAt: true,
-          pdfUrl: true,
-          contextId: true,
-          createdAt: true,
-          updatedAt: true,
-          description: true,
-          createdById: true,
-          createdBy: { select: { name: true } },
-          documentTags: { include: { tag: { select: { id: true, name: true } } } },
-          currentPublishedVersion: { select: { blocks: true } },
-        },
+        select: DOCUMENT_CREATE_SELECT,
       });
       try {
         await enqueueIncrementalReindexForDocument({
@@ -213,54 +286,22 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
           'Failed to enqueue reindex job after document creation'
         );
       }
-      return reply.status(201).send({
-        ...created,
-        content: documentMarkdownFromRow({
-          publishedAt: created.publishedAt,
-          draftBlocks: created.draftBlocks,
-          currentPublishedVersion: created.currentPublishedVersion,
-        }),
-        createdByName: created.createdBy?.name ?? null,
-        writers: { users: [], teams: [], departments: [] },
-      });
+      return reply.status(201).send(buildCreatedDocumentResponse(created));
     }
 
-    const context = await prisma.context.findUnique({
-      where: { id: body.contextId },
-      include: {
-        process: { include: { owner: { select: { ownerUserId: true } } } },
-        project: { include: { owner: { select: { ownerUserId: true } } } },
-        subcontext: {
-          include: { project: { include: { owner: { select: { ownerUserId: true } } } } },
-        },
-      },
-    });
-    if (!context) return reply.status(404).send({ error: 'Context not found' });
-
-    const allowed = await canWriteContext(prisma, userId, body.contextId);
-    if (!allowed) {
-      return reply
-        .status(403)
-        .send({ error: 'Permission denied to create document in this context' });
+    if (
+      !(await validateContextWriteAccess(
+        prisma,
+        userId,
+        body.contextId,
+        reply,
+        'Permission denied to create document in this context'
+      ))
+    ) {
+      return;
     }
-
-    const contextOwnerId = await getContextOwnerId(prisma, body.contextId);
-    if (body.tagIds.length > 0) {
-      if (!contextOwnerId) {
-        return reply
-          .status(400)
-          .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
-      }
-      const tags = await prisma.tag.findMany({
-        where: { id: { in: body.tagIds } },
-        select: { id: true, ownerId: true },
-      });
-      const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
-      if (invalid || tags.length !== body.tagIds.length) {
-        return reply.status(400).send({
-          error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.',
-        });
-      }
+    if (!(await validateTagsForContext(prisma, body.contextId, body.tagIds, reply))) {
+      return;
     }
 
     const doc = await prisma.document.create({
@@ -281,21 +322,7 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
     }
     const created = await prisma.document.findUniqueOrThrow({
       where: { id: doc.id },
-      select: {
-        id: true,
-        title: true,
-        draftBlocks: true,
-        publishedAt: true,
-        pdfUrl: true,
-        contextId: true,
-        createdAt: true,
-        updatedAt: true,
-        description: true,
-        createdById: true,
-        createdBy: { select: { name: true } },
-        documentTags: { include: { tag: { select: { id: true, name: true } } } },
-        currentPublishedVersion: { select: { blocks: true } },
-      },
+      select: DOCUMENT_CREATE_SELECT,
     });
     try {
       await enqueueIncrementalReindexForDocument({
@@ -309,16 +336,7 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
         'Failed to enqueue reindex job after document creation'
       );
     }
-    return reply.status(201).send({
-      ...created,
-      content: documentMarkdownFromRow({
-        publishedAt: created.publishedAt,
-        draftBlocks: created.draftBlocks,
-        currentPublishedVersion: created.currentPublishedVersion,
-      }),
-      createdByName: created.createdBy?.name ?? null,
-      writers: { users: [], teams: [], departments: [] },
-    });
+    return reply.status(201).send(buildCreatedDocumentResponse(created));
   });
   app.patch(
     '/documents/:documentId',
@@ -330,16 +348,16 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
       const body = updateDocumentBodySchema.parse(request.body);
 
       if (body.contextId !== undefined && body.contextId !== null) {
-        const ctx = await prisma.context.findUnique({
-          where: { id: body.contextId },
-          select: { id: true },
-        });
-        if (!ctx) return reply.status(404).send({ error: 'Context not found' });
-        const allowed = await canWriteContext(prisma, userId, body.contextId);
-        if (!allowed) {
-          return reply
-            .status(403)
-            .send({ error: 'Permission denied to assign document to this context' });
+        if (
+          !(await validateContextWriteAccess(
+            prisma,
+            userId,
+            body.contextId,
+            reply,
+            'Permission denied to assign document to this context'
+          ))
+        ) {
+          return;
         }
       }
 
@@ -354,21 +372,8 @@ export const registerContentRoutes = (app: FastifyInstance): void => {
             .status(400)
             .send({ error: 'Document has no context; tags require a context' });
         }
-        const contextOwnerId = await getContextOwnerId(prisma, doc.contextId);
-        if (!contextOwnerId) {
-          return reply
-            .status(400)
-            .send({ error: 'Kontext hat keinen Owner; Tags können nicht zugewiesen werden.' });
-        }
-        const tags = await prisma.tag.findMany({
-          where: { id: { in: body.tagIds } },
-          select: { id: true, ownerId: true },
-        });
-        const invalid = tags.some((t) => t.ownerId !== contextOwnerId);
-        if (invalid || tags.length !== body.tagIds.length) {
-          return reply.status(400).send({
-            error: 'Ein oder mehrere Tags gehören nicht zum Kontext-Scope.',
-          });
+        if (!(await validateTagsForContext(prisma, doc.contextId, body.tagIds, reply))) {
+          return;
         }
       }
 

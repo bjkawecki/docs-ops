@@ -1,39 +1,22 @@
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
-import { loadUser } from '../../documents/permissions/canRead.js';
+import {
+  contextWithOwnerInclude,
+  ownerScopeFromOwnerRow,
+  type ContextOwnerRow,
+  type ContextWithOwnerRow,
+} from './ownerScope.js';
+import {
+  isCompanyLead,
+  isDepartmentLead,
+  isTeamLead,
+  loadActiveUser,
+  type LoadedUser,
+} from './userAccessPredicates.js';
 
 /** Context with owner info for Process/Project/Subcontext. */
 type ContextWithOwner = {
   id: string;
-  process: {
-    owner: {
-      companyId: string | null;
-      departmentId: string | null;
-      teamId: string | null;
-      ownerUserId: string | null;
-      team: { departmentId: string } | null;
-    };
-  } | null;
-  project: {
-    owner: {
-      companyId: string | null;
-      departmentId: string | null;
-      teamId: string | null;
-      ownerUserId: string | null;
-      team: { departmentId: string } | null;
-    };
-  } | null;
-  subcontext: {
-    project: {
-      owner: {
-        companyId: string | null;
-        departmentId: string | null;
-        teamId: string | null;
-        ownerUserId: string | null;
-        team: { departmentId: string } | null;
-      };
-    };
-  } | null;
-};
+} & ContextWithOwnerRow;
 
 type OwnerScopeOptions = {
   companyId?: string;
@@ -42,59 +25,13 @@ type OwnerScopeOptions = {
   ownerUserId?: string;
 };
 
-type LoadedUser = NonNullable<Awaited<ReturnType<typeof loadUser>>>;
-
 async function loadContext(
   prisma: PrismaClient,
   contextId: string
 ): Promise<ContextWithOwner | null> {
   const ctx = await prisma.context.findUnique({
     where: { id: contextId },
-    include: {
-      process: {
-        include: {
-          owner: {
-            select: {
-              companyId: true,
-              departmentId: true,
-              teamId: true,
-              ownerUserId: true,
-              team: { select: { departmentId: true } },
-            },
-          },
-        },
-      },
-      project: {
-        include: {
-          owner: {
-            select: {
-              companyId: true,
-              departmentId: true,
-              teamId: true,
-              ownerUserId: true,
-              team: { select: { departmentId: true } },
-            },
-          },
-        },
-      },
-      subcontext: {
-        include: {
-          project: {
-            include: {
-              owner: {
-                select: {
-                  companyId: true,
-                  departmentId: true,
-                  teamId: true,
-                  ownerUserId: true,
-                  team: { select: { departmentId: true } },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    include: contextWithOwnerInclude,
   });
   return ctx as ContextWithOwner | null;
 }
@@ -105,27 +42,9 @@ function getOwnerFromContext(ctx: ContextWithOwner): {
   teamId: string | null;
   ownerUserId: string | null;
 } {
-  const owner = ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
-  if (!owner) return { companyId: null, departmentId: null, teamId: null, ownerUserId: null };
-  const departmentId = owner.departmentId ?? owner.team?.departmentId ?? null;
-  return {
-    companyId: owner.companyId,
-    departmentId,
-    teamId: owner.teamId,
-    ownerUserId: owner.ownerUserId,
-  };
-}
-
-function isCompanyLead(user: LoadedUser, companyId: string): boolean {
-  return user.companyLeads.some((c) => c.companyId === companyId);
-}
-
-function isDepartmentLead(user: LoadedUser, departmentId: string): boolean {
-  return user.departmentLeads.some((d) => d.departmentId === departmentId);
-}
-
-function isTeamLead(user: LoadedUser, teamId: string): boolean {
-  return user.leadOfTeams.some((l) => l.teamId === teamId);
+  const owner: ContextOwnerRow | null =
+    ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
+  return ownerScopeFromOwnerRow(owner);
 }
 
 async function canWriteInOwnerScope(
@@ -190,8 +109,8 @@ export async function canCreateProcessOrProjectForOwner(
   userId: string,
   opts: { companyId?: string; departmentId?: string; teamId?: string; ownerUserId?: string }
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
   if (user.isAdmin) return true;
   return canWriteInOwnerScope(prisma, user, userId, opts);
 }
@@ -205,8 +124,8 @@ export async function canWriteContext(
   userId: string,
   contextId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const ctx = await loadContext(prisma, contextId);
   if (!ctx) return false;
@@ -231,8 +150,8 @@ export async function canReadContext(
   userId: string,
   contextId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const ctx = await loadContext(prisma, contextId);
   if (!ctx) return false;
@@ -294,8 +213,8 @@ export async function canReadScopeForOwner(
     teamId: owner.teamId ?? undefined,
     ownerUserId: owner.ownerUserId ?? undefined,
   };
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
   if (user.isAdmin) return true;
   return canReadInOwnerScope(user, userId, opts);
 }

@@ -1,5 +1,16 @@
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
-import { loadUser } from '../../documents/permissions/canRead.js';
+import {
+  isCompanyLead,
+  isDepartmentLead,
+  isDeptLeadInCompany,
+  isMemberInCompany,
+  isMemberInDepartment,
+  isTeamLead,
+  isTeamLeadInCompany,
+  isTeamLeadInDepartment,
+  isTeamMember,
+  loadActiveUser,
+} from './userAccessPredicates.js';
 
 /**
  * Prüft, ob der Nutzer TeamMember für das Team anlegen/entfernen darf.
@@ -10,8 +21,8 @@ export async function canManageTeamMembers(
   userId: string,
   teamId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -20,8 +31,8 @@ export async function canManageTeamMembers(
   if (!team) return false;
 
   if (user.isAdmin) return true;
-  if (user.departmentLeads.some((d) => d.departmentId === team.departmentId)) return true;
-  if (user.leadOfTeams.some((l) => l.teamId === teamId)) return true;
+  if (isDepartmentLead(user, team.departmentId)) return true;
+  if (isTeamLead(user, teamId)) return true;
   return false;
 }
 
@@ -34,8 +45,8 @@ export async function canManageTeamLeaders(
   userId: string,
   teamId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -44,7 +55,7 @@ export async function canManageTeamLeaders(
   if (!team) return false;
 
   if (user.isAdmin) return true;
-  if (user.departmentLeads.some((d) => d.departmentId === team.departmentId)) return true;
+  if (isDepartmentLead(user, team.departmentId)) return true;
   return false;
 }
 
@@ -57,8 +68,8 @@ export async function canManageDepartmentLeads(
   userId: string,
   departmentId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const department = await prisma.department.findUnique({
     where: { id: departmentId },
@@ -78,8 +89,8 @@ export async function canViewTeam(
   userId: string,
   teamId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -88,9 +99,9 @@ export async function canViewTeam(
   if (!team) return false;
 
   if (user.isAdmin) return true;
-  if (user.departmentLeads.some((d) => d.departmentId === team.departmentId)) return true;
-  if (user.teamMemberships.some((m) => m.team.id === teamId)) return true;
-  if (user.leadOfTeams.some((l) => l.teamId === teamId)) return true;
+  if (isDepartmentLead(user, team.departmentId)) return true;
+  if (isTeamMember(user, teamId)) return true;
+  if (isTeamLead(user, teamId)) return true;
   return false;
 }
 
@@ -103,8 +114,8 @@ export async function canViewDepartment(
   userId: string,
   departmentId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const department = await prisma.department.findUnique({
     where: { id: departmentId },
@@ -113,10 +124,10 @@ export async function canViewDepartment(
   if (!department) return false;
 
   if (user.isAdmin) return true;
-  if (user.departmentLeads.some((d) => d.departmentId === departmentId)) return true;
-  const isTeamLeadInDept = user.leadOfTeams.some((l) => l.team.departmentId === departmentId);
+  if (isDepartmentLead(user, departmentId)) return true;
+  const isTeamLeadInDept = isTeamLeadInDepartment(user, departmentId);
   if (isTeamLeadInDept) return true;
-  const isMemberInDept = user.teamMemberships.some((m) => m.team.departmentId === departmentId);
+  const isMemberInDept = isMemberInDepartment(user, departmentId);
   if (isMemberInDept) return true;
   return false;
 }
@@ -130,8 +141,8 @@ export async function canManageCompanyLeads(
   userId: string,
   companyId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -151,8 +162,8 @@ export async function canViewCompany(
   userId: string,
   companyId: string
 ): Promise<boolean> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return false;
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -161,19 +172,13 @@ export async function canViewCompany(
   if (!company) return false;
 
   if (user.isAdmin) return true;
-  if (user.companyLeads.some((c) => c.companyId === companyId)) return true;
-  const isDeptLeadInCompany = user.departmentLeads.some(
-    (d) => d.department.companyId === companyId
-  );
-  if (isDeptLeadInCompany) return true;
-  const isTeamLeadInCompany = user.leadOfTeams.some(
-    (l) => l.team.department.companyId === companyId
-  );
-  if (isTeamLeadInCompany) return true;
-  const isMemberInCompany = user.teamMemberships.some(
-    (m) => m.team.department.companyId === companyId
-  );
-  if (isMemberInCompany) return true;
+  if (isCompanyLead(user, companyId)) return true;
+  const deptLeadInCompany = isDeptLeadInCompany(user, companyId);
+  if (deptLeadInCompany) return true;
+  const teamLeadInCompany = isTeamLeadInCompany(user, companyId);
+  if (teamLeadInCompany) return true;
+  const memberInCompany = isMemberInCompany(user, companyId);
+  if (memberInCompany) return true;
   return false;
 }
 
@@ -185,8 +190,8 @@ export async function getVisibleCompanyIds(
   prisma: PrismaClient,
   userId: string
 ): Promise<string[]> {
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return [];
+  const user = await loadActiveUser(prisma, userId);
+  if (!user) return [];
 
   if (user.isAdmin) {
     const companies = await prisma.company.findMany({ select: { id: true } });

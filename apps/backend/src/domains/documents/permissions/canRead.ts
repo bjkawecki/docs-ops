@@ -64,6 +64,21 @@ export function hasDocumentGrantRole(
   return false;
 }
 
+export function evaluateBaseDocumentPermission(
+  doc: DocumentForPermission,
+  user: UserForPermission,
+  userId: string,
+  role: GrantRole,
+  teamIds: Set<string>
+): boolean | null {
+  if (user.isAdmin) return true;
+  if (doc.contextId == null || doc.context == null) {
+    if (doc.createdById === userId) return true;
+    return hasDocumentGrantRole(doc, userId, role, teamIds, getUserDepartmentIds(user));
+  }
+  return null;
+}
+
 export function isCompanyLeadForOwner(
   user: UserForPermission,
   owner: ReturnType<typeof getDocumentOwner>
@@ -122,6 +137,19 @@ export async function loadDocument(
   return doc as DocumentForPermission | null;
 }
 
+export async function loadPermissionSubject(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  userId: string,
+  documentOrId: string | DocumentForPermission
+): Promise<{ doc: DocumentForPermission; user: UserForPermission } | null> {
+  const doc: DocumentForPermission | null =
+    typeof documentOrId === 'string' ? await loadDocument(prisma, documentOrId) : documentOrId;
+  if (!doc) return null;
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) return null;
+  return { doc, user };
+}
+
 /** Ermittelt die Company-Owner-ID des Dokument-Kontexts (Process/Project/Subcontext), falls Owner eine Company ist. */
 function getContextOwnerCompanyId(doc: DocumentForPermission): string | null {
   return getDocumentOwner(doc)?.companyId ?? null;
@@ -141,28 +169,18 @@ export async function canRead(
   userId: string,
   documentOrId: string | DocumentForPermission
 ): Promise<boolean> {
-  // Bei ID zuerst Dokument laden: nicht vorhanden → false (auch für Admin)
-  const doc: DocumentForPermission | null =
-    typeof documentOrId === 'string' ? await loadDocument(prisma, documentOrId) : documentOrId;
-  if (!doc) return false;
+  const subject = await loadPermissionSubject(prisma, userId, documentOrId);
+  if (!subject) return false;
+  const { doc, user } = subject;
 
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
-
-  // 1. isAdmin
-  if (user.isAdmin) return true;
-
-  // 2. Context-free document (contextId null): only creator and explicit grants
-  if (doc.contextId == null || doc.context == null) {
-    if (doc.createdById === userId) return true;
-    return hasDocumentGrantRole(
-      doc,
-      userId,
-      GrantRole.Read,
-      getUserReadableTeamIds(user),
-      getUserDepartmentIds(user)
-    );
-  }
+  const baseDecision = evaluateBaseDocumentPermission(
+    doc,
+    user,
+    userId,
+    GrantRole.Read,
+    getUserReadableTeamIds(user)
+  );
+  if (baseDecision !== null) return baseDecision;
 
   // 3. Owner of personal context (process/project with ownerUserId)
   const owner = getDocumentOwner(doc);

@@ -2,6 +2,11 @@ import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { GrantRole } from '../../../../generated/prisma/client.js';
 import type { DocumentForPermission } from '../../documents/permissions/documentLoad.js';
 import { canRead, getDocumentOwner, loadDocument } from '../../documents/permissions/canRead.js';
+import {
+  contextWithOwnerInclude,
+  ownerFromContextRow,
+  ownerScopeFromOwnerRow,
+} from '../../organisation/permissions/ownerScope.js';
 
 /** Must match `notifications.send` job schema max length. */
 export const NOTIFICATION_TARGET_USER_IDS_MAX = 1000;
@@ -236,22 +241,6 @@ async function filterActiveUserIds(
   return active.map((u) => u.id);
 }
 
-type ContextOwnerRow = {
-  companyId: string | null;
-  departmentId: string | null;
-  teamId: string | null;
-  ownerUserId: string | null;
-  team: { departmentId: string } | null;
-};
-
-function ownerFromContextRow(ctx: {
-  process: { owner: ContextOwnerRow } | null;
-  project: { owner: ContextOwnerRow } | null;
-  subcontext: { project: { owner: ContextOwnerRow } } | null;
-}): ContextOwnerRow | null {
-  return ctx.process?.owner ?? ctx.project?.owner ?? ctx.subcontext?.project?.owner ?? null;
-}
-
 /**
  * Users who may merge/reject draft requests on documents in this context
  * (aligned with {@link import('../permissions/contextPermissions.js').canWriteContext}).
@@ -262,51 +251,7 @@ export async function listUserIdsWhoCanWriteContext(
 ): Promise<string[]> {
   const ctx = await prisma.context.findUnique({
     where: { id: contextId },
-    include: {
-      process: {
-        include: {
-          owner: {
-            select: {
-              companyId: true,
-              departmentId: true,
-              teamId: true,
-              ownerUserId: true,
-              team: { select: { departmentId: true } },
-            },
-          },
-        },
-      },
-      project: {
-        include: {
-          owner: {
-            select: {
-              companyId: true,
-              departmentId: true,
-              teamId: true,
-              ownerUserId: true,
-              team: { select: { departmentId: true } },
-            },
-          },
-        },
-      },
-      subcontext: {
-        include: {
-          project: {
-            include: {
-              owner: {
-                select: {
-                  companyId: true,
-                  departmentId: true,
-                  teamId: true,
-                  ownerUserId: true,
-                  team: { select: { departmentId: true } },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    include: contextWithOwnerInclude,
   });
   if (!ctx) return [];
 
@@ -314,12 +259,12 @@ export async function listUserIdsWhoCanWriteContext(
   if (!owner)
     return filterActiveUserIds(prisma, [...(await collectWriteContextUserIds(prisma, null))]);
 
-  const departmentId = owner.departmentId ?? owner.team?.departmentId ?? null;
+  const scopedOwner = ownerScopeFromOwnerRow(owner);
   const ids = await collectWriteContextUserIds(prisma, {
-    companyId: owner.companyId,
-    departmentId,
-    teamId: owner.teamId,
-    ownerUserId: owner.ownerUserId,
+    companyId: scopedOwner.companyId,
+    departmentId: scopedOwner.departmentId,
+    teamId: scopedOwner.teamId,
+    ownerUserId: scopedOwner.ownerUserId,
   });
   return filterActiveUserIds(prisma, ids);
 }

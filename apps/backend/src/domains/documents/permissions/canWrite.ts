@@ -2,13 +2,13 @@ import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.j
 import { GrantRole } from '../../../../generated/prisma/client.js';
 import type { DocumentForPermission } from './documentLoad.js';
 import {
+  evaluateBaseDocumentPermission,
   getDocumentOwner,
   getUserDepartmentIds,
   getUserLeaderTeamIds,
   hasDocumentGrantRole,
   isCompanyLeadForOwner,
-  loadUser,
-  loadDocument,
+  loadPermissionSubject,
 } from './canRead.js';
 
 /**
@@ -20,28 +20,18 @@ export async function canWrite(
   userId: string,
   documentOrId: string | DocumentForPermission
 ): Promise<boolean> {
-  // Bei ID zuerst Dokument laden: nicht vorhanden → false (auch für Admin)
-  const doc =
-    typeof documentOrId === 'string' ? await loadDocument(prisma, documentOrId) : documentOrId;
-  if (!doc) return false;
+  const subject = await loadPermissionSubject(prisma, userId, documentOrId);
+  if (!subject) return false;
+  const { doc, user } = subject;
 
-  const user = await loadUser(prisma, userId);
-  if (!user || user.deletedAt !== null) return false;
-
-  // 1. isAdmin
-  if (user.isAdmin) return true;
-
-  // 2. Context-free document (contextId null): only creator and explicit grants
-  if (doc.contextId == null || doc.context == null) {
-    if (doc.createdById === userId) return true;
-    return hasDocumentGrantRole(
-      doc,
-      userId,
-      GrantRole.Write,
-      getUserLeaderTeamIds(user),
-      getUserDepartmentIds(user)
-    );
-  }
+  const baseDecision = evaluateBaseDocumentPermission(
+    doc,
+    user,
+    userId,
+    GrantRole.Write,
+    getUserLeaderTeamIds(user)
+  );
+  if (baseDecision !== null) return baseDecision;
 
   // 3. Owner of personal context (process/project with ownerUserId)
   const owner = getDocumentOwner(doc);

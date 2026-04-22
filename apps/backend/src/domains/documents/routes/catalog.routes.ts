@@ -21,6 +21,76 @@ import {
   paginationQuerySchema,
 } from '../schemas/documents.js';
 
+const ownerRefSelect = {
+  company: { select: { id: true, name: true } },
+  department: { select: { id: true, name: true } },
+  team: { select: { id: true, name: true } },
+  ownerUserId: true,
+  ownerUser: { select: { name: true } },
+} as const;
+
+const catalogContextSelect = {
+  id: true,
+  displayName: true,
+  contextType: true,
+  ownerDisplayName: true,
+  process: {
+    select: {
+      id: true,
+      name: true,
+      owner: { select: ownerRefSelect },
+    },
+  },
+  project: {
+    select: {
+      id: true,
+      name: true,
+      owner: { select: ownerRefSelect },
+    },
+  },
+  subcontext: {
+    select: {
+      id: true,
+      name: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          owner: { select: ownerRefSelect },
+        },
+      },
+    },
+  },
+} as const;
+
+const catalogDocumentSelect = {
+  id: true,
+  title: true,
+  contextId: true,
+  createdAt: true,
+  updatedAt: true,
+  publishedAt: true,
+  currentPublishedVersion: {
+    select: {
+      versionNumber: true,
+    },
+  },
+  documentTags: { include: { tag: { select: { id: true, name: true } } } },
+  context: { select: catalogContextSelect },
+} as const;
+
+function emptyCatalogResponse(
+  limit: number,
+  offset: number
+): {
+  items: [];
+  total: number;
+  limit: number;
+  offset: number;
+} {
+  return { items: [], total: 0, limit, offset };
+}
+
 export const registerCatalogRoutes = (app: FastifyInstance): void => {
   /** GET Catalog: all documents the user can read, with filters and pagination. */
   app.get('/documents', { preHandler: requireAuthPreHandler }, async (request, reply) => {
@@ -40,7 +110,7 @@ export const registerCatalogRoutes = (app: FastifyInstance): void => {
       teamId: query.teamId,
     });
     if (catalogBase == null) {
-      return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+      return reply.send(emptyCatalogResponse(query.limit, query.offset));
     }
     const { baseAnd, baseWhere } = catalogBase;
 
@@ -72,13 +142,13 @@ export const registerCatalogRoutes = (app: FastifyInstance): void => {
             searchResult.items.map((item) => [item.id, { rank: item.rank, snippet: item.snippet }])
           );
           if (rankedSearchOrder.length === 0) {
-            return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+            return reply.send(emptyCatalogResponse(query.limit, query.offset));
           }
           baseAnd.push({ id: { in: rankedSearchOrder } });
         } else {
           const indexedIds = await findIndexedDocumentIds(prisma, term);
           if (indexedIds.length === 0) {
-            return reply.send({ items: [], total: 0, limit: query.limit, offset: query.offset });
+            return reply.send(emptyCatalogResponse(query.limit, query.offset));
           }
           baseAnd.push({ id: { in: indexedIds } });
         }
@@ -98,80 +168,6 @@ export const registerCatalogRoutes = (app: FastifyInstance): void => {
     if (query.publishedOnly) {
       baseWhere.publishedAt = { not: null };
     }
-
-    const select = {
-      id: true,
-      title: true,
-      contextId: true,
-      createdAt: true,
-      updatedAt: true,
-      publishedAt: true,
-      currentPublishedVersion: {
-        select: {
-          versionNumber: true,
-        },
-      },
-      documentTags: { include: { tag: { select: { id: true, name: true } } } },
-      context: {
-        select: {
-          id: true,
-          displayName: true,
-          contextType: true,
-          ownerDisplayName: true,
-          process: {
-            select: {
-              id: true,
-              name: true,
-              owner: {
-                select: {
-                  company: { select: { id: true, name: true } },
-                  department: { select: { id: true, name: true } },
-                  team: { select: { id: true, name: true } },
-                  ownerUserId: true,
-                  ownerUser: { select: { name: true } },
-                },
-              },
-            },
-          },
-          project: {
-            select: {
-              id: true,
-              name: true,
-              owner: {
-                select: {
-                  company: { select: { id: true, name: true } },
-                  department: { select: { id: true, name: true } },
-                  team: { select: { id: true, name: true } },
-                  ownerUserId: true,
-                  ownerUser: { select: { name: true } },
-                },
-              },
-            },
-          },
-          subcontext: {
-            select: {
-              id: true,
-              name: true,
-              project: {
-                select: {
-                  id: true,
-                  name: true,
-                  owner: {
-                    select: {
-                      company: { select: { id: true, name: true } },
-                      department: { select: { id: true, name: true } },
-                      team: { select: { id: true, name: true } },
-                      ownerUserId: true,
-                      ownerUser: { select: { name: true } },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    };
 
     const sortBy = query.sortBy ?? 'updatedAt';
     const sortOrder = query.sortOrder ?? 'desc';
@@ -194,7 +190,7 @@ export const registerCatalogRoutes = (app: FastifyInstance): void => {
     const fetchCatalogRows = (args?: { useOrderBy?: boolean; take?: number; skip?: number }) =>
       prisma.document.findMany({
         where: baseWhere,
-        select,
+        select: catalogDocumentSelect,
         ...(args?.useOrderBy ? { orderBy } : {}),
         ...(args?.take !== undefined ? { take: args.take } : {}),
         ...(args?.skip !== undefined ? { skip: args.skip } : {}),

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   requireAuthPreHandler,
   preHandlerWrap,
@@ -63,6 +63,56 @@ import {
 } from '../../notifications/services/notificationRecipients.js';
 import { enqueueNotificationEvent } from '../services/route-support/documentRouteSupport.js';
 
+function parseSuggestionParams(params: unknown): { documentId: string; suggestionId: string } {
+  return suggestionIdParamSchema.parse(params);
+}
+
+function parseDocumentId(params: unknown): string {
+  return documentIdParamSchema.parse(params).documentId;
+}
+
+async function ensureSuggestionCreateAllowed(
+  prisma: FastifyInstance['prisma'],
+  userId: string,
+  documentId: string,
+  reply: FastifyReply,
+  message: string
+): Promise<boolean> {
+  const allowed = await canCreateSuggestion(prisma, userId, documentId);
+  if (!allowed) {
+    await reply.status(403).send({ error: message });
+    return false;
+  }
+  return true;
+}
+
+async function ensureSuggestionResolveAllowed(
+  prisma: FastifyInstance['prisma'],
+  userId: string,
+  documentId: string,
+  reply: FastifyReply,
+  message: string
+): Promise<boolean> {
+  const allowed = await canResolveSuggestion(prisma, userId, documentId);
+  if (!allowed) {
+    await reply.status(403).send({ error: message });
+    return false;
+  }
+  return true;
+}
+
+function handleSuggestionNotFoundOrInvalidState(err: unknown, reply: FastifyReply): boolean {
+  if (err instanceof SuggestionNotFoundError) {
+    reply.status(404).send({ error: 'Suggestion not found' });
+    return true;
+  }
+  if (err instanceof SuggestionInvalidStateError) {
+    reply.status(400).send({ error: err.message });
+    return true;
+  }
+  return false;
+}
+
 export const registerCollaborationRoutes = (app: FastifyInstance): void => {
   /**
    * GET gemeinsamer Lead-Draft (Block-JSON). Nicht für reine Leser ohne Write/Lead (403).
@@ -75,7 +125,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const documentId = parseDocumentId(request.params);
 
       const [canReadLead, canEdit] = await Promise.all([
         canReadLeadDraft(prisma, userId, documentId),
@@ -112,7 +162,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const documentId = parseDocumentId(request.params);
 
       const canEdit = await canEditLeadDraft(prisma, userId, documentId);
       if (!canEdit) {
@@ -173,7 +223,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const documentId = parseDocumentId(request.params);
       const query = listDocumentSuggestionsQuerySchema.parse(request.query ?? {});
 
       const allowed = await canReadSuggestions(prisma, userId, documentId);
@@ -199,11 +249,17 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
-
-      const allowed = await canCreateSuggestion(prisma, userId, documentId);
-      if (!allowed) {
-        return reply.status(403).send({ error: 'Nur Schreibende können Suggestions anlegen.' });
+      const documentId = parseDocumentId(request.params);
+      if (
+        !(await ensureSuggestionCreateAllowed(
+          prisma,
+          userId,
+          documentId,
+          reply,
+          'Nur Schreibende können Suggestions anlegen.'
+        ))
+      ) {
+        return;
       }
 
       const body = createDocumentSuggestionBodySchema.parse(request.body);
@@ -244,25 +300,18 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, suggestionId } = suggestionIdParamSchema.parse(request.params);
-
-      const allowed = await canCreateSuggestion(prisma, userId, documentId);
-      if (!allowed) {
-        return reply.status(403).send({ error: 'Forbidden' });
+      const { documentId, suggestionId } = parseSuggestionParams(request.params);
+      if (!(await ensureSuggestionCreateAllowed(prisma, userId, documentId, reply, 'Forbidden'))) {
+        return;
       }
 
       try {
         const row = await withdrawDocumentSuggestion(prisma, documentId, suggestionId, userId);
         return reply.send(serializeDocumentSuggestion(row));
       } catch (err) {
-        if (err instanceof SuggestionNotFoundError) {
-          return reply.status(404).send({ error: 'Suggestion not found' });
-        }
+        if (handleSuggestionNotFoundOrInvalidState(err, reply)) return;
         if (err instanceof SuggestionForbiddenError) {
           return reply.status(403).send({ error: err.message });
-        }
-        if (err instanceof SuggestionInvalidStateError) {
-          return reply.status(400).send({ error: err.message });
         }
         throw err;
       }
@@ -278,11 +327,17 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, suggestionId } = suggestionIdParamSchema.parse(request.params);
-
-      const allowed = await canResolveSuggestion(prisma, userId, documentId);
-      if (!allowed) {
-        return reply.status(403).send({ error: 'Nur der Scope-Lead kann Suggestions annehmen.' });
+      const { documentId, suggestionId } = parseSuggestionParams(request.params);
+      if (
+        !(await ensureSuggestionResolveAllowed(
+          prisma,
+          userId,
+          documentId,
+          reply,
+          'Nur der Scope-Lead kann Suggestions annehmen.'
+        ))
+      ) {
+        return;
       }
 
       const body = resolveDocumentSuggestionBodySchema.parse(request.body ?? {});
@@ -301,17 +356,12 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
           blocks: result.blocks,
         });
       } catch (err) {
-        if (err instanceof SuggestionNotFoundError) {
-          return reply.status(404).send({ error: 'Suggestion not found' });
-        }
+        if (handleSuggestionNotFoundOrInvalidState(err, reply)) return;
         if (err instanceof StaleSuggestionError) {
           return reply.status(409).send({
             error: 'Suggestion oder Lead-Draft wurde zwischenzeitlich geändert.',
             code: 'stale_suggestion',
           });
-        }
-        if (err instanceof SuggestionInvalidStateError) {
-          return reply.status(400).send({ error: err.message });
         }
         if (err instanceof SuggestionOpsValidationError) {
           return reply.status(400).send({ error: err.message, details: err.issues });
@@ -333,11 +383,17 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId, suggestionId } = suggestionIdParamSchema.parse(request.params);
-
-      const allowed = await canResolveSuggestion(prisma, userId, documentId);
-      if (!allowed) {
-        return reply.status(403).send({ error: 'Nur der Scope-Lead kann Suggestions ablehnen.' });
+      const { documentId, suggestionId } = parseSuggestionParams(request.params);
+      if (
+        !(await ensureSuggestionResolveAllowed(
+          prisma,
+          userId,
+          documentId,
+          reply,
+          'Nur der Scope-Lead kann Suggestions ablehnen.'
+        ))
+      ) {
+        return;
       }
 
       const body = resolveDocumentSuggestionBodySchema.parse(request.body ?? {});
@@ -345,12 +401,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
         const row = await rejectDocumentSuggestion(prisma, documentId, suggestionId, userId, body);
         return reply.send(serializeDocumentSuggestion(row));
       } catch (err) {
-        if (err instanceof SuggestionNotFoundError) {
-          return reply.status(404).send({ error: 'Suggestion not found' });
-        }
-        if (err instanceof SuggestionInvalidStateError) {
-          return reply.status(400).send({ error: err.message });
-        }
+        if (handleSuggestionNotFoundOrInvalidState(err, reply)) return;
         throw err;
       }
     }
@@ -365,7 +416,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const documentId = parseDocumentId(request.params);
       const query = paginationQuerySchema.parse(request.query ?? {});
       const doc = await loadDocument(prisma, documentId);
       if (!doc) return reply.status(404).send({ error: 'Document not found' });
@@ -392,7 +443,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
     async (request, reply) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
-      const { documentId } = documentIdParamSchema.parse(request.params);
+      const documentId = parseDocumentId(request.params);
       const parsed = createDocumentCommentBodySchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({
