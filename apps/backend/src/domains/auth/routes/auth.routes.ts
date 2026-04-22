@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { treeifyError } from 'zod';
 import { loginBodySchema } from '../schemas/auth.js';
 import { verifyPassword } from '../services/password.js';
 import { createSession, deleteSession } from '../services/session.js';
@@ -18,7 +19,7 @@ const authRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     if (!parseResult.success) {
       return reply.status(400).send({
         error: 'Invalid input',
-        details: parseResult.error.flatten().fieldErrors,
+        details: treeifyError(parseResult.error),
       });
     }
     const { email, password } = parseResult.data;

@@ -12,7 +12,7 @@ export const listAdminJobsQuerySchema = z.object({
 });
 
 export const adminJobIdParamSchema = z.object({
-  jobId: z.string().uuid(),
+  jobId: z.uuid(),
 });
 
 export const adminJobNameParamSchema = z.object({
@@ -30,7 +30,7 @@ export const patchAdminScheduleBodySchema = z
   .superRefine((value, ctx) => {
     if (value.enabled && !value.cron) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['cron'],
         message: 'cron is required when enabled=true',
       });

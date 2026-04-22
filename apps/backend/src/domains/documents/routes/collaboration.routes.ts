@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { treeifyError } from 'zod';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { requireAuthPreHandler, preHandlerWrap } from '../../auth/middleware.js';
 import {
@@ -188,7 +189,7 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       if (!parsed.success) {
         return reply.status(400).send({
           error: 'Invalid body',
-          details: parsed.error.flatten(),
+          details: treeifyError(parsed.error),
         });
       }
       const docSnapshot = await loadDocumentCommentAnchorSnapshot(prisma, documentId);

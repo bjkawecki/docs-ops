@@ -24,7 +24,7 @@ export const listUsersQuerySchema = z.object({
 /** Body: POST /admin/users – Nutzer anlegen. */
 export const createUserBodySchema = z.object({
   name: z.string().min(1).max(255),
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8).max(255),
   isAdmin: z.boolean().optional().default(false),
 });
@@ -32,9 +32,9 @@ export const createUserBodySchema = z.object({
 /** Body: PATCH /admin/users/:userId – Nutzer bearbeiten / Deaktivierung / Reaktivierung. */
 export const updateUserBodySchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  email: z.string().email().nullable().optional(),
+  email: z.email().nullable().optional(),
   isAdmin: z.boolean().optional(),
-  deletedAt: z.union([z.string().datetime(), z.null()]).optional(),
+  deletedAt: z.union([z.iso.datetime(), z.null()]).optional(),
 });
 
 /** Body: POST /admin/users/:userId/reset-password. */

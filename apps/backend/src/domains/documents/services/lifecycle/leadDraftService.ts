@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
+import { treeifyError } from 'zod';
 import { safeParseBlockDocumentV0, type BlockDocumentV0 } from '../blocks/blockSchema.js';
 import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
 
@@ -59,7 +60,7 @@ export async function patchLeadDraft(
 ): Promise<PatchLeadDraftResult> {
   const safe = safeParseBlockDocumentV0(input.blocks);
   if (!safe.success) {
-    return { ok: false, error: 'validation', issues: safe.error.flatten() };
+    return { ok: false, error: 'validation', issues: treeifyError(safe.error) };
   }
   const parsed = safe.data;
   const json = parsed as unknown as Prisma.InputJsonValue;

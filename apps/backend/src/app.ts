@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { ZodError, treeifyError } from 'zod';
 import fastifyCookie from '@fastify/cookie';
 import { prisma } from './infrastructure/db/prisma.js';
 import { initStorage } from './infrastructure/storage/index.js';
@@ -59,16 +60,19 @@ export async function buildApp(): Promise<FastifyInstance> {
         statusCode?: number;
         code?: string;
         issues?: unknown[];
-        flatten?: () => { fieldErrors: unknown };
       },
       request,
       reply
     ) => {
       if (reply.sent) return;
 
-      // Zod (Duck-Typing: name oder issues)
+      // Zod (instanz oder Duck-Typing: name/issues)
+      if (err instanceof ZodError) {
+        return reply.status(400).send({ error: 'Invalid input', details: treeifyError(err) });
+      }
       if (err.name === 'ZodError' || Array.isArray(err.issues)) {
-        const details = typeof err.flatten === 'function' ? err.flatten().fieldErrors : undefined;
+        const maybe = err as unknown as ZodError;
+        const details = Array.isArray(maybe.issues) ? treeifyError(maybe) : undefined;
         return reply.status(400).send({ error: 'Invalid input', details });
       }
 

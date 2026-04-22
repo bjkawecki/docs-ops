@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { DocumentSuggestionStatus } from '../../../../generated/prisma/client.js';
 import { blockDocumentSchemaV0 } from '../services/blocks/blockSchema.js';
 import { paginationQuerySchema } from '../../organisation/schemas/organisation.js';
 
@@ -93,7 +92,9 @@ export const patchLeadDraftBodySchema = z.object({
 
 /** Query: GET …/suggestions – optional nach Status filtern. */
 export const listDocumentSuggestionsQuerySchema = z.object({
-  status: z.nativeEnum(DocumentSuggestionStatus).optional(),
+  status: z
+    .enum(['pending', 'accepted', 'rejected', 'withdrawn', 'superseded'] as const)
+    .optional(),
 });
 
 /** Body: POST …/suggestions (Autor). */

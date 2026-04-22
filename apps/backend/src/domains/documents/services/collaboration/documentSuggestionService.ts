@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z, treeifyError } from 'zod';
 import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import { DocumentSuggestionStatus } from '../../../../../generated/prisma/client.js';
 import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
@@ -14,7 +14,7 @@ function parseSuggestionOpsStrict(input: unknown): SuggestionOp[] {
     return suggestionOpsArraySchema.parse(input);
   } catch (e) {
     if (e instanceof z.ZodError) {
-      throw new SuggestionOpsValidationError('Ungültige Ops', e.flatten());
+      throw new SuggestionOpsValidationError('Ungültige Ops', treeifyError(e));
     }
     throw e;
   }
@@ -258,7 +258,10 @@ export async function acceptDocumentSuggestion(
 
     const validated = safeParseBlockDocumentV0(applied.document);
     if (!validated.success) {
-      throw new SuggestionOpsValidationError('Ergebnis-Blocks ungültig', validated.error.flatten());
+      throw new SuggestionOpsValidationError(
+        'Ergebnis-Blocks ungültig',
+        treeifyError(validated.error)
+      );
     }
 
     const json = validated.data as unknown as Prisma.InputJsonValue;

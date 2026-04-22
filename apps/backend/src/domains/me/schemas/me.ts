@@ -56,7 +56,10 @@ const MIN_PASSWORD_LENGTH = 8;
 
 /** Body: PATCH /me/account – E-Mail und/oder Passwort (nur bei lokalem Login). */
 export const patchAccountBodySchema = z.object({
-  email: z.string().email('Invalid email address').nullable().optional(),
+  email: z
+    .email({ error: () => 'Invalid email address' })
+    .nullable()
+    .optional(),
   currentPassword: z.string().optional(),
   newPassword: z
     .string()
@@ -130,7 +133,7 @@ const meTrashArchiveListBaseFields = {
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
-} satisfies Record<string, z.ZodTypeAny>;
+} satisfies Record<string, z.ZodType>;
 
 function refineMeTrashArchiveOrgScopeIds(q: {
   scope: 'personal' | 'company' | 'department' | 'team';
@@ -205,12 +208,12 @@ export type MeNotificationCategory = z.infer<typeof meNotificationCategorySchema
 
 /** Params: PATCH /me/notifications/:notificationId/read */
 export const notificationIdParamSchema = z.object({
-  notificationId: z.string().uuid(),
+  notificationId: z.uuid(),
 });
 
 /** Body: PATCH /me/notifications/read-all */
 export const markAllNotificationsReadBodySchema = z.object({
-  before: z.string().datetime().optional(),
+  before: z.iso.datetime().optional(),
 });
 
 /** Unified trash/archive item for table (type, displayTitle, date). Used by GET /me/trash and GET /me/archive. */
