@@ -1,0 +1,1 @@
+export { AdminTeamsTab } from './AdminTeamsTab';
