@@ -3,7 +3,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { IconUsersGroup } from '@tabler/icons-react';
 import { apiFetch } from '../../api/client';
 import { ArchiveTabContent } from '../../components/ArchiveTabContent';
@@ -107,8 +107,8 @@ export function TeamContextPage() {
   const docsPage = Math.max(1, parseInt(searchParams.get('docsPage') ?? '1', 10));
   const docsLimitParam = searchParams.get('docsLimit');
   const docsLimit = docsLimitParam
-    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 25))
-    : 25;
+    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 10))
+    : 10;
   const docsOffset = (docsPage - 1) * docsLimit;
   const docsSearch = searchParams.get('docsSearch') ?? '';
   const docsContextType = searchParams.get('docsContextType') ?? '';
@@ -196,8 +196,6 @@ export function TeamContextPage() {
     },
     [setSearchParams]
   );
-
-  const navigate = useNavigate();
 
   const invalidateContexts = () => {
     void queryClient.invalidateQueries({ queryKey: ['processes', 'team', teamId ?? ''] });
@@ -361,7 +359,6 @@ export function TeamContextPage() {
               setDocsSort={setDocsSort}
               setDocsPage={setDocsPage}
               setDocsLimit={setDocsLimit}
-              navigate={navigate}
             />
           </Fragment>,
           ...(canWrite

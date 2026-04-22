@@ -1,5 +1,5 @@
-import { Card, Stack, Text } from '@mantine/core';
-import { ContextGrid, ScopeCard } from '../../components/contexts';
+import { Stack } from '@mantine/core';
+import { ContextProjectsGrid } from '../contextScope/ContextProjectsGrid';
 import type { ProjectItem } from '../contextScope/contextScopeSharedTypes';
 
 type Props = {
@@ -7,35 +7,16 @@ type Props = {
   projects: ProjectItem[];
 };
 
+const EMPTY_PROJECTS = 'No projects yet. Use "Create" to add one.';
+
 export function DepartmentContextProjectsTab({ projectsPending, projects }: Props) {
   return (
     <Stack gap="md">
-      {projectsPending ? (
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            Loading projects…
-          </Text>
-        </Card>
-      ) : projects.length === 0 ? (
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            No projects yet. Use "Create" to add one.
-          </Text>
-        </Card>
-      ) : (
-        <ContextGrid>
-          {projects.map((p) => (
-            <ScopeCard
-              key={p.id}
-              title={p.name}
-              href={`/projects/${p.id}`}
-              documents={p.documents}
-              subcontexts={p.subcontexts}
-              projectId={p.id}
-            />
-          ))}
-        </ContextGrid>
-      )}
+      <ContextProjectsGrid
+        pending={projectsPending}
+        projects={projects}
+        emptyMessage={EMPTY_PROJECTS}
+      />
     </Stack>
   );
 }

@@ -1,5 +1,5 @@
 import { Card, Stack, Text } from '@mantine/core';
-import { ContextGrid, ScopeCard } from '../../components/contexts';
+import { ContextProcessesGrid } from '../contextScope/ContextProcessesGrid';
 import type { ProcessItem } from '../contextScope/contextScopeSharedTypes';
 
 type Props = {
@@ -7,6 +7,8 @@ type Props = {
   processesPending: boolean;
   processes: ProcessItem[];
 };
+
+const EMPTY_PROCESSES = 'No processes yet. Use "Create" to add one.';
 
 export function CompanyPageProcessesTab({
   effectiveCompanyId,
@@ -21,29 +23,12 @@ export function CompanyPageProcessesTab({
             No company selected. Contexts are loaded per company.
           </Text>
         </Card>
-      ) : processesPending ? (
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            Loading processes…
-          </Text>
-        </Card>
-      ) : processes.length === 0 ? (
-        <Card withBorder padding="md">
-          <Text size="sm" c="dimmed">
-            No processes yet. Use "Create" to add one.
-          </Text>
-        </Card>
       ) : (
-        <ContextGrid>
-          {processes.map((p) => (
-            <ScopeCard
-              key={p.id}
-              title={p.name}
-              href={`/processes/${p.id}`}
-              documents={p.documents}
-            />
-          ))}
-        </ContextGrid>
+        <ContextProcessesGrid
+          pending={processesPending}
+          processes={processes}
+          emptyMessage={EMPTY_PROCESSES}
+        />
       )}
     </Stack>
   );

@@ -108,8 +108,8 @@ export function DepartmentContextPage() {
   const docsPage = Math.max(1, parseInt(searchParams.get('docsPage') ?? '1', 10));
   const docsLimitParam = searchParams.get('docsLimit');
   const docsLimit = docsLimitParam
-    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 25))
-    : 25;
+    ? Math.min(100, Math.max(1, parseInt(docsLimitParam, 10) || 10))
+    : 10;
   const docsOffset = (docsPage - 1) * docsLimit;
   const docsSearch = searchParams.get('docsSearch') ?? '';
   const docsContextType = searchParams.get('docsContextType') ?? '';

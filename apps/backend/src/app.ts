@@ -94,6 +94,15 @@ export async function buildApp(): Promise<FastifyInstance> {
         });
       }
 
+      // Prisma: Verbindung zum Server fehlt (z. B. DB startet noch während `make test`)
+      if (err.code === 'P1001') {
+        return reply.status(503).send({
+          error:
+            'Datenbank vorübergehend nicht erreichbar. Bitte kurz warten und erneut versuchen.',
+          code: 'DATABASE_UNAVAILABLE',
+        });
+      }
+
       // Fastify/HTTP mit statusCode
       if (err.statusCode != null && err.statusCode >= 400) {
         return reply.status(err.statusCode).send({
