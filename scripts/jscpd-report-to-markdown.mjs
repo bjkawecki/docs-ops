@@ -35,7 +35,9 @@ const output = readArg('--output');
 const scope = readArg('--scope', 'unknown');
 
 if (!input || !output) {
-  console.error('Usage: node scripts/jscpd-report-to-markdown.mjs --input <json> --output <md> [--scope <name>]');
+  console.error(
+    'Usage: node scripts/jscpd-report-to-markdown.mjs --input <json> --output <md> [--scope <name>]'
+  );
   process.exit(1);
 }
 

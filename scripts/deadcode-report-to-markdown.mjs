@@ -97,7 +97,8 @@ function toIssueRows(knipJson, scope, strict) {
       duplicates: (issue.duplicates ?? []).length,
     };
     if (strict) {
-      const actionable = issueSummary.exports + issueSummary.unresolved + issueSummary.unlisted + issueSummary.files;
+      const actionable =
+        issueSummary.exports + issueSummary.unresolved + issueSummary.unlisted + issueSummary.files;
       if (actionable === 0) continue;
     }
     rows.push({
@@ -163,7 +164,8 @@ out += '## knip (Datei-/Dependency-/Export-Issues)\n\n';
 if (knipRows.length === 0) {
   out += 'Keine Treffer im gewaehlten Scope.\n';
 } else {
-  out += '| Rang | Datei | Gesamt | Exports | Types | Deps | Unresolved | Unlisted | Files | Duplicates |\n';
+  out +=
+    '| Rang | Datei | Gesamt | Exports | Types | Deps | Unresolved | Unlisted | Files | Duplicates |\n';
   out += '|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|\n';
   knipRows.slice(0, 200).forEach((row, idx) => {
     out += `| ${idx + 1} | \`${row.file}\` | ${row.count} | ${row.exports} | ${row.types} | ${row.deps} | ${row.unresolved} | ${row.unlisted} | ${row.files} | ${row.duplicates} |\n`;

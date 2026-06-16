@@ -1,2 +1,15 @@
 packages:
   - 'apps/*'
+
+engineStrict: true
+confirmModulesPurge: false
+
+overrides:
+  '@types/react': ^19.0.0
+  '@types/react-dom': ^19.0.0
+
+allowBuilds:
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
+  prisma: true

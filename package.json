@@ -2,21 +2,9 @@
   "name": "engineering-knowledge-operations",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.7.0",
   "engines": {
-    "node": ">=24"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/engines",
-      "argon2",
-      "esbuild",
-      "prisma"
-    ],
-    "overrides": {
-      "@types/react": "^19.0.0",
-      "@types/react-dom": "^19.0.0"
-    }
+    "node": ">=24 <25"
   },
   "scripts": {
     "lint": "eslint .",
