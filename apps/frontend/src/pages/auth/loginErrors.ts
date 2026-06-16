@@ -1,7 +1,7 @@
 export type LoginErrorDisplay = {
   title: string;
   message: string;
-  /** Optional second line in the inline alert (not shown in toast). */
+  /** Optional second line in the inline alert. */
   hint?: string;
 };
 
@@ -21,7 +21,6 @@ export function getLoginErrorDisplay(err: unknown): LoginErrorDisplay {
     return {
       title: 'Login failed',
       message: 'Cannot reach the server.',
-      hint: import.meta.env.DEV ? 'Local setup: open http://localhost:5000.' : undefined,
     };
   }
 

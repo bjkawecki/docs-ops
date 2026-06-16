@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, TextInput, PasswordInput, Button, Stack, Text, Paper, Alert } from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 import { DocopsLogo } from '../../components/appShell/DocopsLogo';
 import { getLoginErrorDisplay } from './loginErrors';
@@ -30,10 +29,6 @@ export function LoginPage() {
       if (!res.ok) throw new Error(`HTTP_${res.status}`);
     },
     onSuccess: () => void navigate(from, { replace: true }),
-    onError: (err) => {
-      const { title, message } = getLoginErrorDisplay(err);
-      notifications.show({ title, message, color: 'red' });
-    },
   });
 
   const loginError = login.isError ? getLoginErrorDisplay(login.error) : null;
