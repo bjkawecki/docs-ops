@@ -5,12 +5,14 @@ import { useMutation } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 import { DocopsLogo } from '../../components/appShell/DocopsLogo';
+import { randomLoginTagline } from './loginTaglines';
 
 const LOGIN_ERROR_ID = 'login-error';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loginTagline] = useState(randomLoginTagline);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const errorAlertRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -75,7 +77,7 @@ export function LoginPage() {
             </Text>
           </Box>
           <Text size="sm" c="dimmed" ta="center">
-            Internal documentation
+            {loginTagline}
           </Text>
         </Stack>
 
