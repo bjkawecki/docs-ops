@@ -328,16 +328,18 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [ ] CI-Job für Install-Skript-Test (bereits in Abschnitt 1 angelegt; hier finalisieren)
 [ ] CI erweitern: Frontend-Tests (Unit/Component), optional E2E (z. B. Playwright)
 [ ] Caddy-Config im Repo, Doku zu VPN (WireGuard o. Ä.) und Reverse Proxy
-[ ] Backup-Konzept (DB, MinIO), Hinweis in App vor Update
 [ ] README: Voraussetzungen, Installation, Update
-[ ] **DocsOps-Demo online:** Demo-Instanz online stellen, sobald die Plattform nutzbar ist.
-[ ] **Optionale öffentliche Seiten für Demo:** Per Feature-Flag (z. B. `VITE_LANDING_PAGE_ENABLED`) schaltbar: **(1) Landing** unter `/` (Produktname, Kurzbeschreibung, „Sign in“ / „Try demo“, Link zu Docs); **(2) Docs-Page** unter `/docs` – eine öffentliche Dokumentation mit Abschnitten z. B. Features/Versionen (Changelog), Getting started, optional API-Überblick (ohne vollständige OpenAPI); Inhalte statisch (Markdown) oder aus Build. Wenn Flag aus: bisheriges Verhalten (Redirect zu Login bzw. Home). Nützlich für öffentliche Demo-URL; intern bleibt reiner Login-Einstieg.
+[ ] **DocsOps-Demo online:** Eigene Instanz (z. B. `demo.docsops.de`), Reset + `DEMO_MODE`, Seed — Detailplan [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md).
+[ ] **Öffentliche Landing:** Zunächst **statisch, Deutsch** auf `docsops.de` (CTA Demo, Impressum, Datenschutz, Nutzungsbedingungen Demo); optional später integrierte Landing per `VITE_LANDING_PAGE_ENABLED` (§20).
+[ ] **App-i18n:** Englisch + Deutsch im Produkt; Landing getrennt (DE). Release Notes eingeloggt: **§24** (`/whats-new`).
+
+**Betrieb (Releases, Backup, Update):** [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md); Umsetzung **§24–§26**. **Managed Hosting (später):** [Plan-Managed-Hosting](Plan-Managed-Hosting.md).
 
 ---
 
 ## 20. Layout- & UX-Ergänzungen (Phase 2)
 
-[ ] **Optionale öffentliche Seiten (Demo):** Siehe §19 (Landing + Docs per Flag). UI/UX: Landing (Logo, Titel „DocsOps“, Untertitel, CTA „Sign in“ / „Try demo“, Link „Docs“); Docs-Page (`/docs`) mit Struktur Features/Versionen, Getting started, ggf. API-Überblick.
+[ ] **Optionale öffentliche Seiten (Demo):** Siehe [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md) und §19. Kurz: DE-Landing, Demo-Subdomain, Reset; optional später Landing/Docs per `VITE_LANDING_PAGE_ENABLED` (`/` + `/docs` im App-Build).
 [ ] **Pin Sidebar:** Sidebar ein-/ausklappbar, Option in Settings („Pin“).
 [x] **Notifications (Inbox & Navigation):** Erledigt in **§23** (Route `/notifications`, Sidebar, Unread-Zähler). Dieser §20-Punkt diente als Sammelwunsch; Details und weitere Ausbauten nur noch in **§23** pflegen.
 [x] **Notifications-UI in Settings:** Tab **Notifications** mit In-App-/E-Mail-Schaltern pro Kategorie (u. a. `documentChanges`, dokumentbezogene Review-Kategorien laut Backend-Schema, `reminders`) und Anbindung an `PATCH /me/preferences` sowie Dispatch (vgl. §8, §17, **§23**).
@@ -432,3 +434,58 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [x] **Pagination** in der UI (bereits üblich); **Hard cap** optional per Env `NOTIFICATION_HARD_CAP_PER_USER` (älteste Zeilen pro Nutzer, `0` = aus).
 [x] **Settings / E-Mail:** wenige Kategorien statt Matrix pro Event-Typ (parallel §8, §17, §20) – UI [`SettingsNotificationsTab.tsx`](../apps/frontend/src/pages/settings/SettingsNotificationsTab.tsx), Backend-Kategorien in `resolveCategory`; Kurztext zu Grant-/Lifecycle-Events ergänzt.
 [x] **§20:** Punkte „Notifications (Inbox & Navigation)“ / Settings mit §23 konsolidieren, wenn Zielbild umgesetzt ist.
+
+---
+
+## 24. What's new (Release Notes)
+
+**Ziel:** Alle Nutzer sehen Release Notes zur installierten App — Route `/whats-new`, **nicht** unter `/help`. Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §2.
+
+[ ] **Inhalt:** `content/releases/manifest.json` + `content/releases/<version>.md` im Repo; mit Release aktualisieren (gleiche Version wie Root-`package.json` / Git-Tag `vX.Y.Z`).
+[ ] **API:** `GET /api/v1/system/version` (`APP_VERSION` aus Build); optional `GET /api/v1/releases` (Manifest + Markdown).
+[ ] **Frontend:** Route `/whats-new`, Markdown rendern (`react-markdown`); Liste nach Version (neueste zuerst).
+[ ] **Navigation:** Account-Menü (Sidebar unten): **What's new** als **erster** Eintrag (vor Admin / Help / Settings).
+[ ] **Badge:** `lastSeenReleaseVersion` in User-Preferences; Badge im Menü, bis Nutzer Seite besucht oder explizit „gelesen“; PATCH `/api/v1/me/preferences`.
+[ ] **Release-Prozess:** Doku in README/Runbook — bei Release: `package.json`-Version, `content/releases/X.Y.Z.md`, Git-Tag, GitHub Release.
+
+---
+
+## 25. Backup & Restore (Betrieb)
+
+**Ziel:** Operational Backup für Disaster Recovery (PostgreSQL **und** MinIO) — getrennt von Plattform-Export/Migration (später). Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §3–§4.
+
+### Phase 1 — manuell + Scheduler
+
+[ ] **Job:** `maintenance.backup` (pg-boss, Worker); `pg_dump` + MinIO-Bucket-Export; Ergebnis in MinIO `backups/`.
+[ ] **Admin-API:** `POST /api/v1/admin/backups` (anstoßen), `GET /api/v1/admin/backups` (Liste), `GET /api/v1/admin/backups/:id/download` (presigned URL); nur `requireAdmin`; Audit-Log.
+[ ] **Admin-UI:** Tab oder Seite z. B. `/admin/system` → Bereich Backups: „Create backup“, Liste (Datum, Größe, Status), Download-Link.
+[ ] **Retention:** Env `BACKUP_RETENTION_COUNT`; nach erfolgreichem Backup älteste Einträge löschen.
+[ ] **Scheduler:** Cron über pg-boss (Env `BACKUP_SCHEDULE_CRON` oder Admin-UI); automatische Backups ein/aus.
+[ ] **Doku:** Restore-Runbook (manuell, außerhalb App); Secrets (`.env`) nicht im Backup.
+
+### Phase 2 — Offsite & Restore
+
+[ ] **Offsite:** Replikation des Backup-Archivs auf zweites Ziel (`BACKUP_OFFSITE_TARGET`); Schutz bei Server-Totalausfall.
+[ ] **Restore:** dokumentiertes Verfahren; optional Admin-Aktion mit Wartungsmodus.
+
+### Später — Plattform-Export
+
+[ ] **Export/Import** für Migration auf anderen DocsOps-Server (eigenes Format, nicht tägliches Backup); Admin explizit anstoßen.
+
+---
+
+## 26. Update & Version (Admin)
+
+**Ziel:** Admins sehen Version und Update-Pfad; Backup vor Update. Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §1, §5.
+
+### Phase 1
+
+[ ] **`scripts/update.sh`:** `git pull` / Release-Artefakt, `docker compose pull`, `docker compose up -d`; in README dokumentieren.
+[ ] **Version im Build:** `APP_VERSION` aus Root-`package.json`; `GET /api/v1/system/version`.
+[ ] **Admin-UI:** `/admin/system` (oder Tab unter Admin): installierte Version, „Check for updates“ (GitHub Releases o. ä.), Hinweis + Copy für `update.sh`.
+[ ] **Backup-Gate:** Vor Update-Hinweis Link/Button „Create backup“ (§25); Warnung in UI.
+
+### Phase 2 — Ein-Klick-Update
+
+[ ] **Updater-Sidecar:** separater Container/Agent mit begrenzten Rechten (kein voller Docker-Socket im App-Container); `POST /api/v1/admin/updates/apply`.
+[ ] **Wartungsmodus** während Update; Health-Check danach; Rollback-Doku (vorheriges Image-Tag).

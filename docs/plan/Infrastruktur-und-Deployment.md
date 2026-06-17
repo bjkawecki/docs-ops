@@ -31,10 +31,11 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 ## 3. Update aus der App
 
 - **Ziel:** Updates möglichst einfach, idealerweise aus der App heraus anstoßbar.
-- **Optionen:**
-  - **Variante A (komfortabel):** In der App Menüpunkt „Update prüfen“ / „Jetzt aktualisieren“. Backend löst auf dem Host ein Update-Skript aus (z. B. `git pull`, `docker compose pull`, `docker compose up -d`). Dafür ist Zugriff auf den Docker-Socket oder ein kleines Updater-Script auf dem Host nötig (Sicherheit und Rechte beachten).
-  - **Variante B (einfacher, weniger privilegiert):** App zeigt nur Hinweis „Neue Version X verfügbar“ und verweist auf manuelles Ausführen von `./scripts/update.sh` auf dem Server.
-- **Wichtig:** In der UI immer auf Backup/Snapshot vor dem Update hinweisen. Bei Docker: Daten in Volumes legen, damit Rollback = Start mit vorherigem Image möglich ist.
+- **Version:** Single Source of Truth = `version` in Root-`package.json` (SemVer); beim Build als `APP_VERSION`; Release = Git-Tag `vX.Y.Z` + GitHub Release. Details: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §1.
+- **Phasen:**
+  - **Phase 1 (empfohlen zuerst):** Admin-UI zeigt installierte vs. verfügbare Version, „Check for updates“, Verweis auf `./scripts/update.sh` auf dem Server; **Backup-Gate** (Hinweis/Pflicht vor Update, vgl. Abschnitt 8).
+  - **Phase 2 (Ein-Klick):** Separater **Updater-Sidecar** — eigener Container/Agent neben dem App-Stack, der nur das Update-Skript ausführt (`git pull`, `compose pull`, `compose up`). Die Haupt-App ruft ihn per API an; **nicht** voller Docker-Socket im App-Container (Sicherheit).
+- **Wichtig:** Daten in Volumes; Rollback = vorheriges Image-Tag. Vollständige Todos: [Umsetzungs-Todo §26](Umsetzungs-Todo.md).
 
 ---
 
@@ -87,7 +88,8 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 - **Umsetzung:**
   - Keine besonderen Hardware-Anforderungen; Ressourcenbedarf der App und ggf. DB dokumentieren.
   - Persistente **Volumes** für Daten und Konfiguration in der Compose-Datei vorsehen.
-  - **Backup:** Konzept für DB und ggf. hochgeladene/erzeugte Dateien festhalten (inkl. Hinweis in der App vor Updates, siehe Abschnitt 3).
+  - **Backup (Operational):** PostgreSQL (`pg_dump`) **und** MinIO (Anhänge/Exporte) — DB-Dump allein reicht nicht. Async-Job, Speicherung in MinIO-Bucket `backups/`, optional Download; Scheduler + Retention (`BACKUP_RETENTION_COUNT`); Phase 2 Offsite-Replikation. **Plattform-Export** (Migration auf anderen Server) ist separates Feature. Details: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §3–§4, Todos [§25](Umsetzungs-Todo.md).
+  - **Vor Update:** Backup-Hinweis bzw. -Gate in Admin-UI (§26).
 
 ---
 
@@ -111,8 +113,16 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 
 ## 11. Optionale öffentliche Seiten (Landing + Docs, Demo)
 
-- **Ziel:** Für eine öffentlich erreichbare Demo-URL (z. B. `https://demo.docsops.example.com`) **öffentliche Seiten ohne Login** anbieten: (1) **Landing** unter `/`, (2) **Docs** unter `/docs` (Produkt-/Feature-Doku, Versionen, Getting started, optional API-Überblick). Intern (ohne Flag) bleibt der bisherige Einstieg: nicht eingeloggt → Redirect zu `/login`.
-- **Umsetzung (geplant):** Ein Feature-Flag im Frontend (z. B. `VITE_LANDING_PAGE_ENABLED`). Wenn gesetzt: `/` = Landing (Logo, Kurzbeschreibung, „Sign in“ / „Try demo“, Link zu Docs); `/docs` = eine Docs-Page mit Abschnitten (statisch/Markdown oder aus Build). Wenn Flag aus: Verhalten wie bisher. Details und UX siehe [Umsetzungs-Todo §19 und §20](Umsetzungs-Todo.md).
+- **Ziel:** Öffentliche Präsenz für Marketing und **Live-Demo** auf eigener Instanz (z. B. `docsops.de` + `demo.docsops.de`), getrennt von Self-hosted-Kunden.
+- **Kurz:** Landing zunächst **statisch, Deutsch**; Demo **writable** mit **periodischem Reset**; App **i18n EN/DE**; Domains `docsops.de` (Hauptmarke), `docsops.org` (optional OSS/Redirect).
+- **Detailplan:** [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md) (Architektur, Missbrauch/UGC, Domains, Sprache, Go-Live).
+- **Umsetzung im Repo:** Feature-Flag `VITE_LANDING_PAGE_ENABLED` optional (integrierte Landing); alternativ statische Seite — siehe [Umsetzungs-Todo §19–§20](Umsetzungs-Todo.md). Release Notes für eingeloggte Nutzer: **§24** (`/whats-new`), nicht die öffentliche Marketing-Seite.
+
+---
+
+## 12. Managed Hosting (optional, später)
+
+DocsOps bleibt **self-hosted-first**. Ein optionales **Managed-Hosting-Angebot** (DocsOps Cloud, ein Server mit vielen Tenant-Instanzen — nicht Coolify-ähnliches Multi-Server-PaaS) ist als **separater Plan** dokumentiert, ohne aktuelle Umsetzungs-Todos: [Plan-Managed-Hosting](Plan-Managed-Hosting.md).
 
 ---
 
@@ -123,3 +133,5 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 - [ ] `install.sh` und ggf. `scripts/update.sh` spezifizieren.
 - [ ] CI-Job zum Test des Install-Skripts (frischer Runner, install.sh, Health-Check).
 - [ ] Doku zu VPN (WireGuard o. Ä.) und Reverse Proxy in `docs/` planen.
+- [ ] Betrieb: What's new, Backup, Update — siehe [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) und [Umsetzungs-Todo §24–§26](Umsetzungs-Todo.md).
+- [ ] Öffentliche Demo & Domains — siehe [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md).
