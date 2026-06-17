@@ -24,7 +24,7 @@ Check `backupFormatVersion`, `postgres.sha256`, and `minio` section.
 ## Restore PostgreSQL
 
 ```bash
-# Stop app/docsops-job-worker containers first
+# Stop DocsOps app and job worker first (container names default to docsops-app, docsops-job-worker)
 docker compose stop app docsops-job-worker
 
 zstd -d -c /path/to/archive.tar.zst | tar -xf - postgres/dump.custom

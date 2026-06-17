@@ -39,9 +39,9 @@ Add to `.env` (use quotes if the value contains `+` or `/`):
 BACKUP_ENCRYPTION_KEY="<generated-value>"
 ```
 
-Restart **app** and **docsops-job-worker** after changing `.env` (`docker compose up` or restart the dev processes). With Docker Compose, the key is passed from the repo-root `.env` into the containers.
+Restart **docsops-app** and **docsops-job-worker** after changing `.env` (`docker compose up` or restart the dev processes). With Docker Compose, the key is passed from the repo-root `.env` into the containers.
 
-**Troubleshooting:** If Admin → Backup shows _Encryption not configured_ although the key is in `.env`, check that the value is quoted, the file is at the **repo root**, and app/docsops-job-worker were restarted. For local `make dev`, the backend loads the repo-root `.env` automatically.
+**Troubleshooting:** If Admin → Backup shows _Encryption not configured_ although the key is in `.env`, check that the value is quoted, the file is at the **repo root**, and `docsops-app` / `docsops-job-worker` were restarted. For local `make dev`, the backend loads the repo-root `.env` automatically.
 
 If you lose this key, existing destinations cannot be decrypted. The key is **not** included in backup archives – store it separately (e.g. password manager). See [Runbook-Backup-Restore](docs/plan/Runbook-Backup-Restore.md).
 

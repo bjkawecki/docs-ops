@@ -1,5 +1,9 @@
+# Compose project name (container/volume prefix). Override via COMPOSE_PROJECT_NAME in .env.
+name: ${COMPOSE_PROJECT_NAME:-docsops}
+
 services:
   postgres:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-postgres
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
@@ -17,6 +21,7 @@ services:
       retries: 5
 
   minio:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-minio
     image: minio/minio:latest
     restart: unless-stopped
     command: server /data
@@ -33,6 +38,7 @@ services:
       retries: 5
 
   app:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-app
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
@@ -58,7 +64,7 @@ services:
       start_period: 30s
 
   docsops-job-worker:
-    container_name: docsops-job-worker
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-job-worker
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
@@ -78,6 +84,7 @@ services:
         condition: service_healthy
 
   frontend:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-frontend
     build:
       context: .
       dockerfile: docker/Dockerfile.node-dev
@@ -110,6 +117,7 @@ services:
     command: sh -c "pnpm install --ignore-scripts && pnpm --filter backend exec prisma generate && pnpm --filter frontend run dev"
 
   caddy:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-caddy
     image: caddy:2-alpine
     restart: unless-stopped
     ports:

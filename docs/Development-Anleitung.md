@@ -70,6 +70,7 @@ Dabei wird `docker-compose.override.yml` automatisch geladen: Die App (Backend) 
 
 - **URL:** **http://localhost:5000** (Caddy auf Port 5000; routet `/` → Frontend, `/api` → Backend). Optional direkt Vite: **http://localhost:5173** (Port ist auf den Host gemappt; `/api` wird per Proxy zum Backend-Container weitergeleitet).
 - **Läuft:** Postgres, MinIO, Backend (mit Watch), Frontend (Vite-Dev-Server), Caddy
+- **Container-Namen:** Alle heißen einheitlich `docsops-*` (z. B. `docsops-postgres`, `docsops-app`, `docsops-job-worker`). Übersicht: `docker ps --filter name=docsops`. Optional anderer Prefix über `COMPOSE_PROJECT_NAME` in `.env`.
 
 **Mit Makefile:** `make up` startet den Stack im Hintergrund (`-d`); im Vordergrund: `make up-fg` oder `docker compose up` (ohne `-d`), dann siehst du Caddy- und Backend-Logs.
 
