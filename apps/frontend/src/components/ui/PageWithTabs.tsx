@@ -108,6 +108,7 @@ export function PageWithTabs({
           ? { value: activeTab, onChange: (v) => onTabChange(v ?? defaultVal) }
           : { defaultValue: defaultVal })}
         variant="default"
+        aria-label={title}
         styles={{
           list: { borderBottom: '1px solid var(--mantine-color-default-border)' },
           tab: {

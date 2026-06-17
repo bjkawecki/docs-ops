@@ -26,6 +26,8 @@ export type AppShellRoleBasedNavProps = {
   setTeamsSectionExpanded: (v: boolean | ((p: boolean) => boolean)) => void;
   expandedDepartmentIds: Set<string>;
   setExpandedDepartmentIds: (fn: (prev: Set<string>) => Set<string>) => void;
+  isMiniRail?: boolean;
+  onNavigate?: () => void;
 };
 
 export function AppShellRoleBasedNav({
@@ -49,6 +51,8 @@ export function AppShellRoleBasedNav({
   setTeamsSectionExpanded,
   expandedDepartmentIds,
   setExpandedDepartmentIds,
+  isMiniRail = false,
+  onNavigate,
 }: AppShellRoleBasedNavProps) {
   if (!me?.identity) {
     return (
@@ -56,6 +60,8 @@ export function AppShellRoleBasedNav({
         pathname={pathname}
         navLinkStyles={navLinkStyles}
         companyCount={companyCount}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
     );
   }
@@ -73,6 +79,8 @@ export function AppShellRoleBasedNav({
         setDepartmentsSectionExpanded={setDepartmentsSectionExpanded}
         teamsSectionExpanded={teamsSectionExpanded}
         setTeamsSectionExpanded={setTeamsSectionExpanded}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
     );
   }
@@ -98,6 +106,8 @@ export function AppShellRoleBasedNav({
         teamCounts={teamCounts}
         isTeamsExpanded={isTeamsExpanded}
         toggleTeamsExpanded={toggleTeamsExpanded}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
     );
   }
@@ -111,6 +121,8 @@ export function AppShellRoleBasedNav({
       companyCount={companyCount}
       departmentCounts={departmentCounts}
       teamCounts={teamCounts}
+      isMiniRail={isMiniRail}
+      onNavigate={onNavigate}
     />
   );
 }

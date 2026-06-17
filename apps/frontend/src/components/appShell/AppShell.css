@@ -1,0 +1,101 @@
+.app-shell-navbar {
+  --app-shell-mini-item-size: 40px;
+  --app-shell-mini-icon-size: 22px;
+  --app-shell-mini-gap: 8px;
+  transition: width 200ms ease;
+}
+
+.app-shell-mini-nav-stack {
+  gap: var(--app-shell-mini-gap);
+}
+
+.app-shell-sidebar-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.app-shell-sidebar-badge-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mantine-primary-color-filled);
+  border: 1.5px solid var(--mantine-color-body);
+  box-sizing: content-box;
+  pointer-events: none;
+}
+
+.app-shell-sidebar-nav-link--mini {
+  display: flex;
+  justify-content: center;
+}
+
+.app-shell-sidebar-nav-link--mini > .mantine-NavLink-root {
+  width: var(--app-shell-mini-item-size);
+  height: var(--app-shell-mini-item-size);
+  min-height: var(--app-shell-mini-item-size);
+  margin-inline: auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-shell-sidebar-nav-link--mini > .mantine-NavLink-root .mantine-NavLink-body {
+  display: none;
+}
+
+.app-shell-sidebar-nav-link--mini > .mantine-NavLink-root .mantine-NavLink-section {
+  margin: 0;
+}
+
+.app-shell-sidebar-nav-link--mini > .mantine-NavLink-root .mantine-NavLink-section[data-position='left'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-shell-sidebar-nav-link--mini > .mantine-NavLink-root .mantine-NavLink-section[data-position='right'] {
+  display: none;
+}
+
+.app-shell-sidebar-nav-link--mini > .mantine-NavLink-root svg {
+  width: var(--app-shell-mini-icon-size);
+  height: var(--app-shell-mini-icon-size);
+}
+
+.app-shell-sidebar-mini-trigger {
+  width: var(--app-shell-mini-item-size);
+  height: var(--app-shell-mini-item-size);
+  min-height: var(--app-shell-mini-item-size);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-text);
+}
+
+.app-shell-sidebar-mini-trigger svg {
+  width: var(--app-shell-mini-icon-size);
+  height: var(--app-shell-mini-icon-size);
+}
+
+.app-shell-sidebar-mini-trigger:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.app-shell-sidebar-collapse-toggle {
+  width: var(--app-shell-mini-item-size);
+  height: var(--app-shell-mini-item-size);
+}
+
+.app-shell-sidebar-collapse-toggle svg {
+  width: var(--app-shell-mini-icon-size);
+  height: var(--app-shell-mini-icon-size);
+}

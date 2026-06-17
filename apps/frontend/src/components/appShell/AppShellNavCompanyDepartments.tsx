@@ -17,6 +17,8 @@ type Props = {
   setDepartmentsSectionExpanded: (v: boolean | ((p: boolean) => boolean)) => void;
   teamsSectionExpanded: boolean;
   setTeamsSectionExpanded: (v: boolean | ((p: boolean) => boolean)) => void;
+  isMiniRail?: boolean;
+  onNavigate?: () => void;
 };
 
 export function AppShellNavCompanyDepartments({
@@ -30,11 +32,30 @@ export function AppShellNavCompanyDepartments({
   setDepartmentsSectionExpanded,
   teamsSectionExpanded,
   setTeamsSectionExpanded,
+  isMiniRail = false,
+  onNavigate,
 }: Props) {
   const singleDeptDocumentCount =
     depts.length === 1 && typeof departmentCounts[depts[0].id] === 'number'
       ? departmentCounts[depts[0].id]
       : undefined;
+
+  const departmentMenuItems = depts.map((dept) => ({
+    to: `/department/${dept.id}`,
+    label: dept.name,
+    active: isActive(`/department/${dept.id}`, pathname),
+    badgeCount: departmentCounts[dept.id],
+  }));
+
+  const teamMenuGroups = depts.map((dept) => ({
+    groupLabel: depts.length > 1 ? dept.name : undefined,
+    items: (dept.teams ?? []).map((team) => ({
+      to: `/team/${team.id}`,
+      label: team.name,
+      active: pathname === `/team/${team.id}`,
+      badgeCount: teamCounts[team.id],
+    })),
+  }));
 
   return (
     <>
@@ -45,12 +66,17 @@ export function AppShellNavCompanyDepartments({
         leftSection={<IconBuildingSkyscraper size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={companyCount}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellNavCollapsibleSection
         label="Departments"
         icon={<IconSitemap size={18} style={{ flexShrink: 0 }} />}
         expanded={departmentsSectionExpanded}
         onToggle={() => setDepartmentsSectionExpanded((v) => !v)}
+        isMiniRail={isMiniRail}
+        menuGroups={[{ items: departmentMenuItems }]}
+        onNavigate={onNavigate}
         middleSection={
           singleDeptDocumentCount !== undefined && singleDeptDocumentCount > 0 ? (
             <Text size="xs" c="var(--mantine-primary-color-filled)" component="span" px={4}>
@@ -68,6 +94,7 @@ export function AppShellNavCompanyDepartments({
               to={`/department/${dept.id}`}
               label={dept.name}
               active={isActive(`/department/${dept.id}`, pathname)}
+              onClick={onNavigate}
               rightSection={
                 departmentCounts[dept.id] !== undefined && departmentCounts[dept.id] > 0 ? (
                   <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
@@ -86,6 +113,9 @@ export function AppShellNavCompanyDepartments({
         icon={<IconUsersGroup size={18} style={{ flexShrink: 0 }} />}
         expanded={teamsSectionExpanded}
         onToggle={() => setTeamsSectionExpanded((v) => !v)}
+        isMiniRail={isMiniRail}
+        menuGroups={teamMenuGroups}
+        onNavigate={onNavigate}
       >
         <Stack gap={0} pl={0}>
           {depts.map((dept) => (
@@ -101,6 +131,7 @@ export function AppShellNavCompanyDepartments({
                   to={`/team/${team.id}`}
                   label={team.name}
                   active={pathname === `/team/${team.id}`}
+                  onClick={onNavigate}
                   rightSection={
                     teamCounts[team.id] !== undefined && teamCounts[team.id] > 0 ? (
                       <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">

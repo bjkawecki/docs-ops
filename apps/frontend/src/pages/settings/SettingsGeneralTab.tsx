@@ -270,7 +270,8 @@ export function SettingsGeneralTab() {
                       Pin sidebar
                     </Text>
                     <Text size="xs" c="dimmed">
-                      Prevent the sidebar from collapsing.
+                      Keep the sidebar expanded on desktop. On mobile, navigation always opens from
+                      the menu button.
                     </Text>
                   </Stack>
                   <Switch

@@ -6,9 +6,17 @@ type Props = {
   pathname: string;
   navLinkStyles: { root: Record<string, unknown> };
   companyCount: number | undefined;
+  isMiniRail?: boolean;
+  onNavigate?: () => void;
 };
 
-export function AppShellNavNoIdentity({ pathname, navLinkStyles, companyCount }: Props) {
+export function AppShellNavNoIdentity({
+  pathname,
+  navLinkStyles,
+  companyCount,
+  isMiniRail = false,
+  onNavigate,
+}: Props) {
   return (
     <>
       <AppShellScopeNavLink
@@ -18,6 +26,8 @@ export function AppShellNavNoIdentity({ pathname, navLinkStyles, companyCount }:
         leftSection={<IconBuildingSkyscraper size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={companyCount}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellScopeNavLink
         to="/department"
@@ -25,6 +35,8 @@ export function AppShellNavNoIdentity({ pathname, navLinkStyles, companyCount }:
         active={isActive('/department', pathname)}
         leftSection={<IconSitemap size={18} />}
         navLinkStyles={navLinkStyles}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellScopeNavLink
         to="/team"
@@ -32,6 +44,8 @@ export function AppShellNavNoIdentity({ pathname, navLinkStyles, companyCount }:
         active={isActive('/team', pathname)}
         leftSection={<IconUsersGroup size={18} />}
         navLinkStyles={navLinkStyles}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
     </>
   );

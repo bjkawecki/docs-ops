@@ -10,6 +10,8 @@ type Props = {
   companyCount: number | undefined;
   departmentCounts: Record<string, number>;
   teamCounts: Record<string, number>;
+  isMiniRail?: boolean;
+  onNavigate?: () => void;
 };
 
 export function AppShellNavMemberScopeLinks({
@@ -20,6 +22,8 @@ export function AppShellNavMemberScopeLinks({
   companyCount,
   departmentCounts,
   teamCounts,
+  isMiniRail = false,
+  onNavigate,
 }: Props) {
   const departmentBadge =
     userDepartmentId !== undefined ? departmentCounts[userDepartmentId] : undefined;
@@ -34,6 +38,8 @@ export function AppShellNavMemberScopeLinks({
         leftSection={<IconBuildingSkyscraper size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={companyCount}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellScopeNavLink
         to={userDepartmentId ? `/department/${userDepartmentId}` : '/department'}
@@ -46,6 +52,8 @@ export function AppShellNavMemberScopeLinks({
         leftSection={<IconSitemap size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={departmentBadge}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellScopeNavLink
         to={userTeamId ? `/team/${userTeamId}` : '/team'}
@@ -56,6 +64,8 @@ export function AppShellNavMemberScopeLinks({
         leftSection={<IconUsersGroup size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={teamBadge}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
     </>
   );

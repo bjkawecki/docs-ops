@@ -83,7 +83,13 @@ export function NotificationsPage() {
               >
                 Type
               </Text>
-              <Stack component="nav" gap={2} align="stretch" w="100%">
+              <Stack
+                component="nav"
+                gap={2}
+                align="stretch"
+                w="100%"
+                aria-label="Notification categories"
+              >
                 {CATEGORY_NAV.map((item) => (
                   <NavLink
                     key={item.value}
@@ -93,6 +99,7 @@ export function NotificationsPage() {
                     label={item.label}
                     description={item.description}
                     active={category === item.value}
+                    aria-current={category === item.value ? 'page' : undefined}
                     variant="filled"
                     style={navLinkFullWidth}
                   />

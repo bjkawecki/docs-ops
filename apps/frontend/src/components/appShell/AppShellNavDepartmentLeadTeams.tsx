@@ -17,6 +17,8 @@ type Props = {
   teamCounts: Record<string, number>;
   isTeamsExpanded: boolean;
   toggleTeamsExpanded: () => void;
+  isMiniRail?: boolean;
+  onNavigate?: () => void;
 };
 
 export function AppShellNavDepartmentLeadTeams({
@@ -29,7 +31,16 @@ export function AppShellNavDepartmentLeadTeams({
   teamCounts,
   isTeamsExpanded,
   toggleTeamsExpanded,
+  isMiniRail = false,
+  onNavigate,
 }: Props) {
+  const teamMenuItems = teams.map((team) => ({
+    to: `/team/${team.id}`,
+    label: team.name,
+    active: pathname === `/team/${team.id}`,
+    badgeCount: teamCounts[team.id],
+  }));
+
   return (
     <>
       <AppShellScopeNavLink
@@ -39,6 +50,8 @@ export function AppShellNavDepartmentLeadTeams({
         leftSection={<IconBuildingSkyscraper size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={companyCount}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellScopeNavLink
         to={`/department/${departmentId}`}
@@ -47,12 +60,17 @@ export function AppShellNavDepartmentLeadTeams({
         leftSection={<IconSitemap size={18} />}
         navLinkStyles={navLinkStyles}
         badgeCount={departmentCounts[departmentId]}
+        isMiniRail={isMiniRail}
+        onNavigate={onNavigate}
       />
       <AppShellNavCollapsibleSection
         label="Teams"
         icon={<IconUsersGroup size={18} style={{ flexShrink: 0 }} />}
         expanded={isTeamsExpanded}
         onToggle={toggleTeamsExpanded}
+        isMiniRail={isMiniRail}
+        menuGroups={[{ items: teamMenuItems }]}
+        onNavigate={onNavigate}
       >
         <Stack gap={0} pl={0}>
           {teams.map((team) => (
@@ -63,6 +81,7 @@ export function AppShellNavDepartmentLeadTeams({
               to={`/team/${team.id}`}
               label={team.name}
               active={pathname === `/team/${team.id}`}
+              onClick={onNavigate}
               rightSection={
                 teamCounts[team.id] !== undefined && teamCounts[team.id] > 0 ? (
                   <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">

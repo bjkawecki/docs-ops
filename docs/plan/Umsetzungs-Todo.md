@@ -340,11 +340,11 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 ## 20. Layout- & UX-Ergänzungen (Phase 2)
 
 [ ] **Optionale öffentliche Seiten (Demo):** Siehe [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md) und §19. Kurz: DE-Landing, Demo-Subdomain, Reset; optional später Landing/Docs per `VITE_LANDING_PAGE_ENABLED` (`/` + `/docs` im App-Build).
-[ ] **Pin Sidebar:** Sidebar ein-/ausklappbar, Option in Settings („Pin“).
+[x] **Pin Sidebar:** Sidebar ein-/ausklappbar (Desktop Mini-Rail ~72px oder expanded 260px), Option in Settings („Pin“); Mobile Overlay-Drawer mit Burger.
 [x] **Notifications (Inbox & Navigation):** Erledigt in **§23** (Route `/notifications`, Sidebar, Unread-Zähler). Dieser §20-Punkt diente als Sammelwunsch; Details und weitere Ausbauten nur noch in **§23** pflegen.
 [x] **Notifications-UI in Settings:** Tab **Notifications** mit In-App-/E-Mail-Schaltern pro Kategorie (u. a. `documentChanges`, dokumentbezogene Review-Kategorien laut Backend-Schema, `reminders`) und Anbindung an `PATCH /me/preferences` sowie Dispatch (vgl. §8, §17, **§23**).
-[ ] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) definieren und umsetzen.
-[ ] **Icons & A11y:** Einheitliche Icon-Bibliothek; Tastatur/Screenreader für Sidebar und Tabs.
+[x] **Responsiv:** Sidebar auf kleinen Viewports (Overlay/Hamburger) umgesetzt; Desktop Mini-Rail + Toggle.
+[x] **Icons & A11y:** Tabler-Icons in Sidebar; Skip-Link, Nav-Landmarks, Collapsible-/Account-ARIA, PageWithTabs `aria-label`, Notifications-Kategorien-Nav (Scope: Shell + Tabs + Notifications, kein app-weiter Audit).
 
 ---
 

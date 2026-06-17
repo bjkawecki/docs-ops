@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { NavLink, Text } from '@mantine/core';
+import { AppShellSidebarNavLink } from './AppShellSidebarNavLink.js';
 
 export type AppShellScopeNavLinkProps = {
   to: string;
@@ -8,8 +7,9 @@ export type AppShellScopeNavLinkProps = {
   active: boolean;
   leftSection: ReactNode;
   navLinkStyles: { root: Record<string, unknown> };
-  /** Optional document count badge (shown only when defined and greater than 0). */
   badgeCount?: number;
+  isMiniRail?: boolean;
+  onNavigate?: () => void;
 };
 
 /** Shared sidebar NavLink for Company / Department / Team scope entries. */
@@ -20,23 +20,19 @@ export function AppShellScopeNavLink({
   leftSection,
   navLinkStyles,
   badgeCount,
+  isMiniRail = false,
+  onNavigate,
 }: AppShellScopeNavLinkProps) {
   return (
-    <NavLink
-      data-sidebar-link
-      component={Link}
+    <AppShellSidebarNavLink
       to={to}
       label={label}
       active={active}
       leftSection={leftSection}
-      rightSection={
-        badgeCount !== undefined && badgeCount > 0 ? (
-          <Text size="xs" c="var(--mantine-primary-color-filled)" component="span">
-            {badgeCount}
-          </Text>
-        ) : null
-      }
-      styles={navLinkStyles}
+      navLinkStyles={navLinkStyles}
+      isMiniRail={isMiniRail}
+      badgeCount={badgeCount}
+      onNavigate={onNavigate}
     />
   );
 }
