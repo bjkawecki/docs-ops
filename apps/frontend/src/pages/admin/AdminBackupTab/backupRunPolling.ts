@@ -4,6 +4,9 @@ const IN_PROGRESS_BACKUP_STATUSES = new Set(['queued', 'running', 'uploading']);
 
 export const BACKUP_RUN_POLL_INTERVAL_MS = 3000;
 
+/** Poll backup history while the tab is open even when no run is in progress. */
+export const BACKUP_RUN_IDLE_POLL_INTERVAL_MS = 15_000;
+
 /** Keep polling briefly after "Backup now" until the new run appears in the list. */
 export const BACKUP_POLL_BOOST_MS = 90_000;
 
@@ -17,6 +20,20 @@ export function shouldPollBackupRuns(
 ): boolean {
   if (Date.now() < pollBoostUntilMs) return true;
   return hasInProgressBackupRun(runs);
+}
+
+export function getBackupRunsRefetchIntervalMs(args: {
+  runs: BackupRun[] | undefined;
+  pollBoostUntilMs: number;
+  maintenanceActive?: boolean;
+  isTabVisible: boolean;
+}): number | false {
+  const { runs, pollBoostUntilMs, maintenanceActive, isTabVisible } = args;
+  if (shouldPollBackupRuns(runs, pollBoostUntilMs) || maintenanceActive) {
+    return BACKUP_RUN_POLL_INTERVAL_MS;
+  }
+  if (!isTabVisible) return false;
+  return BACKUP_RUN_IDLE_POLL_INTERVAL_MS;
 }
 
 export function isInProgressBackupStatus(status: string): boolean {

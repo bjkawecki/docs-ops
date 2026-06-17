@@ -63,6 +63,7 @@ export function AdminBackupHistorySection({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Started</Table.Th>
+              <Table.Th>Finished</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Trigger</Table.Th>
               <Table.Th>External destination</Table.Th>
@@ -73,7 +74,7 @@ export function AdminBackupHistorySection({
           <Table.Tbody>
             {items.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={6}>
+                <Table.Td colSpan={7}>
                   <Text size="sm" c="dimmed">
                     No backups yet.
                   </Text>
@@ -84,6 +85,11 @@ export function AdminBackupHistorySection({
                 <Table.Tr key={run.id}>
                   <Table.Td>
                     <Text size="sm">{new Date(run.createdAt).toLocaleString()}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">
+                      {run.finishedAt ? new Date(run.finishedAt).toLocaleString() : '–'}
+                    </Text>
                   </Table.Td>
                   <Table.Td>
                     <Stack gap={4}>

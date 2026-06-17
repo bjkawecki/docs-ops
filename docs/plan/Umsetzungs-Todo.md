@@ -462,7 +462,7 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [x] **Ablauf im Job:** Wartungsmodus → Dump + MinIO-Export → Archiv → **Upload an Admin-Ziel** (falls konfiguriert) → Metadaten → Wartungsmodus aus.
 [x] **Destinations (Admin):** CRUD für Backup-Ziele; Typen v1: `S3_COMPATIBLE`, `SSH` (SFTP); Credentials verschlüsselt (`BACKUP_ENCRYPTION_KEY`); SSRF-Schutz bei URLs.
 [x] **Admin-API:** `GET /api/v1/admin/backups/status`, Settings, Destinations-CRUD; `POST/GET /api/v1/admin/backups`, `GET …/:id/download`; nur `requireAdmin`; Audit-Log.
-[x] **Admin-UI:** `/admin/backup` → Status, Retention, Default-Destination, Destinations, „Create backup“, Historie, Download; Automatik-Hinweis mit Link zum Scheduler.
+[x] **Admin-UI:** `/admin/backup` → Status, Retention, Default-Destination, Destinations, „Create backup“, Historie (Started/Finished, externes Ziel inkl. Typ), Download (API-Proxy); Automatik nur im Backup-Tab, Cron im Scheduler; Tab pollt bei sichtbarem Fenster (schnell bei laufendem Job, sonst ~15 s).
 [x] **Retention:** `BackupSettings.retentionCount` (UI); Env `BACKUP_RETENTION_COUNT` nur Install-Default; älteste Backups am Ziel und in Metadaten löschen.
 [x] **Scheduler:** Cron-Feintuning im Scheduler-Tab (`maintenance.backup` → „Disaster recovery backup“); **Ein/Aus nur im Backup-Tab**; Scheduler-Zeile ausgegraut bis erstes Auto-Backup dort konfiguriert.
 [x] **Benachrichtigungen:** In-App an alle Admins bei Erfolg/Fehler (`backup-succeeded` / `backup-failed`); Kategorie `system` in Inbox und Einstellungen. _(Webhook bewusst nicht in v1.)_

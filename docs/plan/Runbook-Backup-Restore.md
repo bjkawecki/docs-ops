@@ -53,4 +53,7 @@ On a **non-production** stack, run through this runbook once after the first suc
 
 ## Scheduled backups
 
-Configure automatic backups only in **Admin → Scheduler** (job: **Operational backup**). Set **default destination** in **Admin → Backup**.
+1. **Admin → Backup:** Default external destination setzen; optional **Enable automatic backups** (legt Scheduler-Eintrag an).
+2. **Admin → Scheduler:** Job **Disaster recovery backup** (`maintenance.backup`) – Cron und Zeitzone feinjustieren.
+
+Die Historie im Backup-Tab aktualisiert sich automatisch (Polling), solange der Tab offen ist.

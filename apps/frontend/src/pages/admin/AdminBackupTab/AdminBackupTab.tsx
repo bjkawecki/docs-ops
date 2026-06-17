@@ -13,7 +13,9 @@ import { AdminBackupStatusAlerts } from './AdminBackupStatusAlerts';
 import { type BackupRun, type BackupStatus, type Destination } from './adminBackupTypes';
 import {
   BACKUP_POLL_BOOST_MS,
+  BACKUP_RUN_IDLE_POLL_INTERVAL_MS,
   BACKUP_RUN_POLL_INTERVAL_MS,
+  getBackupRunsRefetchIntervalMs,
   isInProgressBackupStatus,
   shouldPollBackupRuns,
 } from './backupRunPolling';
@@ -31,6 +33,19 @@ export function AdminBackupTab() {
   const backupRunStatusInitialized = useRef(false);
   const pendingBackupRunIds = useRef(new Set<string>());
   const [backupPollBoostUntil, setBackupPollBoostUntil] = useState(0);
+  const [isTabVisible, setIsTabVisible] = useState(() => document.visibilityState === 'visible');
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible';
+      setIsTabVisible(visible);
+      if (visible) {
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'backups'] });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [queryClient]);
 
   const statusQuery = useQuery({
     queryKey: ['admin', 'backups', 'status'],
@@ -42,7 +57,9 @@ export function AdminBackupTab() {
     refetchInterval: (q) => {
       const runs = queryClient.getQueryData<{ items: BackupRun[] }>(['admin', 'backups', 'runs']);
       const polling = shouldPollBackupRuns(runs?.items, backupPollBoostUntil);
-      return polling || q.state.data?.maintenanceActive ? BACKUP_RUN_POLL_INTERVAL_MS : 15000;
+      const fastPoll = polling || q.state.data?.maintenanceActive;
+      if (fastPoll) return BACKUP_RUN_POLL_INTERVAL_MS;
+      return isTabVisible ? BACKUP_RUN_IDLE_POLL_INTERVAL_MS : false;
     },
   });
 
@@ -62,10 +79,13 @@ export function AdminBackupTab() {
       if (!res.ok) throw new Error('Failed to load backups');
       return (await res.json()) as { items: BackupRun[] };
     },
-    refetchInterval: (query) => {
-      const polling = shouldPollBackupRuns(query.state.data?.items, backupPollBoostUntil);
-      return polling ? BACKUP_RUN_POLL_INTERVAL_MS : false;
-    },
+    refetchInterval: (query) =>
+      getBackupRunsRefetchIntervalMs({
+        runs: query.state.data?.items,
+        pollBoostUntilMs: backupPollBoostUntil,
+        maintenanceActive: statusQuery.data?.maintenanceActive,
+        isTabVisible,
+      }),
   });
 
   useEffect(() => {

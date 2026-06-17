@@ -81,7 +81,7 @@ Alles in **einem** `maintenance.backup`-Handler, sequenziell:
 5. Optional: Webhook(s) bei Erfolg/Fehler (nur Metadaten, s. u.)
 6. Temporäre Dateien aufräumen; Wartungsmodus aus
 
-Optional: zusätzliche Kopie im lokalen MinIO-Bucket `backups/` und **Download** per presigned URL – nur wenn gewünscht (Offsite-Ziel ist der Normalfall für DR).
+Optional: zusätzliche Kopie im lokalen MinIO-Bucket `backups/` und **Download** über die API (`GET /api/v1/admin/backups/:id/download`, Stream durch DocsOps – kein presigned MinIO-URL im Browser) – nur wenn gewünscht (Offsite-Ziel ist der Normalfall für DR).
 
 **Audit** (wer, wann, Größe, Status, Ziel) – analog Admin-Jobs.
 
@@ -109,7 +109,7 @@ Pro Destination oder global: **HTTPS-URL**, die bei Erfolg/Fehler ein **JSON-Eve
 
 - Scheduler (Cron über pg-boss): Intervall konfigurierbar (Env / Admin-UI).
 - `BACKUP_RETENTION_COUNT` (z. B. 7): älteste Backups am **konfigurierten Ziel** und in der Metadaten-Liste löschen.
-- Admin-UI: Destinations verwalten, Backups anstoßen, Liste, Status, Download (falls lokale Kopie).
+- Admin-UI: Destinations verwalten, Backups anstoßen, Historie (u. a. Started/Finished, Status, externes Ziel inkl. Typ), Download (falls lokale Kopie); Tab aktualisiert sich per Polling (schnell bei laufendem Job, sonst Intervall im Leerlauf).
 
 ### Restore
 
