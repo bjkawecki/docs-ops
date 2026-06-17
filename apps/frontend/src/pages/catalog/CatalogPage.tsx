@@ -444,7 +444,7 @@ export function CatalogPage() {
                     <Table.Td>
                       <Group gap={4}>
                         {doc.documentTags.map((dt) => (
-                          <Badge key={dt.tag.id} size="sm" variant="light">
+                          <Badge key={dt.tag.id} size="sm" variant="filled">
                             {dt.tag.name}
                           </Badge>
                         ))}

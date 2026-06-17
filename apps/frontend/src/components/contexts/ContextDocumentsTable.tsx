@@ -46,7 +46,7 @@ export function ContextDocumentsTable({ documents }: { documents: ContextDocumen
             <Table.Td>
               <Group gap="xs">
                 {doc.documentTags.map((dt) => (
-                  <Badge key={dt.tag.id} size="sm" variant="light" color="gray">
+                  <Badge key={dt.tag.id} size="sm" variant="filled" color="gray">
                     {dt.tag.name}
                   </Badge>
                 ))}

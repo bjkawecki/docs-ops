@@ -6,6 +6,7 @@ export type DestinationFormState = {
   enabled: boolean;
   s3Endpoint: string;
   s3Bucket: string;
+  s3Region: string;
   s3AccessKey: string;
   s3SecretKey: string;
   sshHost: string;
@@ -22,6 +23,7 @@ export const EMPTY_DESTINATION_FORM: DestinationFormState = {
   enabled: true,
   s3Endpoint: '',
   s3Bucket: '',
+  s3Region: '',
   s3AccessKey: '',
   s3SecretKey: '',
   sshHost: '',
@@ -46,6 +48,7 @@ export function destinationFormFromDestination(dest: Destination): DestinationFo
       enabled: dest.enabled,
       s3Endpoint: configString(config.endpoint, ''),
       s3Bucket: configString(config.bucket, ''),
+      s3Region: configString(config.region, ''),
     };
   }
   return {
@@ -68,10 +71,15 @@ export function buildDestinationBody(form: DestinationFormState, isEdit: boolean
     if (!isEdit && (!credentials.accessKeyId || !credentials.secretAccessKey)) {
       throw new Error('Access key and secret key are required');
     }
+    const region = form.s3Region.trim();
     return {
       name: form.name,
       ...(!isEdit ? { type: 'S3_COMPATIBLE' as const, enabled: true } : {}),
-      config: { endpoint: form.s3Endpoint, bucket: form.s3Bucket },
+      config: {
+        endpoint: form.s3Endpoint,
+        bucket: form.s3Bucket.trim(),
+        ...(region ? { region } : {}),
+      },
       ...(Object.keys(credentials).length > 0 ? { credentials } : {}),
     };
   }

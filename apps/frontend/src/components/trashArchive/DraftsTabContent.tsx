@@ -278,7 +278,7 @@ export function DraftsTabContent({
                 </Table.Td>
                 <Table.Td>
                   {hasPendingRequest(d.id, openDraftRequests) ? (
-                    <Badge size="sm" variant="light">
+                    <Badge size="sm" variant="filled">
                       Open
                     </Badge>
                   ) : (

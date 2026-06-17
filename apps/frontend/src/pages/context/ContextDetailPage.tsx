@@ -357,14 +357,14 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
           </Group>
           <Group gap="xs">
             {data.canWriteContext && (
-              <Button variant="light" size="sm" onClick={openNewDoc}>
+              <Button variant="filled" size="sm" onClick={openNewDoc}>
                 New draft
               </Button>
             )}
             {canManage && (
               <>
                 <ActionIcon
-                  variant="light"
+                  variant="filled"
                   size="36"
                   aria-label="Edit context"
                   onClick={handleEditClick}
@@ -427,7 +427,7 @@ export function ContextDetailPage({ type, id }: ContextDetailPageProps) {
                       Subcontexts
                     </Text>
                     {data.canWriteContext && (
-                      <Button variant="light" size="xs" onClick={openNewSubcontext}>
+                      <Button variant="filled" size="xs" onClick={openNewSubcontext}>
                         Create subcontext
                       </Button>
                     )}

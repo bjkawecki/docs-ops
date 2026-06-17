@@ -2,6 +2,7 @@ import type { BackupDestination } from '../../../generated/prisma/client.js';
 import { decryptJson } from '../crypto/secretBox.js';
 import { createS3Client, uploadFilePath, type S3Config } from '../storage/s3.js';
 import { assertSafeRemoteHost, assertS3BackupDestinationEndpoint } from './ssrfGuard.js';
+import { resolveS3BackupRegion } from './s3Region.js';
 import SftpClient from 'ssh2-sftp-client';
 
 export type S3DestinationConfig = {
@@ -54,7 +55,7 @@ export async function uploadBackupArchiveToDestination(
     assertS3BackupDestinationEndpoint(config.endpoint);
     const s3Config: S3Config = {
       endpoint: config.endpoint,
-      region: config.region ?? 'us-east-1',
+      region: resolveS3BackupRegion(config.endpoint, config.region),
       accessKeyId: credentials.accessKeyId,
       secretAccessKey: credentials.secretAccessKey,
       bucket: config.bucket,

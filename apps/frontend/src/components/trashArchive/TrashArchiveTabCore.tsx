@@ -387,7 +387,7 @@ export function TrashArchiveTabCore({
                 <Table.Td>
                   {variant === 'trash' ? (
                     <Button
-                      variant="light"
+                      variant="filled"
                       size="xs"
                       leftSection={<IconRefresh size={14} />}
                       onClick={(e) => {
@@ -399,7 +399,7 @@ export function TrashArchiveTabCore({
                     </Button>
                   ) : (
                     <Button
-                      variant="light"
+                      variant="filled"
                       size="xs"
                       leftSection={<IconArchiveOff size={14} />}
                       onClick={(e) => {

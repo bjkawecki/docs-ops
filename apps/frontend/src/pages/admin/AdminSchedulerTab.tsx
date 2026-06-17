@@ -344,7 +344,7 @@ export function AdminSchedulerTab() {
                 </Table.Td>
                 <Table.Td>
                   {isBackupJob ? (
-                    <Badge color={existing ? 'green' : 'gray'} variant="light">
+                    <Badge color={existing ? 'green' : 'gray'} variant="filled">
                       {existing ? 'Enabled' : 'Disabled'}
                     </Badge>
                   ) : (
@@ -525,7 +525,7 @@ export function AdminSchedulerTab() {
                 </Table.Td>
                 <Table.Td>
                   {existing?.tz ? (
-                    <Badge variant="light">{existing.tz}</Badge>
+                    <Badge variant="filled">{existing.tz}</Badge>
                   ) : (
                     <Text size="sm" c="dimmed">
                       UTC
@@ -535,7 +535,7 @@ export function AdminSchedulerTab() {
                 <Table.Td>
                   <Button
                     size="xs"
-                    variant="light"
+                    variant="filled"
                     onClick={() => {
                       if (!resolvedCron) {
                         notifications.show({

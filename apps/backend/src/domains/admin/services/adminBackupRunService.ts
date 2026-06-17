@@ -185,4 +185,22 @@ export async function deleteLocalBackupCopy(prisma: PrismaClient, id: string) {
   return serializeBackupRun(updated);
 }
 
+export async function deleteFailedBackupRun(prisma: PrismaClient, id: string): Promise<boolean> {
+  const run = await prisma.backupRun.findUnique({ where: { id } });
+  if (!run) return false;
+  if (run.status !== 'failed') {
+    throw new Error('Only failed backup runs can be deleted');
+  }
+
+  if (run.localObjectKey) {
+    const storage = await initStorage();
+    if (storage) {
+      await storage.deleteObject(run.localObjectKey).catch(() => undefined);
+    }
+  }
+
+  await prisma.backupRun.delete({ where: { id } });
+  return true;
+}
+
 export { updateBackupSettings };

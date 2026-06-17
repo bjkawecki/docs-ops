@@ -166,7 +166,7 @@ export function SettingsNotificationsTab() {
         </Box>
       </Card>
 
-      <Button component={Link} to="/notifications" variant="light">
+      <Button component={Link} to="/notifications" variant="filled">
         Open notifications inbox
       </Button>
     </Stack>

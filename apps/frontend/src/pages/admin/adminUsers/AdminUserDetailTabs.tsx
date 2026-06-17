@@ -112,7 +112,7 @@ export function AdminUserDetailTabs({
               {!profileEditing && (
                 <Button
                   size="xs"
-                  variant="light"
+                  variant="filled"
                   leftSection={<IconPencil size={14} />}
                   onClick={() => setProfileEditing(true)}
                 >
@@ -190,7 +190,7 @@ export function AdminUserDetailTabs({
               {!assignmentsEditing && (
                 <Button
                   size="xs"
-                  variant="light"
+                  variant="filled"
                   leftSection={<IconPencil size={14} />}
                   onClick={() => setAssignmentsEditing(true)}
                 >
@@ -257,7 +257,7 @@ export function AdminUserDetailTabs({
               <Group align="center" gap="sm">
                 <Button
                   size="sm"
-                  variant="light"
+                  variant="filled"
                   color="orange"
                   leftSection={<IconLock size={14} />}
                   onClick={onResetPassword}
@@ -272,7 +272,7 @@ export function AdminUserDetailTabs({
             <Group align="center" gap="sm">
               <Button
                 size="sm"
-                variant="light"
+                variant="filled"
                 color="red"
                 leftSection={<IconTrash size={14} />}
                 onClick={onDeleteUser}

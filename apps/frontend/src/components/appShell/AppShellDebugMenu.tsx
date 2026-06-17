@@ -31,7 +31,7 @@ export function AppShellDebugMenu({
     >
       <Menu position="bottom-end" shadow="md" width={320}>
         <Menu.Target>
-          <ActionIcon variant="light" size="md" aria-label="Debug menu" color="grape">
+          <ActionIcon variant="filled" size="md" aria-label="Debug menu" color="grape">
             <IconBug size={18} />
           </ActionIcon>
         </Menu.Target>
@@ -70,7 +70,7 @@ export function AppShellDebugMenu({
                         {u.email}
                       </Text>
                     )}
-                    <Badge size="xs" variant="light">
+                    <Badge size="xs" variant="filled">
                       {u.role}
                     </Badge>
                   </Stack>

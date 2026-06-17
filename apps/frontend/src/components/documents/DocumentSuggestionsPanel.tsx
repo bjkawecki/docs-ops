@@ -279,7 +279,7 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
                 min={0}
                 w={160}
               />
-              <Button variant="light" size="xs" onClick={() => syncBaseFromLead()}>
+              <Button variant="filled" size="xs" onClick={() => syncBaseFromLead()}>
                 Use current draft revision
               </Button>
             </Group>
@@ -328,7 +328,7 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
               rows.map((s) => (
                 <Table.Tr key={s.id}>
                   <Table.Td>
-                    <Badge variant="light">{s.status}</Badge>
+                    <Badge variant="filled">{s.status}</Badge>
                   </Table.Td>
                   <Table.Td>{s.authorName ?? s.authorId}</Table.Td>
                   <Table.Td>{s.baseDraftRevision}</Table.Td>
@@ -337,7 +337,7 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
                       {s.status === 'pending' && currentUserId === s.authorId && !canPublish && (
                         <Button
                           size="compact-xs"
-                          variant="light"
+                          variant="filled"
                           onClick={() => void withdraw(s.id)}
                         >
                           Withdraw
@@ -348,7 +348,7 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
                           <Button
                             size="compact-xs"
                             color="green"
-                            variant="light"
+                            variant="filled"
                             onClick={() => void accept(s.id)}
                           >
                             Accept
@@ -356,7 +356,7 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
                           <Button
                             size="compact-xs"
                             color="red"
-                            variant="light"
+                            variant="filled"
                             onClick={() => void reject(s.id)}
                           >
                             Reject

@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <Text size="sm" c="dimmed">
             An unexpected error occurred. Please try reloading the page.
           </Text>
-          <Button variant="light" size="sm" onClick={() => window.location.reload()}>
+          <Button variant="filled" size="sm" onClick={() => window.location.reload()}>
             Reload page
           </Button>
         </Stack>

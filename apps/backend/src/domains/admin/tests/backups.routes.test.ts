@@ -170,6 +170,44 @@ describe('Admin backup routes', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('DELETE /admin/backups/:id deletes failed run', async () => {
+    const run = await prisma.backupRun.create({
+      data: {
+        status: 'failed',
+        triggerSource: 'manual',
+        errorMessage: 'pg_dump failed',
+        finishedAt: new Date(),
+      },
+    });
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/backups/${run.id}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(204);
+    const persisted = await prisma.backupRun.findUnique({ where: { id: run.id } });
+    expect(persisted).toBeNull();
+  });
+
+  it('DELETE /admin/backups/:id for succeeded run → 400', async () => {
+    const run = await prisma.backupRun.create({
+      data: {
+        status: 'succeeded',
+        triggerSource: 'manual',
+        localObjectKey: 'backups/test/archive.tar.zst',
+        finishedAt: new Date(),
+      },
+    });
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/backups/${run.id}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('GET /admin/backups/:id/download without local copy → 404', async () => {
     const run = await prisma.backupRun.create({
       data: {

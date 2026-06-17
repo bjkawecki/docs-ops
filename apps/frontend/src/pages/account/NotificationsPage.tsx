@@ -93,7 +93,7 @@ export function NotificationsPage() {
                     label={item.label}
                     description={item.description}
                     active={category === item.value}
-                    variant="light"
+                    variant="filled"
                     style={navLinkFullWidth}
                   />
                 ))}

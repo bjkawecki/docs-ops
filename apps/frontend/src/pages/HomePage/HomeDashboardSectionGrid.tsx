@@ -79,7 +79,7 @@ export function HomeDashboardSectionGrid({
             <Stack gap={4} align="flex-start">
               {pinnedItems.map((item) => (
                 <Group key={item.id} gap="xs" wrap="nowrap">
-                  <Badge size="sm" variant="light">
+                  <Badge size="sm" variant="filled">
                     {scopeTypeLabel(item.scopeType)}
                   </Badge>
                   <Link
@@ -256,7 +256,7 @@ export function HomeDashboardSectionGrid({
                 {openDraftRequests.flatMap((dr) => {
                   const title = dr.documentTitle || dr.documentId;
                   return [
-                    <Badge key={`${dr.id}-b`} size="sm" variant="light" style={{ flexShrink: 0 }}>
+                    <Badge key={`${dr.id}-b`} size="sm" variant="filled" style={{ flexShrink: 0 }}>
                       Pending review
                     </Badge>,
                     <Link

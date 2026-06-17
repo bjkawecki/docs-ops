@@ -286,6 +286,23 @@ export function AdminBackupTab() {
     },
   });
 
+  const deleteFailedBackup = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiFetch(`/api/v1/admin/backups/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? 'Failed to delete backup run');
+      }
+    },
+    onSuccess: () => {
+      invalidateBackup();
+      notifications.show({ title: 'Backup run deleted', message: '', color: 'green' });
+    },
+    onError: (e: Error) => {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+    },
+  });
+
   const destinations = useMemo(
     () => destinationsQuery.data?.items ?? [],
     [destinationsQuery.data?.items]
@@ -343,8 +360,14 @@ export function AdminBackupTab() {
         loading={runsQuery.isPending}
         downloadLoading={downloadingBackupId != null}
         deleteLocalLoading={deleteLocalBackup.isPending}
+        deleteRunLoading={deleteFailedBackup.isPending}
         onDownload={handleDownloadBackup}
-        onDeleteLocal={(id) => deleteLocalBackup.mutate(id)}
+        onDeleteLocal={async (id) => {
+          await deleteLocalBackup.mutateAsync(id);
+        }}
+        onDeleteRun={async (id) => {
+          await deleteFailedBackup.mutateAsync(id);
+        }}
       />
 
       <AdminBackupDestinationsManageModal

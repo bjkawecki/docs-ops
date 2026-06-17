@@ -83,7 +83,7 @@ export function AdminUsersList({
           />
           <Button
             size="xs"
-            variant="light"
+            variant="filled"
             onClick={() => {
               onSearchSubmit();
             }}

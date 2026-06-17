@@ -218,7 +218,7 @@ export function DocumentVersionsPage() {
                 {versions.map((v) => (
                   <Group key={v.id} justify="space-between" wrap="nowrap">
                     <Group gap="xs">
-                      <Badge size="sm" variant="light">
+                      <Badge size="sm" variant="filled">
                         v{v.versionNumber}
                       </Badge>
                       <Text size="sm">

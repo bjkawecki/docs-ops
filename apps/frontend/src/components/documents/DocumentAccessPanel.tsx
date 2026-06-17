@@ -170,7 +170,7 @@ export function DocumentAccessPanel({ documentId, canEditAccess }: Props) {
   return (
     <Stack gap="md">
       {!canEditAccess && (
-        <Alert color="gray" variant="light" title="Read-only">
+        <Alert color="gray" variant="filled" title="Read-only">
           You can review access settings but cannot modify them.
         </Alert>
       )}

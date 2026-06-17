@@ -62,7 +62,7 @@ export function ProjectSiblingSubnav({ variant, siblings }: ProjectSiblingSubnav
                 to={to}
                 label={sibling.name}
                 active={pathname === to}
-                variant="light"
+                variant="filled"
                 style={navLinkFullWidth}
               />
             );
@@ -78,7 +78,7 @@ export function ProjectSiblingSubnav({ variant, siblings }: ProjectSiblingSubnav
                 to={base}
                 label={sibling.name}
                 active={pathname === base}
-                variant="light"
+                variant="filled"
                 style={navLinkFullWidth}
               />
               {subs.length > 0 && (
@@ -101,7 +101,7 @@ export function ProjectSiblingSubnav({ variant, siblings }: ProjectSiblingSubnav
                           to={subTo}
                           label={sub.name}
                           active={pathname === subTo}
-                          variant="light"
+                          variant="filled"
                           style={navLinkFullWidth}
                         />
                       );

@@ -5,6 +5,7 @@ import type { PrismaClient } from '../../../../generated/prisma/client.js';
 export type AdminBackupAuditAction =
   | 'backup-create'
   | 'backup-local-delete'
+  | 'backup-run-delete'
   | 'destination-create'
   | 'destination-update'
   | 'destination-delete'

@@ -88,7 +88,7 @@ export function AdminTeamEditModal({
               {!teamCardEditing && (
                 <Button
                   size="xs"
-                  variant="light"
+                  variant="filled"
                   leftSection={<IconPencil size={14} />}
                   onClick={onStartEditCard}
                 >
@@ -168,7 +168,7 @@ export function AdminTeamEditModal({
                   ) : (
                     <Group gap="xs" mt={4}>
                       {leadsForEdit.map((u) => (
-                        <Badge key={u.id} size="sm" variant="light">
+                        <Badge key={u.id} size="sm" variant="filled">
                           {u.name}
                         </Badge>
                       ))}
@@ -186,7 +186,7 @@ export function AdminTeamEditModal({
                   ) : (
                     <Group gap="xs" mt={4} wrap="wrap">
                       {membersForEdit.map((m) => (
-                        <Badge key={m.id} size="sm" variant="light">
+                        <Badge key={m.id} size="sm" variant="filled">
                           {m.name}
                         </Badge>
                       ))}
@@ -248,7 +248,7 @@ export function AdminTeamEditModal({
             </Text>
             <Button
               size="sm"
-              variant="light"
+              variant="filled"
               color="red"
               leftSection={<IconTrash size={14} />}
               onClick={onRequestDelete}

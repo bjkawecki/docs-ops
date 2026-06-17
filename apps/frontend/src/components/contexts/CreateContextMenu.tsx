@@ -26,7 +26,7 @@ export function CreateContextMenu({
   return (
     <Menu position="bottom-end" shadow="md">
       <Menu.Target>
-        <Button variant="light" size="sm" leftSection={<IconPlus size={16} />}>
+        <Button variant="filled" size="sm" leftSection={<IconPlus size={16} />}>
           {label}
         </Button>
       </Menu.Target>

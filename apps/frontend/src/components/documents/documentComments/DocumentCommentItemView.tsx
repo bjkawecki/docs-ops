@@ -74,7 +74,7 @@ export function DocumentCommentItemView({
                 c.anchorHeadingId != null &&
                 c.anchorHeadingId !== '' &&
                 headingLabel(headings, c.anchorHeadingId) != null && (
-                  <Badge size="xs" variant="light" color="gray">
+                  <Badge size="xs" variant="filled" color="gray">
                     Section: {headingLabel(headings, c.anchorHeadingId)}
                   </Badge>
                 )}

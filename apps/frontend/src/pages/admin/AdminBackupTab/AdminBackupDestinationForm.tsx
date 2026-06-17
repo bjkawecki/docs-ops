@@ -76,6 +76,15 @@ export function AdminBackupDestinationForm({ destination, onSave }: Props) {
               placeholder={addPlaceholder(isEdit, 'docsops-backups')}
             />
             <TextInput
+              label="Region"
+              value={form.s3Region}
+              onChange={(e) => set('s3Region', e.currentTarget.value)}
+              placeholder={addPlaceholder(isEdit, 'eu-central-1')}
+              description={
+                isEdit ? undefined : 'AWS signing region; inferred from endpoint if left empty'
+              }
+            />
+            <TextInput
               label="Access key"
               value={form.s3AccessKey}
               onChange={(e) => set('s3AccessKey', e.currentTarget.value)}

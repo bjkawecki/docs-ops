@@ -251,7 +251,7 @@ export function HomeDashboardSearchModal({
             backgroundColor: 'var(--mantine-color-body)',
           }}
         >
-          <Button variant="light" onClick={goToCatalogFromModal} fullWidth>
+          <Button variant="filled" onClick={goToCatalogFromModal} fullWidth>
             Im Katalog anzeigen
           </Button>
         </Box>

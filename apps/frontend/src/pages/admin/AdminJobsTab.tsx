@@ -356,7 +356,7 @@ export function AdminJobsTab() {
             style={{ minWidth: 220 }}
           />
           <Button
-            variant="light"
+            variant="filled"
             onClick={() => {
               setSearch(searchInput);
               setOffset(0);
@@ -407,7 +407,7 @@ export function AdminJobsTab() {
 
       <Group mb="xs" justify="space-between" align="center" wrap="wrap">
         <Group gap={6} wrap="nowrap" align="center">
-          <Badge color={workerConnected ? 'green' : 'yellow'} variant="light">
+          <Badge color={workerConnected ? 'green' : 'yellow'} variant="filled">
             {workerConnected ? 'Worker OK' : 'Worker degraded'}
           </Badge>
           <Text size="xs" c="dimmed" title={`Zuletzt aktualisiert: ${lastHealthRefreshAbsolute}`}>
@@ -514,7 +514,7 @@ export function AdminJobsTab() {
                   <Group gap="xs">
                     <Button
                       size="xs"
-                      variant="light"
+                      variant="filled"
                       onClick={() => retryMutation.mutate(job.id)}
                       disabled={retryMutation.isPending || queueActionsDisabled}
                       title={
@@ -527,7 +527,7 @@ export function AdminJobsTab() {
                     </Button>
                     <Button
                       size="xs"
-                      variant="light"
+                      variant="filled"
                       color="red"
                       onClick={() => cancelMutation.mutate(job.id)}
                       disabled={cancelMutation.isPending || queueActionsDisabled}
@@ -541,7 +541,7 @@ export function AdminJobsTab() {
                     </Button>
                     <Button
                       size="xs"
-                      variant="light"
+                      variant="filled"
                       color="gray"
                       onClick={() => {
                         const confirmed = window.confirm('Delete this job permanently?');

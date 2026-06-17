@@ -206,7 +206,7 @@ export function NotificationsInboxPanel({
     <Group justify="flex-end" wrap="wrap">
       <Button
         size="sm"
-        variant="light"
+        variant="filled"
         onClick={() => markAllAsRead.mutate()}
         disabled={markAllAsRead.isPending || notificationItems.length === 0}
       >

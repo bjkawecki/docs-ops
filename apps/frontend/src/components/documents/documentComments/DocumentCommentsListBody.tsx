@@ -215,7 +215,7 @@ export function DocumentCommentsListBody({
         <Group justify="center" mt="md">
           <Button
             size="xs"
-            variant="light"
+            variant="filled"
             loading={isFetchingNextPage}
             onClick={() => void listQuery.fetchNextPage()}
           >

@@ -44,7 +44,7 @@ export function DocumentLeadDraftPanelView({
             <Group gap="xs">
               <Button
                 size="compact-sm"
-                variant="light"
+                variant="filled"
                 onClick={() => applyIncoming(remotePending.revision, remotePending.doc)}
               >
                 Load latest
@@ -89,7 +89,7 @@ export function DocumentLeadDraftPanelView({
             <Group gap="xs">
               <Button
                 size="xs"
-                variant="light"
+                variant="filled"
                 onClick={() => void handleResetDraftFromPublished()}
               >
                 Reset draft to published
@@ -116,7 +116,7 @@ export function DocumentLeadDraftPanelView({
                 const blocks = affectedBlockIds(s.ops);
                 return (
                   <Group key={s.id} gap={6} wrap="wrap">
-                    <Badge variant="light" color="grape">
+                    <Badge variant="filled" color="grape">
                       Suggestion by {s.authorName ?? 'Unknown'}
                     </Badge>
                     {blocks.map((id) => (
@@ -129,7 +129,7 @@ export function DocumentLeadDraftPanelView({
                         <Button
                           size="compact-xs"
                           color="green"
-                          variant="light"
+                          variant="filled"
                           onClick={() =>
                             void runSuggestionAction(
                               `/api/v1/documents/${documentId}/suggestions/${s.id}/accept`,
@@ -143,7 +143,7 @@ export function DocumentLeadDraftPanelView({
                         <Button
                           size="compact-xs"
                           color="red"
-                          variant="light"
+                          variant="filled"
                           onClick={() =>
                             void runSuggestionAction(
                               `/api/v1/documents/${documentId}/suggestions/${s.id}/reject`,
@@ -159,7 +159,7 @@ export function DocumentLeadDraftPanelView({
                     {!canPublish && currentUserId === s.authorId && (
                       <Button
                         size="compact-xs"
-                        variant="light"
+                        variant="filled"
                         onClick={() =>
                           void runSuggestionAction(
                             `/api/v1/documents/${documentId}/suggestions/${s.id}/withdraw`,

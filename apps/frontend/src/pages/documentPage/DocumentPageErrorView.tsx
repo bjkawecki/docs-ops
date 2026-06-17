@@ -8,7 +8,7 @@ export function DocumentPageErrorView() {
         Document not found or access denied.
       </Text>
       <Group gap="xs">
-        <Button variant="light" size="sm" component={Link} to="/catalog">
+        <Button variant="filled" size="sm" component={Link} to="/catalog">
           Back to Catalog
         </Button>
         <Button variant="subtle" size="sm" component={Link} to="/">

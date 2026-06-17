@@ -170,7 +170,7 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
         {inlineSuggestionBar != null && <Box mb="sm">{inlineSuggestionBar}</Box>}
         {!editable && (
           <Group gap="xs" mb="sm">
-            <Badge size="sm" variant="light" color="gray">
+            <Badge size="sm" variant="filled" color="gray">
               Read only
             </Badge>
           </Group>

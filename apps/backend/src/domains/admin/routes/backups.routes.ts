@@ -23,6 +23,7 @@ import {
   updateBackupSettings,
 } from '../services/adminBackupDestinationService.js';
 import {
+  deleteFailedBackupRun,
   deleteLocalBackupCopy,
   getLocalBackupDownload,
   getBackupRun,
@@ -233,6 +234,36 @@ const adminBackupsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       reply.header('Content-Disposition', `attachment; filename="${download.filename}"`);
       reply.header('Cache-Control', 'private, no-store');
       return reply.send(download.body);
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/admin/backups/:id',
+    { preHandler: preAdmin },
+    async (request, reply) => {
+      const { id } = backupRunIdParamSchema.parse(request.params);
+      try {
+        const deleted = await deleteFailedBackupRun(request.server.prisma, id);
+        if (!deleted) return reply.status(404).send({ error: 'Backup not found' });
+        await writeAuditSafe(request as RequestWithUser, {
+          action: 'backup-run-delete',
+          status: 'success',
+          backupRunId: id,
+        });
+        return reply.status(204).send();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await writeAuditSafe(request as RequestWithUser, {
+          action: 'backup-run-delete',
+          status: 'failed',
+          backupRunId: id,
+          details: { error: message },
+        });
+        if (message.includes('Only failed')) {
+          return reply.status(400).send({ error: message });
+        }
+        throw error;
+      }
     }
   );
 

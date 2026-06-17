@@ -59,7 +59,7 @@ export function HelpLayout() {
                   to={topic.to}
                   label={topic.label}
                   active={pathname === topic.to}
-                  variant="light"
+                  variant="filled"
                   style={{ borderRadius: 'var(--mantine-radius-sm)' }}
                 />
               ))}

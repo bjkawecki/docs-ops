@@ -10,7 +10,7 @@ export function NotFoundPage() {
         <Text size="sm" c="dimmed">
           The page you are looking for does not exist.
         </Text>
-        <Button component={Link} to="/" variant="light" size="sm">
+        <Button component={Link} to="/" variant="filled" size="sm">
           Back to Dashboard
         </Button>
       </Stack>

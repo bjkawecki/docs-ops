@@ -106,7 +106,7 @@ export function SettingsSecurityTab() {
                         </Table.Td>
                         <Table.Td>
                           {s.isCurrent ? (
-                            <Badge size="sm" variant="light">
+                            <Badge size="sm" variant="filled">
                               Current session
                             </Badge>
                           ) : (
@@ -129,7 +129,7 @@ export function SettingsSecurityTab() {
                 </Table>
                 {sessionsData.sessions.some((s) => !s.isCurrent) ? (
                   <Button
-                    variant="light"
+                    variant="filled"
                     size="xs"
                     color="red"
                     onClick={() => revokeAllOtherSessions.mutate()}

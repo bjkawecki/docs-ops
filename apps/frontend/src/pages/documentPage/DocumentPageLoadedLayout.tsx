@@ -184,7 +184,7 @@ export function DocumentPageLoadedLayout({
               )}
               {data.canWrite && mode === 'view' && (
                 <ActionIcon
-                  variant="light"
+                  variant="filled"
                   size="36"
                   aria-label="Edit document"
                   onClick={handleEditClick}
@@ -194,7 +194,7 @@ export function DocumentPageLoadedLayout({
               )}
               {mode === 'edit' && data.canPublish && !data.publishedAt && (
                 <Button
-                  variant="light"
+                  variant="filled"
                   size="sm"
                   color="green"
                   leftSection={<IconCloudUpload size={14} />}
@@ -434,7 +434,7 @@ export function DocumentPageLoadedLayout({
                               clearable
                               style={{ flex: 1 }}
                             />
-                            <Button variant="light" size="sm" onClick={openCreateTag}>
+                            <Button variant="filled" size="sm" onClick={openCreateTag}>
                               Create tag
                             </Button>
                             <Button variant="subtle" size="sm" onClick={openManageTags}>

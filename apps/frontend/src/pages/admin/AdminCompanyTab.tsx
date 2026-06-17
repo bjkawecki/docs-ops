@@ -337,7 +337,7 @@ export function AdminCompanyTab() {
                   {!companyCardEditing && (
                     <Button
                       size="xs"
-                      variant="light"
+                      variant="filled"
                       leftSection={<IconPencil size={14} />}
                       onClick={() => {
                         setEditName(editingCompany.name);
@@ -501,7 +501,7 @@ export function AdminCompanyTab() {
                 </Text>
                 <Button
                   size="sm"
-                  variant="light"
+                  variant="filled"
                   color="red"
                   leftSection={<IconTrash size={14} />}
                   onClick={() => setDeleteConfirmCompany(editingCompany)}

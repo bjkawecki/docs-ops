@@ -20,7 +20,7 @@ export function buildDocumentMetadataItems(params: {
       data.currentPublishedVersionNumber != null ? ` · v${data.currentPublishedVersionNumber}` : '';
     metadataItems.push(
       <Group key="status" gap="xs" align="center">
-        <Badge size="sm" variant="light" color="green">
+        <Badge size="sm" variant="filled" color="green">
           Published{versionSuffix}
         </Badge>
         <Text size="sm" c="dimmed" span>
@@ -30,7 +30,7 @@ export function buildDocumentMetadataItems(params: {
     );
   } else {
     metadataItems.push(
-      <Badge key="status" size="sm" variant="light" color="yellow">
+      <Badge key="status" size="sm" variant="filled" color="yellow">
         Draft
       </Badge>
     );
@@ -41,7 +41,7 @@ export function buildDocumentMetadataItems(params: {
         <Text size="sm" c="dimmed" span>
           Created by:{' '}
         </Text>
-        <Badge size="sm" variant="light">
+        <Badge size="sm" variant="filled">
           {data.createdByName}
         </Badge>
       </Group>
@@ -53,7 +53,7 @@ export function buildDocumentMetadataItems(params: {
         <Text size="sm" c="dimmed" span>
           Writers:{' '}
         </Text>
-        <Badge size="sm" variant="light">
+        <Badge size="sm" variant="filled">
           {writerNames.join(', ')}
         </Badge>
       </Group>
@@ -62,7 +62,7 @@ export function buildDocumentMetadataItems(params: {
   if (data.documentTags.length > 0) {
     data.documentTags.forEach((dt) => {
       metadataItems.push(
-        <Badge key={`tag-${dt.tag.id}`} size="sm" variant="light" color="gray">
+        <Badge key={`tag-${dt.tag.id}`} size="sm" variant="filled" color="gray">
           {dt.tag.name}
         </Badge>
       );
@@ -70,7 +70,7 @@ export function buildDocumentMetadataItems(params: {
   }
   if (mode === 'edit' && hasUnsavedChanges) {
     metadataItems.push(
-      <Badge key="unsaved" size="sm" variant="light" color="orange">
+      <Badge key="unsaved" size="sm" variant="filled" color="orange">
         Unsaved changes
       </Badge>
     );

@@ -2,6 +2,7 @@ import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { isBackupEncryptionConfigured } from '../../../infrastructure/crypto/secretBox.js';
 import { isInsecureBackupS3DestinationsAllowed } from '../../../infrastructure/backup/ssrfGuard.js';
 import { createS3Client, ensureBucket } from '../../../infrastructure/storage/s3.js';
+import { resolveS3BackupRegion } from '../../../infrastructure/backup/s3Region.js';
 import { createBackupDestination, updateBackupSettings } from './adminBackupDestinationService.js';
 
 export type BackupS3DestinationEnvConfig = {
@@ -101,7 +102,7 @@ export function parseBackupS3DestinationFromEnv():
 
   const name = process.env.BACKUP_S3_DESTINATION_NAME?.trim() || 'Env default external destination';
   const basePath = process.env.BACKUP_S3_DESTINATION_BASE_PATH?.trim();
-  const region = process.env.BACKUP_S3_DESTINATION_REGION?.trim();
+  const region = resolveS3BackupRegion(endpoint!, process.env.BACKUP_S3_DESTINATION_REGION?.trim());
   const forcePathStyleRaw = process.env.BACKUP_S3_DESTINATION_FORCE_PATH_STYLE?.toLowerCase();
 
   return {
@@ -113,7 +114,7 @@ export function parseBackupS3DestinationFromEnv():
       accessKeyId: accessKeyId!,
       secretAccessKey: secretAccessKey!,
       ...(basePath ? { basePath } : {}),
-      ...(region ? { region } : {}),
+      region,
       ...(forcePathStyleRaw === 'true' || forcePathStyleRaw === 'false'
         ? { forcePathStyle: forcePathStyleRaw === 'true' }
         : { forcePathStyle: true }),
@@ -124,7 +125,7 @@ export function parseBackupS3DestinationFromEnv():
 async function ensureDestinationBucket(config: BackupS3DestinationEnvConfig): Promise<void> {
   const client = createS3Client({
     endpoint: config.endpoint,
-    region: config.region ?? 'us-east-1',
+    region: config.region ?? resolveS3BackupRegion(config.endpoint),
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
     bucket: config.bucket,

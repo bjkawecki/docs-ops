@@ -321,16 +321,16 @@ export function SubcontextDetailPage() {
           </Group>
           <Group gap="xs">
             {data.canWriteContext && (
-              <Button variant="light" size="sm" onClick={openNewDoc}>
+              <Button variant="filled" size="sm" onClick={openNewDoc}>
                 New draft
               </Button>
             )}
             {data.canWriteContext && (
               <>
-                <Button variant="light" size="sm" onClick={handleEditClick}>
+                <Button variant="filled" size="sm" onClick={handleEditClick}>
                   Edit
                 </Button>
-                <Button variant="light" size="sm" color="red" onClick={openDelete}>
+                <Button variant="filled" size="sm" color="red" onClick={openDelete}>
                   Delete
                 </Button>
               </>

@@ -7,6 +7,7 @@ import {
   assertSafeRemoteHost,
   assertS3BackupDestinationEndpoint,
 } from '../../../infrastructure/backup/ssrfGuard.js';
+import { resolveS3BackupRegion } from '../../../infrastructure/backup/s3Region.js';
 import type {
   createBackupDestinationBodySchema,
   patchBackupDestinationBodySchema,
@@ -17,6 +18,15 @@ export function assertBackupEncryptionReady(): void {
   if (!isBackupEncryptionConfigured()) {
     throw new Error('BACKUP_ENCRYPTION_KEY is not configured');
   }
+}
+
+function enrichS3DestinationConfig<T extends { endpoint: string; bucket: string; region?: string }>(
+  config: T
+): T & { region: string } {
+  return {
+    ...config,
+    region: resolveS3BackupRegion(config.endpoint, config.region),
+  };
 }
 
 function validateDestinationInput(body: z.infer<typeof createBackupDestinationBodySchema>): void {
@@ -57,7 +67,7 @@ export async function createBackupDestination(
       name: body.name,
       type: body.type,
       enabled: body.enabled ?? true,
-      configJson: body.config,
+      configJson: enrichS3DestinationConfig(body.config),
       credentialsCiphertext: encryptJson(body.credentials),
     },
     select: {
@@ -90,12 +100,17 @@ export async function updateBackupDestination(
     }
   }
 
+  const nextConfig =
+    body.config != null && existing.type === 'S3_COMPATIBLE'
+      ? enrichS3DestinationConfig(body.config)
+      : body.config;
+
   return prisma.backupDestination.update({
     where: { id },
     data: {
       ...(body.name != null ? { name: body.name } : {}),
       ...(body.enabled != null ? { enabled: body.enabled } : {}),
-      ...(body.config != null ? { configJson: body.config } : {}),
+      ...(nextConfig != null ? { configJson: nextConfig } : {}),
       ...(body.credentials != null ? { credentialsCiphertext: encryptJson(body.credentials) } : {}),
     },
     select: {

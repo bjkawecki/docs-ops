@@ -53,6 +53,7 @@ describe('parseBackupS3DestinationFromEnv', () => {
         bucket: 'docsops-backups',
         accessKeyId: 'docsops',
         secretAccessKey: 'docsopsdev',
+        region: 'us-east-1',
         forcePathStyle: true,
       },
     });
