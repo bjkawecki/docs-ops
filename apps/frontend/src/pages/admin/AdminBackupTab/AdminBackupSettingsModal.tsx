@@ -172,17 +172,20 @@ export function AdminBackupSettingsModal({
               backups={backups}
               maintenanceActive={status.maintenanceActive}
               restoreFromBackupLoading={restoreFromBackupLoading}
+              onClose={onClose}
               onRestoreFromBackup={handleRestoreFromBackup}
               onUploadComplete={handleRestoreUploadComplete}
             />
           </Tabs.Panel>
         </Tabs>
 
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Close
-          </Button>
-        </Group>
+        {activeTab !== 'restore' ? (
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Close
+            </Button>
+          </Group>
+        ) : null}
       </Stack>
     </Modal>
   );

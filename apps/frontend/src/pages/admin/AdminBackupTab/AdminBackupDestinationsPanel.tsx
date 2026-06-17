@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Group, Stack, Switch, Table, Tabs, Text } from '@mantine/core';
+import { Alert, Button, Group, Modal, Stack, Switch, Table, Text } from '@mantine/core';
 import type { Destination } from './adminBackupTypes';
 import type { DestinationFormState } from './adminBackupDestinationForm';
 import {
@@ -31,161 +31,156 @@ export function AdminBackupDestinationsPanel({
   onSetDefault,
   onToggleEnabled,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<string | null>('list');
+  const [formOpen, setFormOpen] = useState(false);
   const [editDestination, setEditDestination] = useState<Destination | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Destination | null>(null);
 
-  const openEdit = (destination: Destination) => {
-    setEditDestination(destination);
-    setActiveTab('form');
+  const openCreate = () => {
+    setEditDestination(null);
+    setFormOpen(true);
   };
 
-  const formTabLabel = editDestination
-    ? `Edit: ${editDestination.name}`
-    : 'New external destination';
+  const openEdit = (destination: Destination) => {
+    setEditDestination(destination);
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditDestination(null);
+  };
 
   return (
-    <Stack gap="md">
-      <Tabs
-        value={activeTab}
-        onChange={(value) => {
-          setActiveTab(value);
-          if (value === 'list') {
-            setEditDestination(null);
-          }
-        }}
-      >
-        <Tabs.List>
-          <Tabs.Tab value="list">List</Tabs.Tab>
-          <Tabs.Tab
-            value="form"
-            onClick={() => {
-              if (activeTab !== 'form') {
-                setEditDestination(null);
-              }
-            }}
-          >
-            {formTabLabel}
-          </Tabs.Tab>
-        </Tabs.List>
+    <>
+      <Stack gap="md">
+        <Group justify="space-between" align="center">
+          <Text fw={600} size="sm">
+            External destinations
+          </Text>
+          <Button size="xs" variant="default" onClick={openCreate}>
+            Add destination
+          </Button>
+        </Group>
 
-        <Tabs.Panel value="list" pt="md">
-          <Stack gap="md">
-            {deleteTarget ? (
-              <Alert color="red" title={`Delete external destination ${deleteTarget.name}?`}>
-                <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-                  <Text size="sm">This cannot be undone.</Text>
-                  <Group gap="xs">
-                    <Button size="xs" variant="default" onClick={() => setDeleteTarget(null)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      size="xs"
-                      color="red"
-                      loading={deletingDestination}
-                      onClick={() => {
-                        onDeleteDestination(deleteTarget);
-                        setDeleteTarget(null);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </Group>
-                </Group>
-              </Alert>
-            ) : null}
+        {deleteTarget ? (
+          <Alert color="red" title={`Delete external destination ${deleteTarget.name}?`}>
+            <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+              <Text size="sm">This cannot be undone.</Text>
+              <Group gap="xs">
+                <Button size="xs" variant="default" onClick={() => setDeleteTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="xs"
+                  color="red"
+                  loading={deletingDestination}
+                  onClick={() => {
+                    onDeleteDestination(deleteTarget);
+                    setDeleteTarget(null);
+                  }}
+                >
+                  Delete
+                </Button>
+              </Group>
+            </Group>
+          </Alert>
+        ) : null}
 
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Type</Table.Th>
-                  <Table.Th>Enabled</Table.Th>
-                  <Table.Th>Default</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {destinations.length === 0 ? (
-                  <Table.Tr>
-                    <Table.Td colSpan={5}>
-                      <Text size="sm" c="dimmed">
-                        No external destinations configured yet.
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Enabled</Table.Th>
+              <Table.Th>Default</Table.Th>
+              <Table.Th />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {destinations.length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={5}>
+                  <Text size="sm" c="dimmed">
+                    No external destinations configured yet.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            ) : (
+              destinations.map((d) => (
+                <Table.Tr key={d.id}>
+                  <Table.Td>{d.name}</Table.Td>
+                  <Table.Td>{formatDestinationTypeShort(d.type)}</Table.Td>
+                  <Table.Td>
+                    <Switch
+                      size="sm"
+                      aria-label={`Enable external destination ${d.name}`}
+                      checked={d.enabled}
+                      disabled={togglingDestinationId === d.id}
+                      onChange={(e) => onToggleEnabled(d.id, e.currentTarget.checked)}
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    {defaultDestinationId === d.id ? (
+                      <Text size="sm" fw={500}>
+                        Default
                       </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ) : (
-                  destinations.map((d) => (
-                    <Table.Tr key={d.id}>
-                      <Table.Td>{d.name}</Table.Td>
-                      <Table.Td>{formatDestinationTypeShort(d.type)}</Table.Td>
-                      <Table.Td>
-                        <Switch
-                          size="sm"
-                          aria-label={`Enable external destination ${d.name}`}
-                          checked={d.enabled}
-                          disabled={togglingDestinationId === d.id}
-                          onChange={(e) => onToggleEnabled(d.id, e.currentTarget.checked)}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        {defaultDestinationId === d.id ? (
-                          <Text size="sm" fw={500}>
-                            Default
-                          </Text>
-                        ) : (
-                          '–'
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={4} justify="flex-end" wrap="nowrap">
-                          {d.enabled && defaultDestinationId !== d.id ? (
-                            <Button size="xs" variant="subtle" onClick={() => onSetDefault(d.id)}>
-                              Set default
-                            </Button>
-                          ) : null}
-                          <Button size="xs" variant="subtle" onClick={() => openEdit(d)}>
-                            Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => setDeleteTarget(d)}
-                          >
-                            Delete
-                          </Button>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))
-                )}
-              </Table.Tbody>
-            </Table>
-          </Stack>
-        </Tabs.Panel>
+                    ) : (
+                      '–'
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={4} justify="flex-end" wrap="nowrap">
+                      {d.enabled && defaultDestinationId !== d.id ? (
+                        <Button size="xs" variant="subtle" onClick={() => onSetDefault(d.id)}>
+                          Set default
+                        </Button>
+                      ) : null}
+                      <Button size="xs" variant="subtle" onClick={() => openEdit(d)}>
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        onClick={() => setDeleteTarget(d)}
+                      >
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))
+            )}
+          </Table.Tbody>
+        </Table>
+      </Stack>
 
-        <Tabs.Panel value="form" pt="md">
+      <Modal
+        opened={formOpen}
+        onClose={closeForm}
+        title={editDestination ? `Edit ${editDestination.name}` : 'New external destination'}
+        size="lg"
+      >
+        <Stack gap="md">
           <AdminBackupDestinationForm
             key={editDestination?.id ?? 'new'}
             destination={editDestination}
             onSave={(form, destinationId) => {
               void onSaveDestination(form, destinationId).then(() => {
-                setActiveTab('list');
-                setEditDestination(null);
+                closeForm();
               });
             }}
           />
-        </Tabs.Panel>
-      </Tabs>
-
-      {activeTab === 'form' ? (
-        <Group justify="flex-end">
-          <Button type="submit" form={BACKUP_DESTINATION_FORM_ID} loading={savingDestination}>
-            {editDestination ? 'Save' : 'Create external destination'}
-          </Button>
-        </Group>
-      ) : null}
-    </Stack>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeForm} disabled={savingDestination}>
+              Cancel
+            </Button>
+            <Button type="submit" form={BACKUP_DESTINATION_FORM_ID} loading={savingDestination}>
+              {editDestination ? 'Save' : 'Create'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 }

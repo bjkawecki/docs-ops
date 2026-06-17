@@ -497,9 +497,24 @@ export function AdminBackupTab() {
 
       <AdminBackupOverviewBar
         status={status}
+        destinations={destinations}
         activeJobStatus={showActiveJobStatus}
         canBackup={canBackup}
+        canEnableAuto={canEnableAuto}
+        enableBlockReason={enableBlockReason}
+        scheduleSaving={patchSchedule.isPending}
         backupLoading={createBackup.isPending}
+        onRetentionChange={(retentionCount) => patchSettings.mutate({ retentionCount })}
+        onDefaultDestinationChange={(defaultDestinationId) =>
+          patchSettings.mutate({ defaultDestinationId })
+        }
+        onAutoToggle={(enabled) => {
+          if (enabled) {
+            openEnableAuto();
+          } else {
+            patchSchedule.mutate({ enabled: false });
+          }
+        }}
         onOpenSettings={openSettings}
         onBackupNow={() => createBackup.mutate(status.defaultDestinationId ?? undefined)}
       />
