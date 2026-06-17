@@ -452,21 +452,26 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 
 ## 25. Backup & Restore (Betrieb)
 
-**Ziel:** Operational Backup für Disaster Recovery (PostgreSQL **und** MinIO) — getrennt von Plattform-Export/Migration (später). Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §3–§4.
+**Ziel:** Operational Backup für Disaster Recovery — **wieder einspielbar** (PostgreSQL **und** MinIO in einem Archiv). Getrennt von Plattform-Export/Migration (später). Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §3–§4.
 
-### Phase 1 — manuell + Scheduler
+### Phase 1 — Backup v1 (Bundle, Ziele, Upload im selben Job)
 
-[ ] **Job:** `maintenance.backup` (pg-boss, Worker); `pg_dump` + MinIO-Bucket-Export; Ergebnis in MinIO `backups/`.
-[ ] **Admin-API:** `POST /api/v1/admin/backups` (anstoßen), `GET /api/v1/admin/backups` (Liste), `GET /api/v1/admin/backups/:id/download` (presigned URL); nur `requireAdmin`; Audit-Log.
-[ ] **Admin-UI:** Tab oder Seite z. B. `/admin/system` → Bereich Backups: „Create backup“, Liste (Datum, Größe, Status), Download-Link.
-[ ] **Retention:** Env `BACKUP_RETENTION_COUNT`; nach erfolgreichem Backup älteste Einträge löschen.
-[ ] **Scheduler:** Cron über pg-boss (Env `BACKUP_SCHEDULE_CRON` oder Admin-UI); automatische Backups ein/aus.
-[ ] **Doku:** Restore-Runbook (manuell, außerhalb App); Secrets (`.env`) nicht im Backup.
+[ ] **Wartungsmodus:** Kurz Writes sperren während Backup; API liefert klare Meldung (z. B. 503); nach Job wieder aufheben.
+[ ] **Bundle:** Ein Archiv pro Lauf (`tar.zst` o. ä.) mit `manifest.json`, `postgres/dump.custom` (`pg_dump -Fc`), `minio/objects/`; Checksummen vor `succeeded`.
+[ ] **Job:** `maintenance.backup` (pg-boss, **Worker** — kein Sidecar); Worker-Image: `postgresql-client`.
+[ ] **Ablauf im Job:** Wartungsmodus → Dump + MinIO-Export → Archiv → **Upload an Admin-Ziel** (falls konfiguriert) → Metadaten → Wartungsmodus aus.
+[ ] **Destinations (Admin):** CRUD für Backup-Ziele; Typen v1: `s3_compatible`, `ssh` (SFTP); Credentials verschlüsselt; SSRF-Schutz bei URLs.
+[ ] **Admin-API:** `POST /api/v1/admin/backups` (anstoßen, optional `destinationId`), `GET /api/v1/admin/backups` (Liste), `GET /api/v1/admin/backups/:id/download` (presigned URL, falls lokale Kopie); Destinations-API; nur `requireAdmin`; Audit-Log.
+[ ] **Admin-UI:** `/admin/system` → Backups + Destinations: Ziele anlegen, „Create backup“, Liste (Datum, Größe, Status, Ziel), Download.
+[ ] **Retention:** `BACKUP_RETENTION_COUNT`; älteste Backups am Ziel und in Metadaten löschen.
+[ ] **Scheduler:** Cron über pg-boss (Env `BACKUP_SCHEDULE_CRON` oder Admin-UI); `maintenance.backup` in `schedulableJobTypes`.
+[ ] **Webhook (optional):** HTTPS-URL pro Destination/global; JSON-Event bei Erfolg/Fehler; HMAC-Signatur; kein Datei-Upload über Webhook.
+[ ] **Doku/Runbook:** Manuelles Restore (`pg_restore`, MinIO zurück); `.env` nicht im Backup; **Restore einmal auf leerem Stack testen**.
 
-### Phase 2 — Offsite & Restore
+### Phase 2 — Restore-UI & WebDAV
 
-[ ] **Offsite:** Replikation des Backup-Archivs auf zweites Ziel (`BACKUP_OFFSITE_TARGET`); Schutz bei Server-Totalausfall.
-[ ] **Restore:** dokumentiertes Verfahren; optional Admin-Aktion mit Wartungsmodus.
+[ ] **WebDAV-Ziel:** Admin-Typ `webdav`; Upload per `PUT` im selben Job nach Archiv-Fertigstellung.
+[ ] **Restore:** Admin-Aktion oder geführtes Runbook in der UI; Wartungsmodus während Restore.
 
 ### Später — Plattform-Export
 

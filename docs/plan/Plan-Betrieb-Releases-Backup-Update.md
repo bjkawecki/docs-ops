@@ -41,38 +41,81 @@ Plan für drei zusammenhängende Betriebs-Features: **What's new** (Release Note
 
 ## 3. Backup (Operational Backup)
 
-**Ziel:** Disaster Recovery auf demselben Server bzw. Wiederherstellung nach Fehlbedienung — **nicht** dasselbe wie Plattform-Export/Migration (siehe §4).
+**Ziel:** Disaster Recovery und Wiederherstellung nach Fehlbedienung — **wieder einspielbar** als Ganzes (DB + Dateien). **Nicht** dasselbe wie Plattform-Export/Migration (siehe §4).
 
-### Umfang Phase 1
+### Architektur
 
-| Bestandteil                                         | Warum                                                                      |
-| --------------------------------------------------- | -------------------------------------------------------------------------- |
-| **PostgreSQL** (`pg_dump`, Custom-Format empfohlen) | Nutzer, Rechte, Dokumente, Metadaten, Jobs, …                              |
-| **MinIO** (Bucket-Snapshot / synchroner Export)     | Anhänge, PDF-Exporte, generierte Dateien — **DB-Dump allein reicht nicht** |
+- **Eigener Job-Typ** `maintenance.backup` (pg-boss) — **nicht** Untertask von `maintenance.cleanup`.
+- Ausführung im **Worker**-Prozess (gleiches Image wie API, Entrypoint `worker.ts`) — **kein Sidecar** für Backup v1. Sidecar nur für Update Phase 2 (Docker-Socket), vgl. §5.
+- Worker-Image: zusätzlich `postgresql-client` (`pg_dump` / `pg_restore` für Runbook).
 
-Secrets (`.env`, Session-Secret) **nicht** ins Backup-Bundle; Restore-Doku verweist auf separate sichere Ablage.
+### Backup-Bundle (ein Archiv pro Lauf)
 
-### Ablauf
+Dump und MinIO-Objekte werden **nicht** lose abgelegt, sondern als **ein versioniertes Archiv** mit Manifest:
 
-- Async-Job über **pg-boss** (analog `maintenance.cleanup`): z. B. `maintenance.backup`.
-- Admin: **Jetzt sichern** → `POST /api/v1/admin/backups`.
-- Ergebnis: Archiv in MinIO-Bucket `backups/` (lokal am Stack); optional **Download** per presigned URL nach Abschluss.
-- **Audit** (wer, wann, Größe, Status) — analog Admin-Jobs.
+```text
+docsops-backup-<backupId>-<timestamp>.tar.zst
+├── manifest.json       # Format-Version, Zeitstempel, APP_VERSION, Checksummen
+├── postgres/
+│   └── dump.custom     # pg_dump -Fc (Custom Format)
+└── minio/
+    └── objects/        # Export relevanter Bucket-Keys (Anhänge, Exporte, …)
+```
+
+`manifest.json` enthält u. a. `backupFormatVersion`, Größen, SHA-256 pro Teil und über das Gesamtarchiv. Job-Status `succeeded` erst nach erfolgreicher Prüfsummenbildung.
+
+Secrets (`.env`, Session-Secret) **nicht** im Bundle; Restore-Runbook verweist auf separate sichere Ablage.
+
+### Konsistenz (Wartungsmodus)
+
+Kurz **Wartungsmodus** während der Erstellung: **keine Schreibzugriffe** auf die Plattform, dann `pg_dump` und MinIO-Export, danach Archiv bauen. So bleiben DB und Dateien zusammenpassend. Reads optional erlaubt oder komplett gesperrt — in der Implementierung festlegen und dokumentieren.
+
+### Job-Ablauf (ein Prozess)
+
+Alles in **einem** `maintenance.backup`-Handler, sequenziell:
+
+1. Wartungsmodus an
+2. `pg_dump` + MinIO-Export → temporäres Archiv + `manifest.json` + Checksummen
+3. **Upload** an konfiguriertes Admin-Ziel (falls gesetzt) — im **selben Job**, direkt im Anschluss
+4. Metadaten in DB (Status, Größe, Ziel, Remote-Pfad, Checksum)
+5. Optional: Webhook(s) bei Erfolg/Fehler (nur Metadaten, s. u.)
+6. Temporäre Dateien aufräumen; Wartungsmodus aus
+
+Optional: zusätzliche Kopie im lokalen MinIO-Bucket `backups/` und **Download** per presigned URL — nur wenn gewünscht (Offsite-Ziel ist der Normalfall für DR).
+
+**Audit** (wer, wann, Größe, Status, Ziel) — analog Admin-Jobs.
+
+Admin: **Create backup** → `POST /api/v1/admin/backups`.
+
+### Externe Ziele (Admin-konfigurierbar)
+
+Admins legen **Backup destinations** an (Credentials verschlüsselt in der DB, nur `requireAdmin`). Upload = **Push vom Worker** (kein „Empfangs-Endpunkt“ beim Anbieter).
+
+| Typ                  | v1      | Umsetzung                                                                              |
+| -------------------- | ------- | -------------------------------------------------------------------------------------- |
+| **`s3_compatible`**  | ja      | AWS SDK (`PutObject` mit Stream) — gleiche Basis wie MinIO-Anbindung                   |
+| **`ssh`** (SFTP/scp) | ja      | SSH-Host, User, Key/Passwort, Zielpfad — nativ im Worker (z. B. `ssh2`), kein `rclone` |
+| **`webdav`**         | Phase 2 | HTTP `PUT` nach Archiv (Nextcloud o. Ä.) — gleicher Job-Ablauf wie S3/SSH              |
+
+**Kein `rclone` im Image (v1):** Spart extra Binary, Subprocess-Debugging und generische Remote-Configs; S3 + SSH decken Self-hosted ab. `rclone` nur erwägen, wenn später viele Cloud-Anbieter ohne eigene Integration nötig sind.
+
+SSRF-Schutz bei konfigurierbaren URLs (keine internen Ziele, nur `https`/`sftp` wo sinnvoll).
+
+### Webhook (optional, v1)
+
+Pro Destination oder global: **HTTPS-URL**, die bei Erfolg/Fehler ein **JSON-Event** erhält (`backupId`, `status`, `size`, `checksum`, `finishedAt`, optional zeitlich begrenzte `downloadUrl`). **Kein** Upload der Backup-Datei über den Webhook — nur Benachrichtigung oder Trigger für externe Automation. HMAC-Signatur (`X-DocsOps-Signature`) empfohlen.
 
 ### Automatik & Retention
 
 - Scheduler (Cron über pg-boss): Intervall konfigurierbar (Env / Admin-UI).
-- `BACKUP_RETENTION_COUNT` (z. B. 7): älteste Backups automatisch löschen.
-- Admin-UI: Liste, Status, manuell löschen, Download.
+- `BACKUP_RETENTION_COUNT` (z. B. 7): älteste Backups am **konfigurierten Ziel** und in der Metadaten-Liste löschen.
+- Admin-UI: Destinations verwalten, Backups anstoßen, Liste, Status, Download (falls lokale Kopie).
 
-### Offsite (Phase 2)
+### Restore
 
-- Kopie des Backup-Archivs auf **zweites Ziel** (S3, NFS, `rclone`, zweiter MinIO) — Schutz bei Totalausfall des Servers (lokale MinIO-Backups sterben mit dem Host).
-- Env z. B. `BACKUP_OFFSITE_TARGET`; Job schreibt lokal und repliziert.
+**Phase 1:** dokumentiertes **Runbook** (manuell): Wartungsmodus → Archiv entpacken → Manifest/Checksums prüfen → `pg_restore` → MinIO-Objekte zurück → App starten → Health/Reindex. **Restore einmal testen** (leerer Stack), bevor Produktion darauf vertraut.
 
-### Restore (Phase 2)
-
-- Admin-Aktion oder dokumentiertes Skript; Wartungsmodus während Restore; nicht in Phase 1 UI-Pflicht.
+**Phase 2:** optionale Admin-Aktion „Restore from backup“ mit Wartungsmodus in der UI.
 
 ---
 
@@ -110,11 +153,11 @@ Siehe auch [Infrastruktur §3](Infrastruktur-und-Deployment.md#3-update-aus-der-
 
 ## 6. Empfohlene Reihenfolge
 
-1. Version-API + Release-Manifest + `/whats-new` + Menü/Badge
-2. Operational Backup (manuell + Scheduler + Retention + MinIO)
-3. Update UI Phase 1 + `update.sh`
-4. Offsite-Backup
-5. Plattform-Export
+1. **Backup v1** (§25): Bundle + Wartungsmodus + `maintenance.backup` + Admin-Destinations (S3, SSH) + Upload im selben Job + Runbook/Restore-Test
+2. Version-API + Release-Manifest + `/whats-new` + Menü/Badge (§24; kann parallel zu Backup)
+3. Update UI Phase 1 + `update.sh` (§26; Backup-Gate)
+4. Backup Phase 2: Restore-UI, WebDAV-Ziel, optional Webhook-Härtung
+5. Plattform-Export (separates Feature)
 6. Update Phase 2 (Updater-Sidecar)
 
 Siehe auch [Infrastruktur §12](Infrastruktur-und-Deployment.md) (Managed Hosting, optional, später).
@@ -123,12 +166,11 @@ Siehe auch [Infrastruktur §12](Infrastruktur-und-Deployment.md) (Managed Hostin
 
 ## 7. Env-Variablen (Entwurf)
 
-| Variable                 | Bedeutung                                                    |
-| ------------------------ | ------------------------------------------------------------ |
-| `APP_VERSION`            | Aus Build/`package.json`                                     |
-| `BACKUP_RETENTION_COUNT` | Max. Anzahl behaltener Backups                               |
-| `BACKUP_SCHEDULE_CRON`   | Optional, Scheduler für automatische Backups                 |
-| `BACKUP_OFFSITE_TARGET`  | Phase 2, Ziel-URI für Replikation                            |
-| `UPDATE_CHECK_URL`       | Optional, URL für Versionsabfrage (Default: GitHub Releases) |
+| Variable                 | Bedeutung                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `APP_VERSION`            | Aus Build/`package.json`                                                                  |
+| `BACKUP_RETENTION_COUNT` | Max. Anzahl behaltener Backups (pro Destination / global — bei Implementierung festlegen) |
+| `BACKUP_SCHEDULE_CRON`   | Optional, Scheduler für automatische Backups                                              |
+| `UPDATE_CHECK_URL`       | Optional, URL für Versionsabfrage (Default: GitHub Releases)                              |
 
-Details später in [Env-und-Config](Env-und-Config.md) eintragen, sobald implementiert.
+Backup-Ziele (S3-Endpoint, SSH-Host, …) primär **in der DB** über Admin-Destinations, nicht als flache Env-Liste. Details in [Env-und-Config](Env-und-Config.md), sobald implementiert.
