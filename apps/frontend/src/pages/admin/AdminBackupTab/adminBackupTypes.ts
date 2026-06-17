@@ -27,6 +27,7 @@ export type BackupRun = {
   errorMessage: string | null;
   destination: { id: string; name: string } | null;
   localObjectKey: string | null;
+  remotePath: string | null;
 };
 
 export const BACKUP_STATUS_COLOR: Record<string, string> = {

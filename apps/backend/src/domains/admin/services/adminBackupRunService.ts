@@ -1,4 +1,6 @@
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import { basename } from 'node:path';
+import type { Readable } from 'node:stream';
 import { getMaintenanceLock } from '../../../infrastructure/maintenance/maintenanceModeService.js';
 import { initStorage } from '../../../infrastructure/storage/index.js';
 import { listAdminJobSchedules } from './adminJobsScheduleService.js';
@@ -143,13 +145,44 @@ export async function triggerManualBackup(
   return { backupRunId: run.id, jobId };
 }
 
-export async function getBackupDownloadUrl(prisma: PrismaClient, id: string) {
+export async function getLocalBackupDownload(
+  prisma: PrismaClient,
+  id: string
+): Promise<{ body: Readable; contentType: string; filename: string } | null> {
   const run = await prisma.backupRun.findUnique({ where: { id } });
   if (!run?.localObjectKey || run.status !== 'succeeded') return null;
   const storage = await initStorage();
   if (!storage) return null;
-  const url = await storage.getPresignedGetUrl(run.localObjectKey, 300);
-  return { url, expiresInSeconds: 300 };
+  const object = await storage.getObject(run.localObjectKey);
+  if (!object) return null;
+  return {
+    body: object.Body,
+    contentType: object.ContentType ?? 'application/zstd',
+    filename: basename(run.localObjectKey),
+  };
+}
+
+export async function deleteLocalBackupCopy(prisma: PrismaClient, id: string) {
+  const run = await prisma.backupRun.findUnique({ where: { id } });
+  if (!run) return null;
+  if (run.status !== 'succeeded') {
+    throw new Error('Only succeeded backups can have their local copy removed');
+  }
+  if (!run.localObjectKey) {
+    throw new Error('Local copy is already removed');
+  }
+
+  const storage = await initStorage();
+  if (storage) {
+    await storage.deleteObject(run.localObjectKey).catch(() => undefined);
+  }
+
+  const updated = await prisma.backupRun.update({
+    where: { id },
+    data: { localObjectKey: null },
+    include: { destination: { select: { id: true, name: true } } },
+  });
+  return serializeBackupRun(updated);
 }
 
 export { updateBackupSettings };

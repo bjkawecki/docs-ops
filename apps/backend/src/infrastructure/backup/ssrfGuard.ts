@@ -53,3 +53,24 @@ export function assertSafeHttpsUrl(urlString: string): URL {
   assertSafeRemoteHost(url.hostname);
   return url;
 }
+
+export function isInsecureBackupS3DestinationsAllowed(): boolean {
+  return (process.env.BACKUP_ALLOW_INSECURE_S3_DESTINATIONS ?? '').toLowerCase() === 'true';
+}
+
+/** S3 backup destination endpoint: HTTPS + SSRF checks unless insecure mode is enabled (dev/MinIO). */
+export function assertS3BackupDestinationEndpoint(urlString: string): URL {
+  if (isInsecureBackupS3DestinationsAllowed()) {
+    let url: URL;
+    try {
+      url = new URL(urlString);
+    } catch {
+      throw new Error('Invalid URL');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('Only http and https URLs are allowed');
+    }
+    return url;
+  }
+  return assertSafeHttpsUrl(urlString);
+}

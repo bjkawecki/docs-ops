@@ -128,6 +128,66 @@ describe('Admin backup routes', () => {
     }
   });
 
+  it('DELETE /admin/backups/:id/local clears localObjectKey', async () => {
+    const run = await prisma.backupRun.create({
+      data: {
+        status: 'succeeded',
+        triggerSource: 'manual',
+        localObjectKey: 'backups/test-run/archive.tar.zst',
+        remotePath: 'offsite/archive.tar.zst',
+        finishedAt: new Date(),
+      },
+    });
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/backups/${run.id}/local`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { localObjectKey: string | null };
+    expect(body.localObjectKey).toBeNull();
+    const persisted = await prisma.backupRun.findUnique({ where: { id: run.id } });
+    expect(persisted?.localObjectKey).toBeNull();
+    expect(persisted?.remotePath).toBe('offsite/archive.tar.zst');
+  });
+
+  it('DELETE /admin/backups/:id/local without local copy → 400', async () => {
+    const run = await prisma.backupRun.create({
+      data: {
+        status: 'succeeded',
+        triggerSource: 'manual',
+        localObjectKey: null,
+        finishedAt: new Date(),
+      },
+    });
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/backups/${run.id}/local`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /admin/backups/:id/download without local copy → 404', async () => {
+    const run = await prisma.backupRun.create({
+      data: {
+        status: 'succeeded',
+        triggerSource: 'manual',
+        localObjectKey: null,
+        finishedAt: new Date(),
+      },
+    });
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/backups/${run.id}/download`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
   it('blocks mutating API during maintenance lock', async () => {
     await prisma.systemMaintenanceLock.upsert({
       where: { id: 'backup' },

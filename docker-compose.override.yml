@@ -31,6 +31,10 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-}
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-}
+      BACKUP_BOOTSTRAP_S3_DESTINATION: ${BACKUP_BOOTSTRAP_S3_DESTINATION:-true}
+      BACKUP_ALLOW_INSECURE_S3_DESTINATIONS: ${BACKUP_ALLOW_INSECURE_S3_DESTINATIONS:-true}
+      BACKUP_S3_DESTINATION_BUCKET: ${BACKUP_S3_DESTINATION_BUCKET:-docsops-backups}
+      BACKUP_S3_DESTINATION_NAME: ${BACKUP_S3_DESTINATION_NAME:-Dev offsite (MinIO)}
     # /ready prüft DB (SELECT 1); /health wäre ohne DB → Frontend/Worker starten zu früh.
     healthcheck:
       test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8080/ready || exit 1']
@@ -39,7 +43,8 @@ services:
       retries: 20
       start_period: 120s
 
-  worker:
+  docsops-job-worker:
+    container_name: docsops-job-worker
     build:
       context: .
       dockerfile: docker/Dockerfile.node-dev
@@ -65,3 +70,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-}
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-}
+      BACKUP_BOOTSTRAP_S3_DESTINATION: ${BACKUP_BOOTSTRAP_S3_DESTINATION:-true}
+      BACKUP_ALLOW_INSECURE_S3_DESTINATIONS: ${BACKUP_ALLOW_INSECURE_S3_DESTINATIONS:-true}
+      BACKUP_S3_DESTINATION_BUCKET: ${BACKUP_S3_DESTINATION_BUCKET:-docsops-backups}
+      BACKUP_S3_DESTINATION_NAME: ${BACKUP_S3_DESTINATION_NAME:-Dev offsite (MinIO)}

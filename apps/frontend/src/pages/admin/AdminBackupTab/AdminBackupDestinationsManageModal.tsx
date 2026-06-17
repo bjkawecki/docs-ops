@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Button, Group, Modal, Stack, Table, Text } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Group, Modal, Stack, Switch, Table, Tabs, Text } from '@mantine/core';
 import type { Destination } from './adminBackupTypes';
+import type { DestinationFormState } from './adminBackupDestinationForm';
 import {
-  AdminBackupDestinationModal,
-  type DestinationFormState,
-} from './AdminBackupDestinationModal';
+  AdminBackupDestinationForm,
+  BACKUP_DESTINATION_FORM_ID,
+} from './AdminBackupDestinationForm';
 
 type Props = {
   opened: boolean;
@@ -13,8 +14,11 @@ type Props = {
   defaultDestinationId: string | null;
   savingDestination: boolean;
   deletingDestination: boolean;
+  togglingDestinationId: string | null;
   onSaveDestination: (form: DestinationFormState, destinationId: string | null) => Promise<void>;
   onDeleteDestination: (destination: Destination) => void;
+  onSetDefault: (destinationId: string) => void;
+  onToggleEnabled: (destinationId: string, enabled: boolean) => void;
 };
 
 export function AdminBackupDestinationsManageModal({
@@ -24,125 +28,180 @@ export function AdminBackupDestinationsManageModal({
   defaultDestinationId,
   savingDestination,
   deletingDestination,
+  togglingDestinationId,
   onSaveDestination,
   onDeleteDestination,
+  onSetDefault,
+  onToggleEnabled,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<string | null>('list');
   const [editDestination, setEditDestination] = useState<Destination | null>(null);
-  const [formOpened, setFormOpened] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Destination | null>(null);
 
-  const openAdd = () => {
-    setEditDestination(null);
-    setFormOpened(true);
+  useEffect(() => {
+    if (opened) {
+      setActiveTab('list');
+      setEditDestination(null);
+      setDeleteTarget(null);
+    }
+  }, [opened]);
+
+  const openEdit = (destination: Destination) => {
+    setEditDestination(destination);
+    setActiveTab('form');
   };
 
-  const openEdit = (d: Destination) => {
-    setEditDestination(d);
-    setFormOpened(true);
-  };
-
-  const closeForm = () => {
-    setFormOpened(false);
-    setEditDestination(null);
-  };
+  const formTabLabel = editDestination
+    ? `Edit: ${editDestination.name}`
+    : 'New external destination';
 
   return (
-    <>
-      <Modal opened={opened} onClose={onClose} title="Manage destinations" size="lg">
-        <Stack gap="md">
-          <Group justify="flex-end">
-            <Button size="xs" onClick={openAdd}>
-              Add destination
-            </Button>
-          </Group>
-          <Table withTableBorder withColumnBorders className="admin-table-hover">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Enabled</Table.Th>
-                <Table.Th>Default</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {destinations.length === 0 ? (
-                <Table.Tr>
-                  <Table.Td colSpan={5}>
-                    <Text size="sm" c="dimmed">
-                      No destinations configured.
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              ) : (
-                destinations.map((d) => (
-                  <Table.Tr key={d.id}>
-                    <Table.Td>{d.name}</Table.Td>
-                    <Table.Td>{d.type === 'S3_COMPATIBLE' ? 'S3' : 'SSH'}</Table.Td>
-                    <Table.Td>{d.enabled ? 'yes' : 'no'}</Table.Td>
-                    <Table.Td>{defaultDestinationId === d.id ? 'yes' : '–'}</Table.Td>
-                    <Table.Td>
-                      <Group gap={4} justify="flex-end">
-                        <Button size="xs" variant="subtle" onClick={() => openEdit(d)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={() => setDeleteTarget(d)}
-                        >
-                          Delete
-                        </Button>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))
-              )}
-            </Table.Tbody>
-          </Table>
-        </Stack>
-      </Modal>
-
-      <AdminBackupDestinationModal
-        opened={formOpened}
-        onClose={closeForm}
-        destination={editDestination}
-        saving={savingDestination}
-        onSave={(form, destinationId) => {
-          void onSaveDestination(form, destinationId).then(() => closeForm());
-        }}
-      />
-
-      <Modal
-        opened={deleteTarget != null}
-        onClose={() => setDeleteTarget(null)}
-        title="Delete destination"
-        size="sm"
-      >
-        <Stack gap="md">
-          <Text size="sm">
-            Delete destination <strong>{deleteTarget?.name}</strong>? This cannot be undone.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deletingDestination}
+    <Modal opened={opened} onClose={onClose} title="Manage external destinations" size="lg">
+      <Stack gap="md">
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            setActiveTab(value);
+            if (value === 'list') {
+              setEditDestination(null);
+            }
+          }}
+        >
+          <Tabs.List>
+            <Tabs.Tab value="list">External destinations</Tabs.Tab>
+            <Tabs.Tab
+              value="form"
               onClick={() => {
-                if (deleteTarget) {
-                  onDeleteDestination(deleteTarget);
-                  setDeleteTarget(null);
+                if (activeTab !== 'form') {
+                  setEditDestination(null);
                 }
               }}
             >
-              Delete
+              {formTabLabel}
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="list" pt="md">
+            <Stack gap="md">
+              {deleteTarget && (
+                <Alert color="red" title={`Delete external destination ${deleteTarget.name}?`}>
+                  <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+                    <Text size="sm">This cannot be undone.</Text>
+                    <Group gap="xs">
+                      <Button size="xs" variant="default" onClick={() => setDeleteTarget(null)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="xs"
+                        color="red"
+                        loading={deletingDestination}
+                        onClick={() => {
+                          onDeleteDestination(deleteTarget);
+                          setDeleteTarget(null);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </Group>
+                  </Group>
+                </Alert>
+              )}
+
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Name</Table.Th>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Enabled</Table.Th>
+                    <Table.Th>Default</Table.Th>
+                    <Table.Th />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {destinations.length === 0 ? (
+                    <Table.Tr>
+                      <Table.Td colSpan={5}>
+                        <Text size="sm" c="dimmed">
+                          No external destinations configured yet.
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ) : (
+                    destinations.map((d) => (
+                      <Table.Tr key={d.id}>
+                        <Table.Td>{d.name}</Table.Td>
+                        <Table.Td>{d.type === 'S3_COMPATIBLE' ? 'S3' : 'SSH'}</Table.Td>
+                        <Table.Td>
+                          <Switch
+                            size="sm"
+                            aria-label={`Enable external destination ${d.name}`}
+                            checked={d.enabled}
+                            disabled={togglingDestinationId === d.id}
+                            onChange={(e) => onToggleEnabled(d.id, e.currentTarget.checked)}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          {defaultDestinationId === d.id ? (
+                            <Text size="sm" fw={500}>
+                              Default
+                            </Text>
+                          ) : (
+                            '–'
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={4} justify="flex-end" wrap="nowrap">
+                            {d.enabled && defaultDestinationId !== d.id && (
+                              <Button size="xs" variant="subtle" onClick={() => onSetDefault(d.id)}>
+                                Set default
+                              </Button>
+                            )}
+                            <Button size="xs" variant="subtle" onClick={() => openEdit(d)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="red"
+                              onClick={() => setDeleteTarget(d)}
+                            >
+                              Delete
+                            </Button>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))
+                  )}
+                </Table.Tbody>
+              </Table>
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="form" pt="md">
+            <AdminBackupDestinationForm
+              key={editDestination?.id ?? 'new'}
+              destination={editDestination}
+              onSave={(form, destinationId) => {
+                void onSaveDestination(form, destinationId).then(() => {
+                  setActiveTab('list');
+                  setEditDestination(null);
+                });
+              }}
+            />
+          </Tabs.Panel>
+        </Tabs>
+
+        <Group justify="space-between" mt="md">
+          <Button variant="default" onClick={onClose}>
+            Close
+          </Button>
+          {activeTab === 'form' ? (
+            <Button type="submit" form={BACKUP_DESTINATION_FORM_ID} loading={savingDestination}>
+              {editDestination ? 'Save' : 'Create external destination'}
             </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </>
+          ) : null}
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

@@ -23,7 +23,8 @@ import {
   updateBackupSettings,
 } from '../services/adminBackupDestinationService.js';
 import {
-  getBackupDownloadUrl,
+  deleteLocalBackupCopy,
+  getLocalBackupDownload,
   getBackupRun,
   getBackupStatus,
   listBackupRuns,
@@ -224,11 +225,44 @@ const adminBackupsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     { preHandler: preAdmin },
     async (request, reply) => {
       const { id } = backupRunIdParamSchema.parse(request.params);
-      const download = await getBackupDownloadUrl(request.server.prisma, id);
+      const download = await getLocalBackupDownload(request.server.prisma, id);
       if (!download) {
         return reply.status(404).send({ error: 'Download not available for this backup' });
       }
-      return reply.send(download);
+      reply.header('Content-Type', download.contentType);
+      reply.header('Content-Disposition', `attachment; filename="${download.filename}"`);
+      reply.header('Cache-Control', 'private, no-store');
+      return reply.send(download.body);
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/admin/backups/:id/local',
+    { preHandler: preAdmin },
+    async (request, reply) => {
+      const { id } = backupRunIdParamSchema.parse(request.params);
+      try {
+        const updated = await deleteLocalBackupCopy(request.server.prisma, id);
+        if (!updated) return reply.status(404).send({ error: 'Backup not found' });
+        await writeAuditSafe(request as RequestWithUser, {
+          action: 'backup-local-delete',
+          status: 'success',
+          backupRunId: id,
+        });
+        return reply.send(updated);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await writeAuditSafe(request as RequestWithUser, {
+          action: 'backup-local-delete',
+          status: 'failed',
+          backupRunId: id,
+          details: { error: message },
+        });
+        if (message.includes('Only succeeded') || message.includes('already removed')) {
+          return reply.status(400).send({ error: message });
+        }
+        throw error;
+      }
     }
   );
 

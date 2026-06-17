@@ -35,10 +35,10 @@ export function secondaryDetail(
     const dest =
       typeof payload.destinationName === 'string' && payload.destinationName.trim() !== ''
         ? payload.destinationName
-        : 'local storage';
+        : 'local only';
     const size =
       typeof payload.sizeBytes === 'number' ? ` (${Math.round(payload.sizeBytes / 1024)} KB)` : '';
-    return `Operational backup finished${size}. Destination: ${dest}.`;
+    return `Operational backup finished${size}. External destination: ${dest}.`;
   }
   if (eventType === 'backup-failed') {
     const msg = typeof payload.errorMessage === 'string' ? payload.errorMessage : 'Unknown error';

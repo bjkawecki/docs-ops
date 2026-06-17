@@ -436,7 +436,7 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
     }
   );
 
-  /** GET Attachment file: redirect to presigned URL. */
+  /** GET Attachment file: proxy stream from object storage. */
   app.get<{ Params: { documentId: string; attachmentId: string } }>(
     '/documents/:documentId/attachments/:attachmentId',
     {
@@ -446,8 +446,18 @@ export const registerPublicationRoutes = (app: FastifyInstance): void => {
       const loaded = await requireStorageAndDocumentAttachment(request, reply);
       if (!loaded) return;
       const { storage, attachment } = loaded;
-      const presigned = await storage.getPresignedGetUrl(attachment.objectKey, 60);
-      return reply.redirect(presigned, 302);
+      const object = await storage.getObject(attachment.objectKey);
+      if (!object) {
+        return reply.status(404).send({ error: 'Attachment object not found in storage' });
+      }
+      const safeFilename = attachment.filename.replace(/"/g, '');
+      reply.header(
+        'Content-Type',
+        object.ContentType ?? attachment.contentType ?? 'application/octet-stream'
+      );
+      reply.header('Content-Disposition', `attachment; filename="${safeFilename}"`);
+      reply.header('Cache-Control', 'private, no-store');
+      return reply.send(object.Body);
     }
   );
 };

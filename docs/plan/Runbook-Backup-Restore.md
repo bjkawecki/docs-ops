@@ -22,8 +22,8 @@ Check `backupFormatVersion`, `postgres.sha256`, and `minio` section.
 ## Restore PostgreSQL
 
 ```bash
-# Stop app/worker containers first
-docker compose stop app worker
+# Stop app/docsops-job-worker containers first
+docker compose stop app docsops-job-worker
 
 zstd -d -c /path/to/archive.tar.zst | tar -xf - postgres/dump.custom
 pg_restore --clean --if-exists --dbname="$DATABASE_URL" postgres/dump.custom

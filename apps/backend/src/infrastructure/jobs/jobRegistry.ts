@@ -112,7 +112,7 @@ async function exportDocumentToPdf(
           : undefined;
       if (code === 'ENOENT') {
         throw new Error(
-          `Pandoc binary not found ("${pandocCommand}"). Rebuild the app/worker image or set PANDOC_BIN to a valid executable path.`
+          `Pandoc binary not found ("${pandocCommand}"). Rebuild the docsops-job-worker image or set PANDOC_BIN to a valid executable path.`
         );
       }
       throw error;

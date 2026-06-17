@@ -1,14 +1,4 @@
-import {
-  Badge,
-  Button,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Tooltip,
-} from '@mantine/core';
+import { Badge, Button, Group, NumberInput, Select, Switch, Text, Tooltip } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import type { BackupStatus, Destination } from './adminBackupTypes';
 
@@ -47,89 +37,87 @@ export function AdminBackupOverviewBar({
     .filter((d) => d.enabled)
     .map((d) => ({ value: d.id, label: d.name }));
 
-  const scheduleLabel = status.schedule.enabled
-    ? status.schedule.cron
+  const scheduleShortLabel = status.schedule.enabled ? 'Daily at 03:00 UTC' : 'Not scheduled';
+  const scheduleDetail =
+    status.schedule.enabled && status.schedule.cron
       ? `${status.schedule.cron} (${status.schedule.tz ?? 'UTC'})`
-      : 'Daily at 03:00 UTC'
-    : 'Not scheduled';
+      : null;
 
   return (
-    <Stack gap="sm" mb="md">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-        <Stack gap="xs" style={{ flex: 1, minWidth: 280 }}>
-          <Group gap="sm">
-            <Badge color={status.minioAvailable ? 'green' : 'red'} variant="light">
-              MinIO {status.minioAvailable ? 'OK' : 'unavailable'}
-            </Badge>
-            <Badge color={status.workerConnected ? 'green' : 'yellow'} variant="light">
-              Worker {status.workerConnected ? 'OK' : 'disconnected'}
-            </Badge>
-            {status.maintenanceActive && (
-              <Badge color="blue" variant="light">
-                Maintenance
-              </Badge>
+    <Group mb="md" justify="space-between" wrap="wrap" gap="sm" align="center">
+      <Group gap="sm" wrap="wrap" align="center">
+        <Badge color={status.minioAvailable ? 'green' : 'red'} variant="filled">
+          MinIO {status.minioAvailable ? 'OK' : 'unavailable'}
+        </Badge>
+        <Badge color={status.workerConnected ? 'green' : 'yellow'} variant="filled">
+          Job worker {status.workerConnected ? 'OK' : 'disconnected'}
+        </Badge>
+        {status.maintenanceActive && (
+          <Badge color="blue" variant="filled">
+            Maintenance
+          </Badge>
+        )}
+
+        <Tooltip label="Successful backups to keep">
+          <NumberInput
+            size="xs"
+            aria-label="Retention"
+            placeholder="Retention"
+            min={1}
+            max={365}
+            value={retentionCount}
+            onChange={(v) => {
+              if (typeof v === 'number') onRetentionChange(v);
+            }}
+            style={{ width: 88 }}
+          />
+        </Tooltip>
+
+        <Select
+          size="xs"
+          placeholder="Default external destination"
+          aria-label="Default external destination"
+          data={destinationOptions}
+          clearable
+          value={status.defaultDestinationId}
+          onChange={onDefaultDestinationChange}
+          style={{ width: 180 }}
+        />
+
+        <Tooltip
+          label={enableBlockReason ?? ''}
+          disabled={!enableBlockReason || status.schedule.enabled}
+        >
+          <Switch
+            size="sm"
+            label="Auto"
+            checked={status.schedule.enabled}
+            disabled={scheduleSaving || (!status.schedule.enabled && !canEnableAuto)}
+            onChange={(e) => onAutoToggle(e.currentTarget.checked)}
+          />
+        </Tooltip>
+
+        <Tooltip label={scheduleDetail ?? undefined} disabled={!scheduleDetail}>
+          <Text size="sm" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+            {scheduleShortLabel}
+            {status.autoBackupConfigured && (
+              <>
+                {' · '}
+                <Link to="/admin/scheduler">Scheduler</Link>
+              </>
             )}
-          </Group>
-
-          <Group gap="sm" align="flex-end" wrap="wrap">
-            <NumberInput
-              size="xs"
-              label="Retention"
-              description="Successful backups to keep"
-              min={1}
-              max={365}
-              value={retentionCount}
-              onChange={(v) => {
-                if (typeof v === 'number') onRetentionChange(v);
-              }}
-              style={{ width: 100 }}
-            />
-            <Select
-              size="xs"
-              label="Default destination"
-              placeholder="Select"
-              data={destinationOptions}
-              clearable
-              value={status.defaultDestinationId}
-              onChange={onDefaultDestinationChange}
-              style={{ width: 200 }}
-            />
-          </Group>
-
-          <Group gap="sm" align="center" wrap="wrap">
-            <Tooltip
-              label={enableBlockReason ?? ''}
-              disabled={!enableBlockReason || status.schedule.enabled}
-            >
-              <Switch
-                size="sm"
-                label="Automatic backups"
-                checked={status.schedule.enabled}
-                disabled={scheduleSaving || (!status.schedule.enabled && !canEnableAuto)}
-                onChange={(e) => onAutoToggle(e.currentTarget.checked)}
-              />
-            </Tooltip>
-            <Text size="sm" c="dimmed">
-              {scheduleLabel}
-              {status.autoBackupConfigured && (
-                <>
-                  {' · '}
-                  <Link to="/admin/scheduler">Scheduler</Link>
-                </>
-              )}
-            </Text>
-          </Group>
-        </Stack>
-
-        <Group gap="sm" align="flex-end" wrap="nowrap">
-          <Button size="xs" variant="default" onClick={onManageDestinations}>
-            Manage destinations
-          </Button>
-          <Button size="xs" onClick={onBackupNow} loading={backupLoading} disabled={!canBackup}>
-            Backup now
-          </Button>
-        </Group>
+          </Text>
+        </Tooltip>
       </Group>
-    </Stack>
+
+      <Group gap="sm" align="center" wrap="nowrap">
+        <Button size="xs" variant="default" onClick={onManageDestinations}>
+          Manage external destinations
+        </Button>
+        <Button size="xs" onClick={onBackupNow} loading={backupLoading} disabled={!canBackup}>
+          Backup now
+        </Button>
+      </Group>
+    </Group>
   );
 }

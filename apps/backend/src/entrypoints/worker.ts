@@ -1,6 +1,7 @@
 import { createBoss } from '../infrastructure/jobs/bossFactory.js';
 import { ensureQueues, registerWorkers } from '../infrastructure/jobs/startWorker.js';
 import { prisma } from '../infrastructure/db/prisma.js';
+import { ensureDefaultBackupDestinationFromEnv } from '../domains/admin/services/adminBackupDestinationBootstrap.js';
 import { consumeNotificationEmailOutbox } from '../domains/notifications/services/notificationEmailOutboxService.js';
 
 const logger = {
@@ -126,6 +127,12 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+try {
+  await ensureDefaultBackupDestinationFromEnv(prisma, logger);
+} catch (error) {
+  logger.error({ error }, 'ensureDefaultBackupDestinationFromEnv failed');
+}
 
 try {
   await boss.start();

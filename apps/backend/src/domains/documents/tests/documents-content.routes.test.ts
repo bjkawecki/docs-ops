@@ -44,4 +44,16 @@ describe('Documents routes / content-storage', () => {
     const body = res.json() as { error?: string };
     expect(body.error).toBe('Storage not available');
   });
+
+  it('GET /documents/:documentId/attachments/:attachmentId ohne storage -> 503', async () => {
+    const cookie = await context.loginAsWriter();
+    const res = await context.app.inject({
+      method: 'GET',
+      url: `/api/v1/documents/${context.publishedDocId}/attachments/clxxxxxxxxxxxxxxxxxxxxxxxxx`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(503);
+    const body = res.json() as { error?: string };
+    expect(body.error).toBe('Storage not available');
+  });
 });

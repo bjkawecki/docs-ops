@@ -4,8 +4,8 @@ import {
   isBackupEncryptionConfigured,
 } from '../../../infrastructure/crypto/secretBox.js';
 import {
-  assertSafeHttpsUrl,
   assertSafeRemoteHost,
+  assertS3BackupDestinationEndpoint,
 } from '../../../infrastructure/backup/ssrfGuard.js';
 import type {
   createBackupDestinationBodySchema,
@@ -21,7 +21,7 @@ export function assertBackupEncryptionReady(): void {
 
 function validateDestinationInput(body: z.infer<typeof createBackupDestinationBodySchema>): void {
   if (body.type === 'S3_COMPATIBLE') {
-    assertSafeHttpsUrl(body.config.endpoint);
+    assertS3BackupDestinationEndpoint(body.config.endpoint);
   } else {
     assertSafeRemoteHost(body.config.host);
     if (!body.credentials.password && !body.credentials.privateKey) {
@@ -84,7 +84,7 @@ export async function updateBackupDestination(
     const mergedType = existing.type;
     const mergedConfig = (body.config ?? existing.configJson) as Record<string, unknown>;
     if (mergedType === 'S3_COMPATIBLE') {
-      assertSafeHttpsUrl(String(mergedConfig.endpoint));
+      assertS3BackupDestinationEndpoint(String(mergedConfig.endpoint));
     } else {
       assertSafeRemoteHost(String(mergedConfig.host));
     }

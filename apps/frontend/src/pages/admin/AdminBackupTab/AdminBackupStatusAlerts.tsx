@@ -15,8 +15,8 @@ export function AdminBackupStatusAlerts({ status }: Props) {
       )}
       {!status.encryptionConfigured && (
         <Alert color="red" variant="filled" title="Encryption not configured">
-          Set BACKUP_ENCRYPTION_KEY on the server before storing backup destinations. See README for
-          how to generate a key.
+          Set BACKUP_ENCRYPTION_KEY on the server before storing external backup targets. See README
+          for how to generate a key.
         </Alert>
       )}
       {status.maintenanceActive && (

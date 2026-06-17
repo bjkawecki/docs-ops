@@ -9,7 +9,13 @@ export async function requireStorageAndDocumentAttachment(
   prisma: FastifyRequest['server']['prisma'];
   documentId: string;
   attachmentId: string;
-  attachment: { id: string; documentId: string; objectKey: string };
+  attachment: {
+    id: string;
+    documentId: string;
+    objectKey: string;
+    filename: string;
+    contentType: string | null;
+  };
 } | null> {
   const storage = request.server.storage;
   if (!storage) {
@@ -20,7 +26,7 @@ export async function requireStorageAndDocumentAttachment(
   const { documentId, attachmentId } = attachmentIdParamSchema.parse(request.params);
   const attachment = await prisma.documentAttachment.findFirst({
     where: { id: attachmentId, documentId },
-    select: { id: true, documentId: true, objectKey: true },
+    select: { id: true, documentId: true, objectKey: true, filename: true, contentType: true },
   });
   if (!attachment) {
     void reply.status(404).send({ error: 'Attachment not found' });
