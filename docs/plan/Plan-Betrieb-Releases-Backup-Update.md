@@ -91,11 +91,11 @@ Admin: **Create backup** → `POST /api/v1/admin/backups`.
 
 Admins legen **Backup destinations** an (Credentials verschlüsselt in der DB, nur `requireAdmin`). Upload = **Push vom Worker** (kein „Empfangs-Endpunkt“ beim Anbieter).
 
-| Typ                  | v1      | Umsetzung                                                                              |
-| -------------------- | ------- | -------------------------------------------------------------------------------------- |
-| **`s3_compatible`**  | ja      | AWS SDK (`PutObject` mit Stream) – gleiche Basis wie MinIO-Anbindung                   |
-| **`ssh`** (SFTP/scp) | ja      | SSH-Host, User, Key/Passwort, Zielpfad – nativ im Worker (z. B. `ssh2`), kein `rclone` |
-| **`webdav`**         | Phase 2 | HTTP `PUT` nach Archiv (Nextcloud o. Ä.) – gleicher Job-Ablauf wie S3/SSH              |
+| Typ                  | v1  | Umsetzung                                                                              |
+| -------------------- | --- | -------------------------------------------------------------------------------------- |
+| **`s3_compatible`**  | ja  | AWS SDK (`PutObject` mit Stream) – gleiche Basis wie MinIO-Anbindung                   |
+| **`ssh`** (SFTP/scp) | ja  | SSH-Host, User, Key/Passwort, Zielpfad – nativ im Worker (z. B. `ssh2`), kein `rclone` |
+| **`webdav`**         | ja  | HTTP `PUT` nach Archiv (Nextcloud o. Ä.) – gleicher Job-Ablauf wie S3/SSH              |
 
 **Kein `rclone` im Image (v1):** Spart extra Binary, Subprocess-Debugging und generische Remote-Configs; S3 + SSH decken Self-hosted ab. `rclone` nur erwägen, wenn später viele Cloud-Anbieter ohne eigene Integration nötig sind.
 

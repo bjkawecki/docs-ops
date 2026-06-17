@@ -1,7 +1,14 @@
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import type { BackupDestination } from '../../../generated/prisma/client.js';
 import { decryptJson } from '../crypto/secretBox.js';
 import { createS3Client, uploadFilePath, type S3Config } from '../storage/s3.js';
-import { assertSafeRemoteHost, assertS3BackupDestinationEndpoint } from './ssrfGuard.js';
+import {
+  assertSafeRemoteHost,
+  assertSafeHttpsUrl,
+  assertS3BackupDestinationEndpoint,
+} from './ssrfGuard.js';
 import { resolveS3BackupRegion } from './s3Region.js';
 import SftpClient from 'ssh2-sftp-client';
 
@@ -31,15 +38,76 @@ export type SshDestinationCredentials = {
   passphrase?: string;
 };
 
-function parseDestination(destination: BackupDestination): {
-  config: S3DestinationConfig | SshDestinationConfig;
-  credentials: S3DestinationCredentials | SshDestinationCredentials;
-} {
-  const config = destination.configJson as S3DestinationConfig | SshDestinationConfig;
-  const credentials = decryptJson<S3DestinationCredentials | SshDestinationCredentials>(
+export type WebDavDestinationConfig = {
+  baseUrl: string;
+  remotePath?: string;
+};
+
+export type WebDavDestinationCredentials = {
+  username: string;
+  password: string;
+};
+
+type ParsedDestination = {
+  config: S3DestinationConfig | SshDestinationConfig | WebDavDestinationConfig;
+  credentials: S3DestinationCredentials | SshDestinationCredentials | WebDavDestinationCredentials;
+};
+
+function parseDestination(destination: BackupDestination): ParsedDestination {
+  const config = destination.configJson as ParsedDestination['config'];
+  const credentials = decryptJson<ParsedDestination['credentials']>(
     destination.credentialsCiphertext
   );
   return { config, credentials };
+}
+
+/** Build HTTPS PUT URL for WebDAV upload (path segments normalized). */
+export function buildWebDavPutUrl(
+  baseUrl: string,
+  remotePath: string | undefined,
+  remoteFileName: string
+): string {
+  const url = assertSafeHttpsUrl(baseUrl);
+  const pathParts = [
+    url.pathname.replace(/\/+$/, ''),
+    remotePath?.trim().replace(/^\/+|\/+$/g, '') ?? '',
+    remoteFileName.replace(/^\/+/, ''),
+  ].filter((part) => part.length > 0);
+  const pathname = pathParts.join('/').replace(/\/{2,}/g, '/');
+  return `${url.origin}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+}
+
+async function uploadViaWebDav(
+  config: WebDavDestinationConfig,
+  credentials: WebDavDestinationCredentials,
+  localArchivePath: string,
+  remoteFileName: string
+): Promise<string> {
+  const putUrl = buildWebDavPutUrl(config.baseUrl, config.remotePath, remoteFileName);
+  const fileSize = (await stat(localArchivePath)).size;
+  const bodyStream = Readable.toWeb(createReadStream(localArchivePath)) as ReadableStream;
+  const basicAuth = Buffer.from(`${credentials.username}:${credentials.password}`).toString(
+    'base64'
+  );
+  const response = await fetch(putUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      'Content-Type': 'application/zstd',
+      'Content-Length': String(fileSize),
+    },
+    body: bodyStream,
+    duplex: 'half',
+  } as RequestInit);
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(
+      `WebDAV upload failed (${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''})`
+    );
+  }
+
+  return putUrl;
 }
 
 export async function uploadBackupArchiveToDestination(
@@ -69,21 +137,22 @@ export async function uploadBackupArchiveToDestination(
   }
 
   if (destination.type === 'SSH') {
-    const { config, credentials } = parseDestination(destination);
-    const sshConfig = config as SshDestinationConfig;
-    const sshCreds = credentials as SshDestinationCredentials;
-    assertSafeRemoteHost(sshConfig.host);
+    const { config, credentials } = parseDestination(destination) as {
+      config: SshDestinationConfig;
+      credentials: SshDestinationCredentials;
+    };
+    assertSafeRemoteHost(config.host);
     const sftp = new SftpClient();
-    const remotePath = sshConfig.remotePath.replace(/\/+$/, '');
+    const remotePath = config.remotePath.replace(/\/+$/, '');
     const remoteFile = `${remotePath}/${remoteFileName}`;
     try {
       await sftp.connect({
-        host: sshConfig.host,
-        port: sshConfig.port ?? 22,
-        username: sshCreds.username,
-        password: sshCreds.password,
-        privateKey: sshCreds.privateKey,
-        passphrase: sshCreds.passphrase,
+        host: config.host,
+        port: config.port ?? 22,
+        username: credentials.username,
+        password: credentials.password,
+        privateKey: credentials.privateKey,
+        passphrase: credentials.passphrase,
         readyTimeout: 30_000,
       });
       await sftp.mkdir(remotePath, true);
@@ -92,6 +161,14 @@ export async function uploadBackupArchiveToDestination(
     } finally {
       await sftp.end().catch(() => undefined);
     }
+  }
+
+  if (destination.type === 'WEBDAV') {
+    const { config, credentials } = parseDestination(destination) as {
+      config: WebDavDestinationConfig;
+      credentials: WebDavDestinationCredentials;
+    };
+    return uploadViaWebDav(config, credentials, localArchivePath, remoteFileName);
   }
 
   throw new Error('Unsupported backup destination type');

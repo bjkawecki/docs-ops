@@ -55,6 +55,16 @@ const sshDestinationCredentialsSchema = z.object({
   passphrase: z.string().max(1024).optional(),
 });
 
+const webdavDestinationConfigSchema = z.object({
+  baseUrl: z.url(),
+  remotePath: z.string().max(1024).optional(),
+});
+
+const webdavDestinationCredentialsSchema = z.object({
+  username: z.string().min(1).max(255),
+  password: z.string().min(1).max(1024),
+});
+
 export const createBackupDestinationBodySchema = z.discriminatedUnion('type', [
   z.object({
     name: z.string().min(1).max(120),
@@ -70,13 +80,26 @@ export const createBackupDestinationBodySchema = z.discriminatedUnion('type', [
     config: sshDestinationConfigSchema,
     credentials: sshDestinationCredentialsSchema,
   }),
+  z.object({
+    name: z.string().min(1).max(120),
+    type: z.literal('WEBDAV'),
+    enabled: z.boolean().optional().default(true),
+    config: webdavDestinationConfigSchema,
+    credentials: webdavDestinationCredentialsSchema,
+  }),
 ]);
 
 export const patchBackupDestinationBodySchema = z.object({
   name: z.string().min(1).max(120).optional(),
   enabled: z.boolean().optional(),
-  config: z.union([s3DestinationConfigSchema, sshDestinationConfigSchema]).optional(),
+  config: z
+    .union([s3DestinationConfigSchema, sshDestinationConfigSchema, webdavDestinationConfigSchema])
+    .optional(),
   credentials: z
-    .union([s3DestinationCredentialsSchema, sshDestinationCredentialsSchema])
+    .union([
+      s3DestinationCredentialsSchema,
+      sshDestinationCredentialsSchema,
+      webdavDestinationCredentialsSchema,
+    ])
     .optional(),
 });

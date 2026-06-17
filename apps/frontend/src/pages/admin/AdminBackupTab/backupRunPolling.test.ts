@@ -63,6 +63,12 @@ describe('backupRunPolling', () => {
         destination: { id: 'd2', name: 'Borg host', type: 'SSH' },
       })
     ).toBe('Borg host (SSH)');
+    expect(
+      formatExternalDestinationLabel({
+        ...baseRun,
+        destination: { id: 'd3', name: 'Nextcloud', type: 'WEBDAV' },
+      })
+    ).toBe('Nextcloud (WebDAV)');
   });
 
   it('uses fast polling while a run is in progress', () => {

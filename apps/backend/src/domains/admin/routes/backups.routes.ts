@@ -126,6 +126,9 @@ const adminBackupsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
         status: 'failed',
         details: { error: error instanceof Error ? error.message : String(error) },
       });
+      if (error instanceof Error) {
+        return reply.status(400).send({ error: error.message });
+      }
       throw error;
     }
   });
@@ -152,6 +155,9 @@ const adminBackupsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
           destinationId: id,
           details: { error: error instanceof Error ? error.message : String(error) },
         });
+        if (error instanceof Error) {
+          return reply.status(400).send({ error: error.message });
+        }
         throw error;
       }
     }

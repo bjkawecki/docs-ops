@@ -6,6 +6,7 @@ import {
   AdminBackupDestinationForm,
   BACKUP_DESTINATION_FORM_ID,
 } from './AdminBackupDestinationForm';
+import { formatDestinationTypeShort } from './backupRunPolling';
 
 type Props = {
   opened: boolean;
@@ -130,7 +131,7 @@ export function AdminBackupDestinationsManageModal({
                     destinations.map((d) => (
                       <Table.Tr key={d.id}>
                         <Table.Td>{d.name}</Table.Td>
-                        <Table.Td>{d.type === 'S3_COMPATIBLE' ? 'S3' : 'SSH'}</Table.Td>
+                        <Table.Td>{formatDestinationTypeShort(d.type)}</Table.Td>
                         <Table.Td>
                           <Switch
                             size="sm"

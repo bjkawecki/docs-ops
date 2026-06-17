@@ -40,8 +40,10 @@ export function isInProgressBackupStatus(status: string): boolean {
   return IN_PROGRESS_BACKUP_STATUSES.has(status);
 }
 
-function formatDestinationTypeShort(type: 'S3_COMPATIBLE' | 'SSH'): string {
-  return type === 'S3_COMPATIBLE' ? 'S3' : 'SSH';
+export function formatDestinationTypeShort(type: 'S3_COMPATIBLE' | 'SSH' | 'WEBDAV'): string {
+  if (type === 'S3_COMPATIBLE') return 'S3';
+  if (type === 'SSH') return 'SSH';
+  return 'WebDAV';
 }
 
 export function formatExternalDestinationLabel(run: BackupRun): string {

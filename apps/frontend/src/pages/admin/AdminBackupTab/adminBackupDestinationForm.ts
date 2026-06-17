@@ -2,7 +2,7 @@ import type { Destination } from './adminBackupTypes';
 
 export type DestinationFormState = {
   name: string;
-  type: 'S3_COMPATIBLE' | 'SSH';
+  type: 'S3_COMPATIBLE' | 'SSH' | 'WEBDAV';
   enabled: boolean;
   s3Endpoint: string;
   s3Bucket: string;
@@ -15,6 +15,10 @@ export type DestinationFormState = {
   sshUser: string;
   sshPassword: string;
   sshPrivateKey: string;
+  webdavBaseUrl: string;
+  webdavRemotePath: string;
+  webdavUsername: string;
+  webdavPassword: string;
 };
 
 export const EMPTY_DESTINATION_FORM: DestinationFormState = {
@@ -32,6 +36,10 @@ export const EMPTY_DESTINATION_FORM: DestinationFormState = {
   sshUser: '',
   sshPassword: '',
   sshPrivateKey: '',
+  webdavBaseUrl: '',
+  webdavRemotePath: '',
+  webdavUsername: '',
+  webdavPassword: '',
 };
 
 function configString(value: unknown, fallback: string): string {
@@ -51,15 +59,26 @@ export function destinationFormFromDestination(dest: Destination): DestinationFo
       s3Region: configString(config.region, ''),
     };
   }
+  if (dest.type === 'SSH') {
+    return {
+      ...EMPTY_DESTINATION_FORM,
+      name: dest.name,
+      type: 'SSH',
+      enabled: dest.enabled,
+      sshHost: configString(config.host, ''),
+      sshPort: configString(config.port, '22'),
+      sshPath: configString(config.remotePath, '/var/backups/docsops'),
+      sshUser: '',
+    };
+  }
   return {
     ...EMPTY_DESTINATION_FORM,
     name: dest.name,
-    type: 'SSH',
+    type: 'WEBDAV',
     enabled: dest.enabled,
-    sshHost: configString(config.host, ''),
-    sshPort: configString(config.port, '22'),
-    sshPath: configString(config.remotePath, '/var/backups/docsops'),
-    sshUser: '',
+    webdavBaseUrl: configString(config.baseUrl, ''),
+    webdavRemotePath: configString(config.remotePath, ''),
+    webdavUsername: '',
   };
 }
 
@@ -79,6 +98,23 @@ export function buildDestinationBody(form: DestinationFormState, isEdit: boolean
         endpoint: form.s3Endpoint,
         bucket: form.s3Bucket.trim(),
         ...(region ? { region } : {}),
+      },
+      ...(Object.keys(credentials).length > 0 ? { credentials } : {}),
+    };
+  }
+  if (form.type === 'WEBDAV') {
+    const credentials: Record<string, string> = {};
+    if (form.webdavUsername) credentials.username = form.webdavUsername;
+    if (form.webdavPassword) credentials.password = form.webdavPassword;
+    if (!isEdit && !credentials.username) throw new Error('Username is required');
+    if (!isEdit && !credentials.password) throw new Error('Password is required');
+    const remotePath = form.webdavRemotePath.trim();
+    return {
+      name: form.name,
+      ...(!isEdit ? { type: 'WEBDAV' as const, enabled: true } : {}),
+      config: {
+        baseUrl: form.webdavBaseUrl.trim(),
+        ...(remotePath ? { remotePath } : {}),
       },
       ...(Object.keys(credentials).length > 0 ? { credentials } : {}),
     };

@@ -12,7 +12,7 @@ export type BackupStatus = {
 export type Destination = {
   id: string;
   name: string;
-  type: 'S3_COMPATIBLE' | 'SSH';
+  type: 'S3_COMPATIBLE' | 'SSH' | 'WEBDAV';
   enabled: boolean;
   configJson: Record<string, unknown>;
 };
@@ -25,7 +25,7 @@ export type BackupRun = {
   createdAt: string;
   finishedAt: string | null;
   errorMessage: string | null;
-  destination: { id: string; name: string; type: 'S3_COMPATIBLE' | 'SSH' } | null;
+  destination: { id: string; name: string; type: 'S3_COMPATIBLE' | 'SSH' | 'WEBDAV' } | null;
   localObjectKey: string | null;
   remotePath: string | null;
 };

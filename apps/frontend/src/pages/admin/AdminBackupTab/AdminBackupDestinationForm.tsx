@@ -54,10 +54,11 @@ export function AdminBackupDestinationForm({ destination, onSave }: Props) {
           label="Type"
           value={form.type}
           disabled={isEdit}
-          onChange={(v) => v && set('type', v as 'S3_COMPATIBLE' | 'SSH')}
+          onChange={(v) => v && set('type', v as DestinationFormState['type'])}
           data={[
             { value: 'S3_COMPATIBLE', label: 'S3 compatible' },
             { value: 'SSH', label: 'SSH / SFTP' },
+            { value: 'WEBDAV', label: 'WebDAV' },
           ]}
         />
         {form.type === 'S3_COMPATIBLE' ? (
@@ -98,7 +99,7 @@ export function AdminBackupDestinationForm({ destination, onSave }: Props) {
               placeholder={secretPlaceholder(isEdit)}
             />
           </>
-        ) : (
+        ) : form.type === 'SSH' ? (
           <>
             <TextInput
               label="Host"
@@ -141,6 +142,39 @@ export function AdminBackupDestinationForm({ destination, onSave }: Props) {
               minRows={3}
               placeholder={secretPlaceholder(isEdit, '-----BEGIN OPENSSH PRIVATE KEY-----')}
               description={isEdit ? undefined : 'OpenSSH or PEM format; password or key required'}
+            />
+          </>
+        ) : (
+          <>
+            <TextInput
+              label="Base URL"
+              value={form.webdavBaseUrl}
+              onChange={(e) => set('webdavBaseUrl', e.currentTarget.value)}
+              placeholder={addPlaceholder(
+                isEdit,
+                'https://cloud.example.com/remote.php/dav/backups/'
+              )}
+              description={isEdit ? undefined : 'HTTPS WebDAV folder URL (Nextcloud, ownCloud, …)'}
+            />
+            <TextInput
+              label="Remote path"
+              value={form.webdavRemotePath}
+              onChange={(e) => set('webdavRemotePath', e.currentTarget.value)}
+              placeholder={addPlaceholder(isEdit, 'docsops/prod')}
+              description={isEdit ? undefined : 'Optional subfolder under the base URL'}
+            />
+            <TextInput
+              label="Username"
+              value={form.webdavUsername}
+              onChange={(e) => set('webdavUsername', e.currentTarget.value)}
+              placeholder={addPlaceholder(isEdit, 'backup')}
+            />
+            <TextInput
+              label="Password"
+              type="password"
+              value={form.webdavPassword}
+              onChange={(e) => set('webdavPassword', e.currentTarget.value)}
+              placeholder={secretPlaceholder(isEdit)}
             />
           </>
         )}

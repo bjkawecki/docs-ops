@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Prisma } from '../../../../generated/prisma/client.js';
 import { buildApp } from '../../../app.js';
 import { prisma } from '../../../db.js';
 import { invalidateMaintenanceLockCache } from '../../../infrastructure/maintenance/maintenancePreHandler.js';
+import { removeAdminJobSchedule } from '../services/adminJobsScheduleService.js';
 import { hashPassword } from '../../auth/services/password.js';
 
 const TS = Date.now();
@@ -36,6 +38,9 @@ describe('Admin backup routes', () => {
     await prisma.systemMaintenanceLock.deleteMany({ where: { id: 'backup' } });
     invalidateMaintenanceLockCache();
     await prisma.adminBackupActionAudit.deleteMany({ where: { actorUserId: adminId } });
+    await prisma.$executeRaw(
+      Prisma.sql`DELETE FROM admin_job_action_audit WHERE actor_user_id = ${adminId}`
+    );
     await prisma.backupRun.deleteMany({});
     await prisma.session.deleteMany({ where: { userId: adminId } });
     await prisma.user.delete({ where: { id: adminId } });
@@ -99,6 +104,12 @@ describe('Admin backup routes', () => {
   });
 
   it('PATCH /admin/jobs/schedules/maintenance.backup enable → 403', async () => {
+    await removeAdminJobSchedule('maintenance.backup').catch(() => undefined);
+    await prisma.backupSettings.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', autoBackupConfigured: false },
+      update: { autoBackupConfigured: false },
+    });
     const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
     const res = await app.inject({
       method: 'PATCH',
@@ -224,6 +235,66 @@ describe('Admin backup routes', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('POST /admin/backup-destinations WEBDAV → 201', async () => {
+    const prevKey = process.env.BACKUP_ENCRYPTION_KEY;
+    process.env.BACKUP_ENCRYPTION_KEY = Buffer.alloc(32, 11).toString('base64');
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/backup-destinations',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        payload: {
+          name: `WebDAV ${TS}`,
+          type: 'WEBDAV',
+          config: {
+            baseUrl: 'https://cloud.example.com/dav/backups/',
+            remotePath: 'docsops',
+          },
+          credentials: {
+            username: 'backup-user',
+            password: 'secret-pass',
+          },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json() as {
+        id: string;
+        type: string;
+        configJson: { baseUrl: string };
+      };
+      expect(body.type).toBe('WEBDAV');
+      expect(body.configJson.baseUrl).toBe('https://cloud.example.com/dav/backups/');
+      await prisma.backupDestination.delete({ where: { id: body.id } });
+    } finally {
+      if (prevKey == null) delete process.env.BACKUP_ENCRYPTION_KEY;
+      else process.env.BACKUP_ENCRYPTION_KEY = prevKey;
+    }
+  });
+
+  it('POST /admin/backup-destinations WEBDAV with http URL → 400', async () => {
+    const prevKey = process.env.BACKUP_ENCRYPTION_KEY;
+    process.env.BACKUP_ENCRYPTION_KEY = Buffer.alloc(32, 12).toString('base64');
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/backup-destinations',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        payload: {
+          name: `WebDAV bad ${TS}`,
+          type: 'WEBDAV',
+          config: { baseUrl: 'http://cloud.example.com/dav/' },
+          credentials: { username: 'u', password: 'p' },
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      if (prevKey == null) delete process.env.BACKUP_ENCRYPTION_KEY;
+      else process.env.BACKUP_ENCRYPTION_KEY = prevKey;
+    }
   });
 
   it('blocks mutating API during maintenance lock', async () => {

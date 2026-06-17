@@ -427,6 +427,7 @@ model DocumentGrantDepartment {
 enum BackupDestinationType {
   S3_COMPATIBLE
   SSH
+  WEBDAV
 }
 
 enum BackupRunStatus {

@@ -5,6 +5,7 @@ import {
 } from '../../../infrastructure/crypto/secretBox.js';
 import {
   assertSafeRemoteHost,
+  assertSafeHttpsUrl,
   assertS3BackupDestinationEndpoint,
 } from '../../../infrastructure/backup/ssrfGuard.js';
 import { resolveS3BackupRegion } from '../../../infrastructure/backup/s3Region.js';
@@ -32,12 +33,16 @@ function enrichS3DestinationConfig<T extends { endpoint: string; bucket: string;
 function validateDestinationInput(body: z.infer<typeof createBackupDestinationBodySchema>): void {
   if (body.type === 'S3_COMPATIBLE') {
     assertS3BackupDestinationEndpoint(body.config.endpoint);
-  } else {
+    return;
+  }
+  if (body.type === 'SSH') {
     assertSafeRemoteHost(body.config.host);
     if (!body.credentials.password && !body.credentials.privateKey) {
       throw new Error('SSH credentials require password or privateKey');
     }
+    return;
   }
+  assertSafeHttpsUrl(body.config.baseUrl);
 }
 
 export async function listBackupDestinations(prisma: PrismaClient) {
@@ -67,7 +72,8 @@ export async function createBackupDestination(
       name: body.name,
       type: body.type,
       enabled: body.enabled ?? true,
-      configJson: enrichS3DestinationConfig(body.config),
+      configJson:
+        body.type === 'S3_COMPATIBLE' ? enrichS3DestinationConfig(body.config) : body.config,
       credentialsCiphertext: encryptJson(body.credentials),
     },
     select: {
@@ -95,8 +101,10 @@ export async function updateBackupDestination(
     const mergedConfig = (body.config ?? existing.configJson) as Record<string, unknown>;
     if (mergedType === 'S3_COMPATIBLE') {
       assertS3BackupDestinationEndpoint(String(mergedConfig.endpoint));
-    } else {
+    } else if (mergedType === 'SSH') {
       assertSafeRemoteHost(String(mergedConfig.host));
+    } else if (mergedType === 'WEBDAV') {
+      assertSafeHttpsUrl(String(mergedConfig.baseUrl));
     }
   }
 
