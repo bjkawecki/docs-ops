@@ -10,7 +10,9 @@ Geplanter Ablauf (Umsetzung §19): `sudo ./install.sh` – Details in [Umsetzung
 
 ## Systemanforderungen
 
-Install baut Images auf dem Server (`docker compose up --build`). **Ziel Production:** 8 GB RAM, 40 GB Disk auf `/` (inkl. Docker).
+Install baut Images auf dem Server (`docker compose build`, Ausgabe unterdrückt – dauert oft **10–20 Minuten**). **Ziel Production:** 8 GB RAM, 40 GB Disk auf `/` (inkl. Docker).
+
+**Später optional:** vorgebaute Images aus einer Registry (z. B. GHCR) per `docker compose pull` statt lokalem Build – sinnvoll für schwache VMs und schnellere Updates; erfordert CI-Publish bei Release-Tags.
 
 | Profil      | RAM   | Disk   |                           |
 | ----------- | ----- | ------ | ------------------------- |

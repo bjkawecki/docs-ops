@@ -398,97 +398,28 @@ abort_stack_failure() {
   exit 1
 }
 
-# Docker build progress on /dev/tty (one line per stage, redrawn atomically).
-declare -gA COMPOSE_BUILD_PROGRESS_STATE=()
-declare -g -a COMPOSE_BUILD_PROGRESS_KEYS=()
-declare -g COMPOSE_BUILD_PROGRESS_LINES=0
-declare -g COMPOSE_BUILD_PROGRESS_LOCK_FD=9
-
-compose_build_progress_reset() {
-  COMPOSE_BUILD_PROGRESS_STATE=()
-  COMPOSE_BUILD_PROGRESS_KEYS=()
-  COMPOSE_BUILD_PROGRESS_LINES=0
-}
-
-compose_build_progress_redraw() {
-  local count=${#COMPOSE_BUILD_PROGRESS_KEYS[@]} i key
-  flock -x "$COMPOSE_BUILD_PROGRESS_LOCK_FD"
-  if ((COMPOSE_BUILD_PROGRESS_LINES > 0)); then
-    printf '\033[%dA' "$COMPOSE_BUILD_PROGRESS_LINES" >/dev/tty
-  fi
-  for key in "${COMPOSE_BUILD_PROGRESS_KEYS[@]}"; do
-    printf '\033[2K\r  %s\n' "${COMPOSE_BUILD_PROGRESS_STATE[$key]}" >/dev/tty
-  done
-  for ((i = count; i < COMPOSE_BUILD_PROGRESS_LINES; i++)); do
-    printf '\033[2K\r\n' >/dev/tty
-  done
-  COMPOSE_BUILD_PROGRESS_LINES=$count
-  flock -u "$COMPOSE_BUILD_PROGRESS_LOCK_FD"
-}
-
-compose_build_progress_update() {
-  local line="$1" body key
-  if [[ "$line" =~ (CANCELED|ERROR|failed\ to\ solve) ]]; then
-    if ((COMPOSE_BUILD_PROGRESS_LINES > 0)); then
-      printf '\n' >/dev/tty
-      COMPOSE_BUILD_PROGRESS_LINES=0
-    fi
-    printf '%s\n' "$line" >/dev/tty
-    return
-  fi
-
-  body="$line"
-  if [[ "$body" =~ [[:space:]]internal$ ]]; then
-    return
-  fi
-  if [[ "$body" =~ ^(.+)[[:space:]]([0-9]+)/([0-9]+)$ ]]; then
-    key="${BASH_REMATCH[1]}"
-    body="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
-  else
-    key="$body"
-  fi
-
-  if [[ -z "${COMPOSE_BUILD_PROGRESS_STATE[$key]+x}" ]]; then
-    COMPOSE_BUILD_PROGRESS_KEYS+=("$key")
-  fi
-  COMPOSE_BUILD_PROGRESS_STATE[$key]="$body"
-  compose_build_progress_redraw
-}
-
-compose_build_with_progress() {
-  local build_status lock_file
+compose_build_images() {
+  local build_status log_file
   compose_stack_setup
-  if [[ ! -r /dev/tty ]]; then
-    compose_stack_cmd build --quiet
-    return
+  log_file="$(mktemp)"
+  if compose_stack_cmd build >"$log_file" 2>&1; then
+    rm -f "$log_file"
+    return 0
   fi
-  lock_file="${TMPDIR:-/tmp}/docsops-build-progress.lock"
-  compose_build_progress_reset
-  exec {COMPOSE_BUILD_PROGRESS_LOCK_FD}>"$lock_file"
-  {
-    while IFS= read -r line; do
-      compose_build_progress_update "$line"
-    done
-  } < <(
-    compose_stack_cmd build --progress=plain 2>&1 \
-      | stdbuf -oL grep -E --line-buffered '^\#[0-9]+ \[[^]]+\]|CANCELED|ERROR|failed to solve|Successfully built|^Built$' \
-      | stdbuf -oL sed -u -E 's/^#[0-9]+ \[([^]]+)\].*$/\1/'
-  )
-  build_status=${PIPESTATUS[0]}
-  if ((COMPOSE_BUILD_PROGRESS_LINES > 0)); then
-    printf '\n' >/dev/tty
-  fi
-  flock -u "$COMPOSE_BUILD_PROGRESS_LOCK_FD" 2>/dev/null || true
-  exec {COMPOSE_BUILD_PROGRESS_LOCK_FD}>&-
-  [[ "$build_status" -eq 0 ]] || die "Docker-Build fehlgeschlagen (Exit ${build_status})"
+  build_status=$?
+  echo "" >&2
+  echo "Docker-Build fehlgeschlagen – Auszug aus dem Build-Log:" >&2
+  tail -n 60 "$log_file" >&2
+  rm -f "$log_file"
+  die "Docker-Build fehlgeschlagen (Exit ${build_status})"
 }
 
 compose_up_prod() {
   local wait_timeout up_args
   wait_timeout="${DOCSOPS_COMPOSE_WAIT_TIMEOUT:-300}"
   compose_stack_setup
-  log "Baue Docker-Images …"
-  compose_build_with_progress
+  log "Baue Docker-Images (kann mehrere Minuten dauern) …"
+  compose_build_images
   up_args=(-d)
   if compose_stack_cmd up --help 2>&1 | grep -q -- '--wait'; then
     up_args=(-d --wait --wait-timeout "$wait_timeout")
