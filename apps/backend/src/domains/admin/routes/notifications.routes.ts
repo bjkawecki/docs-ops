@@ -11,14 +11,16 @@ import {
   adminBroadcastListQuerySchema,
   adminBroadcastScheduleBodySchema,
 } from '../schemas/notifications.js';
+import { createAdminBroadcast } from '../services/adminBroadcastNotificationService.js';
 import {
-  cancelScheduledAdminBroadcast,
-  createAdminBroadcast,
   listAdminBroadcastHistory,
   listScheduledAdminBroadcasts,
+} from '../services/adminBroadcastRepository.js';
+import {
+  cancelScheduledAdminBroadcast,
   rescheduleScheduledAdminBroadcast,
   sendScheduledAdminBroadcastNow,
-} from '../services/adminBroadcastNotificationService.js';
+} from '../services/adminBroadcastScheduleService.js';
 
 const adminNotificationsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   const preAdmin = [requireAuthPreHandler, requireAdminPreHandler];
