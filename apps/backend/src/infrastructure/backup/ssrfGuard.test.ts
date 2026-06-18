@@ -3,6 +3,7 @@ import {
   assertSafeHttpsUrl,
   assertSafeRemoteHost,
   assertS3BackupDestinationEndpoint,
+  assertWebDavDestinationUrl,
 } from './ssrfGuard.js';
 
 describe('ssrfGuard', () => {
@@ -33,6 +34,18 @@ describe('ssrfGuard', () => {
     } finally {
       if (previous === undefined) delete process.env.BACKUP_ALLOW_INSECURE_S3_DESTINATIONS;
       else process.env.BACKUP_ALLOW_INSECURE_S3_DESTINATIONS = previous;
+    }
+  });
+
+  it('allows http WebDAV URLs in insecure dev mode', () => {
+    const previous = process.env.BACKUP_ALLOW_INSECURE_WEBDAV_DESTINATIONS;
+    process.env.BACKUP_ALLOW_INSECURE_WEBDAV_DESTINATIONS = 'true';
+    try {
+      const url = assertWebDavDestinationUrl('http://cloud.local/dav/');
+      expect(url.hostname).toBe('cloud.local');
+    } finally {
+      if (previous === undefined) delete process.env.BACKUP_ALLOW_INSECURE_WEBDAV_DESTINATIONS;
+      else process.env.BACKUP_ALLOW_INSECURE_WEBDAV_DESTINATIONS = previous;
     }
   });
 });

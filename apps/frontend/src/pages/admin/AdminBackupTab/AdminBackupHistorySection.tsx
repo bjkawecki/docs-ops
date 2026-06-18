@@ -16,6 +16,7 @@ type Props = {
   onDownload: (id: string) => void;
   onDeleteBackup: (id: string) => Promise<void>;
   onDeleteRun: (id: string) => Promise<void>;
+  onOpenDestinationSettings: () => void;
 };
 
 export function AdminBackupHistorySection({
@@ -27,6 +28,7 @@ export function AdminBackupHistorySection({
   onDownload,
   onDeleteBackup,
   onDeleteRun,
+  onOpenDestinationSettings,
 }: Props) {
   const items = (runs ?? []).filter((run) => !isSupersededMaintenanceFailure(run));
   const [deleteTarget, setDeleteTarget] = useState<BackupRun | null>(null);
@@ -136,7 +138,29 @@ export function AdminBackupHistorySection({
                     </Stack>
                   </Table.Td>
                   <Table.Td>{run.triggerSource}</Table.Td>
-                  <Table.Td>{formatExternalDestinationLabel(run)}</Table.Td>
+                  <Table.Td>
+                    {run.destination ? (
+                      <Text
+                        component="button"
+                        type="button"
+                        size="sm"
+                        td="underline"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'inherit',
+                        }}
+                        onClick={onOpenDestinationSettings}
+                      >
+                        {formatExternalDestinationLabel(run)}
+                      </Text>
+                    ) : (
+                      formatExternalDestinationLabel(run)
+                    )}
+                  </Table.Td>
                   <Table.Td>
                     {run.sizeBytes != null ? `${Math.round(run.sizeBytes / 1024)} KB` : '–'}
                   </Table.Td>

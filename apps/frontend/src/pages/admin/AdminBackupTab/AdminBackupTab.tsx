@@ -10,7 +10,7 @@ import { buildDestinationBody, type DestinationFormState } from './adminBackupDe
 import { AdminBackupEnableAutoModal } from './AdminBackupEnableAutoModal';
 import { AdminBackupHistorySection } from './AdminBackupHistorySection';
 import { AdminBackupOverviewBar } from './AdminBackupOverviewBar';
-import { AdminBackupSettingsModal } from './AdminBackupSettingsModal';
+import { AdminBackupSettingsModal, type BackupSettingsTab } from './AdminBackupSettingsModal';
 import { AdminBackupStatusAlerts } from './AdminBackupStatusAlerts';
 import { formatActiveJobStatus } from './backupRestoreHelpers';
 import {
@@ -43,6 +43,7 @@ type CreateBackupResult = { backupRunId: string; jobId: string };
 export function AdminBackupTab() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [settingsInitialTab, setSettingsInitialTab] = useState<BackupSettingsTab>('general');
   const [settingsOpened, { open: openSettings, close: closeSettings }] = useDisclosure(false);
   const [enableAutoOpened, { open: openEnableAuto, close: closeEnableAuto }] = useDisclosure(false);
   const backupRunStatusSnapshot = useRef<Map<string, string>>(new Map());
@@ -66,6 +67,14 @@ export function AdminBackupTab() {
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [queryClient]);
+
+  const openBackupSettings = useCallback(
+    (tab: BackupSettingsTab = 'general') => {
+      setSettingsInitialTab(tab);
+      openSettings();
+    },
+    [openSettings]
+  );
 
   const statusQuery = useQuery({
     queryKey: ['admin', 'backups', 'status'],
@@ -515,7 +524,7 @@ export function AdminBackupTab() {
             patchSchedule.mutate({ enabled: false });
           }
         }}
-        onOpenSettings={openSettings}
+        onOpenSettings={() => openBackupSettings('general')}
         onBackupNow={() => createBackup.mutate(status.defaultDestinationId ?? undefined)}
       />
 
@@ -532,11 +541,13 @@ export function AdminBackupTab() {
         onDeleteRun={async (id) => {
           await deleteFailedBackup.mutateAsync(id);
         }}
+        onOpenDestinationSettings={() => openBackupSettings('destinations')}
       />
 
       <AdminBackupSettingsModal
         opened={settingsOpened}
         onClose={closeSettings}
+        initialTab={settingsInitialTab}
         status={status}
         destinations={destinations}
         backups={runsQuery.data?.items}

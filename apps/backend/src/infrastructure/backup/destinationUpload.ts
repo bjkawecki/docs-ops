@@ -1,15 +1,13 @@
-import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
-import { Readable } from 'node:stream';
 import type { BackupDestination } from '../../../generated/prisma/client.js';
 import { decryptJson } from '../crypto/secretBox.js';
 import { createS3Client, uploadFilePath, type S3Config } from '../storage/s3.js';
 import {
   assertSafeRemoteHost,
-  assertSafeHttpsUrl,
+  assertWebDavDestinationUrl,
   assertS3BackupDestinationEndpoint,
 } from './ssrfGuard.js';
 import { resolveS3BackupRegion } from './s3Region.js';
+import { formatWebDavUploadError, webDavPutFile } from './webDavClient.js';
 import SftpClient from 'ssh2-sftp-client';
 
 export type S3DestinationConfig = {
@@ -41,6 +39,8 @@ export type SshDestinationCredentials = {
 export type WebDavDestinationConfig = {
   baseUrl: string;
   remotePath?: string;
+  /** Override HTTP Host when URL hostname differs from what the server expects (e.g. reverse proxy). */
+  hostHeader?: string;
 };
 
 export type WebDavDestinationCredentials = {
@@ -61,13 +61,13 @@ function parseDestination(destination: BackupDestination): ParsedDestination {
   return { config, credentials };
 }
 
-/** Build HTTPS PUT URL for WebDAV upload (path segments normalized). */
+/** Build PUT URL for WebDAV upload (path segments normalized). */
 export function buildWebDavPutUrl(
   baseUrl: string,
   remotePath: string | undefined,
   remoteFileName: string
 ): string {
-  const url = assertSafeHttpsUrl(baseUrl);
+  const url = assertWebDavDestinationUrl(baseUrl);
   const pathParts = [
     url.pathname.replace(/\/+$/, ''),
     remotePath?.trim().replace(/^\/+|\/+$/g, '') ?? '',
@@ -84,27 +84,20 @@ async function uploadViaWebDav(
   remoteFileName: string
 ): Promise<string> {
   const putUrl = buildWebDavPutUrl(config.baseUrl, config.remotePath, remoteFileName);
-  const fileSize = (await stat(localArchivePath)).size;
-  const bodyStream = Readable.toWeb(createReadStream(localArchivePath)) as ReadableStream;
-  const basicAuth = Buffer.from(`${credentials.username}:${credentials.password}`).toString(
-    'base64'
-  );
-  const response = await fetch(putUrl, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      'Content-Type': 'application/zstd',
-      'Content-Length': String(fileSize),
-    },
-    body: bodyStream,
-    duplex: 'half',
-  } as RequestInit);
+  let result: { statusCode: number; body: string };
+  try {
+    result = await webDavPutFile(putUrl, localArchivePath, credentials, {
+      hostHeader: config.hostHeader,
+    });
+  } catch (error) {
+    const cause =
+      error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`WebDAV upload request failed: ${message}${cause ? ` (${cause})` : ''}`);
+  }
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(
-      `WebDAV upload failed (${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''})`
-    );
+  if (result.statusCode < 200 || result.statusCode >= 300) {
+    throw new Error(formatWebDavUploadError(result.statusCode, result.body));
   }
 
   return putUrl;

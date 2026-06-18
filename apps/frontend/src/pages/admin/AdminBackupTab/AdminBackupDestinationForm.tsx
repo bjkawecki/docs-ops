@@ -152,7 +152,7 @@ export function AdminBackupDestinationForm({ destination, onSave }: Props) {
               onChange={(e) => set('webdavBaseUrl', e.currentTarget.value)}
               placeholder={addPlaceholder(
                 isEdit,
-                'https://cloud.example.com/remote.php/dav/backups/'
+                'https://cloud.example.com/remote.php/dav/files/user/backups/'
               )}
               description={isEdit ? undefined : 'HTTPS WebDAV folder URL (Nextcloud, ownCloud, …)'}
             />
@@ -162,6 +162,17 @@ export function AdminBackupDestinationForm({ destination, onSave }: Props) {
               onChange={(e) => set('webdavRemotePath', e.currentTarget.value)}
               placeholder={addPlaceholder(isEdit, 'docsops/prod')}
               description={isEdit ? undefined : 'Optional subfolder under the base URL'}
+            />
+            <TextInput
+              label="Host header"
+              value={form.webdavHostHeader}
+              onChange={(e) => set('webdavHostHeader', e.currentTarget.value)}
+              placeholder={addPlaceholder(isEdit, 'cloud.example.com')}
+              description={
+                isEdit
+                  ? undefined
+                  : 'Optional. Use when the request URL hostname differs from what the server expects (reverse proxy).'
+              }
             />
             <TextInput
               label="Username"

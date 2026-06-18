@@ -17,6 +17,7 @@ export type DestinationFormState = {
   sshPrivateKey: string;
   webdavBaseUrl: string;
   webdavRemotePath: string;
+  webdavHostHeader: string;
   webdavUsername: string;
   webdavPassword: string;
 };
@@ -38,6 +39,7 @@ export const EMPTY_DESTINATION_FORM: DestinationFormState = {
   sshPrivateKey: '',
   webdavBaseUrl: '',
   webdavRemotePath: '',
+  webdavHostHeader: '',
   webdavUsername: '',
   webdavPassword: '',
 };
@@ -78,6 +80,7 @@ export function destinationFormFromDestination(dest: Destination): DestinationFo
     enabled: dest.enabled,
     webdavBaseUrl: configString(config.baseUrl, ''),
     webdavRemotePath: configString(config.remotePath, ''),
+    webdavHostHeader: configString(config.hostHeader, ''),
     webdavUsername: '',
   };
 }
@@ -104,17 +107,19 @@ export function buildDestinationBody(form: DestinationFormState, isEdit: boolean
   }
   if (form.type === 'WEBDAV') {
     const credentials: Record<string, string> = {};
-    if (form.webdavUsername) credentials.username = form.webdavUsername;
+    if (form.webdavUsername) credentials.username = form.webdavUsername.trim();
     if (form.webdavPassword) credentials.password = form.webdavPassword;
     if (!isEdit && !credentials.username) throw new Error('Username is required');
     if (!isEdit && !credentials.password) throw new Error('Password is required');
     const remotePath = form.webdavRemotePath.trim();
+    const hostHeader = form.webdavHostHeader.trim();
     return {
       name: form.name,
       ...(!isEdit ? { type: 'WEBDAV' as const, enabled: true } : {}),
       config: {
         baseUrl: form.webdavBaseUrl.trim(),
         ...(remotePath ? { remotePath } : {}),
+        ...(hostHeader ? { hostHeader } : {}),
       },
       ...(Object.keys(credentials).length > 0 ? { credentials } : {}),
     };

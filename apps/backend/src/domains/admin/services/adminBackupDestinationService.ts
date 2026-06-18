@@ -5,7 +5,7 @@ import {
 } from '../../../infrastructure/crypto/secretBox.js';
 import {
   assertSafeRemoteHost,
-  assertSafeHttpsUrl,
+  assertWebDavDestinationUrl,
   assertS3BackupDestinationEndpoint,
 } from '../../../infrastructure/backup/ssrfGuard.js';
 import { resolveS3BackupRegion } from '../../../infrastructure/backup/s3Region.js';
@@ -42,7 +42,7 @@ function validateDestinationInput(body: z.infer<typeof createBackupDestinationBo
     }
     return;
   }
-  assertSafeHttpsUrl(body.config.baseUrl);
+  assertWebDavDestinationUrl(body.config.baseUrl);
 }
 
 export async function listBackupDestinations(prisma: PrismaClient) {
@@ -104,7 +104,7 @@ export async function updateBackupDestination(
     } else if (mergedType === 'SSH') {
       assertSafeRemoteHost(String(mergedConfig.host));
     } else if (mergedType === 'WEBDAV') {
-      assertSafeHttpsUrl(String(mergedConfig.baseUrl));
+      assertWebDavDestinationUrl(String(mergedConfig.baseUrl));
     }
   }
 

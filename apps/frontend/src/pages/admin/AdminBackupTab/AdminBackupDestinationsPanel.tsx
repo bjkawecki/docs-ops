@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import { Alert, Button, Group, Modal, Stack, Switch, Table, Text } from '@mantine/core';
+import { Alert, Button, Group, Stack, Switch, Table, Text } from '@mantine/core';
 import type { Destination } from './adminBackupTypes';
 import type { DestinationFormState } from './adminBackupDestinationForm';
-import {
-  AdminBackupDestinationForm,
-  BACKUP_DESTINATION_FORM_ID,
-} from './AdminBackupDestinationForm';
+import { AdminBackupDestinationEditModal } from './AdminBackupDestinationEditModal';
 import { formatDestinationTypeShort } from './backupRunPolling';
 
 type Props = {
@@ -155,32 +152,13 @@ export function AdminBackupDestinationsPanel({
         </Table>
       </Stack>
 
-      <Modal
+      <AdminBackupDestinationEditModal
+        destination={editDestination}
         opened={formOpen}
+        saving={savingDestination}
         onClose={closeForm}
-        title={editDestination ? `Edit ${editDestination.name}` : 'New external destination'}
-        size="lg"
-      >
-        <Stack gap="md">
-          <AdminBackupDestinationForm
-            key={editDestination?.id ?? 'new'}
-            destination={editDestination}
-            onSave={(form, destinationId) => {
-              void onSaveDestination(form, destinationId).then(() => {
-                closeForm();
-              });
-            }}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeForm} disabled={savingDestination}>
-              Cancel
-            </Button>
-            <Button type="submit" form={BACKUP_DESTINATION_FORM_ID} loading={savingDestination}>
-              {editDestination ? 'Save' : 'Create'}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        onSave={onSaveDestination}
+      />
     </>
   );
 }

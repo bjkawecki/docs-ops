@@ -58,6 +58,31 @@ export function isInsecureBackupS3DestinationsAllowed(): boolean {
   return (process.env.BACKUP_ALLOW_INSECURE_S3_DESTINATIONS ?? '').toLowerCase() === 'true';
 }
 
+export function isInsecureBackupWebDavDestinationsAllowed(): boolean {
+  return (process.env.BACKUP_ALLOW_INSECURE_WEBDAV_DESTINATIONS ?? '').toLowerCase() === 'true';
+}
+
+/** WebDAV backup destination: HTTPS + SSRF checks unless insecure mode (dev / relay). */
+export function assertWebDavDestinationUrl(urlString: string): URL {
+  if (isInsecureBackupWebDavDestinationsAllowed()) {
+    let url: URL;
+    try {
+      url = new URL(urlString);
+    } catch {
+      throw new Error('Invalid URL');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('Only http and https URLs are allowed');
+    }
+    const host = url.hostname.trim().toLowerCase();
+    if (BLOCKED_HOSTNAMES.has(host)) {
+      throw new Error('Host is not allowed');
+    }
+    return url;
+  }
+  return assertSafeHttpsUrl(urlString);
+}
+
 /** S3 backup destination endpoint: HTTPS + SSRF checks unless insecure mode is enabled (dev/MinIO). */
 export function assertS3BackupDestinationEndpoint(urlString: string): URL {
   if (isInsecureBackupS3DestinationsAllowed()) {

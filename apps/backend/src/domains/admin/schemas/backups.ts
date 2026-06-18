@@ -58,6 +58,7 @@ const sshDestinationCredentialsSchema = z.object({
 const webdavDestinationConfigSchema = z.object({
   baseUrl: z.url(),
   remotePath: z.string().max(1024).optional(),
+  hostHeader: z.string().max(255).optional(),
 });
 
 const webdavDestinationCredentialsSchema = z.object({
