@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/bjkawecki/docs-ops/main/install.sh 
 
 **Root erforderlich:** Die Pipeline mit `sudo` ausführen, z. B. `curl … | sudo bash`. Das Skript bricht ohne root ab (Absicht: Installation bewusst mit Administratorrechten starten).
 
-Klont nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an und startet den Prod-Stack auf **Port 80** (Port muss vorher frei sein).
+Klont nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an und startet den Prod-Stack auf **Port 80** (Re-Install bei laufendem DocsOps-Caddy ist idempotent).
 
 Alternativ aus Clone: `./install.sh` (ebenfalls mit `sudo`) · optional `--install-systemd`
 

@@ -100,7 +100,7 @@ Dieses Skript wird als root ausgeführt und kann:
   - Systempakete installieren (git, curl, openssl, Docker)
   - Quellcode nach ${DOCSOPS_INSTALL_DIR} klonen
   - /etc/docsops/docsops.env mit Secrets anlegen
-  - Docker-Container bauen und starten (Port 80 muss auf dem Host frei sein)
+  - Docker-Container bauen und starten (Port 80 frei oder bereits durch DocsOps/Caddy belegt)
 
 Warum root-Skripte aus dem Internet riskant sind
 -------------------------------------------------
@@ -208,6 +208,37 @@ publish_port_from_health_url() {
   fi
 }
 
+load_compose_project_name_from_env_file() {
+  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docsops}"
+  [[ -f "$DOCSOPS_ENV_FILE" ]] || return 0
+  local line
+  line="$(grep -E '^COMPOSE_PROJECT_NAME=' "$DOCSOPS_ENV_FILE" 2>/dev/null | tail -1 || true)"
+  [[ -n "$line" ]] || return 0
+  COMPOSE_PROJECT_NAME="${line#COMPOSE_PROJECT_NAME=}"
+  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME#\"}"
+  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME%\"}"
+}
+
+docsops_caddy_container_name() {
+  load_compose_project_name_from_env_file
+  echo "${COMPOSE_PROJECT_NAME}-caddy"
+}
+
+# True when the DocsOps Caddy container already publishes the host port (re-install / update).
+docsops_caddy_publishes_port() {
+  local port="$1" name mapping
+  command -v docker >/dev/null 2>&1 || return 1
+  name="$(docsops_caddy_container_name)"
+  [[ -n "$(docker ps -q --filter "name=^${name}$" 2>/dev/null)" ]] || return 1
+  while read -r mapping; do
+    [[ -z "$mapping" ]] && continue
+    if [[ "$mapping" =~ :${port}$ ]]; then
+      return 0
+    fi
+  done < <(docker port "$name" 80/tcp 2>/dev/null || docker port "$name" 80 2>/dev/null)
+  return 1
+}
+
 port_in_use() {
   local port="$1"
   ss -tlnH "sport = :${port}" 2>/dev/null | grep -q .
@@ -231,13 +262,25 @@ process_names_on_port() {
   (IFS=', '; echo "${names[*]}")
 }
 
-# Prüft den Publish-Port (Default 80, aus DOCSOPS_HEALTH_URL ableitbar) – beendet keine fremden Dienste.
+# Prüft den Publish-Port (Default 80, aus DOCSOPS_HEALTH_URL ableitbar).
+# Belegt durch den DocsOps-Caddy-Container ist OK (idempotentes Re-Install / Update).
 require_publish_port_free() {
-  local port proc_info
+  local port proc_info caddy_name
   port="$(publish_port_from_health_url)"
 
   if ! port_in_use "$port"; then
     log "Port ${port} ist frei"
+    return 0
+  fi
+
+  if docsops_caddy_publishes_port "$port"; then
+    caddy_name="$(docsops_caddy_container_name)"
+    log "Port ${port} wird bereits vom DocsOps-Stack (${caddy_name}) verwendet – Update-Installation"
+    return 0
+  fi
+
+  if curl -sf "${DOCSOPS_HEALTH_URL}" >/dev/null 2>&1; then
+    log "Port ${port} belegt, DocsOps Health-Check OK (${DOCSOPS_HEALTH_URL}) – Update-Installation"
     return 0
   fi
 
@@ -247,10 +290,10 @@ require_publish_port_free() {
   [[ -n "$proc_info" ]] && echo "Prozesse: ${proc_info}" >&2
 
   if [[ "$port" == "80" ]]; then
-    die "Port 80 muss frei sein, bevor DocsOps installiert wird. Bitte den bestehenden Webserver stoppen (z. B. systemctl stop apache2 oder systemctl stop httpd) und das Skript erneut starten."
+    die "Port 80 ist belegt (nicht durch DocsOps). Bitte den bestehenden Webserver stoppen oder DocsOps auf einem anderen Host installieren."
   fi
 
-  die "Port ${port} muss frei sein, bevor DocsOps installiert wird (DOCSOPS_HEALTH_URL=${DOCSOPS_HEALTH_URL})."
+  die "Port ${port} ist belegt (nicht durch DocsOps). DOCSOPS_HEALTH_URL=${DOCSOPS_HEALTH_URL}"
 }
 
 require_port_80_free() {

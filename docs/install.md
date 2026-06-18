@@ -136,7 +136,7 @@ Das Install-Skript richtet kein VPN und kein zentrales DNS ein (Hinweis in Doku 
 curl -fsSL https://raw.githubusercontent.com/bjkawecki/docs-ops/main/install.sh | sudo bash
 ```
 
-Klont nach `/opt/docsops`, installiert bei Bedarf git/Docker und startet DocsOps auf **Port 80** (Port muss vorher frei sein – z. B. `systemctl stop httpd` / `apache2`).
+Klont nach `/opt/docsops`, installiert bei Bedarf git/Docker und startet DocsOps auf **Port 80**. Beim **Re-Install** (Stack läuft bereits) erkennt das Skript den DocsOps-Caddy auf Port 80 und fährt mit Build/Update fort. Bei fremden Webservern auf Port 80 (Apache, nginx, …) vor der Erstinstallation: Dienst stoppen.
 
 **Aus lokalem Checkout:**
 
