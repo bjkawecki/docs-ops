@@ -51,6 +51,7 @@ ensure_clone_prerequisites() {
 
 run_from_checkout() {
   local root="$1"
+  shift
   if [[ -f "${root}/docker-compose.prod.yml" && -f "${root}/scripts/install-prod.sh" ]]; then
     export DOCSOPS_INSTALL_DIR="$root"
     exec "${root}/scripts/install-prod.sh" "$@"
