@@ -158,6 +158,19 @@ Flags: `--reconfigure` (neue Secrets), `--install-systemd`, Hilfe via `--help`.
 
 ---
 
+## Troubleshooting
+
+### Login: `GET /api/v1/me` → 401 nach Anmeldung
+
+Standard-Production läuft auf **HTTP** (Port 80). Session-Cookies dürfen dann **kein** `Secure`-Flag haben – sondern speichert der Browser das Cookie nicht.
+
+- Nach dem Fix: App-Image neu bauen und Stack neu starten.
+- Erst wenn Caddy **HTTPS** terminiert: in `/etc/docsops/docsops.env` `SESSION_COOKIE_SECURE=1` setzen und App neu starten.
+- Im Browser (DevTools → Application → Cookies): nach Login muss `sessionId` für `docsops.intranet` sichtbar sein.
+- Ein 401 auf `/me` **vor** dem Login (Login-Seite) ist normal.
+
+---
+
 ## Siehe auch
 
 - [Infrastruktur & Deployment](plan/Infrastruktur-und-Deployment.md)

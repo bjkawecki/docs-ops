@@ -4,13 +4,7 @@ import { loginBodySchema } from '../schemas/auth.js';
 import { verifyPassword } from '../services/password.js';
 import { createSession, deleteSession } from '../services/session.js';
 import { requireAuthPreHandler, SESSION_COOKIE_NAME } from '../middleware.js';
-
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  path: '/',
-};
+import { sessionCookieClearOptions, sessionCookieSetOptions } from '../sessionCookieOptions.js';
 
 const authRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
   /** POST /api/v1/auth/login – Body: { email, password }; bei Erfolg Set-Cookie, 204. */
@@ -39,10 +33,7 @@ const authRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const { id, expiresAt } = await createSession(request.server.prisma, user.id);
     const maxAgeSeconds = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
     return reply
-      .setCookie(SESSION_COOKIE_NAME, id, {
-        ...COOKIE_OPTIONS,
-        maxAge: maxAgeSeconds,
-      })
+      .setCookie(SESSION_COOKIE_NAME, id, sessionCookieSetOptions(maxAgeSeconds))
       .status(204)
       .send();
   });
@@ -53,7 +44,7 @@ const authRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     if (sessionId && typeof sessionId === 'string') {
       await deleteSession(request.server.prisma, sessionId);
     }
-    return reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' }).status(204).send();
+    return reply.clearCookie(SESSION_COOKIE_NAME, sessionCookieClearOptions()).status(204).send();
   });
 
   /** GET /api/v1/auth/me – aktueller User (geschützt). */
