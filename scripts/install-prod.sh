@@ -23,6 +23,7 @@ Options:
 
 Environment:
   DOCSOPS_NON_INTERACTIVE=1   Keine Prompts (ADMIN_EMAIL/PASSWORD Pflicht)
+  DOCSOPS_USE_EXISTING_CONFIG=0  Mit NON_INTERACTIVE: neue Env schreiben (Default: 1 = bestehende nutzen)
   DOCSOPS_ASSUME_YES=1        Disclaimer-Bestätigung überspringen
   DOCSOPS_INSTALL_CONFIRMED=1 Disclaimer bereits in install.sh bestätigt
   DOCSOPS_INSTALL_DIR         Default: /opt/docsops
@@ -94,6 +95,59 @@ load_existing_env() {
   export DOCSOPS_HOSTNAME="${DOCSOPS_HOSTNAME:-}"
 }
 
+# Interactive step „Konfiguration“: reuse /etc/docsops/docsops.env or write new secrets.
+# --reconfigure skips the prompt. DOCSOPS_NON_INTERACTIVE=1 reuses when the file exists.
+resolve_production_env_config() {
+  local reconfigure="${1:-0}"
+
+  if [[ "$reconfigure" == "1" ]]; then
+    prompt_admin_credentials
+    export DOCSOPS_RECONFIGURE=1
+    write_env_file
+    return 0
+  fi
+
+  if [[ ! -f "$DOCSOPS_ENV_FILE" ]]; then
+    prompt_admin_credentials
+    export DOCSOPS_RECONFIGURE=1
+    write_env_file
+    return 0
+  fi
+
+  if [[ "${DOCSOPS_NON_INTERACTIVE:-}" == "1" ]]; then
+    case "${DOCSOPS_USE_EXISTING_CONFIG:-1}" in
+      0 | false | FALSE | no | NO)
+        [[ -n "${ADMIN_EMAIL:-}" ]] || die "ADMIN_EMAIL ist in non-interactive mode Pflicht."
+        [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD ist in non-interactive mode Pflicht."
+        export DOCSOPS_RECONFIGURE=1
+        write_env_file
+        ;;
+      *)
+        log "Bestehende Konfiguration (${DOCSOPS_ENV_FILE}) – non-interactive mode"
+        load_existing_env || die "Konfiguration konnte nicht gelesen werden: ${DOCSOPS_ENV_FILE}"
+        ;;
+    esac
+    return 0
+  fi
+
+  require_interactive_tty
+  echo "Es existiert bereits: ${DOCSOPS_ENV_FILE}"
+  echo "  (SESSION_SECRET, BACKUP_ENCRYPTION_KEY, Admin-Zugang)"
+  echo ""
+  read_tty -p "Bestehende Konfiguration verwenden? [Y/n] " reply
+  case "${reply}" in
+    n | N | no | NO)
+      prompt_admin_credentials
+      export DOCSOPS_RECONFIGURE=1
+      write_env_file
+      ;;
+    *)
+      log "Verwende bestehende Konfiguration (${DOCSOPS_ENV_FILE})"
+      load_existing_env || die "Konfiguration konnte nicht gelesen werden: ${DOCSOPS_ENV_FILE}"
+      ;;
+  esac
+}
+
 main() {
   parse_args "$@"
   require_root
@@ -122,14 +176,7 @@ main() {
   require_publish_port_free
 
   install_stage "Konfiguration"
-  if [[ -f "$DOCSOPS_ENV_FILE" && "$RECONFIGURE" != "1" ]]; then
-    log "Bestehende Konfiguration (${DOCSOPS_ENV_FILE}) – Repository-Stand wird angewendet …"
-    load_existing_env || die "Konfiguration konnte nicht gelesen werden: ${DOCSOPS_ENV_FILE}"
-  else
-    prompt_admin_credentials
-    export DOCSOPS_RECONFIGURE=1
-    write_env_file
-  fi
+  resolve_production_env_config "$RECONFIGURE"
 
   install_stage "Docker-Stack bereitstellen"
   compose_up_prod

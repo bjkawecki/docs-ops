@@ -154,7 +154,7 @@ Das Install-Skript richtet kein VPN und kein zentrales DNS ein (Hinweis in Doku 
 curl -fsSL https://raw.githubusercontent.com/bjkawecki/docs-ops/main/install.sh | sudo bash
 ```
 
-Klont nach `/opt/docsops`, installiert bei Bedarf git/Docker und startet DocsOps auf **Port 80**. Beim **Re-Install** (Stack läuft bereits) erkennt das Skript den DocsOps-Caddy auf Port 80 und fährt mit Build/Update fort. Bei fremden Webservern auf Port 80 (Apache, nginx, …) vor der Erstinstallation: Dienst stoppen.
+Klont nach `/opt/docsops`, installiert bei Bedarf git/Docker und startet DocsOps auf **Port 80**. Beim **Re-Install** (Stack läuft bereits) erkennt das Skript den DocsOps-Caddy auf Port 80 und fährt mit Build/Update fort. Existiert bereits `/etc/docsops/docsops.env`, fragt **Schritt „Konfiguration“** interaktiv, ob die bestehende Datei beibehalten werden soll (Default: ja). Mit `--reconfigure` oder Antwort **n** werden neue Secrets erzeugt. Bei fremden Webservern auf Port 80 (Apache, nginx, …) vor der Erstinstallation: Dienst stoppen.
 
 **Aus lokalem Checkout:**
 
@@ -170,7 +170,9 @@ export ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='min-6-chars'
 sudo -E ./scripts/install-prod.sh
 ```
 
-Flags: `--reconfigure` (neue Secrets), `--install-systemd`, Hilfe via `--help`.
+Mit bestehender `/etc/docsops/docsops.env` wird diese im Non-interactive-Modus standardmäßig wiederverwendet (`DOCSOPS_USE_EXISTING_CONFIG=1`). Neue Secrets: `DOCSOPS_USE_EXISTING_CONFIG=0` oder `--reconfigure`.
+
+Flags: `--reconfigure` (neue Secrets ohne Rückfrage), `--install-systemd`, Hilfe via `--help`.
 
 **CI:** `docker-compose.ci.yml` mappt Caddy auf Port **8080** (`DOCSOPS_EXTRA_COMPOSE_FILES`, `DOCSOPS_HEALTH_URL=http://127.0.0.1:8080/health`).
 
