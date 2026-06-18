@@ -294,14 +294,64 @@ EOF
   confirm_backup_key_saved
 }
 
+compose_stack_setup() {
+  local compose_files extra_files
+  compose_files="${DOCSOPS_COMPOSE_FILES}"
+  extra_files="${DOCSOPS_EXTRA_COMPOSE_FILES:-}"
+  if [[ -n "$extra_files" ]]; then
+    compose_files="${compose_files}:${extra_files}"
+  fi
+  export COMPOSE_FILE="$compose_files"
+  cd "$DOCSOPS_INSTALL_DIR"
+}
+
+compose_stack_cmd() {
+  docker compose --env-file "$DOCSOPS_ENV_FILE" "$@"
+}
+
+diagnose_stack_failure() {
+  compose_stack_setup
+  echo ""
+  echo "────────────────────────────────────────────────────────"
+  echo " Container-Status"
+  echo "────────────────────────────────────────────────────────"
+  compose_stack_cmd ps -a 2>&1 || true
+  echo ""
+  echo "────────────────────────────────────────────────────────"
+  echo " Logs: app (letzte 80 Zeilen)"
+  echo "────────────────────────────────────────────────────────"
+  compose_stack_cmd logs --tail=80 app 2>&1 || true
+  echo ""
+  echo "Nächste Schritte:"
+  echo "  cd ${DOCSOPS_INSTALL_DIR}"
+  echo "  docker compose --env-file ${DOCSOPS_ENV_FILE} logs -f app"
+  echo "  docker compose --env-file ${DOCSOPS_ENV_FILE} ps"
+  echo ""
+  echo "Konfiguration (${DOCSOPS_ENV_FILE}) und Volumes bleiben erhalten."
+  echo "Nach Behebung des Problems Install erneut starten."
+}
+
+abort_stack_failure() {
+  local reason="$1"
+  echo "" >&2
+  echo "════════════════════════════════════════════════════════" >&2
+  echo " Installation fehlgeschlagen" >&2
+  echo "════════════════════════════════════════════════════════" >&2
+  echo "" >&2
+  echo "${reason}" >&2
+  diagnose_stack_failure >&2
+  exit 1
+}
+
 compose_build_with_progress() {
   local status
+  compose_stack_setup
   if [[ ! -r /dev/tty ]]; then
-    docker compose --env-file "$DOCSOPS_ENV_FILE" build --quiet
+    compose_stack_cmd build --quiet
     return
   fi
   echo "  Build-Log: nur Meilensteine (Service/Schritt)" >/dev/tty
-  docker compose --env-file "$DOCSOPS_ENV_FILE" build --progress=plain 2>&1 \
+  compose_stack_cmd build --progress=plain 2>&1 \
     | stdbuf -oL grep -E --line-buffered '^\#[0-9]+ \[[^]]+\]|CANCELED|ERROR|failed to solve|Successfully built|^Built$' \
     | stdbuf -oL sed -u -E \
       -e 's/^#[0-9]+ \[([^]]+)\].*$/  → \1/' \
@@ -312,22 +362,25 @@ compose_build_with_progress() {
 }
 
 compose_up_prod() {
-  local compose_files extra_files
-  compose_files="${DOCSOPS_COMPOSE_FILES}"
-  extra_files="${DOCSOPS_EXTRA_COMPOSE_FILES:-}"
-  if [[ -n "$extra_files" ]]; then
-    compose_files="${compose_files}:${extra_files}"
-  fi
-  export COMPOSE_FILE="$compose_files"
-  cd "$DOCSOPS_INSTALL_DIR"
+  local wait_timeout up_args
+  wait_timeout="${DOCSOPS_COMPOSE_WAIT_TIMEOUT:-300}"
+  compose_stack_setup
   log "Baue Docker-Images (kann einige Minuten dauern) …"
   compose_build_with_progress
-  log "Starte Container …"
-  docker compose --env-file "$DOCSOPS_ENV_FILE" up -d
+  up_args=(-d)
+  if compose_stack_cmd up --help 2>&1 | grep -q -- '--wait'; then
+    up_args=(-d --wait --wait-timeout "$wait_timeout")
+    log "Starte Container (Health-Wait, max. ${wait_timeout}s) …"
+  else
+    log "Starte Container …"
+  fi
+  if ! compose_stack_cmd up "${up_args[@]}"; then
+    abort_stack_failure "Der Stack konnte nicht starten (Container unhealthy oder Abhängigkeit fehlgeschlagen)."
+  fi
 }
 
 wait_for_health() {
-  local i max attempts delay url
+  local i max delay url
   max="${DOCSOPS_HEALTH_RETRIES:-30}"
   delay="${DOCSOPS_HEALTH_DELAY:-10}"
   url="${DOCSOPS_HEALTH_URL}"
@@ -340,7 +393,7 @@ wait_for_health() {
     echo "  Versuch ${i}/${max}, erneut in ${delay}s …"
     sleep "$delay"
   done
-  die "Health-Check fehlgeschlagen: ${url}"
+  abort_stack_failure "Health-Check fehlgeschlagen: ${url}"
 }
 
 install_systemd_unit() {
