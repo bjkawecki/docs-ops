@@ -18,10 +18,15 @@ FROM node:24-alpine
 RUN apk add --no-cache pandoc texlive texlive-latexextra texmf-dist-fontsrecommended postgresql-client zstd tar wget
 WORKDIR /app
 COPY --from=builder /app/apps/backend/dist ./dist
-COPY --from=builder /app/apps/backend/package.json ./
+COPY --from=builder /app/apps/backend/generated ./generated
 COPY --from=builder /app/apps/backend/prisma ./prisma
+COPY --from=builder /app/apps/backend/prisma.config.ts ./
+COPY --from=builder /app/apps/backend/package.json ./package.json
 COPY docker/entrypoint-api-prod.sh /entrypoint.sh
-RUN npm install --omit=dev && chmod +x /entrypoint.sh
+# prepare script calls pnpm (not in runtime image) → strip lifecycle hooks before npm install
+RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));if(p.scripts){delete p.scripts.prepare;delete p.scripts.preinstall;delete p.scripts.postinstall;}fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');" \
+  && npm install --omit=dev --ignore-scripts \
+  && chmod +x /entrypoint.sh
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
