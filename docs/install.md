@@ -6,6 +6,22 @@ Geplanter Ablauf (Umsetzung §19): `sudo ./install.sh` – Details in [Umsetzung
 
 ---
 
+## Systemanforderungen
+
+Install baut Images auf dem Server (`docker compose up --build`). **Ziel Production:** 8 GB RAM, 40 GB Disk auf `/` (inkl. Docker).
+
+| Profil      | RAM   | Disk   |                           |
+| ----------- | ----- | ------ | ------------------------- |
+| Minimum     | 4 GB  | 20 GB  | Lab/Test                  |
+| Empfohlen   | 8 GB  | 40 GB  | Intranet-Production       |
+| Komfortabel | 16 GB | 80 GB+ | MinIO/Backups wachsen mit |
+
+Host: Linux, `sudo`, Port **80** frei; git/curl/openssl/Docker bei Bedarf via Skript.
+
+Vor Install: `df -h /`, `free -h` — unter **~4 GB frei** oft `no space left on device`. Dann `docker system prune -af` / Disk vergrößern.
+
+---
+
 ## Konfiguration: Dev vs. Production
 
 |                      | **Entwicklung**                                   | **Production (Stufe 2)**                                       |
@@ -132,11 +148,9 @@ sudo ./install.sh
 
 ```bash
 export DOCSOPS_NON_INTERACTIVE=1 DOCSOPS_ASSUME_YES=1
-export ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='min-12-chars'
+export ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='min-6-chars'
 sudo -E ./scripts/install-prod.sh
 ```
-
-Voraussetzungen: `sudo`, Linux-Server im Intranet; das Skript installiert bei Bedarf Docker, git, curl, openssl.
 
 Flags: `--reconfigure` (neue Secrets), `--install-systemd`, Hilfe via `--help`.
 

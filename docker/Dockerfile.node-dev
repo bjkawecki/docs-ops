@@ -1,7 +1,8 @@
 # Basis-Image für App- und Frontend-Dev-Container: pnpm ist bereits aktiviert.
 # Beim Start laufen die Services mit user ${UID}:${GID}, sodass node_modules dir gehören.
 FROM node:24-alpine
-RUN apk add --no-cache wget pandoc texlive texlive-latexextra texmf-dist-fontsrecommended postgresql-client zstd tar && corepack enable pnpm
+RUN apk add --no-cache wget pandoc typst postgresql-client zstd tar && corepack enable pnpm
+ENV PANDOC_ARGS=--pdf-engine=typst
 
 # PNPM Home Verzeichnis definieren und PATH erweitern
 ENV PNPM_HOME="/pnpm"

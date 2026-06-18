@@ -40,6 +40,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+      target: app
     restart: unless-stopped
     environment:
       PORT: 8080
@@ -66,6 +67,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+      target: worker
     restart: unless-stopped
     entrypoint: ['node', 'dist/src/entrypoints/worker.js']
     environment:
@@ -77,6 +79,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-}
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-}
+      PANDOC_ARGS: ${PANDOC_ARGS:---pdf-engine=typst}
     depends_on:
       postgres:
         condition: service_healthy

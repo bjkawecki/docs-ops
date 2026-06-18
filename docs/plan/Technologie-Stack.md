@@ -50,7 +50,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 ## 6. Async Tasks / Job-Queue
 
-- **Einsatz:** pg-boss (PostgreSQL als Queue, kein Redis). Worker für: Volltext-Index, Versionierung/Snapshots, Benachrichtigungen (Slack/Teams), PDF-Export. PDF-Export mit Pandoc im Worker (Markdown → PDF); Ergebnis in MinIO, Download-Link für Nutzer.
+- **Einsatz:** pg-boss (PostgreSQL als Queue, kein Redis). Worker für: Volltext-Index, Versionierung/Snapshots, Benachrichtigungen (Slack/Teams), PDF-Export. PDF-Export mit Pandoc + Typst im Worker (Markdown → PDF); Ergebnis in MinIO, Download-Link für Nutzer.
 
 ---
 
@@ -63,7 +63,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 - **Frontend:** Mantine, TanStack Query, React Router. **Versionierung:** Full-Version pro Snapshot; diff-match-patch für Versionsvergleich (Diff-Anzeige rot/grün) in der UI.
 - **Logging:** Pino mit konfigurierbarem Level (`LOG_LEVEL`); in Dev optional Pretty-Format (pino-pretty), in Prod JSON. Siehe [Env-und-Config](Env-und-Config.md). Health-Check-Route für Deploy/Monitoring.
 - **Zentraler Error-Handler:** Fastify `setErrorHandler` für einheitliche Fehlerantworten (Zod → 400, Prisma P2025 → 404, sonst 500).
-- **Optional (später):** Swagger/OpenAPI, Vitest + Supertest, Pandoc im Container für PDF-Worker.
+- **Optional (später):** Swagger/OpenAPI, Vitest + Supertest.
 - **Optional: KI-Assistent (Dokumenten-Frage):** RAG (Retrieval Augmented Generation) über dokumentierte Inhalte; LLM-API (OpenAI, Anthropic, Azure OpenAI oder lokales Modell). Nur Inhalte von Dokumenten, auf die der Nutzer Leserecht hat, fließen in die Anfrage. Siehe [Umsetzungs-Todo §21](Umsetzungs-Todo.md#21-optional-ki-assistent-dokumenten-frage).
 
 ---
