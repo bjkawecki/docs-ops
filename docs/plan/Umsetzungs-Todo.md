@@ -324,41 +324,32 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 
 ## 19. Deployment & Doku
 
-**Ziel (Intranet-Self-hosted):** Nach `./install.sh` (mit `sudo`) läuft DocsOps im **Prod-Stack** und ist unter **Port 80** erreichbar (HTTPS/443 optional später). Dev bleibt unverändert: `docker compose` + Override → Port 5000, Vite.
+**Ziel (Intranet-Self-hosted):** Nach `curl | sudo bash` läuft DocsOps im **Prod-Stack** unter **Port 80** (HTTPS optional später). Dev: `docker compose` + Override → Port 5000.
 
-### 19a. Installations-Skripte
+**Status:** **Interim v1** (Git-Clone + lokaler Build) ist umgesetzt. **Ziel v2** (Vorbild [Coolify](https://coolify.io/docs/get-started/installation)): Release-Bundle + **`docker compose pull`** — kein Monorepo auf der VM, kein Build auf schwacher Hardware.
 
-[x] **`install.sh` (Bootstrap):** Nur mit `sudo`; am Start kurze Erläuterung (was passiert, warum `curl | bash` mit Root riskant ist, warum es hier vertretbar sein kann – FOSS, Repo prüfbar); optional Bestätigung `[y/N]`; klont Repo nach `/opt/docsops` (Default), ruft `scripts/install-prod.sh` auf; aus lokalem Clone kein erneutes Klonen
-[x] **`scripts/install-prod.sh`:** System-Abhängigkeiten prüfen/nachinstallieren (`git`, `curl`, `openssl`, **Docker** + Compose-Plugin; distro-spezifisch Debian/Fedora/Arch); Repo-Version per `DOCSOPS_VERSION` (Default: Release-Tag, nicht `main`)
-[x] **Interaktiv:** `ADMIN_EMAIL`, `ADMIN_PASSWORD` (masked, Mindestlänge); optional `DOCSOPS_HOSTNAME` (z. B. `docsops.intranet`); Hinweis für Clients: `/etc/hosts` oder internes DNS – Skript richtet kein zentrales DNS ein
-[x] **Non-interactive:** `DOCSOPS_NON_INTERACTIVE=1` + Env-Vars (CI, Automation)
-[x] **Konfig Stufe 2:** `/etc/docsops/docsops.env` anlegen (`root:root`, `chmod 600`) – **keine** `.env` im Clone unter `/opt/docsops`; Skript generiert `SESSION_SECRET`, `BACKUP_ENCRYPTION_KEY` (`openssl rand -base64 32`), schreibt Admin-Daten + optional `DOCSOPS_HOSTNAME`; **`BACKUP_ENCRYPTION_KEY` einmal im Terminal an Admin** – Hinweis Passwortmanager; Doku [install.md](../install.md)
-[x] **Prod-Compose starten:** `docker compose --env-file /etc/docsops/docsops.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build` – **ohne** `docker-compose.override.yml`
-[x] **Health-Wait** und Abschlussausgabe (URL per IP oder Hostname, Admin-E-Mail, Pfad `/etc/docsops/docsops.env`)
+### Erledigt (Interim v1)
 
-### 19b. Prod-Stack (Compose, Caddy, Frontend)
+Bootstrap (`install.sh`, `scripts/install-prod.sh`), Secrets in `/etc/docsops/docsops.env`, interaktiv + CI-non-interactive, Quiet-Build, Prod-Stack (`docker-compose.prod.yml`, Caddy :80, Frontend-nginx, Migrate-Entrypoint), README/install.md, systemd-Beispiel, CI Install-Test (Build).
 
-[x] **`docker-compose.prod.yml`:** Caddy Host `80:80`; Postgres/MinIO ohne Host-Ports; Prod-Images; kein Vite-Dev-Server
-[x] **`Caddyfile.prod`:** Szenario B – `/api/*` → Backend, `/` → statisches Frontend; HTTP Intranet v1 (`http://:80`)
-[x] **Frontend-Prod-Image:** Vite-Build + nginx (SPA `try_files`); kein Volume-Mount des Quellcodes
-[x] **Backend-Prod-Entrypoint:** `prisma migrate deploy` + `create-admin` (wenn `ADMIN_*` gesetzt) + API-Start
-[x] **Postgres-Passwort v1:** fest `app/app` (isoliertes LAN); Randomisierung optional später
-[ ] **HTTPS/443 (Phase 2):** Caddy `tls internal` oder echte Domain/ACME – nach Intranet-HTTP-Go-Live
+### Offen — Production-Install v2 (Release-Bundle + GHCR)
 
-### 19c. Update, CI, Doku
+**Prinzip:** Deploy-Manifest (Compose, Caddy, Skripte) und Container-Images teilen dieselbe SemVer (`vX.Y.Z`).
 
-[ ] **`scripts/update.sh`:** `git pull` / Release, `compose pull`, Prod-Compose `up -d` – siehe auch §26
-[x] **CI Install-Test** reaktivieren: frischer Runner, Prod-Compose, Health (CI: Port 8080 via `docker-compose.ci.yml`), non-interactive
-[ ] **CI erweitern:** Frontend-Tests (Unit/Component), optional E2E (z. B. Playwright)
-[x] **README** + [install.md](../install.md): Voraussetzungen, `sudo ./install.sh`, Release-Tag, Stufe-2-Konfig (`/etc/docsops/docsops.env`), Intranet-Zugriff (IP/Hostname)
-[x] **Caddy-Config im Repo** (Prod-Variante); **Doku VPN** (WireGuard o. Ä.) – nur Hinweis, keine Einrichtung im Skript
-[x] **systemd-Unit** `/etc/systemd/system/docsops.service` mit `EnvironmentFile=/etc/docsops/docsops.env` (optional `--install-systemd`; Autostart nach Reboot) – Beispiel in [install.md](../install.md)
+**Reihenfolge:**
 
-### 19d. Demo, Landing, i18n (getrennt von Self-hosted-Install)
+1. [ ] **Release-Pipeline:** Git-Tag `v*` → CI: Images nach **GHCR public** (`ghcr.io/<owner>/docsops-{app,worker,frontend}:vX.Y.Z`) + Release-Asset `docsops-vX.Y.Z.tar.gz`. Erstes Release **`v0.1.0`**.
+2. [ ] **Compose & Env:** `docker-compose.prod.yml` mit `image:` + Tag aus `/etc/docsops/docsops.env` (`DOCSOPS_VERSION`, optional Registry-Override); `build:` nur Dev / Fallback `DOCSOPS_COMPOSE_BUILD=1`.
+3. [ ] **Install:** Bundle statt `git clone` nach `/opt/docsops`; Release-URL (`curl …/releases/download/vX.Y.Z/install.sh`); `pull` + `up -d`; **`main` warnen/blockieren**; Doku README + [install.md](../install.md).
+4. [ ] **Update:** `scripts/update.sh` — Bundle tauschen + `pull` + `up -d` + Rollback-Doku. Admin-Hinweis: **§26**.
+5. [ ] **CI Install-Test:** Pull + Bundle statt lokalem Build.
 
-[ ] **DocsOps-Demo online:** Eigene Instanz (z. B. `demo.docsops.de`), Reset + `DEMO_MODE`, Seed – [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md)
-[ ] **Öffentliche Landing:** Statisch, Deutsch auf `docsops.de`; optional später `VITE_LANDING_PAGE_ENABLED` (§20)
-[ ] **App-i18n:** Englisch + Deutsch im Produkt; Landing getrennt (DE). Release Notes: **§24** (`/whats-new`)
+**Später (optional):** HTTPS/443 (Caddy ACME / `tls internal`); private GHCR + PAT; Air-gap (`docker save`/`load`); eigenes CDN; CI Frontend-/E2E-Tests.
+
+### Demo & öffentliche Präsenz (getrennt von Self-hosted)
+
+[ ] **Demo online** — eigene Instanz, `DEMO_MODE`, Reset: [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md)
+[ ] **Landing + i18n** — statische DE-Landing (`docsops.de`); App EN/DE optional; Release Notes **§24**
 
 **Betrieb (Releases, Backup, Update, Migration):** [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md); Umsetzung **§24–§27**. **Managed Hosting (später):** [Plan-Managed-Hosting](Plan-Managed-Hosting.md).
 
@@ -366,7 +357,7 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 
 ## 20. Layout- & UX-Ergänzungen (Phase 2)
 
-[ ] **Optionale öffentliche Seiten (Demo):** Siehe [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md) und §19. Kurz: DE-Landing, Demo-Subdomain, Reset; optional später Landing/Docs per `VITE_LANDING_PAGE_ENABLED` (`/` + `/docs` im App-Build).
+[ ] **Optionale öffentliche Seiten (Demo):** Siehe **§19** (Demo & Landing) und [Plan-Demo-Oeffentlich](Plan-Demo-Oeffentlich.md).
 [x] **Pin Sidebar:** Sidebar ein-/ausklappbar (Desktop Mini-Rail ~72px oder expanded 260px), Option in Settings („Pin“); Mobile Overlay-Drawer mit Burger.
 [x] **Notifications (Inbox & Navigation):** Erledigt in **§23** (Route `/notifications`, Sidebar, Unread-Zähler). Dieser §20-Punkt diente als Sammelwunsch; Details und weitere Ausbauten nur noch in **§23** pflegen.
 [x] **Notifications-UI in Settings:** Tab **Notifications** mit In-App-/E-Mail-Schaltern pro Kategorie (u. a. `documentChanges`, dokumentbezogene Review-Kategorien laut Backend-Schema, `reminders`) und Anbindung an `PATCH /me/preferences` sowie Dispatch (vgl. §8, §17, **§23**).
@@ -518,14 +509,11 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 
 ## 24. What's new (Release Notes)
 
-**Ziel:** Alle Nutzer sehen Release Notes zur installierten App – Route `/whats-new`, **nicht** unter `/help`. Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §2.
+**Ziel:** Release Notes zur installierten App — Route `/whats-new`, **nicht** unter `/help`. Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §2. **`APP_VERSION`** hier und in **§26** (Admin) gemeinsam nutzen.
 
-[ ] **Inhalt:** `content/releases/manifest.json` + `content/releases/<version>.md` im Repo; mit Release aktualisieren (gleiche Version wie Root-`package.json` / Git-Tag `vX.Y.Z`).
-[ ] **API:** `GET /api/v1/system/version` (`APP_VERSION` aus Build); optional `GET /api/v1/releases` (Manifest + Markdown).
-[ ] **Frontend:** Route `/whats-new`, Markdown rendern (`react-markdown`); Liste nach Version (neueste zuerst).
-[ ] **Navigation:** Account-Menü (Sidebar unten): **What's new** als **erster** Eintrag (vor Admin / Help / Settings).
-[ ] **Badge:** `lastSeenReleaseVersion` in User-Preferences; Badge im Menü, bis Nutzer Seite besucht oder explizit „gelesen“; PATCH `/api/v1/me/preferences`.
-[ ] **Release-Prozess:** Doku in README/Runbook – bei Release: `package.json`-Version, `content/releases/X.Y.Z.md`, Git-Tag, GitHub Release.
+[ ] **Inhalt & Release-Prozess:** `content/releases/manifest.json` + `content/releases/<version>.md`; bei Release synchron mit Root-`package.json`, Git-Tag `vX.Y.Z`, GitHub Release (vgl. **§19** Punkt 1).
+[ ] **API:** `GET /api/v1/system/version` (`APP_VERSION` im Build); optional `GET /api/v1/releases`.
+[ ] **Frontend:** Route `/whats-new` (Markdown); Account-Menü — **What's new** als erster Eintrag; Badge via `lastSeenReleaseVersion` + PATCH `/me/preferences`.
 
 ---
 
@@ -551,7 +539,17 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 
 [x] **WebDAV-Ziel:** Admin-Typ `webdav`; Upload per HTTP `PUT` im selben Job nach Archiv-Fertigstellung.
 [x] **Restore (DR):** Im Tab **Admin → Backup**: Archiv aus **Historie** (nur bei lokaler Kopie) oder **Upload**; Job `maintenance.restore` mit Wartungsmodus, `pg_restore` + MinIO-Import; **kein** Remote-Fetch vom externen Ziel. **Nicht** Plattform-Import (§27).
-[ ] **Maintenance-Broadcast (Follow-up):** in **§23a** (`maintenance.status-changed` per SSE); aktuell Fetch-on-mount im App-Shell-Banner ([`useMaintenanceStatus.ts`](../apps/frontend/src/hooks/useMaintenanceStatus.ts)).
+[ ] **Maintenance-Broadcast:** **§23a** (`maintenance.status-changed` per SSE); aktuell Fetch-on-mount ([`useMaintenanceStatus.ts`](../apps/frontend/src/hooks/useMaintenanceStatus.ts)).
+
+---
+
+## 26. Update & Version (Admin)
+
+**Ziel:** Admins sehen installierte vs. verfügbare Version; kontrolliertes Update (Backup-Gate). Skript/Pipeline: **§19**; Version-API/Release Notes: **§24**. Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §5.
+
+[ ] **`/admin/system`:** Installierte vs. neueste Version (GitHub Releases API); „Update available“; Hinweis auf Release-URL / `update.sh` (**§19** Punkt 4); Backup-Gate → Link §25.
+
+**Später (optional):** Ein-Klick-Update via Updater-Sidecar (`POST /api/v1/admin/updates/apply`, Bundle + `pull` + `up -d`, Wartungsmodus, Health-Check) — Coolify `AUTO_UPDATE` analog.
 
 ---
 
@@ -577,21 +575,3 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [ ] **Selektiver Export:** eine Company / Tenant (Managed Hosting).
 [ ] **Merge-Import:** Konfliktregeln (E-Mail, Slug); explizit opt-in, nicht v1-Default.
 [ ] **CLI:** optionales Offline-Import-Skript für air-gapped Restore.
-
----
-
-## 26. Update & Version (Admin)
-
-**Ziel:** Admins sehen Version und Update-Pfad; Backup vor Update. Plan: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §1, §5.
-
-### Phase 1
-
-[ ] **`scripts/update.sh`:** `git pull` / Release-Artefakt, `docker compose pull`, `docker compose up -d`; in README dokumentieren.
-[ ] **Version im Build:** `APP_VERSION` aus Root-`package.json`; `GET /api/v1/system/version`.
-[ ] **Admin-UI:** `/admin/system` (oder Tab unter Admin): installierte Version, „Check for updates“ (GitHub Releases o. ä.), Hinweis + Copy für `update.sh`.
-[ ] **Backup-Gate:** Vor Update-Hinweis Link/Button „Create backup“ (§25); Warnung in UI.
-
-### Phase 2 – Ein-Klick-Update
-
-[ ] **Updater-Sidecar:** separater Container/Agent mit begrenzten Rechten (kein voller Docker-Socket im App-Container); `POST /api/v1/admin/updates/apply`.
-[ ] **Wartungsmodus** während Update; Health-Check danach; Rollback-Doku (vorheriges Image-Tag).

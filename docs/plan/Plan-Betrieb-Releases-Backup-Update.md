@@ -8,7 +8,8 @@ Plan für Betriebs-Features: **What's new**, **Backup** (Disaster Recovery), **U
 
 - **Single Source of Truth:** `version` in der Root-`package.json` (SemVer, z. B. `0.2.0`).
 - **Deploy:** Beim Image-/Stack-Build als `APP_VERSION` ins Backend (z. B. `GET /api/v1/system/version`).
-- **Release:** Git-Tag `v0.2.0`, GitHub Release, `scripts/update.sh` zieht diesen Tag bzw. Release-Artefakt.
+- **Release:** Git-Tag `v0.2.0`, GitHub Release mit **Deploy-Bundle** (`docsops-v0.2.0.tar.gz`: Compose, Caddy, Install-Skripte) und **Container-Images** auf GHCR (`ghcr.io/<owner>/docsops-*:v0.2.0`, public wie Coolify). Production: `pull` + `up -d` — kein Monorepo-Clone, kein lokaler Build. Details: [Umsetzungs-Todo §19](Umsetzungs-Todo.md).
+- **Update:** `scripts/update.sh` lädt neues Bundle + Image-Tags, dann `compose pull` + `up -d` (§26).
 - **Release Notes:** Markdown pro Version unter `content/releases/0.2.0.md` plus `content/releases/manifest.json` (Version, Datum, Titel) – wird mit der App ausgeliefert.
 - **Nummer bestimmen:** manuell beim Release (Patch/Minor/Major nach SemVer); optional später Tooling (Changesets / semantic-release).
 
