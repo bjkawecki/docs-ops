@@ -2,7 +2,7 @@
 
 Anleitung für **Self-hosted** DocsOps auf einem Linux-Server im Intranet. Entwicklung und „prod-nah“ lokal: [Development-Anleitung](Development-Anleitung.md) (Port 5000, `docker-compose.override.yml`).
 
-Geplanter Ablauf (Umsetzung §19): `sudo ./install.sh` – Details und Todos in [Umsetzungs-Todo §19](plan/Umsetzungs-Todo.md#19-deployment--doku).
+Geplanter Ablauf (Umsetzung §19): `sudo ./install.sh` – Details in [Umsetzungs-Todo §19](plan/Umsetzungs-Todo.md#19-deployment--doku).
 
 ---
 
@@ -112,17 +112,32 @@ Das Install-Skript richtet kein VPN und kein zentrales DNS ein (Hinweis in Doku 
 
 ---
 
-## Installation (geplant)
+## Installation
 
 ```bash
-# Variante A: aus Release-Clone auf dem Server
+# Aus Release-Clone auf dem Server (empfohlen: DOCSOPS_VERSION=vX.Y.Z)
 sudo ./install.sh
 
-# Variante B: Bootstrap von GitHub (Release-Tag empfohlen)
+# Optional: systemd-Autostart registrieren
+sudo ./install.sh --install-systemd
+
+# Bootstrap von GitHub (Release-Tag empfohlen)
 curl -fsSL https://raw.githubusercontent.com/bjkawecki/docs-ops/main/install.sh | sudo bash
 ```
 
-Voraussetzungen: `sudo`, Linux-Server im Intranet; Skript installiert bei Bedarf Docker, git, curl, openssl.
+**Non-interactive** (CI/Automation):
+
+```bash
+export DOCSOPS_NON_INTERACTIVE=1 DOCSOPS_ASSUME_YES=1
+export ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='min-12-chars'
+sudo -E ./scripts/install-prod.sh
+```
+
+Voraussetzungen: `sudo`, Linux-Server im Intranet; das Skript installiert bei Bedarf Docker, git, curl, openssl.
+
+Flags: `--reconfigure` (neue Secrets), `--install-systemd`, Hilfe via `--help`.
+
+**CI:** `docker-compose.ci.yml` mappt Caddy auf Port **8080** (`DOCSOPS_EXTRA_COMPOSE_FILES`, `DOCSOPS_HEALTH_URL=http://127.0.0.1:8080/health`).
 
 ---
 

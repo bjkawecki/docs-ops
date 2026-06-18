@@ -1,7 +1,6 @@
 /**
- * Lädt .env aus dem Repo-Root, bevor andere Module (z. B. db) geladen werden.
- * Muss als erstes importiert werden, damit ADMIN_* etc. in process.env stehen.
- * Versucht mehrere Pfade (Root und apps/backend); prüft, ob eine Datei gefunden wurde.
+ * Loads `.env` from repo root when present (dev/CLI). Does not override variables
+ * already set in the environment (e.g. Docker Compose / install env file).
  */
 import { config } from 'dotenv';
 import { existsSync } from 'fs';
@@ -9,40 +8,34 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// Repo-Root: von apps/backend/scripts aus drei Ebenen hoch; von cwd apps/backend zwei Ebenen hoch
+
 const candidates = [
   resolve(__dirname, '../../../.env'),
   resolve(process.cwd(), '../../.env'),
   resolve(process.cwd(), '.env'),
 ];
 
-const existingPath = candidates.find((p) => existsSync(p));
-if (!existingPath) {
-  console.error(
-    'Fehler: Keine .env-Datei gefunden. Erwartet im Repo-Root oder in apps/backend. Kandidaten:',
-    candidates.join(', ')
-  );
-  process.exit(1);
+let loaded = false;
+
+export function loadEnvFromFilesystem(): void {
+  if (loaded) return;
+  loaded = true;
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    config({ path, override: false });
+    return;
+  }
 }
 
-// override: false – bereits gesetzte Variablen (z. B. DATABASE_URL im Container) nicht überschreiben
-const result = config({ path: existingPath, override: false });
-if (!result.parsed || Object.keys(result.parsed).length === 0) {
-  console.error('Fehler: .env-Datei ist leer oder konnte nicht gelesen werden:', existingPath);
-  process.exit(1);
-}
+loadEnvFromFilesystem();
 
 /**
- * Prüft, ob die angegebenen Umgebungsvariablen gesetzt und nicht leer sind.
- * Beendet den Prozess mit Fehlermeldung, falls eine fehlt.
+ * Ensures required environment variables are set and non-empty.
  */
 export function assertRequiredEnv(keys: string[]): void {
   const missing = keys.filter((k) => !process.env[k]?.trim());
   if (missing.length > 0) {
-    console.error(
-      'Fehler: Folgende Variablen müssen in der .env gesetzt sein:',
-      missing.join(', ')
-    );
+    console.error('Fehler: Folgende Umgebungsvariablen müssen gesetzt sein:', missing.join(', '));
     process.exit(1);
   }
 }

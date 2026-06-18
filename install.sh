@@ -1,26 +1,47 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Prüfung: Docker oder Podman mit Compose
-COMPOSE_CMD=""
-if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
-  COMPOSE_CMD="docker compose"
-elif command -v podman &>/dev/null && command -v podman-compose &>/dev/null; then
-  COMPOSE_CMD="podman-compose"
-else
-  echo "Bitte Docker (mit 'docker compose') oder Podman mit podman-compose installieren."
-  exit 1
-fi
+DOCSOPS_INSTALL_DIR="${DOCSOPS_INSTALL_DIR:-/opt/docsops}"
+DOCSOPS_REPO="${DOCSOPS_REPO:-https://github.com/bjkawecki/docs-ops.git}"
+DOCSOPS_VERSION="${DOCSOPS_VERSION:-main}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
-if [[ ! -f docker-compose.yml ]]; then
-  echo "docker-compose.yml nicht gefunden. Bitte im Repo-Root ausführen."
-  exit 1
-fi
+require_root() {
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    echo "Fehler: Bitte mit sudo ausführen: sudo $0" >&2
+    exit 1
+  fi
+}
 
-echo "Starte Stack mit: $COMPOSE_CMD"
-$COMPOSE_CMD up -d
+run_from_repo() {
+  if [[ -f "${SCRIPT_DIR}/docker-compose.prod.yml" && -f "${SCRIPT_DIR}/scripts/install-prod.sh" ]]; then
+    export DOCSOPS_INSTALL_DIR="$SCRIPT_DIR"
+    exec "${SCRIPT_DIR}/scripts/install-prod.sh" "$@"
+  fi
+}
 
-echo "Stack gestartet. App erreichbar unter http://localhost/health (nach kurzer Startzeit)."
+clone_or_update() {
+  if [[ -d "${DOCSOPS_INSTALL_DIR}/.git" ]]; then
+    echo "==> Bestehendes Repository unter ${DOCSOPS_INSTALL_DIR} – git fetch"
+    git -C "$DOCSOPS_INSTALL_DIR" fetch --depth 1 origin "$DOCSOPS_VERSION" 2>/dev/null \
+      || git -C "$DOCSOPS_INSTALL_DIR" fetch origin
+    git -C "$DOCSOPS_INSTALL_DIR" checkout "$DOCSOPS_VERSION"
+    git -C "$DOCSOPS_INSTALL_DIR" pull --ff-only 2>/dev/null || true
+  else
+    echo "==> Klone ${DOCSOPS_REPO} (${DOCSOPS_VERSION}) nach ${DOCSOPS_INSTALL_DIR}"
+    install -d "$(dirname "$DOCSOPS_INSTALL_DIR")"
+    git clone --depth 1 --branch "$DOCSOPS_VERSION" "$DOCSOPS_REPO" "$DOCSOPS_INSTALL_DIR"
+  fi
+}
+
+main() {
+  require_root
+  run_from_repo "$@"
+  clone_or_update
+  export DOCSOPS_INSTALL_DIR
+  exec "${DOCSOPS_INSTALL_DIR}/scripts/install-prod.sh" "$@"
+}
+
+main "$@"

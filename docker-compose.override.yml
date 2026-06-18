@@ -1,6 +1,10 @@
 # Prod-nah: App per Volume-Mount + Watch. Nutzung: docker compose up
 # Caddy leitet auf app:8080; Backend-Code wird live neu geladen.
 services:
+  postgres:
+    ports:
+      - '5432:5432'
+
   app:
     build:
       context: .
@@ -8,6 +12,7 @@ services:
     image: docsops-node-dev
     user: '${UID:-1000}:${GID:-1000}'
     working_dir: /app
+    entrypoint: []
     volumes:
       - .:/app
     command: sh -c "pnpm install && pnpm --filter backend exec tsx scripts/wait-for-database.ts && pnpm --filter backend exec prisma migrate deploy && (pnpm --filter backend run create-admin || true) && pnpm --filter backend run dev"
@@ -55,6 +60,7 @@ services:
     image: docsops-node-dev
     user: '${UID:-1000}:${GID:-1000}'
     working_dir: /app
+    entrypoint: []
     volumes:
       - .:/app
     command: sh -c "pnpm --filter backend exec tsx scripts/wait-for-database.ts && pnpm --filter backend run worker:dev"
@@ -83,3 +89,43 @@ services:
       BACKUP_S3_DESTINATION_SECRET_KEY: ${BACKUP_S3_DESTINATION_SECRET_KEY:-}
       BACKUP_S3_DESTINATION_REGION: ${BACKUP_S3_DESTINATION_REGION:-}
       BACKUP_S3_DESTINATION_BASE_PATH: ${BACKUP_S3_DESTINATION_BASE_PATH:-}
+
+  frontend:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-frontend
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node-dev
+    image: docsops-node-dev
+    restart: unless-stopped
+    user: '${UID:-1000}:${GID:-1000}'
+    working_dir: /app
+    ports:
+      - '5173:5173'
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      VITE_DEV_PROXY_API: http://app:8080
+    volumes:
+      - .:/app
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:5173/ || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    command: sh -c "pnpm install --ignore-scripts && pnpm --filter frontend run dev"
+
+  caddy:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-caddy
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '5000:80'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      app:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy

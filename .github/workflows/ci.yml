@@ -34,22 +34,22 @@ jobs:
         run: pnpm run format:check
 
   # install-test: vorübergehend deaktiviert
-  # install-test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - name: Build stack (base compose only)
-  #       run: docker compose -f docker-compose.yml build
-  #     - name: Start stack
-  #       run: docker compose -f docker-compose.yml up -d
-  #     - name: Wait for stack
-  #       run: sleep 45
-  #     - name: Health check
-  #       run: |
-  #         for i in $(seq 1 18); do
-  #           if curl -sf http://127.0.0.1:5000/health; then echo "OK"; exit 0; fi
-  #           echo "Attempt $i/18, waiting 10s..."
-  #           sleep 10
-  #         done
-  #         echo "Health check failed"
-  #         exit 1
+  install-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Production install (non-interactive)
+        env:
+          DOCSOPS_NON_INTERACTIVE: '1'
+          DOCSOPS_ASSUME_YES: '1'
+          DOCSOPS_INSTALL_DIR: ${{ github.workspace }}
+          DOCSOPS_EXTRA_COMPOSE_FILES: docker-compose.ci.yml
+          DOCSOPS_HEALTH_URL: http://127.0.0.1:8080/health
+          ADMIN_EMAIL: install-test@example.com
+          ADMIN_PASSWORD: install-test-password-12
+        run: |
+          sudo bash scripts/install-prod.sh
+
+      - name: Health check
+        run: curl -sf http://127.0.0.1:8080/health

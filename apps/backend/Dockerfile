@@ -14,13 +14,14 @@ RUN ./node_modules/.bin/prisma generate --schema=apps/backend/prisma/schema.pris
 
 # Run
 FROM node:24-alpine
-RUN apk add --no-cache pandoc texlive texlive-latexextra texmf-dist-fontsrecommended postgresql-client zstd tar
+RUN apk add --no-cache pandoc texlive texlive-latexextra texmf-dist-fontsrecommended postgresql-client zstd tar wget
 WORKDIR /app
 COPY --from=builder /app/apps/backend/dist ./dist
 COPY --from=builder /app/apps/backend/package.json ./
 COPY --from=builder /app/apps/backend/prisma ./prisma
-RUN npm install --omit=dev
+COPY docker/entrypoint-api-prod.sh /entrypoint.sh
+RUN npm install --omit=dev && chmod +x /entrypoint.sh
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/entrypoints/api.js"]
+ENTRYPOINT ["/entrypoint.sh"]

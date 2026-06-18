@@ -1,0 +1,5 @@
+# CI install-test: map Caddy to 8080 (GitHub runner may block host port 80).
+services:
+  caddy:
+    ports:
+      - '8080:80'

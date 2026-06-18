@@ -16,9 +16,13 @@ Interne Dokumentationsplattform .
 
 ### Production (Intranet-Server)
 
-Geplant: `sudo ./install.sh` – klont nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an (nicht im Git-Clone), startet Prod-Stack auf **Port 80**.
+```bash
+sudo ./install.sh
+```
 
-Vollständige Anleitung (Stufe 2: Code/Secrets-Trennung, systemd, Backup-Key): **[docs/install.md](docs/install.md)**.
+Klont nach `/opt/docsops` (Default), legt Secrets in **`/etc/docsops/docsops.env`** an, startet Prod-Stack auf **Port 80**.
+
+Vollständige Anleitung: **[docs/install.md](docs/install.md)**.
 
 ### Entwicklung / prod-nah lokal
 
