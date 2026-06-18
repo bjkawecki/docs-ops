@@ -4,6 +4,8 @@ Anleitung für **Self-hosted** DocsOps auf einem Linux-Server im Intranet. Entwi
 
 Geplanter Ablauf (Umsetzung §19): `sudo ./install.sh` – Details in [Umsetzungs-Todo §19](plan/Umsetzungs-Todo.md#19-deployment--doku).
 
+**Deployment-Annahme:** Production = **Intranet-Self-hosted** auf einem Linux-Host. Standard ist **HTTP Port 80** (Caddy reverse proxy, keine TLS-Pflicht). Clients erreichen DocsOps per Server-IP oder internem Hostnamen (z. B. `docsops.intranet`). Öffentliches Internet oder HTTPS sind **nicht** vorausgesetzt; beides kann später ergänzt werden.
+
 ---
 
 ## Systemanforderungen
@@ -24,12 +26,15 @@ Vor Install: `df -h /`, `free -h` — unter **~4 GB frei** oft `no space left on
 
 ## Konfiguration: Dev vs. Production
 
-|                      | **Entwicklung**                                   | **Production (Stufe 2)**                                       |
-| -------------------- | ------------------------------------------------- | -------------------------------------------------------------- |
-| Code                 | Git-Clone beliebig                                | `/opt/docsops` (Default)                                       |
-| Secrets/Konfig       | `.env` im **Repo-Root** (aus `.env.example`)      | **`/etc/docsops/docsops.env`** – **nicht** im Clone            |
-| Compose              | `docker-compose.yml` + `override` → Port **5000** | `docker-compose.yml` + `docker-compose.prod.yml` → Port **80** |
-| Wer legt Secrets an? | Entwickler manuell                                | **Install-Skript** (generiert + Admin-Abfragen)                |
+|                      | **Entwicklung**                                   | **Production (Stufe 2)**                                              |
+| -------------------- | ------------------------------------------------- | --------------------------------------------------------------------- |
+| Code                 | Git-Clone beliebig                                | `/opt/docsops` (Default)                                              |
+| Secrets/Konfig       | `.env` im **Repo-Root** (aus `.env.example`)      | **`/etc/docsops/docsops.env`** – **nicht** im Clone                   |
+| Compose              | `docker-compose.yml` + `override` → Port **5000** | `docker-compose.yml` + `docker-compose.prod.yml` → Port **80** (HTTP) |
+| Zugriff              | localhost                                         | Intranet: IP oder Hostname (z. B. `docsops.intranet`)                 |
+| TLS / HTTPS          | nicht nötig (Dev)                                 | **Standard: aus** – optional später (Caddy TLS)                       |
+| Session-Cookies      | Dev-Stack                                         | **ohne** `Secure` (HTTP); mit HTTPS: `SESSION_COOKIE_SECURE=1`        |
+| Wer legt Secrets an? | Entwickler manuell                                | **Install-Skript** (generiert + Admin-Abfragen)                       |
 
 In Production brauchst du **keine `.env` im Repository-Verzeichnis**. Das Install-Skript erzeugt stattdessen eine zentrale Env-Datei auf dem Host. Docker Compose bezieht Variablen daraus (`--env-file` oder systemd `EnvironmentFile`).
 

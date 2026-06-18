@@ -16,13 +16,15 @@ Interne Dokumentationsplattform .
 
 ### Production (Intranet-Server)
 
+DocsOps Production ist **für das Intranet** ausgelegt: ein Linux-Server im Firmennetz, erreichbar per **HTTP** auf Port **80** (z. B. `http://docsops.intranet` oder die Server-IP). Hostname optional per internem DNS oder `/etc/hosts`. **TLS/HTTPS** ist nicht Teil der Standard-Installation (später optional: Caddy + `SESSION_COOKIE_SECURE=1` in `/etc/docsops/docsops.env`).
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bjkawecki/docs-ops/main/install.sh | bash
 ```
 
 **Root erforderlich:** Die Pipeline mit `sudo` ausführen, z. B. `curl … | sudo bash`. Das Skript bricht ohne root ab (Absicht: Installation bewusst mit Administratorrechten starten).
 
-Klont nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an und startet den Prod-Stack auf **Port 80** (Re-Install bei laufendem DocsOps-Caddy ist idempotent).
+Klont nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an und startet den Prod-Stack auf **Port 80** (Re-Install bei laufendem DocsOps-Caddy ist idempotent). Das Install-Skript erklärt diese Intranet-Annahmen im Sicherheitshinweis am Anfang.
 
 Alternativ aus Clone: `./install.sh` (ebenfalls mit `sudo`) · optional `--install-systemd`
 

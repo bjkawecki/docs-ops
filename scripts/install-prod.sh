@@ -14,6 +14,8 @@ Usage: install-prod.sh [OPTIONS]
 
 Production install (run via install.sh or from repo checkout with sudo).
 
+Target environment: intranet Linux server, HTTP on port 80 by default (not public internet).
+
 Options:
   --reconfigure       /etc/docsops/docsops.env neu schreiben (Secrets neu!)
   --install-systemd   systemd-Unit docsops.service registrieren

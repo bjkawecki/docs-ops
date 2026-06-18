@@ -96,6 +96,17 @@ print_security_notice() {
 DocsOps Production-Installation
 ================================
 
+Einsatzmodell (Standard: Intranet)
+----------------------------------
+DocsOps Production ist für einen **Linux-Server im Intranet** gedacht:
+  - Zugriff per **HTTP** auf Port **80** (z. B. http://docsops.intranet oder Server-IP)
+  - Hostname optional – internes DNS oder /etc/hosts auf Clients
+  - Kein öffentliches Internet / keine TLS-Pflicht in der Standard-Installation
+  - Session-Cookies funktionieren über http:// (kein Secure-Flag)
+
+HTTPS oder Zugriff von außen (VPN) sind optional (spätere Phase): Caddy mit TLS,
+dann in ${DOCSOPS_ENV_FILE} SESSION_COOKIE_SECURE=1 setzen.
+
 Dieses Skript wird als root ausgeführt und kann:
   - Systempakete installieren (git, curl, openssl, Docker)
   - Quellcode nach ${DOCSOPS_INSTALL_DIR} klonen
@@ -475,9 +486,11 @@ print_finish() {
     url="http://${DOCSOPS_HOSTNAME}/"
   fi
   echo ""
-  echo "DocsOps ist installiert."
+  echo "DocsOps ist installiert (Intranet-Standard: HTTP auf Port 80)."
   echo "  URL:        ${url}"
   echo "  Admin:      ${ADMIN_EMAIL:-}"
   echo "  Konfiguration: ${DOCSOPS_ENV_FILE}"
+  echo ""
+  echo "HTTPS später: Caddy TLS einrichten und SESSION_COOKIE_SECURE=1 in ${DOCSOPS_ENV_FILE} setzen."
   echo ""
 }

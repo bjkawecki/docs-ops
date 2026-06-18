@@ -1,15 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, TextInput, PasswordInput, Button, Stack, Text, Paper, Alert } from '@mantine/core';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
+import { fetchMe, meQueryKey } from '../../hooks/useMe';
 import { DocopsLogo } from '../../components/appShell/DocopsLogo';
 import { AppShellMaintenanceBanner } from '../../components/appShell/AppShellMaintenanceBanner';
 import { useMaintenanceStatus } from '../../hooks/useMaintenanceStatus';
-import { getLoginErrorDisplay } from './loginErrors';
+import {
+  getLoginErrorDisplay,
+  getLoginRedirectErrorDisplay,
+  type LoginRedirectReason,
+} from './loginErrors';
 import { randomLoginTagline } from './loginTaglines';
 
 const LOGIN_ERROR_ID = 'login-error';
+
+type LoginLocationState = {
+  from?: string;
+  loginError?: LoginRedirectReason;
+};
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,7 +29,9 @@ export function LoginPage() {
   const errorAlertRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string })?.from ?? '/';
+  const queryClient = useQueryClient();
+  const locationState = (location.state ?? {}) as LoginLocationState;
+  const from = locationState.from ?? '/';
 
   const login = useMutation({
     mutationFn: async () => {
@@ -29,19 +41,26 @@ export function LoginPage() {
       });
       if (res.status === 401) throw new Error('Invalid credentials');
       if (!res.ok) throw new Error(`HTTP_${res.status}`);
+      return fetchMe();
     },
-    onSuccess: () => void navigate(from, { replace: true }),
+    onSuccess: (me) => {
+      queryClient.setQueryData(meQueryKey, me);
+      void navigate(from, { replace: true });
+    },
   });
 
-  const loginError = login.isError ? getLoginErrorDisplay(login.error) : null;
+  const redirectError = locationState.loginError
+    ? getLoginRedirectErrorDisplay(locationState.loginError)
+    : null;
+  const loginError = login.isError ? getLoginErrorDisplay(login.error) : redirectError;
   const maintenanceQuery = useMaintenanceStatus();
 
   useEffect(() => {
-    if (login.isError) {
+    if (login.isError || redirectError) {
       const focusTarget = errorAlertRef.current ?? emailInputRef.current;
       focusTarget?.focus();
     }
-  }, [login.isError]);
+  }, [login.isError, redirectError]);
 
   return (
     <Box style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
