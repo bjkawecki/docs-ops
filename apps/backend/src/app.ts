@@ -8,6 +8,7 @@ import {
   organisationRoutes,
   contextRoutes,
   assignmentsRoutes,
+  scopePeopleRoutes,
 } from './domains/organisation/routes/index.js';
 import { documentsRoutes } from './domains/documents/routes/index.js';
 import { meRoutes } from './domains/me/routes/index.js';
@@ -172,6 +173,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(contextRoutes, { prefix: '/api/v1' });
   app.register(documentsRoutes, { prefix: '/api/v1' });
   app.register(assignmentsRoutes, { prefix: '/api/v1' });
+  app.register(scopePeopleRoutes, { prefix: '/api/v1' });
   app.register(meRoutes, { prefix: '/api/v1' });
   app.register(pinnedRoutes, { prefix: '/api/v1' });
   app.register(searchRoutes, { prefix: '/api/v1' });

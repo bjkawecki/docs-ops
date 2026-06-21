@@ -1,4 +1,4 @@
-import { Box, Text } from '@mantine/core';
+import { Box, Group, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, Fragment } from 'react';
@@ -13,6 +13,7 @@ import { canShowWriteTabs } from '../../lib/canShowWriteTabs';
 import { useMe } from '../../hooks/useMe';
 import { PageWithTabs } from '../../components/ui/PageWithTabs';
 import { CreateContextMenu } from '../../components/contexts';
+import { ScopePeopleMenu } from '../../components/scopePeople';
 import { IconSitemap } from '@tabler/icons-react';
 import type {
   DeleteTarget,
@@ -44,6 +45,7 @@ export function DepartmentContextPage() {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [peopleMenuOpen, setPeopleMenuOpen] = useState(false);
   const { data: me, isPending: mePending } = useMe();
 
   const {
@@ -197,18 +199,28 @@ export function DepartmentContextPage() {
         titleIcon={<IconSitemap size={28} style={{ flexShrink: 0 }} aria-hidden />}
         description="Contexts and content for the department."
         actions={
-          departmentId && canManage ? (
-            <CreateContextMenu
-              onCreateProcess={() => {
-                setContextInitialType('process');
-                openContextModal();
-              }}
-              onCreateProject={() => {
-                setContextInitialType('project');
-                openContextModal();
-              }}
-              onCreateDraft={openDocumentModal}
-            />
+          departmentId ? (
+            <Group gap="xs">
+              <ScopePeopleMenu
+                scope="department"
+                scopeId={departmentId}
+                opened={peopleMenuOpen}
+                onChange={setPeopleMenuOpen}
+              />
+              {canManage ? (
+                <CreateContextMenu
+                  onCreateProcess={() => {
+                    setContextInitialType('process');
+                    openContextModal();
+                  }}
+                  onCreateProject={() => {
+                    setContextInitialType('project');
+                    openContextModal();
+                  }}
+                  onCreateDraft={openDocumentModal}
+                />
+              ) : null}
+            </Group>
           ) : null
         }
         tabs={tabs}
@@ -229,6 +241,7 @@ export function DepartmentContextPage() {
               canWrite={canWrite}
               departmentId={departmentId}
               setActiveTab={setActiveTab}
+              onOpenPeopleMenu={() => setPeopleMenuOpen(true)}
             />
           </Fragment>,
           <Fragment key="processes">

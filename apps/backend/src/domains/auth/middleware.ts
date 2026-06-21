@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { isAdminImpersonationEnabled } from '../../config/runtimeMode.js';
 import { findValidSession } from './services/session.js';
+import { touchUserActivityFireAndForget } from '../me/services/userActivityService.js';
 import type { RequestUser } from './types.js';
 
 export const SESSION_COOKIE_NAME = 'sessionId';
@@ -56,6 +57,9 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
       reply.clearCookie(IMPERSONATE_COOKIE_NAME, { path: '/' });
     }
   }
+
+  const activityUserId = req.effectiveUserId ?? req.user.id;
+  touchUserActivityFireAndForget(request.server.prisma, activityUserId);
 }
 
 /**

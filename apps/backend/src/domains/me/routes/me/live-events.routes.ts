@@ -16,6 +16,7 @@ import {
   formatSsePingFrame,
   writeSseFrame,
 } from '../../../../infrastructure/liveEvents/liveEventSse.js';
+import { touchUserActivityFireAndForget } from '../../../me/services/userActivityService.js';
 
 function registerMeLiveEventsRoutes(app: FastifyInstance): void {
   app.get('/me/events', { preHandler: requireAuthPreHandler }, async (request, reply) => {
@@ -27,6 +28,7 @@ function registerMeLiveEventsRoutes(app: FastifyInstance): void {
     }
 
     const userId = getEffectiveUserId(request as RequestWithUser);
+    touchUserActivityFireAndForget(request.server.prisma, userId);
 
     reply.hijack();
     reply.raw.writeHead(200, {

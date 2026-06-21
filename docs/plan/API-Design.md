@@ -73,6 +73,23 @@ GET-Listen setzen voraus, dass das Team bzw. die Abteilung für den Nutzer sicht
 
 ---
 
+## Scope People (Mitglieder + Presence)
+
+Read-only Endpunkte für Mitglieder-Anzeige in Scope-Kopfzeile und Overview. Keine E-Mail-Adressen in Responses. Presence über `User.lastActiveAt` (wird bei authentifizierten Requests und SSE-Register throttled aktualisiert); `isOnline` wenn `lastActiveAt >= now - PRESENCE_ONLINE_THRESHOLD_SECONDS`.
+
+- **`GET /api/v1/teams/:teamId/people`** – Flache Liste aller Personen im Team (Members + Leads). **Permission:** `canViewScope(team)`.
+  - Response: `{ items: [{ id, name, roles?: ('member'|'lead')[], isOnline, lastActiveAt }], total, onlineCount }`
+
+- **`GET /api/v1/departments/:departmentId/people`** – Strukturiert: Department Leads + Teams mit Member-Namen. **Permission:** `canViewScope(department)`.
+  - Response: `{ departmentLeads, teams: [{ id, name, teamLeads, members }], summary: { peopleCount, onlineCount, teamCount } }`
+
+- **`GET /api/v1/companies/:companyId/people`** – Org-Übersicht: Company Leads + Department/Team-Aggregates (Counts, keine Member-Namen fremder Teams). **Permission:** `isScopeLead(company)` (Company Lead oder Admin) – Plain Member mit `canViewScope(company)` erhält **403**.
+  - Response: `{ companyLeads, departments: [{ id, name, departmentLeads, teams: [{ id, name, peopleCount, onlineCount }], peopleCount, onlineCount, teamCount }], summary: { peopleCount, onlineCount, departmentCount } }`
+
+Verwaltung (Mitglied hinzufügen/entfernen) bleibt über die Zuordnungs-Endpunkte oben.
+
+---
+
 ## Dokumente und Tags (§14)
 
 - **Dokumente:** CRUD über `GET/POST/PATCH/DELETE /api/v1/documents` bzw. `GET /api/v1/contexts/:contextId/documents`; GET Document liefert Rechte-Flags `canWrite`, `canDelete`, `scope`. Prozess-/Projekt-GET liefert `canWriteContext`.
