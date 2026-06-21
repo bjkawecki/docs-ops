@@ -9,9 +9,8 @@ import {
   canManageTeamLeaders,
   canManageDepartmentLeads,
   canManageCompanyLeads,
-  canViewDepartment,
-  canViewCompany,
 } from '../permissions/index.js';
+import { canViewScope } from '../permissions/scopeVisibility.js';
 import {
   assignmentListQuerySchema,
   teamIdParamSchema,
@@ -39,7 +38,10 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const query = assignmentListQuerySchema.parse(request.query);
       const userId = getEffectiveUserId(request as RequestWithUser);
 
-      const allowed = await canViewCompany(request.server.prisma, userId, companyId);
+      const allowed = await canViewScope(request.server.prisma, userId, {
+        type: 'company',
+        companyId,
+      });
       if (!allowed) return reply.status(403).send({ error: 'No access to this company' });
 
       const [items, total] = await Promise.all([
@@ -344,7 +346,10 @@ const assignmentsRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const query = assignmentListQuerySchema.parse(request.query);
       const userId = getEffectiveUserId(request as RequestWithUser);
 
-      const allowed = await canViewDepartment(request.server.prisma, userId, departmentId);
+      const allowed = await canViewScope(request.server.prisma, userId, {
+        type: 'department',
+        departmentId,
+      });
       if (!allowed) return reply.status(403).send({ error: 'No access to this department' });
 
       const [items, total] = await Promise.all([

@@ -1,14 +1,7 @@
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import {
-  isCompanyLead,
   isDepartmentLead,
-  isDeptLeadInCompany,
-  isMemberInCompany,
-  isMemberInDepartment,
   isTeamLead,
-  isTeamLeadInCompany,
-  isTeamLeadInDepartment,
-  isTeamMember,
   loadActiveUser,
   type LoadedUser,
 } from './userAccessPredicates.js';
@@ -111,44 +104,6 @@ export async function canManageDepartmentLeads(
 }
 
 /**
- * Prüft, ob der Nutzer ein Team einsehen darf (für GET members/leaders).
- * true wenn isAdmin, oder Department Lead der Abteilung, oder Mitglied oder Team Lead des Teams.
- */
-export async function canViewTeam(
-  prisma: PrismaClient,
-  userId: string,
-  teamId: string
-): Promise<boolean> {
-  const row = await loadUserAndTeam(prisma, userId, teamId);
-  if (!row) return false;
-  if (teamDeptLeadOrAdmin(row)) return true;
-  if (isTeamMember(row.user, teamId)) return true;
-  if (isTeamLead(row.user, teamId)) return true;
-  return false;
-}
-
-/**
- * Prüft, ob der Nutzer eine Abteilung einsehen darf (für GET department leads).
- * true wenn isAdmin oder Department Lead dieser Abteilung.
- */
-export async function canViewDepartment(
-  prisma: PrismaClient,
-  userId: string,
-  departmentId: string
-): Promise<boolean> {
-  const row = await loadUserAndDepartment(prisma, userId, departmentId);
-  if (!row) return false;
-  const { user } = row;
-  if (user.isAdmin) return true;
-  if (isDepartmentLead(user, departmentId)) return true;
-  const isTeamLeadInDept = isTeamLeadInDepartment(user, departmentId);
-  if (isTeamLeadInDept) return true;
-  const isMemberInDept = isMemberInDepartment(user, departmentId);
-  if (isMemberInDept) return true;
-  return false;
-}
-
-/**
  * Prüft, ob der Nutzer Company Lead für die Firma anlegen/entfernen darf.
  * true nur wenn isAdmin.
  */
@@ -160,29 +115,6 @@ export async function canManageCompanyLeads(
   const row = await loadUserAndCompany(prisma, userId, companyId);
   if (!row) return false;
   return row.user.isAdmin;
-}
-
-/**
- * Prüft, ob der Nutzer eine Firma einsehen darf (für GET company leads).
- * true wenn isAdmin oder Company Lead dieser Firma.
- */
-export async function canViewCompany(
-  prisma: PrismaClient,
-  userId: string,
-  companyId: string
-): Promise<boolean> {
-  const row = await loadUserAndCompany(prisma, userId, companyId);
-  if (!row) return false;
-  const { user } = row;
-  if (user.isAdmin) return true;
-  if (isCompanyLead(user, companyId)) return true;
-  const deptLeadInCompany = isDeptLeadInCompany(user, companyId);
-  if (deptLeadInCompany) return true;
-  const teamLeadInCompany = isTeamLeadInCompany(user, companyId);
-  if (teamLeadInCompany) return true;
-  const memberInCompany = isMemberInCompany(user, companyId);
-  if (memberInCompany) return true;
-  return false;
 }
 
 /**

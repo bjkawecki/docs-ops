@@ -95,10 +95,10 @@ Zielbild für Bearbeitung veröffentlichter Inhalte: [Edit-System-Plan](Edit-Sys
 | GET     | /companies/:companyId/company-leads                 | requireAuthPreHandler | canViewCompany           |
 | POST    | /companies/:companyId/company-leads                 | requireAuthPreHandler | canManageCompanyLeads    |
 | DELETE  | /companies/:companyId/company-leads/:userId         | requireAuthPreHandler | canManageCompanyLeads    |
-| GET     | /teams/:teamId/members                              | requireAuthPreHandler | canViewTeam              |
+| GET     | /teams/:teamId/members                              | requireAuthPreHandler | canViewScope             |
 | POST    | /teams/:teamId/members                              | requireAuthPreHandler | canManageTeamMembers     |
 | DELETE  | /teams/:teamId/members/:userId                      | requireAuthPreHandler | canManageTeamMembers     |
-| GET     | /teams/:teamId/team-leads                           | requireAuthPreHandler | canViewTeam              |
+| GET     | /teams/:teamId/team-leads                           | requireAuthPreHandler | canViewScope             |
 | POST    | /teams/:teamId/team-leads                           | requireAuthPreHandler | canManageTeamLeaders     |
 | DELETE  | /teams/:teamId/team-leads/:userId                   | requireAuthPreHandler | canManageTeamLeaders     |
 | GET     | /departments/:departmentId/department-leads         | requireAuthPreHandler | canViewDepartment        |
@@ -121,7 +121,7 @@ Zielbild für Bearbeitung veröffentlichter Inhalte: [Edit-System-Plan](Edit-Sys
 | GET     | /me/personal-documents | requireAuthPreHandler | ownerUserId = userId (implizit)                          |
 | GET     | /me/trash              | requireAuthPreHandler | scope + getTrashOrArchiveItems (leer bei kein Zugriff)   |
 | GET     | /me/archive            | requireAuthPreHandler | scope + getTrashOrArchiveItems                           |
-| GET     | /me/can-write-in-scope | requireAuthPreHandler | getScopeLead, getWritableCatalogScope                    |
+| GET     | /me/can-write-in-scope | requireAuthPreHandler | isScopeLead, getWritableCatalogScope, canWriteInScope    |
 | GET     | /me/shared-documents   | requireAuthPreHandler | Grants des Users (implizit)                              |
 | GET     | /me/drafts             | requireAuthPreHandler | getDraftsScope, writable (implizit)                      |
 | PATCH   | /me                    | requireAuthPreHandler | userId = request.user.id (nur eigenes Profil)            |
@@ -172,7 +172,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 | GET /companies, /companies/:id                                               | canViewCompany (optional) / nur Auth                          | company                 | –                 | low (mit Check) / medium (ohne) |
 | GET /companies/:id/departments                                               | canViewCompany (optional)                                     | company                 | –                 | low / medium                    |
 | GET /departments/:id, /departments/:id/teams                                 | canViewDepartment (optional)                                  | department              | –                 | low / medium                    |
-| GET /teams/:id                                                               | canViewTeam (optional)                                        | team                    | –                 | low / medium                    |
+| GET /teams/:id                                                               | canViewScope                                                  | team                    | –                 | low / medium                    |
 | POST/PATCH/DELETE Organisation                                               | requireAdminPreHandler                                        | –                       | –                 | low                             |
 | GET/POST/DELETE …/company-leads, …/members, …/team-leads, …/department-leads | canView*, canManage*                                          | company/department/team | –                 | low                             |
 | GET /pinned                                                                  | getVisiblePinnedScopeIds                                      | scope                   | –                 | low                             |
@@ -193,7 +193,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 ## C. Routen ohne oder mit schwachen Checks
 
 - **Organisation GET (optional mit Scope-Permissions):**  
-  **GET /companies**, **GET /companies/:companyId**, **GET /companies/:companyId/departments**, **GET /departments/:departmentId**, **GET /departments/:departmentId/teams**, **GET /teams/:teamId** können mit **canViewCompany**, **canViewDepartment**, **canViewTeam** abgesichert werden (bei false 403); GET /companies kann auf sichtbare Companies gefiltert werden. Ohne diese Prüfung sieht jeder angemeldete Nutzer die komplette Struktur (oft gewollt bei Single-Tenant).
+  **GET /companies**, **GET /companies/:companyId**, **GET /companies/:companyId/departments**, **GET /departments/:departmentId**, **GET /departments/:departmentId/teams**, **GET /teams/:teamId** nutzen **canViewScope(scopeRef)** (bei false 403); GET /companies filtert über **getVisibleCompanyIds**.
 
 - **POST /documents ohne contextId:**  
   Nur Auth; jeder angemeldete User kann kontextfreie Drafts anlegen. Kein canWriteContext (weil kein Kontext). Akzeptabel (Drafts sind erstmal nur für Ersteller sichtbar).
@@ -217,7 +217,9 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 
 - **Auflösung:**  
   **scopeResolution.ts:** `getContextIdsForScope(scopeRef)` liefert alle Kontext-IDs für Company/Department/Team (Organisation → Kontexte).  
-  **scopeLead.ts:** `getScopeLead(prisma, userId, scopeRef)` entscheidet, ob der User Scope-Lead ist (Company Lead, Department Lead oder Team Lead für den Scope). Hierarchie: Company → Department → Team; Rechte „nach unten“ (Company Lead sieht Company-Scope, Department Lead Department + Teams, Team Lead nur Team).
+  **scopeVisibility.ts (Layer 2):** `evaluateScopeCapability` ist die einzige Implementierung für View / Lead / ReadOwner über die Hierarchie. Öffentliche Facades: `canViewScope`, `isScopeLead`, `canReadOwnerScope`. Scope-Lead (§4b): Company Lead, Department Lead oder Team Lead für den Scope – **nicht** Plain Member.
+
+- **Drift-Sperren:** ESLint `no-restricted-imports` für Predicate-Symbole außerhalb Layer 1+2; `pnpm run check:permissions`; Matrix-Tests in `scopePermissionMatrix.test.ts`.
 
 - **Rechtevererbung:**
   - **Lesen:** canRead (Document) berücksichtigt Company Lead, Department Lead, Owner (ownerUserId), Grants. Leserechte werden „nach oben“ vererbt (Rechtesystem).
@@ -249,7 +251,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 ## G. Sicherheitsrisiken
 
 1. **Organisation: Optional Scope-Checks**  
-   GET /companies, /companies/:id, … können mit canViewCompany/canViewDepartment/canViewTeam abgesichert werden (siehe H.2). Ohne diese Prüfung sieht jeder angemeldete Nutzer die Struktur (Single-Tenant oft gewollt).
+   GET /companies, /companies/:id, … nutzen **canViewScope** (siehe H.2 / Abschnitt E).
 
 2. **Keine weiteren kritischen Lücken**  
    Alle mutierenden Aktionen (POST/PUT/PATCH/DELETE) auf Dokumenten, Kontexten, Assignments, Pinned, Tags und Admin sind durch Auth + entweder requireDocumentAccess, canWriteContext, canDeleteDocument, canPublishDocument, canPinForScope, canView*/canManage*, canReadScopeForOwner/canCreateTagForOwner oder requireAdmin abgesichert. Me-Routen operieren auf effectiveUserId/request.user.id (eigene Ressourcen).
@@ -261,7 +263,7 @@ Kompakte Tabelle: **Route | Permission | Scope Level | Ownership Check | Risiko*
 1. **PATCH /documents/:id** – Erledigt: Lifecycle-Felder (publishedAt, archivedAt) aus PATCH entfernt; nur über POST …/publish, POST …/archive, POST …/restore. documentService zentralisiert Lifecycle-Logik.
 
 2. **Organisation GET optional absichern** (umgesetzt bei Bedarf)  
-   Falls die Organisationsstruktur nicht für alle sichtbar sein soll: Vor Auslieferung von GET /companies/:id, GET /companies/:id/departments, GET /departments/:id, GET /departments/:id/teams, GET /teams/:id **canViewCompany**, **canViewDepartment**, **canViewTeam** aufrufen und bei false 403 zurückgeben. GET /companies (Liste) ggf. auf Einträge filtern, die der User sehen darf (canViewCompany pro Company).
+   Organisation-GET-Routen rufen **canViewScope(scopeRef)** auf und liefern bei false 403. GET /companies (Liste) filtert über **getVisibleCompanyIds**.
 
 3. **can-write-in-scope** – Erledigt: Hilfsfunktion `canWriteInScope` in permissions; GET /me/can-write-in-scope nutzt sie.
 

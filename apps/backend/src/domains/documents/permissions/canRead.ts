@@ -1,10 +1,11 @@
 import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.js';
 import { GrantRole } from '../../../../generated/prisma/client.js';
+import { toScopeRef } from '../../organisation/permissions/ownerScope.js';
 import {
-  canViewCompany,
-  canViewDepartment,
-  canViewTeam,
-} from '../../organisation/permissions/assignmentPermissions.js';
+  canViewScope,
+  canReadOwnerScopeResolved,
+  evaluateScopeCapability,
+} from '../../organisation/permissions/scopeVisibility.js';
 import { DOCUMENT_FOR_PERMISSION_INCLUDE, type DocumentForPermission } from './documentLoad.js';
 
 /** User mit Relationen für Rechteprüfung (canRead/canWrite). */
@@ -101,7 +102,7 @@ export function isCompanyLeadForOwner(
   owner: ReturnType<typeof getDocumentOwner>
 ): boolean {
   const companyId = owner?.companyId ?? null;
-  return companyId != null && user.companyLeads.some((c) => c.companyId === companyId);
+  return companyId != null && evaluateScopeCapability(user, { companyId }, 'lead');
 }
 
 function getOwnerDepartmentId(owner: ReturnType<typeof getDocumentOwner>): string | null {
@@ -225,13 +226,20 @@ export async function canRead(
 
   // 4. Company Lead (contexts with company owner)
   const ownerCompanyId = getContextOwnerCompanyId(doc);
-  if (ownerCompanyId !== null && isCompanyLeadForOwner(user, owner)) return true;
+  if (
+    ownerCompanyId !== null &&
+    evaluateScopeCapability(user, { companyId: ownerCompanyId }, 'lead')
+  ) {
+    return true;
+  }
 
   // 5. Department Lead (contexts with department/team owner)
   const ownerDeptId = getContextOwnerDepartmentId(doc);
-  if (ownerDeptId !== null) {
-    const isDeptLead = user.departmentLeads.some((d) => d.departmentId === ownerDeptId);
-    if (isDeptLead) return true;
+  if (
+    ownerDeptId !== null &&
+    evaluateScopeCapability(user, { departmentId: ownerDeptId }, 'lead')
+  ) {
+    return true;
   }
 
   // 6. Explicit grants (Team Lead sieht Team-Grants wie Mitglieder)
@@ -247,42 +255,21 @@ export async function canRead(
     return true;
   }
 
-  // 7. Veröffentlichte Dokumente: Leserecht wie Kontext-Leserecht (analog canReadContext / Katalog).
-  // Ohne diesen Schritt sehen Nutzer Einträge im Katalog, scheitern aber an GET /documents/:id.
-  if (doc.publishedAt != null && userCanReadDocumentContext(doc, user)) return true;
-
-  return false;
-}
-
-/**
- * Gleiche Organisations-/Team-Zugehörigkeit wie canReadContext, aber aus dem bereits geladenen
- * Document (ohne Prisma-Roundtrip, kein Zyklus zu contextPermissions).
- */
-function userCanReadDocumentContext(doc: DocumentForPermission, user: UserForPermission): boolean {
-  const owner = getDocumentOwner(doc);
-  if (!owner) return false;
-
-  const companyId = owner.companyId;
-  const departmentId = owner.departmentId ?? owner.team?.departmentId ?? null;
-  const teamId = owner.teamId;
-  const ownerUserId = owner.ownerUserId;
-
-  if (ownerUserId !== null && ownerUserId === user.id) return true;
-
-  if (companyId) {
-    if (user.companyLeads.some((c) => c.companyId === companyId)) return true;
-    if (user.departmentLeads.some((d) => d.department.companyId === companyId)) return true;
-    if (user.leadOfTeams.some((l) => l.team.department.companyId === companyId)) return true;
-    if (user.teamMemberships.some((m) => m.team.department.companyId === companyId)) return true;
+  if (doc.publishedAt != null) {
+    const owner = getDocumentOwner(doc);
+    if (
+      owner &&
+      (await canReadOwnerScopeResolved(prisma, user, userId, {
+        companyId: owner.companyId,
+        departmentId: owner.departmentId ?? owner.team?.departmentId ?? null,
+        teamId: owner.teamId,
+        ownerUserId: owner.ownerUserId,
+      }))
+    ) {
+      return true;
+    }
   }
-  if (departmentId) {
-    if (user.departmentLeads.some((d) => d.departmentId === departmentId)) return true;
-    if (user.leadOfTeams.some((l) => l.team.departmentId === departmentId)) return true;
-    if (user.teamMemberships.some((m) => m.team.departmentId === departmentId)) return true;
-  }
-  if (teamId) {
-    if (user.teamMemberships.some((m) => m.team.id === teamId)) return true;
-  }
+
   return false;
 }
 
@@ -305,10 +292,11 @@ export async function canSeeDocumentInTrash(
     return doc.createdById === userId;
   }
   if (owner.ownerUserId === userId) return true;
-  if (owner.companyId != null && (await canViewCompany(prisma, userId, owner.companyId)))
-    return true;
-  if (owner.departmentId != null && (await canViewDepartment(prisma, userId, owner.departmentId)))
-    return true;
-  if (owner.teamId != null && (await canViewTeam(prisma, userId, owner.teamId))) return true;
+  const scopeRef = toScopeRef({
+    companyId: owner.companyId,
+    departmentId: owner.departmentId ?? owner.team?.departmentId ?? null,
+    teamId: owner.teamId,
+  });
+  if (scopeRef != null && (await canViewScope(prisma, userId, scopeRef))) return true;
   return false;
 }

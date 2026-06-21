@@ -9,12 +9,8 @@ import {
   setOwnerDisplayName,
   refreshContextOwnerDisplayForOwner,
 } from '../services/contextOwnerDisplay.js';
-import {
-  canViewCompany,
-  canViewDepartment,
-  canViewTeam,
-  getVisibleCompanyIds,
-} from '../permissions/assignmentPermissions.js';
+import { getVisibleCompanyIds } from '../permissions/assignmentPermissions.js';
+import { canViewScope } from '../permissions/scopeVisibility.js';
 import {
   paginationQuerySchema,
   createCompanyBodySchema,
@@ -85,7 +81,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
       const { companyId } = companyIdParamSchema.parse(request.params);
-      const allowed = await canViewCompany(prisma, userId, companyId);
+      const allowed = await canViewScope(prisma, userId, { type: 'company', companyId });
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to view this company' });
       const company = await prisma.company.findUniqueOrThrow({
@@ -177,7 +173,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       const prisma = request.server.prisma;
       const userId = getEffectiveUserId(request as RequestWithUser);
       const { departmentId } = departmentIdParamSchema.parse(request.params);
-      const allowed = await canViewDepartment(prisma, userId, departmentId);
+      const allowed = await canViewScope(prisma, userId, { type: 'department', departmentId });
       if (!allowed)
         return reply.status(403).send({ error: 'Permission denied to view this department' });
       const department = await prisma.department.findUniqueOrThrow({
@@ -266,7 +262,7 @@ const organisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     const prisma = request.server.prisma;
     const userId = getEffectiveUserId(request as RequestWithUser);
     const { teamId } = teamIdParamSchema.parse(request.params);
-    const allowed = await canViewTeam(prisma, userId, teamId);
+    const allowed = await canViewScope(prisma, userId, { type: 'team', teamId });
     if (!allowed) return reply.status(403).send({ error: 'Permission denied to view this team' });
     const team = await prisma.team.findUniqueOrThrow({
       where: { id: teamId },

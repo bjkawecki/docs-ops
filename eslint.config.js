@@ -100,5 +100,39 @@ module.exports = tseslint.config(
       'max-lines': ['warn', { max: 700, skipBlankLines: true, skipComments: true }],
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
     },
+  },
+  {
+    files: ['apps/backend/src/**/*.ts'],
+    ignores: [
+      'apps/backend/src/**/userAccessPredicates.ts',
+      'apps/backend/src/**/scopeVisibility.ts',
+      'apps/backend/src/**/assignmentPermissions.ts',
+      '**/*.test.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '**/userAccessPredicates.js',
+              importNames: [
+                'isCompanyLead',
+                'isDepartmentLead',
+                'isTeamLead',
+                'isTeamMember',
+                'isMemberInCompany',
+                'isMemberInDepartment',
+                'isDeptLeadInCompany',
+                'isTeamLeadInCompany',
+                'isTeamLeadInDepartment',
+              ],
+              message:
+                'Scope hierarchy decisions must use scopeVisibility.ts (canViewScope, isScopeLead, canReadOwnerScope, evaluateScopeCapability).',
+            },
+          ],
+        },
+      ],
+    },
   }
 );

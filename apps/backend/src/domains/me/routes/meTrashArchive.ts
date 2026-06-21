@@ -3,7 +3,7 @@ import {
   getContextIdsForScope,
   type ScopeRef,
 } from '../../organisation/permissions/scopeResolution.js';
-import { getScopeLead } from '../../organisation/permissions/scopeLead.js';
+import { isScopeLead } from '../../organisation/permissions/scopeVisibility.js';
 import { getWritableCatalogScope } from '../../organisation/permissions/catalogPermissions.js';
 import type { MeTrashArchiveItem } from '../schemas/me.js';
 
@@ -84,7 +84,7 @@ export async function getTrashOrArchiveItems(
 ): Promise<{ items: MeTrashArchiveItem[] } | { items: []; emptyReason: 'no-access' }> {
   const [scopeContextIds, scopeLead, writable] = await Promise.all([
     getContextIdsForScope(prisma, scopeRef),
-    getScopeLead(prisma, userId, scopeRef),
+    isScopeLead(prisma, userId, scopeRef),
     getWritableCatalogScope(prisma, userId),
   ]);
 

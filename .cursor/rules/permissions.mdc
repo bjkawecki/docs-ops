@@ -23,6 +23,26 @@ canMergeDraftRequest
 canWriteContext
 canReadContext
 
+## Scope hierarchy (drift-resistant)
+
+Org scope decisions (view unit, scope lead, read owner context) live in **one module**:
+
+`apps/backend/src/domains/organisation/permissions/scopeVisibility.ts`
+
+Use:
+
+- `canViewScope(prisma, userId, scopeRef)` – navigate / see org unit
+- `isScopeLead(prisma, userId, scopeRef)` – drafts, trash tabs, lead features
+- `canReadOwnerScope(user, userId, ownerInput)` – read contexts/documents by owner scope (sync)
+
+Do **not** import `userAccessPredicates` in routes, services, or domain permissions except:
+
+- `scopeVisibility.ts` (Layer 2)
+- `assignmentPermissions.ts` (`canManage*` only)
+- tests
+
+Never add parallel `canViewTeam` / `getScopeLead` / inline `teamMemberships.some` hierarchy ladders.
+
 Permissions must be centralized in:
 
-backend/src/permissions
+`apps/backend/src/domains/*/permissions/`

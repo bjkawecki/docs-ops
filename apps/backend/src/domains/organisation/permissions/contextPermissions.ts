@@ -6,12 +6,12 @@ import {
   type ContextWithOwnerRow,
 } from './ownerScope.js';
 import {
-  isCompanyLead,
-  isDepartmentLead,
-  isTeamLead,
-  loadActiveUser,
-  type LoadedUser,
-} from './userAccessPredicates.js';
+  canReadOwnerScopeResolved,
+  evaluateScopeCapability,
+  resolveHierarchyFromOwnerInput,
+} from './scopeVisibility.js';
+import type { ScopeHierarchy } from './scopeVisibility.js';
+import { loadActiveUser, type LoadedUser } from './userAccessPredicates.js';
 
 /** Context with owner info for Process/Project/Subcontext. */
 type ContextWithOwner = {
@@ -46,29 +46,6 @@ async function loadActiveUserAndContext(
   const ctx = await loadContext(prisma, contextId);
   if (!ctx) return null;
   return { user, ctx };
-}
-
-async function departmentCompanyIdForWrite(
-  prisma: PrismaClient,
-  departmentId: string
-): Promise<string | null> {
-  const department = await prisma.department.findUnique({
-    where: { id: departmentId },
-    select: { companyId: true },
-  });
-  return department?.companyId ?? null;
-}
-
-async function teamDepartmentScopeForWrite(
-  prisma: PrismaClient,
-  teamId: string
-): Promise<{ departmentId: string; companyId: string | null } | null> {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    include: { department: { select: { id: true, companyId: true } } },
-  });
-  if (!team?.department) return null;
-  return { departmentId: team.department.id, companyId: team.department.companyId };
 }
 
 const ownerRowForTagScopeSelect = {
@@ -117,6 +94,14 @@ function ownerScopeOptionsFromContext(ctx: ContextWithOwner): OwnerScopeOptions 
   };
 }
 
+async function resolveHierarchyFromOwnerOpts(
+  prisma: PrismaClient,
+  user: LoadedUser,
+  opts: OwnerScopeOptions
+): Promise<ScopeHierarchy> {
+  return resolveHierarchyFromOwnerInput(prisma, user, opts);
+}
+
 async function canWriteInOwnerScope(
   prisma: PrismaClient,
   user: LoadedUser,
@@ -124,44 +109,9 @@ async function canWriteInOwnerScope(
   opts: OwnerScopeOptions
 ): Promise<boolean> {
   if (opts.ownerUserId !== undefined && opts.ownerUserId === userId) return true;
-  if (opts.companyId && isCompanyLead(user, opts.companyId)) return true;
-
-  if (opts.departmentId) {
-    if (isDepartmentLead(user, opts.departmentId)) return true;
-    const companyId = await departmentCompanyIdForWrite(prisma, opts.departmentId);
-    if (companyId && isCompanyLead(user, companyId)) return true;
-  }
-
-  if (opts.teamId) {
-    if (isTeamLead(user, opts.teamId)) return true;
-    const teamScope = await teamDepartmentScopeForWrite(prisma, opts.teamId);
-    if (!teamScope) return false;
-    if (isDepartmentLead(user, teamScope.departmentId)) return true;
-    if (teamScope.companyId && isCompanyLead(user, teamScope.companyId)) return true;
-  }
-
-  return false;
-}
-
-function canReadInOwnerScope(user: LoadedUser, userId: string, opts: OwnerScopeOptions): boolean {
-  if (opts.ownerUserId === userId) return true;
-
-  if (opts.companyId) {
-    if (isCompanyLead(user, opts.companyId)) return true;
-    if (user.departmentLeads.some((d) => d.department.companyId === opts.companyId)) return true;
-    if (user.leadOfTeams.some((l) => l.team.department.companyId === opts.companyId)) return true;
-    if (user.teamMemberships.some((m) => m.team.department.companyId === opts.companyId))
-      return true;
-  }
-
-  if (opts.departmentId) {
-    if (isDepartmentLead(user, opts.departmentId)) return true;
-    if (user.leadOfTeams.some((l) => l.team.departmentId === opts.departmentId)) return true;
-    if (user.teamMemberships.some((m) => m.team.departmentId === opts.departmentId)) return true;
-  }
-
-  if (opts.teamId && user.teamMemberships.some((m) => m.team.id === opts.teamId)) return true;
-  return false;
+  const hierarchy = await resolveHierarchyFromOwnerOpts(prisma, user, opts);
+  if (!hierarchy.companyId && !hierarchy.departmentId && !hierarchy.teamId) return false;
+  return evaluateScopeCapability(user, hierarchy, 'lead');
 }
 
 /**
@@ -212,7 +162,7 @@ export async function canReadContext(
 
   if (user.isAdmin) return true;
 
-  return canReadInOwnerScope(user, userId, ownerScopeOptionsFromContext(ctx));
+  return canReadOwnerScopeResolved(prisma, user, userId, ownerScopeOptionsFromContext(ctx));
 }
 
 /**
@@ -249,7 +199,7 @@ export async function canReadScopeForOwner(
   const user = await loadActiveUser(prisma, userId);
   if (!user) return false;
   if (user.isAdmin) return true;
-  return canReadInOwnerScope(user, userId, opts);
+  return canReadOwnerScopeResolved(prisma, user, userId, opts);
 }
 
 /**

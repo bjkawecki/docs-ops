@@ -5,7 +5,7 @@ import {
   getEffectiveUserId,
   type RequestWithUser,
 } from '../../../auth/middleware.js';
-import { canWriteInScope } from '../../../organisation/permissions/scopeLead.js';
+import { canWriteInScope } from '../../../organisation/permissions/scopeVisibility.js';
 import {
   meCanWriteInScopeQuerySchema,
   meDocumentsListQuerySchema,

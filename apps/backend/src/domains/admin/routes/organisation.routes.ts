@@ -159,7 +159,7 @@ const adminOrganisationRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
     }
   );
 
-  /** GET /api/v1/admin/teams/:teamId/members – Mitgliederliste (Admin, ohne canViewTeam). */
+  /** GET /api/v1/admin/teams/:teamId/members – Mitgliederliste (Admin, ohne canViewScope). */
   app.get<{
     Params: { teamId: string };
     Querystring: { limit?: number | string; offset?: number | string };

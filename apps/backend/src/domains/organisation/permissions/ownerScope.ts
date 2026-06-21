@@ -1,3 +1,5 @@
+import type { ScopeRef } from './scopeResolution.js';
+
 const ownerScopeSelect = {
   companyId: true,
   departmentId: true,
@@ -55,11 +57,24 @@ function ownerScopeFromOwnerRow(owner: ContextOwnerRow | null): {
   };
 }
 
+/** Maps an owner row to the most specific org scope (team > department > company). */
+function toScopeRef(owner: {
+  companyId: string | null;
+  departmentId: string | null;
+  teamId: string | null;
+}): ScopeRef | null {
+  if (owner.teamId) return { type: 'team', teamId: owner.teamId };
+  if (owner.departmentId) return { type: 'department', departmentId: owner.departmentId };
+  if (owner.companyId) return { type: 'company', companyId: owner.companyId };
+  return null;
+}
+
 export {
   ownerScopeSelect,
   contextWithOwnerInclude,
   ownerFromContextRow,
   ownerScopeFromOwnerRow,
+  toScopeRef,
   type ContextOwnerRow,
   type ContextWithOwnerRow,
 };

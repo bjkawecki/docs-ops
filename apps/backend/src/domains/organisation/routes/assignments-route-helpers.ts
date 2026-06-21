@@ -1,6 +1,6 @@
 import type { FastifyReply } from 'fastify';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
-import { canViewTeam } from '../permissions/assignmentPermissions.js';
+import { canViewScope } from '../permissions/scopeVisibility.js';
 
 export async function verifyTeamAndAssignmentUserExist(
   prisma: PrismaClient,
@@ -33,7 +33,7 @@ export async function sendTeamAssignmentListIfAllowed(
   reply: FastifyReply,
   source: 'member' | 'lead'
 ): Promise<void> {
-  const allowed = await canViewTeam(prisma, userId, teamId);
+  const allowed = await canViewScope(prisma, userId, { type: 'team', teamId });
   if (!allowed) {
     void reply.status(403).send({ error: 'No access to this team' });
     return;

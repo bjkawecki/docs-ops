@@ -30,5 +30,8 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: Permission drift check
+        run: pnpm run check:permissions
+
       - name: Format check
         run: pnpm run format:check

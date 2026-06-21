@@ -1,6 +1,6 @@
 import type { FastifyReply } from 'fastify';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
-import { canViewCompany, canViewDepartment } from '../permissions/assignmentPermissions.js';
+import { canViewScope } from '../permissions/scopeVisibility.js';
 
 export async function listCompanyDepartmentsPaged(
   prisma: PrismaClient,
@@ -9,7 +9,7 @@ export async function listCompanyDepartmentsPaged(
   query: { limit: number; offset: number },
   reply: FastifyReply
 ): Promise<void> {
-  const allowed = await canViewCompany(prisma, userId, companyId);
+  const allowed = await canViewScope(prisma, userId, { type: 'company', companyId });
   if (!allowed) {
     void reply.status(403).send({ error: 'Permission denied to view this company' });
     return;
@@ -34,7 +34,7 @@ export async function listDepartmentTeamsPaged(
   query: { limit: number; offset: number },
   reply: FastifyReply
 ): Promise<void> {
-  const allowed = await canViewDepartment(prisma, userId, departmentId);
+  const allowed = await canViewScope(prisma, userId, { type: 'department', departmentId });
   if (!allowed) {
     void reply.status(403).send({ error: 'Permission denied to view this department' });
     return;
