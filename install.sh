@@ -3,6 +3,8 @@ set -euo pipefail
 
 DOCSOPS_INSTALL_DIR="${DOCSOPS_INSTALL_DIR:-/opt/docsops}"
 DOCSOPS_GITHUB_REPO="${DOCSOPS_GITHUB_REPO:-bjkawecki/docs-ops}"
+# Set at release bundle build time (build-bundle.sh); empty in repo checkout.
+DOCSOPS_DEFAULT_RELEASE_VERSION=""
 
 log() {
   echo "==> $*"
@@ -15,7 +17,14 @@ die() {
 
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-    die "Bitte mit sudo ausführen: sudo DOCSOPS_VERSION=vX.Y.Z bash"
+    die "Bitte mit sudo ausführen: curl …/install.sh | sudo bash"
+  fi
+}
+
+resolve_docsops_version() {
+  if [[ -z "${DOCSOPS_VERSION:-}" && -n "${DOCSOPS_DEFAULT_RELEASE_VERSION}" ]]; then
+    DOCSOPS_VERSION="${DOCSOPS_DEFAULT_RELEASE_VERSION}"
+    export DOCSOPS_VERSION
   fi
 }
 
@@ -101,6 +110,7 @@ download_release_bundle() {
 main() {
   require_root
   parse_args "$@"
+  resolve_docsops_version
 
   local bundle_root
   bundle_root="$(script_dir_from_source)"
@@ -109,7 +119,7 @@ main() {
   fi
 
   [[ -n "${DOCSOPS_VERSION:-}" ]] \
-    || die "DOCSOPS_VERSION ist Pflicht (z. B. v0.1.0). Beispiel: curl -fsSL https://github.com/${DOCSOPS_GITHUB_REPO}/releases/download/v0.1.0/install.sh | sudo DOCSOPS_VERSION=v0.1.0 bash"
+    || die "DOCSOPS_VERSION fehlt. Release-Install: curl -fsSL https://github.com/${DOCSOPS_GITHUB_REPO}/releases/download/vX.Y.Z/install.sh | sudo bash (Version steckt im Skript). Dev/Repo: DOCSOPS_VERSION=vX.Y.Z setzen."
 
   download_release_bundle "$DOCSOPS_VERSION" "$DOCSOPS_INSTALL_DIR"
   run_install_prod_from_dir "$DOCSOPS_INSTALL_DIR" "${INSTALL_PROD_ARGS[@]}"

@@ -28,10 +28,16 @@ copy_file() {
   install -D "$src" "$dest"
 }
 
+stamp_install_sh() {
+  local src="$1" dest="$2" version="$3"
+  copy_file "$src" "$dest"
+  sed -i "s/^DOCSOPS_DEFAULT_RELEASE_VERSION=\"\"/DOCSOPS_DEFAULT_RELEASE_VERSION=\"${version}\"/" "$dest"
+}
+
 copy_file "${ROOT}/docker-compose.yml" "${BUNDLE_ROOT}/docker-compose.yml"
 copy_file "${ROOT}/docker-compose.prod.yml" "${BUNDLE_ROOT}/docker-compose.prod.yml"
 copy_file "${ROOT}/Caddyfile.prod" "${BUNDLE_ROOT}/Caddyfile.prod"
-copy_file "${ROOT}/install.sh" "${BUNDLE_ROOT}/install.sh"
+stamp_install_sh "${ROOT}/install.sh" "${BUNDLE_ROOT}/install.sh" "$VERSION"
 copy_file "${ROOT}/uninstall.sh" "${BUNDLE_ROOT}/uninstall.sh"
 copy_file "${ROOT}/scripts/install-prod.sh" "${BUNDLE_ROOT}/scripts/install-prod.sh"
 copy_file "${ROOT}/scripts/uninstall-prod.sh" "${BUNDLE_ROOT}/scripts/uninstall-prod.sh"
@@ -45,4 +51,6 @@ chmod +x "${BUNDLE_ROOT}/install.sh" "${BUNDLE_ROOT}/uninstall.sh" \
 
 ARCHIVE="${OUT_DIR}/docsops-${VERSION}.tar.gz"
 tar -C "$STAGE" -czf "$ARCHIVE" "docsops-${VERSION}"
+cp "${BUNDLE_ROOT}/install.sh" "${OUT_DIR}/install.sh"
+copy_file "${ROOT}/uninstall.sh" "${OUT_DIR}/uninstall.sh"
 echo "Created ${ARCHIVE}"

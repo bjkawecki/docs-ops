@@ -14,7 +14,7 @@
 **Production install:**
 
 ```bash
-curl -fsSL https://github.com/bjkawecki/docs-ops/releases/download/v0.1.0/install.sh | sudo DOCSOPS_VERSION=v0.1.0 bash
+curl -fsSL https://github.com/bjkawecki/docs-ops/releases/download/v0.1.0/install.sh | sudo bash
 ```
 
 **Update:** `sudo /opt/docsops/scripts/update.sh v0.2.0`

@@ -19,8 +19,10 @@ Interne Dokumentationsplattform .
 DocsOps Production ist **für das Intranet** ausgelegt: ein Linux-Server im Firmennetz, erreichbar per **HTTP** auf Port **80** (z. B. `http://docsops.intranet` oder die Server-IP). Hostname optional per internem DNS oder `/etc/hosts`. **TLS/HTTPS** ist nicht Teil der Standard-Installation (später optional: Caddy + `SESSION_COOKIE_SECURE=1` in `/etc/docsops/docsops.env`).
 
 ```bash
-curl -fsSL https://github.com/bjkawecki/docs-ops/releases/download/v0.1.0/install.sh | sudo DOCSOPS_VERSION=v0.1.0 bash
+curl -fsSL https://github.com/bjkawecki/docs-ops/releases/download/v0.1.0/install.sh | sudo bash
 ```
+
+Die Version steckt im Release-`install.sh` (URL und Bundle passen zusammen). Override: `DOCSOPS_VERSION=v0.1.0` vor `bash` setzen.
 
 **Root erforderlich:** Die Pipeline mit `sudo` ausführen. Das Skript lädt das Release-Bundle nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an und startet den Prod-Stack auf **Port 80** (Container-Images von **GHCR**, kein lokaler Build). **Keine Seed-Daten, kein Debug-Menü** – nur Admin-Zugang aus dem Install.
 

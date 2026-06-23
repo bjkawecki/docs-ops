@@ -198,7 +198,7 @@ print_finish() {
     echo "Daten-Volumes wurden behalten. Für Neuinstallation ggf. --keep-data weglassen oder Volumes manuell löschen."
   fi
   if [[ "$KEEP_CONFIG" != "1" ]]; then
-    echo "Neuinstallation: curl -fsSL https://github.com/${DOCSOPS_GITHUB_REPO}/releases/latest/download/install.sh | sudo DOCSOPS_VERSION=vX.Y.Z bash"
+    echo "Neuinstallation: curl -fsSL https://github.com/${DOCSOPS_GITHUB_REPO}/releases/download/vX.Y.Z/install.sh | sudo bash"
   fi
 }
 
