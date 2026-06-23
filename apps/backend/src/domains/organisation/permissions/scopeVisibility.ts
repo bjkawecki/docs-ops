@@ -1,4 +1,6 @@
-import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import type { Prisma, PrismaClient } from '../../../../generated/prisma/client.js';
+
+type PrismaDb = PrismaClient | Prisma.TransactionClient;
 import type { ScopeRef } from './scopeResolution.js';
 import { getContextIdsForScope } from './scopeResolution.js';
 import { getWritableCatalogScope } from './catalogPermissions.js';
@@ -148,7 +150,7 @@ export function hierarchyFromOwnerInput(user: LoadedUser, owner: OwnerScopeInput
 }
 
 export async function resolveHierarchyFromOwnerInput(
-  prisma: PrismaClient,
+  prisma: PrismaDb,
   user: LoadedUser,
   owner: OwnerScopeInput
 ): Promise<ScopeHierarchy> {
@@ -199,7 +201,7 @@ export function canReadOwnerScope(
  * Whether the user may read content owned by the given scope (resolves parent company/dept from DB).
  */
 export async function canReadOwnerScopeResolved(
-  prisma: PrismaClient,
+  prisma: PrismaDb,
   user: LoadedUser,
   userId: string,
   owner: OwnerScopeInput

@@ -24,6 +24,8 @@ const systemRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       throw err;
     }
   });
+
+  return Promise.resolve();
 };
 
 export { systemRoutes };

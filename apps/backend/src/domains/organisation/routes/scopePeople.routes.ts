@@ -75,6 +75,8 @@ const scopePeopleRoutes: FastifyPluginAsync = (app: FastifyInstance) => {
       return reply.send(companyPeopleResponseSchema.parse(data));
     }
   );
+
+  return Promise.resolve();
 };
 
 export default scopePeopleRoutes;
