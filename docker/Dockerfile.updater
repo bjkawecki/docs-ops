@@ -1,12 +1,16 @@
 # Updater sidecar: internal HTTP API to run scripts/update.sh with host Docker socket.
 # Build context: repo root (docker build -f docker/Dockerfile.updater .)
 
-FROM docker:27.4.0-cli AS runtime
-RUN apk add --no-cache nodejs bash curl
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY apps/updater/package.json apps/updater/tsconfig.json ./
 COPY apps/updater/src ./src
-RUN npm install --save-dev typescript@5.8.3 && npm run build
+RUN npm install && npm run build
+
+FROM docker:27.4.0-cli AS runtime
+RUN apk add --no-cache nodejs bash curl
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production
 ENV PORT=8090
 EXPOSE 8090
