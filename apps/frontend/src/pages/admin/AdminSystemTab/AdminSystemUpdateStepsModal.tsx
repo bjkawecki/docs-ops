@@ -1,15 +1,15 @@
 import {
+  ActionIcon,
   Anchor,
   Button,
-  Checkbox,
   Code,
   CopyButton,
   Group,
   Modal,
   Stack,
   Text,
+  Tooltip,
 } from '@mantine/core';
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { IconCheck, IconCopy, IconExternalLink } from '@tabler/icons-react';
 
@@ -28,95 +28,76 @@ export function AdminSystemUpdateStepsModal({
   releaseUrl,
   updaterConfigured = false,
 }: Props) {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [backupConfirmed, setBackupConfirmed] = useState(false);
   const updateTag = latestReleaseTag ?? 'vX.Y.Z';
   const updateCommand = `sudo /opt/docsops/scripts/update.sh ${updateTag}`;
 
-  const handleClose = () => {
-    setStep(1);
-    setBackupConfirmed(false);
-    onClose();
-  };
-
   return (
-    <Modal
-      opened={opened}
-      onClose={handleClose}
-      title={step === 1 ? 'Before you update' : 'Update on the server'}
-      size="md"
-    >
-      {step === 1 ? (
-        <Stack gap="md">
-          {updaterConfigured ? (
-            <Text size="sm">
-              Use <strong>Apply update</strong> on the System tab for a one-click upgrade with
-              automatic backup. These steps are for manual updates via SSH.
-            </Text>
-          ) : (
-            <Text size="sm">
-              Create an operational backup before upgrading production. Updates are applied on the
-              server via SSH — not from this web interface.
-            </Text>
-          )}
+    <Modal opened={opened} onClose={onClose} title="How to update (SSH)" size="md">
+      <Stack gap="md">
+        {updaterConfigured ? (
           <Text size="sm">
-            <Text component={Link} to="/admin/backup" fw={500}>
-              Open Backup tab
-            </Text>{' '}
-            to create or verify a backup.
+            For production, prefer <strong>Apply update</strong> on this tab (automatic backup, then
+            upgrade). Use the steps below only for manual updates on the host.
           </Text>
-          <Checkbox
-            checked={backupConfirmed}
-            onChange={(event) => setBackupConfirmed(event.currentTarget.checked)}
-            label="I confirm a current backup exists"
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button disabled={!backupConfirmed} onClick={() => setStep(2)}>
-              Continue
-            </Button>
-          </Group>
-        </Stack>
-      ) : (
-        <Stack gap="md">
-          <Text size="sm">Run this command on the host (SSH):</Text>
-          {latestReleaseTag == null && (
-            <Text size="sm" c="dimmed">
-              Replace <Code>vX.Y.Z</Code> with the target release tag from GitHub.
+        ) : (
+          <Text size="sm">
+            Updates run on the server via SSH. Create an operational backup in{' '}
+            <Text component={Link} to="/admin/backup" fw={500}>
+              Admin → Backup
+            </Text>{' '}
+            before upgrading.
+          </Text>
+        )}
+
+        {updaterConfigured ? (
+          <Text size="sm" c="dimmed">
+            For a manual run, create a backup first in{' '}
+            <Text component={Link} to="/admin/backup" fw={500}>
+              Admin → Backup
             </Text>
-          )}
-          <Group gap="xs" align="flex-start" wrap="nowrap">
-            <Code block style={{ flex: 1 }}>
-              {updateCommand}
-            </Code>
-            <CopyButton value={updateCommand}>
-              {({ copied, copy }) => (
-                <Button
+            .
+          </Text>
+        ) : null}
+
+        <Text size="sm">Run on the host:</Text>
+        {latestReleaseTag == null && (
+          <Text size="sm" c="dimmed">
+            Replace <Code>vX.Y.Z</Code> with the target release tag from GitHub.
+          </Text>
+        )}
+        <Group gap="xs" align="flex-start" wrap="nowrap">
+          <Code block style={{ flex: 1 }}>
+            {updateCommand}
+          </Code>
+          <CopyButton value={updateCommand} timeout={2000}>
+            {({ copied, copy }) => (
+              <Tooltip label={copied ? 'Copied' : 'Copy command'} withArrow>
+                <ActionIcon
                   variant="light"
-                  size="compact-sm"
-                  leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                  size="lg"
+                  aria-label={copied ? 'Copied' : 'Copy command'}
                   onClick={copy}
                 >
-                  {copied ? 'Copied' : 'Copy'}
-                </Button>
-              )}
-            </CopyButton>
-          </Group>
-          {releaseUrl != null && (
-            <Anchor href={releaseUrl} target="_blank" rel="noreferrer" size="sm">
-              <Group gap={4} component="span">
-                View release on GitHub
-                <IconExternalLink size={14} />
-              </Group>
-            </Anchor>
-          )}
-          <Group justify="flex-end">
-            <Button onClick={handleClose}>Close</Button>
-          </Group>
-        </Stack>
-      )}
+                  {copied ? <IconCheck size={18} /> : <IconCopy size={18} />}
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </CopyButton>
+        </Group>
+
+        {releaseUrl != null && (
+          <Anchor href={releaseUrl} target="_blank" rel="noreferrer" size="sm">
+            <Group gap={4} component="span">
+              View release on GitHub
+              <IconExternalLink size={14} />
+            </Group>
+          </Anchor>
+        )}
+
+        <Group justify="flex-end">
+          <Button onClick={onClose}>Close</Button>
+        </Group>
+      </Stack>
     </Modal>
   );
 }
