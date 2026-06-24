@@ -34,9 +34,32 @@ const EMPTY_APPLY_FIELDS = {
   activeUpdateRun: null,
 } as const;
 
+type UpdateStatusCore = Omit<
+  AdminSystemUpdateStatus,
+  'updaterConfigured' | 'canApplyUpdate' | 'activeUpdateRun'
+>;
+
+function stripApplyFields(status: AdminSystemUpdateStatus): UpdateStatusCore {
+  return {
+    installedVersion: status.installedVersion,
+    updateCheckEnabled: status.updateCheckEnabled,
+    updateCheckConfigured: status.updateCheckConfigured,
+    githubRepo: status.githubRepo,
+    latestVersion: status.latestVersion,
+    latestReleaseTag: status.latestReleaseTag,
+    updateAvailable: status.updateAvailable,
+    releaseUrl: status.releaseUrl,
+    checkedAt: status.checkedAt,
+    checkError: status.checkError,
+    upcomingReleaseNotesVersion: status.upcomingReleaseNotesVersion,
+    upcomingReleaseNotesMarkdown: status.upcomingReleaseNotesMarkdown,
+    upcomingReleaseNotesError: status.upcomingReleaseNotesError,
+  };
+}
+
 async function enrichWithApplyFields(
   prisma: PrismaClient,
-  status: Omit<AdminSystemUpdateStatus, 'updaterConfigured' | 'canApplyUpdate' | 'activeUpdateRun'>
+  status: UpdateStatusCore
 ): Promise<AdminSystemUpdateStatus> {
   const updaterConfigured = isUpdaterConfigured();
   const activeUpdateRun = await getActiveUpdateRun(prisma);
@@ -114,9 +137,9 @@ async function fetchLatestGitHubRelease(
 }
 
 async function attachUpcomingReleaseNotes(
-  status: AdminSystemUpdateStatus,
+  status: UpdateStatusCore,
   githubRepo: string
-): Promise<AdminSystemUpdateStatus> {
+): Promise<UpdateStatusCore> {
   if (!status.updateAvailable || status.latestVersion == null || status.latestReleaseTag == null) {
     return { ...status, ...EMPTY_UPCOMING_NOTES };
   }
@@ -160,7 +183,7 @@ async function buildUpdateStatus(
   const now = Date.now();
   if (!refresh && updateStatusCache != null && updateStatusCache.expiresAt > now) {
     return enrichWithApplyFields(prisma, {
-      ...updateStatusCache.status,
+      ...stripApplyFields(updateStatusCache.status),
       installedVersion,
       githubRepo,
       updateCheckConfigured: true,
@@ -172,7 +195,7 @@ async function buildUpdateStatus(
   try {
     const latest = await fetchLatestGitHubRelease(githubRepo);
     const cmp = compareSemver(installedVersion, latest.latestVersion);
-    const baseStatus: AdminSystemUpdateStatus = {
+    const baseStatus: UpdateStatusCore = {
       installedVersion,
       updateCheckEnabled: true,
       updateCheckConfigured: true,
@@ -194,7 +217,7 @@ async function buildUpdateStatus(
     return enriched;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Update check failed';
-    const status: AdminSystemUpdateStatus = {
+    const status: UpdateStatusCore = {
       installedVersion,
       updateCheckEnabled: true,
       updateCheckConfigured: true,
@@ -206,7 +229,6 @@ async function buildUpdateStatus(
       checkedAt,
       checkError: message,
       ...EMPTY_UPCOMING_NOTES,
-      ...EMPTY_APPLY_FIELDS,
     };
     const enriched = await enrichWithApplyFields(prisma, status);
     updateStatusCache = {

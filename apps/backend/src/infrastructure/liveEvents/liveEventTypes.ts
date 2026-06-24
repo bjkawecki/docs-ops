@@ -4,7 +4,7 @@ export const LIVE_EVENT_VERSION = 1 as const;
 
 export const publicMaintenanceStatusPayloadSchema = z.object({
   active: z.boolean(),
-  reason: z.enum(['backup', 'restore', 'platform-import']).optional(),
+  reason: z.enum(['backup', 'restore', 'platform-import', 'update']).optional(),
 });
 
 export type PublicMaintenanceStatusPayload = z.infer<typeof publicMaintenanceStatusPayloadSchema>;

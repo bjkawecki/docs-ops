@@ -1,9 +1,10 @@
-import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import type { PrismaClient, UpdateRunStatus } from '../../../../generated/prisma/client.js';
 import { IN_PROGRESS_UPDATE_STATUSES } from '../../../infrastructure/maintenance/maintenanceModeService.js';
+import type { AdminUpdateRun } from '../schemas/updates.js';
 
 export function serializeUpdateRun(run: {
   id: string;
-  status: string;
+  status: UpdateRunStatus;
   targetVersion: string;
   targetReleaseTag: string;
   backupRunId: string | null;
@@ -11,7 +12,7 @@ export function serializeUpdateRun(run: {
   startedAt: Date | null;
   finishedAt: Date | null;
   createdAt: Date;
-}) {
+}): AdminUpdateRun {
   return {
     id: run.id,
     status: run.status,
