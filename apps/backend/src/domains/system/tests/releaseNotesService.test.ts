@@ -66,6 +66,36 @@ describe('releaseNotesService', () => {
     expect(() => getRelease('9.9.9')).toThrow(ReleaseNotFoundError);
   });
 
+  it('strips operator section from markdown for end users', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'docsops-releases-'));
+    writeFileSync(
+      join(dir, 'manifest.json'),
+      JSON.stringify({
+        formatVersion: 1,
+        releases: [{ version: '0.3.0', date: '2026-03-01', title: 'Ops' }],
+      })
+    );
+    writeFileSync(
+      join(dir, '0.3.0.md'),
+      `# 0.3.0
+
+### Features
+
+- User feature
+
+## For operators
+
+- Backup first`
+    );
+    process.env.RELEASES_DIR = dir;
+    resetReleaseNotesCache();
+
+    const detail = getRelease('0.3.0');
+    expect(detail.markdown).toContain('User feature');
+    expect(detail.markdown).not.toContain('For operators');
+    expect(detail.markdown).not.toContain('Backup first');
+  });
+
   it('throws ReleaseNotFoundError when markdown file is missing', () => {
     const dir = mkdtempSync(join(tmpdir(), 'docsops-releases-'));
     writeFileSync(

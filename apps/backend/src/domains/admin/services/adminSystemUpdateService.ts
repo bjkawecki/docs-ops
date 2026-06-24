@@ -3,6 +3,7 @@ import { resolveAppVersion } from '../../../infrastructure/appVersion.js';
 import { enqueueJob } from '../../../infrastructure/jobs/client.js';
 import type { AdminSystemUpdateStatus } from '../schemas/systemUpdate.js';
 import { compareSemver, normalizeReleaseVersion } from '../utils/compareSemver.js';
+import { fetchUpcomingReleaseMarkdown } from './adminUpcomingReleaseNotesService.js';
 import { getSystemSettings } from './adminSystemSettingsService.js';
 
 export const DEFAULT_UPDATE_GITHUB_REPO = 'bjkawecki/docs-ops';
@@ -18,6 +19,12 @@ type CachedUpdateStatus = {
 };
 
 let updateStatusCache: CachedUpdateStatus | null = null;
+
+const EMPTY_UPCOMING_NOTES = {
+  upcomingReleaseNotesVersion: null,
+  upcomingReleaseNotesMarkdown: null,
+  upcomingReleaseNotesError: null,
+} as const;
 
 export function getUpdateCheckGithubRepo(): string {
   const raw = process.env.DOCSOPS_UPDATE_GITHUB_REPO?.trim();
@@ -49,6 +56,7 @@ function buildDisabledStatus(
     releaseUrl: null,
     checkedAt: null,
     checkError: null,
+    ...EMPTY_UPCOMING_NOTES,
   };
 }
 
@@ -75,6 +83,37 @@ async function fetchLatestGitHubRelease(
       ? body.html_url
       : `https://github.com/${repo}/releases/tag/${encodeURIComponent(tag)}`;
   return { latestVersion, latestReleaseTag: tag, releaseUrl };
+}
+
+async function attachUpcomingReleaseNotes(
+  status: AdminSystemUpdateStatus,
+  githubRepo: string
+): Promise<AdminSystemUpdateStatus> {
+  if (!status.updateAvailable || status.latestVersion == null || status.latestReleaseTag == null) {
+    return { ...status, ...EMPTY_UPCOMING_NOTES };
+  }
+
+  try {
+    const notes = await fetchUpcomingReleaseMarkdown({
+      repo: githubRepo,
+      version: status.latestVersion,
+      releaseTag: status.latestReleaseTag,
+    });
+    return {
+      ...status,
+      upcomingReleaseNotesVersion: status.latestVersion,
+      upcomingReleaseNotesMarkdown: notes.fullMarkdown,
+      upcomingReleaseNotesError: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Could not load release notes';
+    return {
+      ...status,
+      upcomingReleaseNotesVersion: status.latestVersion,
+      upcomingReleaseNotesMarkdown: null,
+      upcomingReleaseNotesError: message,
+    };
+  }
 }
 
 async function buildUpdateStatus(
@@ -105,7 +144,7 @@ async function buildUpdateStatus(
   try {
     const latest = await fetchLatestGitHubRelease(githubRepo);
     const cmp = compareSemver(installedVersion, latest.latestVersion);
-    const status: AdminSystemUpdateStatus = {
+    const baseStatus: AdminSystemUpdateStatus = {
       installedVersion,
       updateCheckEnabled: true,
       updateCheckConfigured: true,
@@ -116,7 +155,9 @@ async function buildUpdateStatus(
       releaseUrl: latest.releaseUrl,
       checkedAt,
       checkError: null,
+      ...EMPTY_UPCOMING_NOTES,
     };
+    const status = await attachUpcomingReleaseNotes(baseStatus, githubRepo);
     updateStatusCache = {
       status,
       expiresAt: now + getUpdateCheckCacheTtlSeconds() * 1000,
@@ -135,6 +176,7 @@ async function buildUpdateStatus(
       releaseUrl: null,
       checkedAt,
       checkError: message,
+      ...EMPTY_UPCOMING_NOTES,
     };
     updateStatusCache = {
       status,

@@ -559,6 +559,7 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [x] **UI:** Schlanke Status-Card; Modal „View update steps“ mit Backup-Gate; kein Env-/Shell-Text auf Hauptseite.
 [x] **Sidebar:** Update-Badge neben `vX.Y.Z` für Admins (Link `/admin/system`).
 [x] **Cache:** Default-TTL 24h; Frontend `staleTime` 30 Min.
+[x] **Upcoming release preview:** `content/releases/{version}.md` vom GitHub-Tag; optional `## For operators` (in `/whats-new` gefiltert); Accordion im System-Tab.
 
 **Später (optional):** Ein-Klick-Update via Updater-Sidecar (`POST /api/v1/admin/updates/apply`, Bundle + `pull` + `up -d`, Wartungsmodus, Health-Check) – Coolify `AUTO_UPDATE` analog.
 

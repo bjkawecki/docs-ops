@@ -21,7 +21,7 @@ Plan für Betriebs-Features: **What's new**, **Backup** (Disaster Recovery), **U
 ### Release-Ritual (Checkliste)
 
 1. `version` in Root-`package.json` bumpen (Patch/Minor/Major nach Kriterien oben).
-2. `content/releases/<version>.md` schreiben (Englisch, nutzerrelevante Änderungen).
+2. `content/releases/<version>.md` schreiben (Englisch, nutzerrelevante Änderungen). Optional am Ende: Abschnitt `## For operators` (Backup, Env, Migration, Downtime) — wird in `/whats-new` **nicht** angezeigt, Admin → System zeigt die volle Datei als Preview vom GitHub-Tag (§26).
 3. Eintrag in `content/releases/manifest.json`.
 4. `pnpm run lint` + Tests.
 5. Git-Tag `vX.Y.Z`, GitHub Release (Bundle + Images, vgl. **§19**).
@@ -66,6 +66,8 @@ In `content/releases/*.md`:
 | unbekannt         | normale `h3`, kein Icon     |
 
 Kein `## Highlights`. Listen unter `###` sind Standard-Markdown-Bullets.
+
+Optionaler Abschnitt **`## For operators`** am Ende der Datei (Backup, Env, Migration): wird von der API für `/whats-new` abgeschnitten; Admins sehen den vollen Text in der Upcoming-Preview unter **§26**.
 
 ### Abgrenzung
 
@@ -300,6 +302,7 @@ Release Notes im Image enthalten nur Versionen, die beim Build mitgeliefert wurd
 - **Backup-Gate:** Modal mit Bestätigung „Backup exists“ vor Anzeige von `update.sh` (**§25**).
 - Sidebar: Update-Hinweis neben `vX.Y.Z` für Admins; Tab-Badge bei Update verfügbar.
 - Cache: GitHub-Abfrage max. 1× pro 24h (GET); manueller POST bypass.
+- **Upcoming release preview:** Wenn `updateAvailable`, lädt das Backend `content/releases/{latest}.md` vom Release-Tag (raw GitHub) und zeigt sie eingeklappt im System-Tab (inkl. `## For operators`).
 
 ### Phase 1 – Umsetzungsschritte (Skizze)
 

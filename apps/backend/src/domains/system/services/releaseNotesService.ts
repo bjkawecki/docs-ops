@@ -6,6 +6,7 @@ import {
   type ReleaseDetailResponse,
   type ReleaseSummary,
 } from '../schemas/releases.js';
+import { splitReleaseMarkdown } from '../utils/releaseMarkdownAudience.js';
 
 export class ReleaseNotFoundError extends Error {
   readonly statusCode = 404;
@@ -94,5 +95,6 @@ export function getRelease(version: string): ReleaseDetailResponse {
   }
 
   const markdown = readFileSync(markdownPath, 'utf8');
-  return { ...entry, markdown };
+  const { userMarkdown } = splitReleaseMarkdown(markdown);
+  return { ...entry, markdown: userMarkdown };
 }

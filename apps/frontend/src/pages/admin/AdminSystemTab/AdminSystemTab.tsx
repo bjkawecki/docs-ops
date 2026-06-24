@@ -9,6 +9,7 @@ import {
 } from '../../../hooks/useAdminUpdateStatus.js';
 import { AdminSystemOverviewBar } from './AdminSystemOverviewBar.js';
 import { AdminSystemStatusAlerts } from './AdminSystemStatusAlerts.js';
+import { AdminSystemUpcomingReleasePreview } from './AdminSystemUpcomingReleasePreview.js';
 import { AdminSystemUpdateStepsModal } from './AdminSystemUpdateStepsModal.js';
 import { AdminSystemVersionTable } from './AdminSystemVersionTable.js';
 
@@ -73,6 +74,7 @@ export function AdminSystemTab() {
             onViewSteps={openSteps}
           />
           <AdminSystemVersionTable status={status} />
+          <AdminSystemUpcomingReleasePreview status={status} />
         </>
       ) : null}
 
