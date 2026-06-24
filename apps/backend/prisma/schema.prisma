@@ -458,6 +458,13 @@ model BackupSettings {
   updatedAt             DateTime           @updatedAt
 }
 
+/// Singleton platform system settings (id = "default").
+model SystemSettings {
+  id                 String   @id @default("default")
+  updateCheckEnabled Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+}
+
 /// External or secondary storage target for backup archives.
 model BackupDestination {
   id                    String                 @id @default(cuid())

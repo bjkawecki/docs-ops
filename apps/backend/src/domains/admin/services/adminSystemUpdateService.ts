@@ -3,6 +3,9 @@ import { resolveAppVersion } from '../../../infrastructure/appVersion.js';
 import { enqueueJob } from '../../../infrastructure/jobs/client.js';
 import type { AdminSystemUpdateStatus } from '../schemas/systemUpdate.js';
 import { compareSemver, normalizeReleaseVersion } from '../utils/compareSemver.js';
+import { getSystemSettings } from './adminSystemSettingsService.js';
+
+export const DEFAULT_UPDATE_GITHUB_REPO = 'bjkawecki/docs-ops';
 
 type GitHubLatestRelease = {
   tag_name?: string;
@@ -16,24 +19,30 @@ type CachedUpdateStatus = {
 
 let updateStatusCache: CachedUpdateStatus | null = null;
 
-export function getUpdateCheckGithubRepo(): string | null {
+export function getUpdateCheckGithubRepo(): string {
   const raw = process.env.DOCSOPS_UPDATE_GITHUB_REPO?.trim();
-  return raw ? raw : null;
+  return raw ? raw : DEFAULT_UPDATE_GITHUB_REPO;
 }
 
 export function getUpdateCheckCacheTtlSeconds(): number {
   const raw = process.env.DOCSOPS_UPDATE_CHECK_CACHE_TTL_SECONDS;
-  if (raw == null || raw.trim() === '') return 900;
+  if (raw == null || raw.trim() === '') return 86400;
   const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 0) return 900;
+  if (!Number.isFinite(n) || n < 0) return 86400;
   if (n > 86400) return 86400;
   return n;
 }
 
-function buildDisabledStatus(installedVersion: string): AdminSystemUpdateStatus {
+function buildDisabledStatus(
+  installedVersion: string,
+  githubRepo: string | null,
+  updateCheckConfigured: boolean
+): AdminSystemUpdateStatus {
   return {
     installedVersion,
     updateCheckEnabled: false,
+    updateCheckConfigured,
+    githubRepo,
     latestVersion: null,
     latestReleaseTag: null,
     updateAvailable: false,
@@ -68,12 +77,17 @@ async function fetchLatestGitHubRelease(
   return { latestVersion, latestReleaseTag: tag, releaseUrl };
 }
 
-async function buildUpdateStatus(refresh: boolean): Promise<AdminSystemUpdateStatus> {
+async function buildUpdateStatus(
+  prisma: PrismaClient,
+  refresh: boolean
+): Promise<AdminSystemUpdateStatus> {
   const installedVersion = resolveAppVersion();
-  const repo = getUpdateCheckGithubRepo();
-  if (repo == null) {
+  const githubRepo = getUpdateCheckGithubRepo();
+  const settings = await getSystemSettings(prisma);
+
+  if (!settings.updateCheckEnabled) {
     updateStatusCache = null;
-    return buildDisabledStatus(installedVersion);
+    return buildDisabledStatus(installedVersion, githubRepo, false);
   }
 
   const now = Date.now();
@@ -81,16 +95,21 @@ async function buildUpdateStatus(refresh: boolean): Promise<AdminSystemUpdateSta
     return {
       ...updateStatusCache.status,
       installedVersion,
+      githubRepo,
+      updateCheckConfigured: true,
+      updateCheckEnabled: true,
     };
   }
 
   const checkedAt = new Date().toISOString();
   try {
-    const latest = await fetchLatestGitHubRelease(repo);
+    const latest = await fetchLatestGitHubRelease(githubRepo);
     const cmp = compareSemver(installedVersion, latest.latestVersion);
     const status: AdminSystemUpdateStatus = {
       installedVersion,
       updateCheckEnabled: true,
+      updateCheckConfigured: true,
+      githubRepo,
       latestVersion: latest.latestVersion,
       latestReleaseTag: latest.latestReleaseTag,
       updateAvailable: cmp === -1,
@@ -108,6 +127,8 @@ async function buildUpdateStatus(refresh: boolean): Promise<AdminSystemUpdateSta
     const status: AdminSystemUpdateStatus = {
       installedVersion,
       updateCheckEnabled: true,
+      updateCheckConfigured: true,
+      githubRepo,
       latestVersion: null,
       latestReleaseTag: null,
       updateAvailable: false,
@@ -123,10 +144,11 @@ async function buildUpdateStatus(refresh: boolean): Promise<AdminSystemUpdateSta
   }
 }
 
-export async function getAdminSystemUpdateStatus(options?: {
-  refresh?: boolean;
-}): Promise<AdminSystemUpdateStatus> {
-  return buildUpdateStatus(options?.refresh === true);
+export async function getAdminSystemUpdateStatus(
+  prisma: PrismaClient,
+  options?: { refresh?: boolean }
+): Promise<AdminSystemUpdateStatus> {
+  return buildUpdateStatus(prisma, options?.refresh === true);
 }
 
 async function hasUnreadUpdateNotification(
@@ -173,7 +195,7 @@ async function notifyAdminsUpdateAvailable(
 export async function checkAdminSystemUpdatesAndNotify(
   prisma: PrismaClient
 ): Promise<{ status: AdminSystemUpdateStatus; notificationSent: boolean }> {
-  const status = await buildUpdateStatus(true);
+  const status = await buildUpdateStatus(prisma, true);
   const notificationSent = await notifyAdminsUpdateAvailable(prisma, status);
   return { status, notificationSent };
 }

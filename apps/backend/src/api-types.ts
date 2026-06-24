@@ -11,7 +11,9 @@ export type {
 
 export type {
   AdminSystemCheckUpdatesResponse,
+  AdminSystemSettings,
   AdminSystemUpdateStatus,
+  PatchAdminSystemSettingsBody,
 } from './domains/admin/schemas/systemUpdate.js';
 
 export type {

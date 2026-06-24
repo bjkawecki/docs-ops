@@ -293,11 +293,13 @@ Release Notes im Image enthalten nur Versionen, die beim Build mitgeliefert wurd
 ### Phase 1 (empfohlen zuerst)
 
 - Admin-Tab **`/admin/system`** (neben Users, Backup, …).
-- Anzeige: **`APP_VERSION`** (installiert) vs. neueste Version (GitHub Releases API, wenn konfiguriert).
-- Env **`DOCSOPS_UPDATE_GITHUB_REPO`** (`owner/repo`, optional): fehlt → Update-Check deaktiviert, nur installierte Version anzeigen (kein Fallback auf andere Quellen).
-- Aktionen: **Check for updates** (Refresh + optional In-App an Admins, Kategorie `system`, Event z. B. `update-available`).
-- Links: GitHub-Release-URL, `./scripts/update.sh` / Runbook (**§19**).
-- **Backup-Gate:** Hinweis „Backup vor Update“ mit Link zu **§25** (`/admin/backup`).
+- Anzeige: **`APP_VERSION`** (installiert) vs. neueste Version (GitHub Releases API).
+- Env **`DOCSOPS_UPDATE_GITHUB_REPO`** (`owner/repo`): optional; fehlt → Default `bjkawecki/docs-ops`. **Ein/Aus** über Admin → System (`SystemSettings.updateCheckEnabled`, `PATCH /admin/system/settings`).
+- Aktionen: **Check for updates** (Refresh + optional In-App an Admins, Kategorie `operations`, Event `update-available`).
+- Links: GitHub-Release-URL; Runbook-Schritte im Modal „View update steps“ (**§19**).
+- **Backup-Gate:** Modal mit Bestätigung „Backup exists“ vor Anzeige von `update.sh` (**§25**).
+- Sidebar: Update-Hinweis neben `vX.Y.Z` für Admins; Tab-Badge bei Update verfügbar.
+- Cache: GitHub-Abfrage max. 1× pro 24h (GET); manueller POST bypass.
 
 ### Phase 1 – Umsetzungsschritte (Skizze)
 
@@ -333,12 +335,12 @@ Siehe auch [Infrastruktur §12](Infrastruktur-und-Deployment.md) (Managed Hostin
 
 ## 7. Env-Variablen (Entwurf)
 
-| Variable                     | Bedeutung                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------- |
-| `APP_VERSION`                | Beim Image-Build aus Root-`package.json`; Runtime nur Env (kein Fallback)                    |
-| `DOCSOPS_UPDATE_GITHUB_REPO` | Optional: `owner/repo` für Admin Update-Check (GitHub Releases API, §26). Fehlt → Check aus. |
-| `BACKUP_RETENTION_COUNT`     | Max. Anzahl behaltener Backups (pro Destination / global – bei Implementierung festlegen)    |
-| `BACKUP_SCHEDULE_CRON`       | Optional, Scheduler für automatische Backups                                                 |
-| `UPDATE_CHECK_URL`           | Optional, URL für Versionsabfrage (Default: GitHub Releases)                                 |
+| Variable                     | Bedeutung                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `APP_VERSION`                | Beim Image-Build aus Root-`package.json`; Runtime nur Env (kein Fallback)                         |
+| `DOCSOPS_UPDATE_GITHUB_REPO` | `owner/repo` für Admin Update-Check (§26); Default `bjkawecki/docs-ops`. Ein/Aus: Admin → System. |
+| `BACKUP_RETENTION_COUNT`     | Max. Anzahl behaltener Backups (pro Destination / global – bei Implementierung festlegen)         |
+| `BACKUP_SCHEDULE_CRON`       | Optional, Scheduler für automatische Backups                                                      |
+| `UPDATE_CHECK_URL`           | Optional, URL für Versionsabfrage (Default: GitHub Releases)                                      |
 
 Backup-Ziele (S3-Endpoint, SSH-Host, …) primär **in der DB** über Admin-Destinations, nicht als flache Env-Liste. Details in [Env-und-Config](Env-und-Config.md), sobald implementiert.

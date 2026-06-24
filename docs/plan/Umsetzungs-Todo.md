@@ -552,6 +552,14 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [x] **Notifications:** Formatter + Inbox-Link `/admin/system` für `update-available`.
 [x] **Tests:** Admin-Route (401/403), Mock GitHub-Response, SemVer-Vergleich.
 
+### Phase 1 – Polish (abgeschlossen)
+
+[x] **Default-Repo:** Backend-Fallback `bjkawecki/docs-ops` wenn Env fehlt; Dev-Compose + `.env.example`.
+[x] **Admin-Toggle:** `SystemSettings.updateCheckEnabled`; `GET/PATCH /admin/system/settings`.
+[x] **UI:** Schlanke Status-Card; Modal „View update steps“ mit Backup-Gate; kein Env-/Shell-Text auf Hauptseite.
+[x] **Sidebar:** Update-Badge neben `vX.Y.Z` für Admins (Link `/admin/system`).
+[x] **Cache:** Default-TTL 24h; Frontend `staleTime` 30 Min.
+
 **Später (optional):** Ein-Klick-Update via Updater-Sidecar (`POST /api/v1/admin/updates/apply`, Bundle + `pull` + `up -d`, Wartungsmodus, Health-Check) – Coolify `AUTO_UPDATE` analog.
 
 ---

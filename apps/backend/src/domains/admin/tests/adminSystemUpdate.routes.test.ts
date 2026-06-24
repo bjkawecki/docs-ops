@@ -4,6 +4,7 @@ import { buildApp } from '../../../app.js';
 import { prisma } from '../../../db.js';
 import { hashPassword } from '../../auth/services/password.js';
 import {
+  DEFAULT_UPDATE_GITHUB_REPO,
   getUpdateCheckGithubRepo,
   resetAdminSystemUpdateCacheForTests,
 } from '../services/adminSystemUpdateService.js';
@@ -47,6 +48,7 @@ describe('Admin system update routes', () => {
     } else {
       process.env.DOCSOPS_UPDATE_GITHUB_REPO = previousRepo;
     }
+    await prisma.systemSettings.deleteMany({ where: { id: 'default' } });
     await prisma.$executeRaw(
       Prisma.sql`DELETE FROM user_notification WHERE user_id = ${adminId} AND event_type = 'update-available'`
     );
@@ -56,9 +58,10 @@ describe('Admin system update routes', () => {
     await app?.close();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetAdminSystemUpdateCacheForTests();
     vi.restoreAllMocks();
+    await prisma.systemSettings.deleteMany({ where: { id: 'default' } });
   });
 
   async function loginAs(email: string, password: string): Promise<string> {
@@ -86,8 +89,17 @@ describe('Admin system update routes', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('GET /admin/system/update-status disables check when env is missing', async () => {
+  it('GET /admin/system/update-status uses default repo when env is missing', async () => {
     delete process.env.DOCSOPS_UPDATE_GITHUB_REPO;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          tag_name: 'v0.2.0',
+          html_url: 'https://github.com/bjkawecki/docs-ops/releases/tag/v0.2.0',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
     const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
     const res = await app.inject({
       method: 'GET',
@@ -97,13 +109,42 @@ describe('Admin system update routes', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       updateCheckEnabled: boolean;
-      installedVersion: string;
+      updateCheckConfigured: boolean;
+      githubRepo: string;
+      latestVersion: string;
+    };
+    expect(body.updateCheckEnabled).toBe(true);
+    expect(body.updateCheckConfigured).toBe(true);
+    expect(body.githubRepo).toBe(DEFAULT_UPDATE_GITHUB_REPO);
+    expect(body.latestVersion).toBe('0.2.0');
+    expect(getUpdateCheckGithubRepo()).toBe(DEFAULT_UPDATE_GITHUB_REPO);
+    expect(globalThis.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('GET /admin/system/update-status disables check when admin toggle is off', async () => {
+    delete process.env.DOCSOPS_UPDATE_GITHUB_REPO;
+    await prisma.systemSettings.create({
+      data: { id: 'default', updateCheckEnabled: false },
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/system/update-status',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      updateCheckEnabled: boolean;
+      updateCheckConfigured: boolean;
+      githubRepo: string;
       updateAvailable: boolean;
     };
     expect(body.updateCheckEnabled).toBe(false);
-    expect(body.installedVersion).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(body.updateCheckConfigured).toBe(false);
+    expect(body.githubRepo).toBe(DEFAULT_UPDATE_GITHUB_REPO);
     expect(body.updateAvailable).toBe(false);
-    expect(getUpdateCheckGithubRepo()).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('GET /admin/system/update-status reports updateAvailable from GitHub latest', async () => {
@@ -157,5 +198,49 @@ describe('Admin system update routes', () => {
     const body = res.json() as { status: { updateAvailable: boolean }; notificationSent: boolean };
     expect(body.status.updateAvailable).toBe(true);
     expect(typeof body.notificationSent).toBe('boolean');
+  });
+
+  it('GET /admin/system/settings returns defaults for admin', async () => {
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/system/settings',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { updateCheckEnabled: boolean; updatedAt: string };
+    expect(body.updateCheckEnabled).toBe(true);
+    expect(body.updatedAt).toBeTruthy();
+  });
+
+  it('PATCH /admin/system/settings toggles update check for admin', async () => {
+    const cookie = await loginAs(ADMIN_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/system/settings',
+      headers: { cookie },
+      payload: { updateCheckEnabled: false },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { updateCheckEnabled: boolean };
+    expect(body.updateCheckEnabled).toBe(false);
+
+    const statusRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/system/update-status',
+      headers: { cookie },
+    });
+    const status = statusRes.json() as { updateCheckEnabled: boolean };
+    expect(status.updateCheckEnabled).toBe(false);
+  });
+
+  it('GET /admin/system/settings returns 403 for non-admin', async () => {
+    const cookie = await loginAs(NORMAL_EMAIL, PASSWORD);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/system/settings',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });

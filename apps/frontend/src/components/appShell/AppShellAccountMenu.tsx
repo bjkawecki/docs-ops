@@ -22,7 +22,7 @@ import {
 import type { UseMutationResult } from '@tanstack/react-query';
 import type { MeResponse } from '../../api/me-types.js';
 import { useWhatsNewBadge } from '../../hooks/useWhatsNewBadge.js';
-import { AppVersionLabel } from '../AppVersionLabel.js';
+import { AdminAppVersionLabel } from '../AdminAppVersionLabel.js';
 
 type Props = {
   me: MeResponse | undefined;
@@ -155,8 +155,9 @@ export function AppShellAccountMenu({
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
-        <AppVersionLabel
-          variant="compact"
+        <AdminAppVersionLabel
+          isAdmin={me?.user?.isAdmin === true}
+          isMiniRail={isMiniRail}
           ta={isMiniRail ? 'center' : 'left'}
           pl={isMiniRail ? 0 : 'sm'}
           fz={10}
