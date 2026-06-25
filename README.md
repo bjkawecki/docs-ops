@@ -1,56 +1,56 @@
 # DocsOps
 
-Interne Dokumentationsplattform .
+Internal documentation platform.
 
-## Dokumentation
+## Documentation
 
-- **Konzept:** [docs/platform/](docs/platform/)
-- **Umsetzungsplan:** [docs/plan/](docs/plan/)
+- **Concept:** [docs/platform/](docs/platform/)
+- **Implementation plan:** [docs/plan/](docs/plan/)
 
-## Voraussetzungen
+## Prerequisites
 
-- Docker (mit `docker compose`) oder Podman mit podman-compose
-- Für Entwicklung: Node.js (`.nvmrc`), pnpm
+- Docker (with `docker compose`) or Podman with podman-compose
+- For development: Node.js (`.nvmrc`), pnpm
 
 ## Installation
 
-### Production (Intranet-Server)
+### Production (intranet server)
 
-DocsOps Production ist **für das Intranet** ausgelegt: ein Linux-Server im Firmennetz, erreichbar per **HTTP** auf Port **80** (z. B. `http://docsops.intranet` oder die Server-IP). Hostname optional per internem DNS oder `/etc/hosts`. **TLS/HTTPS** ist nicht Teil der Standard-Installation (später optional: Caddy + `SESSION_COOKIE_SECURE=1` in `/etc/docsops/docsops.env`).
+DocsOps production is designed for the **intranet**: a Linux server on the corporate network, reachable via **HTTP** on port **80** (e.g. `http://docsops.intranet` or the server IP). Hostname is optional via internal DNS or `/etc/hosts`. **TLS/HTTPS** is not part of the default install (optional later: Caddy + `SESSION_COOKIE_SECURE=1` in `/etc/docsops/docsops.env`).
 
 ```bash
 curl -fsSL https://github.com/bjkawecki/docs-ops/releases/latest/download/install.sh | sudo bash
 ```
 
-Das Skript des **neuesten GitHub-Releases** enthält die passende Version (Bundle + Images). **Pinning:** `…/releases/download/v0.1.0/install.sh` oder `DOCSOPS_VERSION=v0.1.0` vor `bash`.
+The script from the **latest GitHub release** embeds the matching version (bundle + images). **Pinning:** `…/releases/download/v0.1.0/install.sh` or `DOCSOPS_VERSION=v0.1.0` before `bash`.
 
-**Root erforderlich:** Die Pipeline mit `sudo` ausführen. Das Skript lädt das Release-Bundle nach `/opt/docsops`, legt Secrets in **`/etc/docsops/docsops.env`** an und startet den Prod-Stack auf **Port 80** (Container-Images von **GHCR**, kein lokaler Build). **Keine Seed-Daten, kein Debug-Menü** – nur Admin-Zugang aus dem Install.
+**Root required:** Run the pipeline with `sudo`. The script downloads the release bundle to `/opt/docsops`, creates secrets in **`/etc/docsops/docsops.env`**, and starts the production stack on **port 80** (container images from **GHCR**, no local build). **No seed data, no debug menu** — admin access is created during install only.
 
-Updates: `sudo /opt/docsops/scripts/update.sh` (neuestes Release) oder `… update.sh vX.Y.Z` zum Pinnen (siehe [docs/install.md](docs/install.md)).
+Updates: `sudo /opt/docsops/scripts/update.sh` (latest release) or `… update.sh vX.Y.Z` to pin a version (see [docs/install.md](docs/install.md)).
 
-**Demo-Instanz** (öffentliche Live-Demo): zusätzlich `docker-compose.demo.yml` und `DEMO_MODE=true` – siehe [docs/install.md](docs/install.md).
+**Demo instance** (public live demo): additionally `docker-compose.demo.yml` and `DEMO_MODE=true` — see [docs/install.md](docs/install.md).
 
-Vollständige Anleitung: **[docs/install.md](docs/install.md)**.
+Full guide: **[docs/install.md](docs/install.md)**.
 
-### Entwicklung / prod-nah lokal
+### Development / local prod-like
 
 ```bash
 make up
-# oder: docker compose up -d
+# or: docker compose up -d
 ```
 
-App nach kurzer Startzeit unter **http://localhost:5000** (Health: http://localhost:5000/health). Konfiguration: `.env` im Repo-Root (siehe `.env.example`).
+After a short startup, the app is at **http://localhost:5000** (health: http://localhost:5000/health). Configuration: `.env` in the repo root (see `.env.example`).
 
-Siehe [docs/Development-Anleitung.md](docs/Development-Anleitung.md).
+See [docs/Development-Anleitung.md](docs/Development-Anleitung.md).
 
 ## Operational backup
 
 Before configuring backup destinations in **Admin → Backup**, set `BACKUP_ENCRYPTION_KEY` (encrypts stored destination credentials at rest).
 
-| Umgebung        | Wo setzen                                                                     |
-| --------------- | ----------------------------------------------------------------------------- |
-| **Development** | `.env` im Repo-Root                                                           |
-| **Production**  | `/etc/docsops/docsops.env` (vom Install-Skript; Key einmal an Admin ausgeben) |
+| Environment     | Where to set                                                                 |
+| --------------- | ---------------------------------------------------------------------------- |
+| **Development** | `.env` in the repo root                                                      |
+| **Production**  | `/etc/docsops/docsops.env` (created by install; key shown once to the admin) |
 
 Generate a 32-byte key (base64):
 
@@ -67,12 +67,12 @@ BACKUP_ENCRYPTION_KEY="<generated-value>"
 
 Restart **docsops-app** and **docsops-job-worker** after changing env (`docker compose up` or restart dev processes). With Docker Compose, variables are passed from the env file into the containers.
 
-**Troubleshooting (Dev):** If Admin → Backup shows _Encryption not configured_ although the key is set, check quoting, file at **repo root**, and container restart. For local `make dev`, the backend loads the repo-root `.env` automatically.
+**Troubleshooting (dev):** If Admin → Backup shows _Encryption not configured_ although the key is set, check quoting, file at **repo root**, and container restart. For local `make dev`, the backend loads the repo-root `.env` automatically.
 
 **Production:** Store `BACKUP_ENCRYPTION_KEY` in a password manager in addition to `/etc/docsops/docsops.env`. See [docs/install.md](docs/install.md).
 
 If you lose this key, existing destinations cannot be decrypted. The key is **not** included in backup archives. See [Runbook-Backup-Restore](docs/plan/Runbook-Backup-Restore.md).
 
-## Entwicklung
+## Development
 
-Siehe [docs/Development-Anleitung.md](docs/Development-Anleitung.md).
+See [docs/Development-Anleitung.md](docs/Development-Anleitung.md).
