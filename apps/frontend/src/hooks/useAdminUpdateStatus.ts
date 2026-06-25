@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import type {
   AdminSystemCheckUpdatesResponse,
   AdminSystemSettings,
@@ -71,7 +72,8 @@ export function useAdminUpdateStatus(options?: { enabled?: boolean }) {
     queryKey: adminUpdateStatusQueryKey,
     queryFn: fetchAdminUpdateStatus,
     enabled: options?.enabled !== false,
-    staleTime: 1_800_000,
+    staleTime: 5_000,
+    refetchInterval: (query) => (query.state.data?.activeUpdateRun != null ? 3000 : false),
   });
 }
 
@@ -116,15 +118,26 @@ export function useApplySystemUpdate() {
 }
 
 export function usePollUpdateRun(updateRunId: string | null, options?: { enabled?: boolean }) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery({
     queryKey: ['admin', 'updates', updateRunId] as const,
     queryFn: () => fetchUpdateRun(updateRunId!),
     enabled: options?.enabled !== false && updateRunId != null,
-    refetchInterval: (query) => {
-      const data = query.state.data;
+    refetchInterval: (q) => {
+      const data = q.state.data;
       if (data == null) return 2000;
       if (data.status === 'succeeded' || data.status === 'failed') return false;
       return 2000;
     },
   });
+
+  useEffect(() => {
+    const data = query.data;
+    if (data?.status === 'succeeded' || data?.status === 'failed') {
+      void queryClient.invalidateQueries({ queryKey: adminUpdateStatusQueryKey });
+      void queryClient.invalidateQueries({ queryKey: ['maintenance', 'status'] });
+    }
+  }, [query.data, queryClient]);
+
+  return query;
 }

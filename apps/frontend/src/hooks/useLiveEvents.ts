@@ -57,16 +57,20 @@ function parseLiveClientEvent(data: string): LiveClientEvent | null {
         reason !== undefined &&
         reason !== 'backup' &&
         reason !== 'restore' &&
-        reason !== 'platform-import'
+        reason !== 'platform-import' &&
+        reason !== 'update'
       ) {
         return null;
       }
+      const startedAt = p.startedAt;
+      if (startedAt !== undefined && typeof startedAt !== 'string') return null;
       return {
         v: 1,
         type: 'maintenance.status-changed',
         payload: {
           active: p.active,
           ...(reason != null ? { reason } : {}),
+          ...(typeof startedAt === 'string' ? { startedAt } : {}),
         },
       };
     }

@@ -1,5 +1,6 @@
-import { Box, Button, Loader, Stack, Text, Title } from '@mantine/core';
+import { Box, Button, List, Loader, Stack, Text, Title } from '@mantine/core';
 import type { UpdateOverlayPhase } from '../../hooks/useUpdateInProgressOverlay.js';
+import { UPDATE_PROGRESS_STEPS } from '../../pages/admin/AdminSystemTab/updateProgressSteps.js';
 
 type Props = {
   visible: boolean;
@@ -16,7 +17,7 @@ function overlayMessage(phase: UpdateOverlayPhase): { title: string; body: strin
   }
   return {
     title: 'System update in progress',
-    body: 'The connection may be interrupted while containers restart. Please wait and reload this page in a few minutes.',
+    body: 'Containers are restarting. This page may stop updating until the API is back.',
   };
 }
 
@@ -47,7 +48,7 @@ export function AppShellUpdateInProgressOverlay({ visible, phase, onDismiss }: P
         gap="lg"
         mih="100%"
         px="md"
-        style={{ maxWidth: 420, margin: '0 auto' }}
+        style={{ maxWidth: 480, margin: '0 auto' }}
       >
         <Loader color="orange" size="lg" type="bars" />
         <Title id="update-overlay-title" order={3} c="white" ta="center">
@@ -56,6 +57,16 @@ export function AppShellUpdateInProgressOverlay({ visible, phase, onDismiss }: P
         <Text id="update-overlay-body" size="sm" c="gray.4" ta="center">
           {body}
         </Text>
+        {phase === 'in-progress' ? (
+          <List size="sm" c="gray.5" spacing={4} w="100%" maw={360}>
+            {UPDATE_PROGRESS_STEPS.map((step) => (
+              <List.Item key={step.key}>
+                {step.label}
+                {step.estimate ? ` (${step.estimate})` : ''}
+              </List.Item>
+            ))}
+          </List>
+        ) : null}
         {phase === 'reload' ? (
           <Button color="orange" onClick={handleReload}>
             Reload page

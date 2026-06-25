@@ -1,9 +1,12 @@
-import { Box, Text } from '@mantine/core';
+import { Box, Group, Loader, Text } from '@mantine/core';
 import type { MaintenanceStatus } from '../../hooks/useMaintenanceStatus';
+import { useElapsedMs, useElapsedSince } from '../../hooks/useElapsedSince';
 
 type Props = {
   status: MaintenanceStatus | undefined;
 };
+
+const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 function bannerMessage(status: MaintenanceStatus): string {
   if (status.reason === 'restore') {
@@ -18,16 +21,28 @@ function bannerMessage(status: MaintenanceStatus): string {
   return 'Backup in progress – write operations are temporarily blocked.';
 }
 
-export function AppShellMaintenanceBanner({ status }: Props) {
-  if (!status?.active) return null;
+function bannerColor(status: MaintenanceStatus): string {
+  if (status.reason === 'restore') return 'orange.9';
+  if (status.reason === 'update') return 'grape.9';
+  if (status.reason === 'platform-import') return 'violet.9';
+  return 'blue.9';
+}
 
-  const isRestore = status.reason === 'restore';
-  const isUpdate = status.reason === 'update';
+function showLongRunningHint(elapsedMs: number | null): boolean {
+  return elapsedMs != null && elapsedMs >= TEN_MINUTES_MS;
+}
+
+export function AppShellMaintenanceBanner({ status }: Props) {
+  const elapsed = useElapsedSince(status?.startedAt);
+  const elapsedMs = useElapsedMs(status?.startedAt);
+  const longRunning = showLongRunningHint(elapsedMs);
+
+  if (!status?.active) return null;
 
   return (
     <Box
       px="md"
-      py={6}
+      py={8}
       style={{
         flexShrink: 0,
         display: 'flex',
@@ -35,13 +50,20 @@ export function AppShellMaintenanceBanner({ status }: Props) {
         justifyContent: 'center',
         borderBottom: '1px solid var(--mantine-color-default-border)',
       }}
-      bg={isRestore ? 'orange.9' : isUpdate ? 'grape.9' : 'blue.9'}
+      bg={bannerColor(status)}
       role="status"
       aria-live="polite"
     >
-      <Text size="sm" c="white" ta="center" lineClamp={2}>
-        {bannerMessage(status)}
-      </Text>
+      <Group gap="sm" wrap="wrap" justify="center" maw={960}>
+        <Loader color="white" size="xs" type="oval" />
+        <Text size="sm" c="white" ta="center" lineClamp={3}>
+          {bannerMessage(status)}
+          {elapsed != null ? ` Started ${elapsed} ago.` : ''}
+          {longRunning
+            ? ' If this seems stuck, wait 10 minutes and try again, or check server logs.'
+            : ''}
+        </Text>
+      </Group>
     </Box>
   );
 }

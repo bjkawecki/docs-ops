@@ -119,7 +119,7 @@ main() {
   fi
 
   [[ -n "${DOCSOPS_VERSION:-}" ]] \
-    || die "DOCSOPS_VERSION fehlt. Release-Install: curl -fsSL https://github.com/${DOCSOPS_GITHUB_REPO}/releases/download/vX.Y.Z/install.sh | sudo bash (Version steckt im Skript). Dev/Repo: DOCSOPS_VERSION=vX.Y.Z setzen."
+    || die "DOCSOPS_VERSION fehlt. Release-Install: curl -fsSL https://github.com/${DOCSOPS_GITHUB_REPO}/releases/latest/download/install.sh | sudo bash (Version steckt im Skript). Pinning: …/releases/download/vX.Y.Z/install.sh oder DOCSOPS_VERSION=vX.Y.Z. Dev/Repo: DOCSOPS_VERSION=vX.Y.Z setzen."
 
   download_release_bundle "$DOCSOPS_VERSION" "$DOCSOPS_INSTALL_DIR"
   run_install_prod_from_dir "$DOCSOPS_INSTALL_DIR" "${INSTALL_PROD_ARGS[@]}"

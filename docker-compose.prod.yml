@@ -60,7 +60,6 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-docsops}-job-worker
     image: ${DOCSOPS_IMAGE_PREFIX}/docsops-worker:${DOCSOPS_VERSION}
     restart: unless-stopped
-    entrypoint: ['node', 'dist/src/entrypoints/worker.js']
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://app:app@postgres:5432/docsops

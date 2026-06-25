@@ -1,5 +1,6 @@
 import type { PrismaClient, UpdateRunStatus } from '../../../../generated/prisma/client.js';
 import { IN_PROGRESS_UPDATE_STATUSES } from '../../../infrastructure/maintenance/maintenanceModeService.js';
+import { reconcileFailedPreUpdateBackups } from '../../../infrastructure/maintenance/reconcileFailedPreUpdateBackups.js';
 import type { AdminUpdateRun } from '../schemas/updates.js';
 
 export function serializeUpdateRun(run: {
@@ -27,6 +28,7 @@ export function serializeUpdateRun(run: {
 }
 
 export async function getActiveUpdateRun(prisma: PrismaClient) {
+  await reconcileFailedPreUpdateBackups(prisma);
   const run = await prisma.updateRun.findFirst({
     where: { status: { in: [...IN_PROGRESS_UPDATE_STATUSES] } },
     orderBy: { createdAt: 'desc' },

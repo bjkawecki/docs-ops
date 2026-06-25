@@ -8,8 +8,10 @@ import {
 } from '../../domains/admin/services/adminSystemUpdateApplyService.js';
 import { releaseMaintenanceLockIfOwned } from './maintenanceModeService.js';
 import { refreshMaintenanceLiveState } from '../liveEvents/refreshMaintenanceLiveState.js';
+import { reconcileFailedPreUpdateBackups } from './reconcileFailedPreUpdateBackups.js';
 
 export async function reconcileUpdateRunsOnStartup(prisma: PrismaClient): Promise<void> {
+  await reconcileFailedPreUpdateBackups(prisma);
   const installedVersion = resolveAppVersion();
   const timeoutMs = getUpdateApplyTimeoutSeconds() * 1000;
   const now = Date.now();
@@ -45,9 +47,6 @@ export async function reconcileUpdateRunsOnStartup(prisma: PrismaClient): Promis
     const backup = run.backupRun;
     const backupStatus = backup?.status;
     if (backupStatus === 'failed') {
-      await failUpdateRun(prisma, run.id, backup?.errorMessage ?? 'Pre-update backup failed', {
-        notify: false,
-      });
       continue;
     }
     if (backupStatus === 'succeeded') {

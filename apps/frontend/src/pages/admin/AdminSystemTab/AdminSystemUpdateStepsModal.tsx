@@ -134,8 +134,7 @@ export function AdminSystemUpdateStepsModal({
   updaterConfigured = false,
   updaterMissingEnvVars = [],
 }: Props) {
-  const updateTag = latestReleaseTag ?? 'vX.Y.Z';
-  const updateCommand = `sudo /opt/docsops/scripts/update.sh ${updateTag}`;
+  const updateCommand = 'sudo /opt/docsops/scripts/update.sh';
 
   return (
     <Modal opened={opened} onClose={onClose} title="How to update (SSH)" size="md">
@@ -172,9 +171,15 @@ export function AdminSystemUpdateStepsModal({
         <Text size="sm" fw={500}>
           Manual upgrade on the host
         </Text>
-        {latestReleaseTag == null && (
+        {latestReleaseTag == null ? (
           <Text size="sm" c="dimmed">
-            Replace <Code>vX.Y.Z</Code> with the target release tag from GitHub.
+            Without a version argument, <Code>update.sh</Code> uses the latest GitHub release. Pin a
+            version: <Code>sudo /opt/docsops/scripts/update.sh vX.Y.Z</Code>
+          </Text>
+        ) : (
+          <Text size="sm" c="dimmed">
+            Latest release: <Code>{latestReleaseTag}</Code>. Pin:{' '}
+            <Code>sudo /opt/docsops/scripts/update.sh {latestReleaseTag}</Code>
           </Text>
         )}
         <Group gap="xs" align="flex-start" wrap="nowrap" style={{ minWidth: 0 }}>

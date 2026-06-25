@@ -91,6 +91,12 @@ docker compose --env-file /etc/docsops/docsops.env \
 ### Update
 
 ```bash
+sudo /opt/docsops/scripts/update.sh
+```
+
+Ohne Argument: neuestes GitHub-Release. Bestimmte Version:
+
+```bash
 sudo /opt/docsops/scripts/update.sh v0.2.0
 ```
 
@@ -109,7 +115,7 @@ sudo /opt/docsops/scripts/uninstall-prod.sh
 Alternativ per curl (lädt bei Bedarf das neueste Release-Bundle nur für das Skript):
 
 ```bash
-curl -fsSL https://github.com/bjkawecki/docs-ops/releases/download/v0.1.0/uninstall.sh | sudo bash
+curl -fsSL https://github.com/bjkawecki/docs-ops/releases/latest/download/uninstall.sh | sudo bash
 ```
 
 Das Skript fragt interaktiv nach Bestätigung (`yes`). Optionen:
@@ -186,13 +192,20 @@ Das Install-Skript richtet kein VPN und kein zentrales DNS ein (Hinweis in Doku 
 
 **Standard (VM / Intranet-Server):**
 
-Ersetze `v0.1.0` durch das gewünschte [Release](https://github.com/bjkawecki/docs-ops/releases):
+```bash
+curl -fsSL https://github.com/bjkawecki/docs-ops/releases/latest/download/install.sh | sudo bash
+```
+
+Lädt das **neueste** Release-Bundle nach `/opt/docsops`, installiert bei Bedarf Docker und startet DocsOps auf **Port 80**. Nur **Release-Tags** (`vX.Y.Z`) – kein Branch `main`. Die Version ist im heruntergeladenen `install.sh` eingebettet (Skript, Bundle und Images passen zusammen).
+
+**Bestimmte Version (Pinning):**
 
 ```bash
 curl -fsSL https://github.com/bjkawecki/docs-ops/releases/download/v0.1.0/install.sh | sudo bash
+# oder: DOCSOPS_VERSION=v0.1.0 curl -fsSL …/releases/latest/download/install.sh | sudo bash
 ```
 
-Lädt das Release-Bundle nach `/opt/docsops`, installiert bei Bedarf Docker und startet DocsOps auf **Port 80**. Nur **Release-Tags** (`vX.Y.Z`) – kein Branch `main`. Die Version ist im heruntergeladenen `install.sh` eingebettet (URL = Bundle = Images). Optional: `DOCSOPS_VERSION=…` zum Überschreiben. Beim **Re-Install** erkennt das Skript den DocsOps-Caddy auf Port 80 und fährt mit Update fort. Existiert bereits `/etc/docsops/docsops.env`, fragt **Schritt „Konfiguration“** interaktiv, ob die bestehende Datei beibehalten werden soll (Default: ja). Mit `--reconfigure` oder Antwort **n** werden neue Secrets erzeugt. Bei fremden Webservern auf Port 80 (Apache, nginx, …) vor der Erstinstallation: Dienst stoppen.
+Beim **Re-Install** erkennt das Skript den DocsOps-Caddy auf Port 80 und fährt mit Update fort. Existiert bereits `/etc/docsops/docsops.env`, fragt **Schritt „Konfiguration“** interaktiv, ob die bestehende Datei beibehalten werden soll (Default: ja). Mit `--reconfigure` oder Antwort **n** werden neue Secrets erzeugt. Bei fremden Webservern auf Port 80 (Apache, nginx, …) vor der Erstinstallation: Dienst stoppen.
 
 **Aus entpacktem Bundle** (z. B. nach manuellem Download von `docsops-vX.Y.Z.tar.gz`):
 

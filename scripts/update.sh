@@ -7,12 +7,15 @@ source "${SCRIPT_DIR}/install/lib/common.sh"
 
 usage() {
   cat <<EOF
-Usage: update.sh VERSION
+Usage: update.sh [VERSION]
 
 Update an existing DocsOps production install to a new release.
 
 Examples:
+  sudo ./scripts/update.sh
   sudo ./scripts/update.sh v0.2.0
+
+Without VERSION, uses the latest GitHub release. Pass a tag to pin a specific version.
 
 Downloads the release bundle, replaces deploy files under ${DOCSOPS_INSTALL_DIR},
 updates DOCSOPS_VERSION in ${DOCSOPS_ENV_FILE}, then runs docker compose pull && up -d.
@@ -47,19 +50,21 @@ download_release_bundle_to_install_dir() {
   log "Deploy-Dateien unter ${DOCSOPS_INSTALL_DIR} aktualisiert"
 }
 
-  main() {
+main() {
   local version="${1:-}"
   if [[ "$version" == "-h" || "$version" == "--help" ]]; then
     usage
     exit 0
   fi
-  [[ -n "$version" ]] || die "VERSION fehlt. Beispiel: sudo ./scripts/update.sh v0.2.0"
 
   require_root
   export DOCSOPS_INSTALL_STAGE_TOTAL=3
   INSTALL_STAGE_N=0
   resolve_install_dir || die "Keine Installation unter ${DOCSOPS_INSTALL_DIR} gefunden."
   [[ -f "$DOCSOPS_ENV_FILE" ]] || die "${DOCSOPS_ENV_FILE} fehlt – zuerst installieren."
+
+  version="$(resolve_release_version "$version")"
+  log "Ziel-Release: ${version}"
 
   download_release_bundle_to_install_dir "$version"
   patch_env_version "$version"

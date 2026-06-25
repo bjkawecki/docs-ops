@@ -41,6 +41,31 @@ assert_release_version() {
   fi
 }
 
+docsops_github_install_curl_url() {
+  echo "https://github.com/${DOCSOPS_GITHUB_REPO}/releases/latest/download/install.sh"
+}
+
+docsops_github_uninstall_curl_url() {
+  echo "https://github.com/${DOCSOPS_GITHUB_REPO}/releases/latest/download/uninstall.sh"
+}
+
+fetch_latest_github_release_tag() {
+  local tag
+  tag="$(curl -fsSL "https://api.github.com/repos/${DOCSOPS_GITHUB_REPO}/releases/latest" \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+  [[ -n "$tag" ]] || die "Kein GitHub-Release ermittelbar (https://github.com/${DOCSOPS_GITHUB_REPO}/releases)."
+  echo "$tag"
+}
+
+resolve_release_version() {
+  local version="${1:-${DOCSOPS_VERSION:-}}"
+  if [[ -n "$version" ]]; then
+    echo "$version"
+    return 0
+  fi
+  fetch_latest_github_release_tag
+}
+
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
     die "Bitte mit sudo ausführen: sudo $0"
@@ -135,7 +160,8 @@ Warum es hier vertretbar sein kann
 DocsOps ist Open Source (FOSS). Prüfe Release-Notes und Images auf GitHub,
 bevor du curl | bash ausführst.
 
-Production-Install nur mit Release-Tag (DOCSOPS_VERSION=vX.Y.Z) –
+Production-Install: curl -fsSL …/releases/latest/download/install.sh | sudo bash
+(Pinning: …/releases/download/vX.Y.Z/install.sh oder DOCSOPS_VERSION=vX.Y.Z) –
 kein Branch main, kein lokaler Image-Build auf dem Server.
 
 EOF
