@@ -96,22 +96,36 @@ jobs:
   install-test:
     needs: build-and-push
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-install-test-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      DOCSOPS_CI_DIR: /tmp/docsops-ci-${{ github.run_id }}
+      DOCSOPS_CI_ENV: /tmp/docsops-ci-${{ github.run_id }}/docsops.env
+      DOCSOPS_CI_PROJECT: docsops-ci-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v6
 
       - name: Build deploy bundle for CI
         run: DOCSOPS_VERSION="${{ github.ref_name }}" ./scripts/release/build-bundle.sh dist
 
-      - name: Extract bundle to /opt/docsops
+      - name: Remove stale DocsOps volumes (legacy CI project name)
         run: |
-          sudo mkdir -p /opt/docsops
+          sudo docker volume rm docsops_postgres_data docsops_minio_data 2>/dev/null || true
+
+      - name: Extract bundle to CI directory
+        run: |
+          sudo mkdir -p "$DOCSOPS_CI_DIR"
           sudo tar -xzf "dist/docsops-${{ github.ref_name }}.tar.gz" -C /tmp
-          sudo rm -rf /opt/docsops/*
-          sudo cp -a "/tmp/docsops-${{ github.ref_name }}/." /opt/docsops/
+          sudo rm -rf "${DOCSOPS_CI_DIR:?}"/*
+          sudo cp -a "/tmp/docsops-${{ github.ref_name }}/." "$DOCSOPS_CI_DIR/"
 
       - name: Production install (registry pull)
         env:
           DOCSOPS_VERSION: ${{ github.ref_name }}
+          DOCSOPS_INSTALL_DIR: ${{ env.DOCSOPS_CI_DIR }}
+          DOCSOPS_ENV_FILE: ${{ env.DOCSOPS_CI_ENV }}
+          COMPOSE_PROJECT_NAME: ${{ env.DOCSOPS_CI_PROJECT }}
           DOCSOPS_NON_INTERACTIVE: '1'
           DOCSOPS_ASSUME_YES: '1'
           DOCSOPS_INSTALL_CONFIRMED: '1'
@@ -120,7 +134,22 @@ jobs:
           DOCSOPS_HEALTH_URL: http://127.0.0.1:8080/health
           ADMIN_EMAIL: ci-admin@example.com
           ADMIN_PASSWORD: ci-admin-password-12
-        run: sudo -E /opt/docsops/scripts/install-prod.sh
+        run: sudo -E "$DOCSOPS_CI_DIR/scripts/install-prod.sh"
+
+      - name: Cleanup CI install
+        if: always()
+        run: |
+          CI_DIR="${{ env.DOCSOPS_CI_DIR }}"
+          CI_ENV="${{ env.DOCSOPS_CI_ENV }}"
+          if [[ -f "$CI_ENV" && -f "${CI_DIR}/docker-compose.prod.yml" ]]; then
+            sudo docker compose --env-file "$CI_ENV" \
+              -f "${CI_DIR}/docker-compose.yml" \
+              -f "${CI_DIR}/docker-compose.prod.yml" \
+              -f "${CI_DIR}/docker-compose.ci.yml" \
+              down -v --remove-orphans 2>/dev/null || true
+          fi
+          sudo rm -rf "$CI_DIR"
+          sudo docker volume rm docsops_postgres_data docsops_minio_data 2>/dev/null || true
 
   release:
     needs: [bundle, install-test]
