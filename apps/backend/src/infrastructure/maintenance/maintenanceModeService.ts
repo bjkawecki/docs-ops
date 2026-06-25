@@ -1,4 +1,5 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
+import { reconcileFailedPreUpdateBackups } from './reconcileFailedPreUpdateBackups.js';
 import {
   isBackupRunActivelyRunning,
   isPlatformExportRunActivelyRunning,
@@ -172,6 +173,8 @@ async function resolvePreUpdateBackupContext(
 export async function getPublicMaintenanceStatus(
   prisma: PrismaClient
 ): Promise<PublicMaintenanceStatus> {
+  await reconcileFailedPreUpdateBackups(prisma);
+
   const lock = await getMaintenanceLock(prisma);
   if (lock.active) {
     const lockStartedAt = toIsoStartedAt(lock.lockedAt);

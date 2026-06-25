@@ -65,11 +65,11 @@ export function useUpdateInProgressOverlay(isAdmin: boolean) {
   }, [activeRun?.status, runFailed]);
 
   useEffect(() => {
-    if (!maintenance?.active && !runInProgress && sticky && activeRun == null) {
+    if (!maintenance?.active && !runInProgress && sticky) {
       setStickyFlag(false);
       setSticky(false);
     }
-  }, [activeRun, maintenance?.active, runInProgress, sticky]);
+  }, [maintenance?.active, runInProgress, sticky]);
 
   const shouldPollRecovery = sticky && !liveInProgress && !runFailed;
 

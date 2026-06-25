@@ -12,12 +12,14 @@ describe('maintenanceModeService', () => {
     await prisma.systemMaintenanceLock.deleteMany({ where: { id: 'backup' } });
     await prisma.restoreRun.deleteMany({});
     await prisma.backupRun.deleteMany({});
+    await prisma.updateRun.deleteMany({});
   });
 
   afterEach(async () => {
     await prisma.systemMaintenanceLock.deleteMany({ where: { id: 'backup' } });
     await prisma.restoreRun.deleteMany({});
     await prisma.backupRun.deleteMany({});
+    await prisma.updateRun.deleteMany({});
   });
 
   it('tryAcquireMaintenanceLock fails when lock already held', async () => {
@@ -72,6 +74,50 @@ describe('maintenanceModeService', () => {
     expect(lock.active).toBe(true);
     expect(lock.reason).toBe('backup');
     expect(lock.backupRunId).toBe('backup-a');
+  });
+
+  it('tryAcquireMaintenanceLock allows pre-update backup when paired update run is backing up', async () => {
+    await prisma.backupRun.create({
+      data: { id: 'backup-pre', status: 'queued', triggerSource: 'pre_update' },
+    });
+    await prisma.updateRun.create({
+      data: {
+        id: 'update-1',
+        status: 'backing_up',
+        targetVersion: '0.1.1',
+        targetReleaseTag: 'v0.1.1',
+        backupRunId: 'backup-pre',
+      },
+    });
+
+    await tryAcquireMaintenanceLock(prisma, {
+      reason: 'backup',
+      backupRunId: 'backup-pre',
+      updateRunId: 'update-1',
+    });
+    const lock = await getMaintenanceLock(prisma);
+    expect(lock.active).toBe(true);
+    expect(lock.reason).toBe('backup');
+    expect(lock.backupRunId).toBe('backup-pre');
+  });
+
+  it('tryAcquireMaintenanceLock rejects pre-update backup without paired updateRunId', async () => {
+    await prisma.backupRun.create({
+      data: { id: 'backup-pre', status: 'queued', triggerSource: 'pre_update' },
+    });
+    await prisma.updateRun.create({
+      data: {
+        id: 'update-1',
+        status: 'backing_up',
+        targetVersion: '0.1.1',
+        targetReleaseTag: 'v0.1.1',
+        backupRunId: 'backup-pre',
+      },
+    });
+
+    await expect(
+      tryAcquireMaintenanceLock(prisma, { reason: 'backup', backupRunId: 'backup-pre' })
+    ).rejects.toThrow('A system update is already in progress');
   });
 
   it('releaseMaintenanceLockIfOwned only clears matching run', async () => {

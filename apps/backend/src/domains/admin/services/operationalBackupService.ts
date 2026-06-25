@@ -134,7 +134,15 @@ export async function runOperationalBackup(
 
     if (!backupRunId) throw new Error('backupRunId is required');
 
-    await tryAcquireMaintenanceLock(prisma, { reason: 'backup', backupRunId });
+    if (payload.mode === 'pre_update') {
+      await tryAcquireMaintenanceLock(prisma, {
+        reason: 'backup',
+        backupRunId,
+        updateRunId: payload.updateRunId,
+      });
+    } else {
+      await tryAcquireMaintenanceLock(prisma, { reason: 'backup', backupRunId });
+    }
     await refreshMaintenanceLiveState(prisma);
 
     await prisma.backupRun.update({
