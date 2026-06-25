@@ -10,14 +10,6 @@ export function AdminSystemStatusAlerts({ status }: Props) {
     return null;
   }
 
-  if (status.checkError) {
-    return (
-      <Alert color="yellow" title="Update check failed">
-        {status.checkError}
-      </Alert>
-    );
-  }
-
   if (status.updateAvailable) {
     return (
       <Alert color="blue" variant="filled" title="Update available">

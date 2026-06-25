@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Group, Switch, Text, Tooltip } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Popover, Switch, Text, Tooltip } from '@mantine/core';
 import { IconExternalLink, IconRefresh } from '@tabler/icons-react';
 import type { AdminSystemUpdateStatus } from 'backend/api-types';
 
@@ -31,9 +31,27 @@ function statusBadge(status: AdminSystemUpdateStatus) {
   }
   if (status.checkError) {
     return (
-      <Badge color="yellow" variant="filled">
-        Check failed
-      </Badge>
+      <Popover width={360} position="bottom-start" withArrow shadow="md">
+        <Popover.Target>
+          <Badge
+            color="red"
+            variant="filled"
+            style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+          >
+            Check failed
+          </Badge>
+        </Popover.Target>
+        <Popover.Dropdown>
+          <Text size="sm" fw={600} mb={4}>
+            Update check failed
+          </Text>
+          <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {status.checkError}
+          </Text>
+        </Popover.Dropdown>
+      </Popover>
     );
   }
   if (status.updateAvailable) {
