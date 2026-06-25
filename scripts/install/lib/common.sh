@@ -412,6 +412,11 @@ diagnose_stack_failure() {
   echo "────────────────────────────────────────────────────────"
   compose_stack_cmd logs --tail=80 app 2>&1 || true
   echo ""
+  echo "────────────────────────────────────────────────────────"
+  echo " Logs: docsops-migrate (letzte 80 Zeilen)"
+  echo "────────────────────────────────────────────────────────"
+  compose_stack_cmd logs --tail=80 docsops-migrate 2>&1 || true
+  echo ""
   echo "Nächste Schritte:"
   echo "  cd ${DOCSOPS_INSTALL_DIR}"
   echo "  docker compose --env-file ${DOCSOPS_ENV_FILE} logs -f app"

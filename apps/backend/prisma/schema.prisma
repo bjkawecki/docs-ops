@@ -4,8 +4,9 @@
 // Context: genau ein Kontext pro Document (Schema). Löschung Kontext → Process/Project/Subcontext + Documents cascade.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider      = "prisma-client"
+  output        = "../generated/prisma"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

@@ -7,8 +7,8 @@ COPY apps/updater/package.json apps/updater/tsconfig.json ./
 COPY apps/updater/src ./src
 RUN npm install && npm run build
 
-FROM docker:27.4.0-cli AS runtime
-RUN apk add --no-cache nodejs bash curl
+FROM node:24-alpine AS runtime
+RUN apk add --no-cache bash curl docker-cli docker-cli-compose
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production

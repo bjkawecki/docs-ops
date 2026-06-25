@@ -44,6 +44,17 @@ jobs:
           cache-from: type=gha,ignore-error=true
           cache-to: type=gha,mode=max,ignore-error=true
 
+      - name: Build and push docsops-migrate
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          target: migrate
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/docsops-migrate:${{ github.ref_name }}
+          cache-from: type=gha,ignore-error=true
+          cache-to: type=gha,mode=max,ignore-error=true
+
       - name: Build and push docsops-worker
         uses: docker/build-push-action@v6
         with:
@@ -74,6 +85,14 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/docsops-updater:${{ github.ref_name }}
           cache-from: type=gha,ignore-error=true
           cache-to: type=gha,mode=max,ignore-error=true
+
+      - name: Report pushed image sizes
+        run: |
+          for img in docsops-app docsops-migrate docsops-worker docsops-frontend docsops-updater; do
+            echo "==> ${img}"
+            docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ github.repository_owner }}/${img}:${{ github.ref_name }}" \
+              --format 'size={{.Manifest.Size}}' || true
+          done
 
   bundle:
     needs: build-and-push

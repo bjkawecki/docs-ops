@@ -23,6 +23,16 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
 
+  docsops-migrate:
+    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-migrate
+    image: ${DOCSOPS_IMAGE_PREFIX}/docsops-migrate:${DOCSOPS_VERSION}
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/docsops
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   app:
     container_name: ${COMPOSE_PROJECT_NAME:-docsops}-app
     image: ${DOCSOPS_IMAGE_PREFIX}/docsops-app:${DOCSOPS_VERSION}
@@ -49,6 +59,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      docsops-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8080/ready || exit 1']
       interval: 5s
