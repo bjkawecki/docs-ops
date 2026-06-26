@@ -9,7 +9,7 @@ import { AppShellSkipLink } from './AppShellSkipLink.js';
 import { useMaintenanceStatus } from '../../hooks/useMaintenanceStatus.js';
 import { useUpdateInProgressOverlay } from '../../hooks/useUpdateInProgressOverlay.js';
 import { LiveEventsProvider } from '../../hooks/LiveEventsProvider.js';
-import { AppShellUpdateInProgressOverlay } from './AppShellUpdateInProgressOverlay.js';
+import { AppShellUpdateBanner } from './AppShellUpdateBanner.js';
 import { useAppShellSidebarData } from './useAppShellSidebarData.js';
 import { useAppShellLayout } from './useAppShellLayout.js';
 import { MAIN_CONTENT_ID } from './appShellLayoutConstants.js';
@@ -33,12 +33,15 @@ export function AppShell() {
     <LiveEventsProvider>
       <Box style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <AppShellSkipLink />
-        <AppShellMaintenanceBanner status={maintenanceStatus} />
-        <AppShellUpdateInProgressOverlay
+        <AppShellUpdateBanner
           visible={updateOverlay.visible}
           phase={updateOverlay.phase}
-          onDismiss={updateOverlay.dismiss}
+          onReload={() => {
+            updateOverlay.dismiss();
+            window.location.reload();
+          }}
         />
+        <AppShellMaintenanceBanner status={maintenanceStatus} hidden={updateOverlay.visible} />
         <MantineAppShell
           navbar={{
             width: layout.navbarWidth,

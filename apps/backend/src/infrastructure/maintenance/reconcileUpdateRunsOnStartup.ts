@@ -5,6 +5,7 @@ import {
   getSidecarUpdateStatus,
   getUpdateApplyTimeoutSeconds,
   isUpdaterConfigured,
+  formatSidecarUpdateFailure,
 } from '../updater/updaterSidecarClient.js';
 import {
   completeUpdateRunSuccess,
@@ -40,11 +41,7 @@ export async function reconcileUpdateRunsOnStartup(prisma: PrismaClient): Promis
           sidecarStatus.exitCode != null &&
           sidecarStatus.exitCode !== 0
         ) {
-          await failUpdateRun(
-            prisma,
-            run.id,
-            sidecarStatus.error ?? `Update container exited with code ${sidecarStatus.exitCode}`
-          );
+          await failUpdateRun(prisma, run.id, formatSidecarUpdateFailure(sidecarStatus));
           continue;
         }
       } catch {

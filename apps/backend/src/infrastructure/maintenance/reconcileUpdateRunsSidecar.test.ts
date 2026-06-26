@@ -79,6 +79,7 @@ describe('reconcileUpdateRunsOnStartup sidecar fallback', () => {
       exitCode: 1,
       error: 'update container failed',
       containerName: 'docsops-update-run',
+      containerLogTail: null,
     });
 
     await reconcileUpdateRunsOnStartup(prisma);

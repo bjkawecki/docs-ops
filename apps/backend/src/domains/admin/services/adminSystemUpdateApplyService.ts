@@ -54,7 +54,7 @@ export async function failUpdateRun(
     where: { id: updateRunId },
     data: {
       status: 'failed',
-      errorMessage: message.slice(0, 2000),
+      errorMessage: message.slice(0, 4000),
       finishedAt: new Date(),
     },
   });

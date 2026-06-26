@@ -64,6 +64,7 @@ describe('runWatchSystemUpdate', () => {
       exitCode: 1,
       error: 'compose pull failed',
       containerName: 'docsops-update-run',
+      containerLogTail: null,
     });
 
     await runWatchSystemUpdate(prisma, { updateRunId: 'run-1' }, logger);
@@ -81,6 +82,7 @@ describe('runWatchSystemUpdate', () => {
       exitCode: 0,
       error: null,
       containerName: 'docsops-update-run',
+      containerLogTail: null,
     });
 
     await runWatchSystemUpdate(prisma, { updateRunId: 'run-1' }, logger);

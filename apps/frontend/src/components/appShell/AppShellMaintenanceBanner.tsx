@@ -4,6 +4,8 @@ import { useElapsedMs, useElapsedSince } from '../../hooks/useElapsedSince';
 
 type Props = {
   status: MaintenanceStatus | undefined;
+  /** Hide when the dedicated update banner is shown (avoids duplicate messages). */
+  hidden?: boolean;
 };
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
@@ -32,12 +34,12 @@ function showLongRunningHint(elapsedMs: number | null): boolean {
   return elapsedMs != null && elapsedMs >= TEN_MINUTES_MS;
 }
 
-export function AppShellMaintenanceBanner({ status }: Props) {
+export function AppShellMaintenanceBanner({ status, hidden = false }: Props) {
   const elapsed = useElapsedSince(status?.startedAt);
   const elapsedMs = useElapsedMs(status?.startedAt);
   const longRunning = showLongRunningHint(elapsedMs);
 
-  if (!status?.active) return null;
+  if (hidden || !status?.active) return null;
 
   return (
     <Box

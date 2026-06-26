@@ -6,7 +6,26 @@ export type SidecarUpdateStatus = {
   exitCode: number | null;
   error: string | null;
   containerName: string | null;
+  containerLogTail: string | null;
 };
+
+/** Build a failure message for DB/UI from sidecar status. */
+export function formatSidecarUpdateFailure(status: SidecarUpdateStatus): string {
+  if (status.error?.trim()) {
+    return status.error.trim().slice(0, 4000);
+  }
+  if (status.exitCode != null && status.exitCode !== 0) {
+    const tail = status.containerLogTail?.trim();
+    if (tail) {
+      return `Update container exited with code ${status.exitCode}\n\nLast log output:\n${tail}`.slice(
+        0,
+        4000
+      );
+    }
+    return `Update container exited with code ${status.exitCode}`;
+  }
+  return 'Update failed';
+}
 
 export function getUpdaterMissingEnvVars(): string[] {
   const missing: string[] = [];

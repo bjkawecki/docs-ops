@@ -2,6 +2,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+export const UPDATE_RUN_LOG_FILE = '.update-run.log';
+
 export type PersistedUpdateRunState = {
   running: boolean;
   version: string;
@@ -10,6 +12,7 @@ export type PersistedUpdateRunState = {
   exitCode?: number;
   containerName: string;
   error?: string;
+  containerLogTail?: string;
 };
 
 export type UpdateRunStatus = {
@@ -20,6 +23,7 @@ export type UpdateRunStatus = {
   exitCode: number | null;
   error: string | null;
   containerName: string | null;
+  containerLogTail: string | null;
 };
 
 export type DockerInspectResult = {
@@ -34,12 +38,62 @@ export type UpdateRunStateDeps = {
   inspectContainer: (containerName: string) => DockerInspectResult;
   removeContainer: (containerName: string) => void;
   runExecScript: (version: string) => string;
+  readLogTail: () => string | undefined;
+  readContainerLogs: (containerName: string) => string | undefined;
 };
 
 const STATE_FILE_NAME = '.update-run-state.json';
+const LOG_TAIL_MAX_CHARS = 6000;
 
 export function getStateFilePath(installDir: string): string {
   return join(installDir, STATE_FILE_NAME);
+}
+
+export function getUpdateRunLogPath(installDir: string): string {
+  return join(installDir, UPDATE_RUN_LOG_FILE);
+}
+
+export function readUpdateLogTailFromFile(
+  installDir: string,
+  maxChars = LOG_TAIL_MAX_CHARS
+): string | undefined {
+  const logPath = getUpdateRunLogPath(installDir);
+  if (!existsSync(logPath)) return undefined;
+  try {
+    const content = readFileSync(logPath, 'utf8').trim();
+    if (!content) return undefined;
+    return content.length > maxChars ? content.slice(-maxChars) : content;
+  } catch {
+    return undefined;
+  }
+}
+
+export function readDockerContainerLogTail(
+  containerName: string,
+  maxChars = LOG_TAIL_MAX_CHARS
+): string | undefined {
+  try {
+    const content = execFileSync('docker', ['logs', '--tail', '120', containerName], {
+      encoding: 'utf8',
+    }).trim();
+    if (!content) return undefined;
+    return content.length > maxChars ? content.slice(-maxChars) : content;
+  } catch {
+    return undefined;
+  }
+}
+
+export function formatUpdateContainerError(
+  exitCode: number,
+  logTail?: string,
+  dockerLogs?: string
+): string {
+  const parts = [`Update container exited with code ${exitCode}`];
+  const log = logTail?.trim() || dockerLogs?.trim();
+  if (log) {
+    parts.push(`Last log output:\n${log}`);
+  }
+  return parts.join('\n\n');
 }
 
 export function parseDockerInspectOutput(output: string): DockerInspectResult {
@@ -56,16 +110,19 @@ export function parseDockerInspectOutput(output: string): DockerInspectResult {
 
 export function mergeInspectIntoState(
   state: PersistedUpdateRunState,
-  inspect: DockerInspectResult
+  inspect: DockerInspectResult,
+  options?: { logTail?: string; dockerLogs?: string }
 ): PersistedUpdateRunState {
   if (!inspect) {
     if (state.running) {
+      const logTail = options?.logTail ?? options?.dockerLogs;
       return {
         ...state,
         running: false,
         finishedAt: state.finishedAt ?? new Date().toISOString(),
         exitCode: state.exitCode ?? 1,
         error: state.error ?? 'Update container not found',
+        containerLogTail: logTail ?? state.containerLogTail,
       };
     }
     return state;
@@ -76,15 +133,17 @@ export function mergeInspectIntoState(
   }
 
   if (inspect.status === 'exited' || inspect.status === 'dead') {
+    const logTail = options?.logTail ?? options?.dockerLogs;
     return {
       ...state,
       running: false,
       finishedAt: state.finishedAt ?? new Date().toISOString(),
       exitCode: inspect.exitCode,
+      containerLogTail: logTail ?? state.containerLogTail,
       error:
         inspect.exitCode === 0
           ? undefined
-          : (state.error ?? `Update container exited with code ${inspect.exitCode}`),
+          : formatUpdateContainerError(inspect.exitCode, options?.logTail, options?.dockerLogs),
     };
   }
 
@@ -101,6 +160,7 @@ export function toPublicStatus(state: PersistedUpdateRunState | null): UpdateRun
       exitCode: null,
       error: null,
       containerName: null,
+      containerLogTail: null,
     };
   }
 
@@ -112,6 +172,7 @@ export function toPublicStatus(state: PersistedUpdateRunState | null): UpdateRun
     exitCode: state.exitCode ?? null,
     error: state.error ?? null,
     containerName: state.containerName,
+    containerLogTail: state.containerLogTail ?? null,
   };
 }
 
@@ -158,6 +219,8 @@ export function createUpdateRunStateDeps(options: {
         // ignore cleanup errors
       }
     },
+    readLogTail: () => readUpdateLogTailFromFile(options.installDir),
+    readContainerLogs: (containerName) => readDockerContainerLogTail(containerName),
     runExecScript: (version) => {
       const script = join(options.installDir, 'scripts/updater-exec-update.sh');
       const result = spawnSync('bash', [script, version], {
@@ -190,7 +253,18 @@ export function getUpdateRunStatus(deps: UpdateRunStateDeps): UpdateRunStatus {
   const state = deps.readState();
   if (!state) return toPublicStatus(null);
 
-  const merged = mergeInspectIntoState(state, deps.inspectContainer(state.containerName));
+  const inspect = deps.inspectContainer(state.containerName);
+  const shouldCollectLogs =
+    state.running &&
+    inspect != null &&
+    !inspect.running &&
+    (inspect.status === 'exited' || inspect.status === 'dead') &&
+    inspect.exitCode !== 0;
+
+  const logTail = shouldCollectLogs ? deps.readLogTail() : undefined;
+  const dockerLogs = shouldCollectLogs ? deps.readContainerLogs(state.containerName) : undefined;
+
+  const merged = mergeInspectIntoState(state, inspect, { logTail, dockerLogs });
   if (!merged.running && merged.exitCode != null && state.running) {
     deps.removeContainer(merged.containerName);
   }

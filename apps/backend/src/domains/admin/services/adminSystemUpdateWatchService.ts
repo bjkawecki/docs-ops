@@ -9,6 +9,7 @@ import {
 import {
   getSidecarUpdateStatus,
   getUpdateApplyTimeoutSeconds,
+  formatSidecarUpdateFailure,
 } from '../../../infrastructure/updater/updaterSidecarClient.js';
 import type { JobPayloadByType } from '../../../infrastructure/jobs/jobTypes.js';
 
@@ -60,10 +61,17 @@ export async function runWatchSystemUpdate(
     }
 
     if (sidecarStatus.exitCode != null && sidecarStatus.exitCode !== 0) {
-      const message =
-        sidecarStatus.error ?? `Update container exited with code ${sidecarStatus.exitCode}`;
+      const message = formatSidecarUpdateFailure(sidecarStatus);
       await failUpdateRun(prisma, updateRun.id, message);
-      logger.error({ updateRunId: updateRun.id, sidecarStatus }, 'System update failed');
+      logger.error(
+        {
+          updateRunId: updateRun.id,
+          exitCode: sidecarStatus.exitCode,
+          containerName: sidecarStatus.containerName,
+          containerLogTail: sidecarStatus.containerLogTail,
+        },
+        'System update failed'
+      );
       return;
     }
 

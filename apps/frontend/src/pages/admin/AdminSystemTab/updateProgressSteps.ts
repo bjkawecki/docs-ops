@@ -4,7 +4,6 @@ export type UpdateProgressStep = {
   key: string;
   label: string;
   detail: string;
-  estimate: string;
 };
 
 export const UPDATE_PROGRESS_STEPS: UpdateProgressStep[] = [
@@ -12,25 +11,21 @@ export const UPDATE_PROGRESS_STEPS: UpdateProgressStep[] = [
     key: 'backup',
     label: 'Create operational backup',
     detail: 'Database and attachments are archived before any files change.',
-    estimate: '2–10 min',
   },
   {
     key: 'apply',
     label: 'Apply release',
     detail: 'Pull container images and restart the production stack.',
-    estimate: '3–8 min',
   },
   {
     key: 'health',
     label: 'Wait for services',
     detail: 'Containers restart; the API may be briefly unavailable.',
-    estimate: '1–3 min',
   },
   {
     key: 'reload',
     label: 'Reload this page',
     detail: 'After the stack is healthy, reload to use the new version.',
-    estimate: '',
   },
 ];
 

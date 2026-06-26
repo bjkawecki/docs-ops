@@ -119,6 +119,7 @@ docker logs docsops-updater --tail=30
 sudo /opt/docsops/scripts/updater-exec-update.sh v0.1.1
 docker ps --filter name=update-run
 docker logs docsops-update-run -f
+sudo tail -100 /opt/docsops/.update-run.log
 
 # Fallback ohne Sidecar (vom Host):
 sudo /opt/docsops/scripts/update.sh v0.1.1
