@@ -28,11 +28,7 @@ func (o *Orchestrator) ApplyAsync(runID, version string) error {
 	if err := config.ValidateReleaseTag(version); err != nil {
 		return err
 	}
-	if err := o.acquireLock(runID); err != nil {
-		return err
-	}
 	if err := o.Store.StartRun(runID, version); err != nil {
-		_ = o.releaseLock()
 		return err
 	}
 	go func() {
@@ -65,6 +61,10 @@ func (o *Orchestrator) run(ctx context.Context, runID, version string) error {
 			}
 		}
 		return fail("PREFLIGHT_FAILED", "preflight failed")
+	}
+
+	if err := o.acquireLock(runID); err != nil {
+		return fail("LOCK_FAILED", err.Error())
 	}
 
 	bundleSvc := bundle.Service{

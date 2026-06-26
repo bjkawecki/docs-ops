@@ -505,10 +505,9 @@ abort_stack_failure() {
 compose_pull_images() {
   compose_stack_setup
   if [[ "${DOCSOPS_SKIP_IMAGE_PULL:-}" == "1" ]]; then
-    log "Überspringe docker compose pull (DOCSOPS_SKIP_IMAGE_PULL=1)."
     return 0
   fi
-  if ! compose_stack_cmd pull; then
+  if ! compose_stack_cmd pull -q; then
     abort_stack_failure "docker compose pull fehlgeschlagen. Prüfe DOCSOPS_VERSION und Registry-Zugriff (${DOCSOPS_IMAGE_PREFIX})."
   fi
 }
@@ -519,18 +518,11 @@ compose_up_prod() {
   compose_stack_setup
   assert_release_version
   load_existing_env_optional
-  if [[ "${DOCSOPS_SKIP_IMAGE_PULL:-}" == "1" ]]; then
-    log "Starte Container mit lokalen Images (${DOCSOPS_IMAGE_PREFIX}, ${DOCSOPS_VERSION}) …"
-  else
-    log "Lade Container-Images von ${DOCSOPS_IMAGE_PREFIX} (${DOCSOPS_VERSION}) …"
-  fi
+  log "Stack starten (${DOCSOPS_VERSION}) …"
   compose_pull_images
   up_args=(-d)
   if compose_stack_cmd up --help 2>&1 | grep -q -- '--wait'; then
     up_args=(-d --wait --wait-timeout "$wait_timeout")
-    log "Starte Container (Health-Wait, max. ${wait_timeout}s) …"
-  else
-    log "Starte Container …"
   fi
   if ! compose_stack_cmd up "${up_args[@]}"; then
     abort_stack_failure "Der Stack konnte nicht starten (Container unhealthy oder Abhängigkeit fehlgeschlagen)."
@@ -564,13 +556,11 @@ wait_for_health() {
   max="${DOCSOPS_HEALTH_RETRIES:-30}"
   delay="${DOCSOPS_HEALTH_DELAY:-10}"
   url="${DOCSOPS_HEALTH_URL}"
-  log "Warte auf ${url} …"
   for ((i = 1; i <= max; i++)); do
     if curl -sf "$url" >/dev/null 2>&1; then
-      log "Health-Check OK"
+      log "Bereit (${url})"
       return 0
     fi
-    echo "  Versuch ${i}/${max}, erneut in ${delay}s …"
     sleep "$delay"
   done
   abort_stack_failure "Health-Check fehlgeschlagen: ${url}"
