@@ -37,7 +37,7 @@ func LoadFromEnv() (Config, error) {
 
 	cfg := Config{
 		Token:          token,
-		ListenAddr:     envOr("DOCSOPS_AGENT_LISTEN", "127.0.0.1:8091"),
+		ListenAddr:     envOr("DOCSOPS_AGENT_LISTEN", "0.0.0.0:8091"),
 		StateDir:       envOr("DOCSOPS_AGENT_STATE_DIR", "/var/lib/docsops"),
 		InstallDir:     envOr("DOCSOPS_AGENT_INSTALL_DIR", "/opt/docsops"),
 		EnvFile:        envOr("DOCSOPS_AGENT_ENV_FILE", "/etc/docsops/docsops.env"),

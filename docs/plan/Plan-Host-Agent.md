@@ -392,15 +392,15 @@ docker compose --env-file /etc/docsops/docsops.env \
 
 ### 10.3 Env-Variablen (neu / geändert)
 
-| Variable                      | Beschreibung               | Default                            |
-| ----------------------------- | -------------------------- | ---------------------------------- |
-| **DOCSOPS_AGENT_URL**         | URL für App/Worker → Agent | `http://host.docker.internal:8091` |
-| **DOCSOPS_AGENT_TOKEN**       | Bearer-Secret              | _(generiert bei Install)_          |
-| **DOCSOPS_AGENT_LISTEN**      | Bind-Adresse               | `127.0.0.1:8091`                   |
-| **DOCSOPS_AGENT_STATE_DIR**   | State, Logs, Bundle-Cache  | `/var/lib/docsops`                 |
-| **DOCSOPS_AGENT_INSTALL_DIR** | Deploy-Pfad                | `/opt/docsops`                     |
-| **DOCSOPS_AGENT_ENV_FILE**    | Env-Datei                  | `/etc/docsops/docsops.env`         |
-| **DOCSOPS_AGENT_HEALTH_URL**  | Post-Update-Check          | `http://127.0.0.1/health`          |
+| Variable                      | Beschreibung                                                                        | Default                            |
+| ----------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------- |
+| **DOCSOPS_AGENT_URL**         | URL für App/Worker → Agent                                                          | `http://host.docker.internal:8091` |
+| **DOCSOPS_AGENT_TOKEN**       | Bearer-Secret                                                                       | _(generiert bei Install)_          |
+| **DOCSOPS_AGENT_LISTEN**      | Bind-Adresse (von Containern via `host.docker.internal` erreichbar; Auth per Token) | `0.0.0.0:8091`                     |
+| **DOCSOPS_AGENT_STATE_DIR**   | State, Logs, Bundle-Cache                                                           | `/var/lib/docsops`                 |
+| **DOCSOPS_AGENT_INSTALL_DIR** | Deploy-Pfad                                                                         | `/opt/docsops`                     |
+| **DOCSOPS_AGENT_ENV_FILE**    | Env-Datei                                                                           | `/etc/docsops/docsops.env`         |
+| **DOCSOPS_AGENT_HEALTH_URL**  | Post-Update-Check                                                                   | `http://127.0.0.1/health`          |
 
 **Deprecation:** `DOCSOPS_UPDATER_URL` / `DOCSOPS_UPDATER_TOKEN` — Backend akzeptiert während Übergang beide Namen (Agent-Name bevorzugt).
 
