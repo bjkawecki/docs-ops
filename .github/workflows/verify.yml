@@ -33,6 +33,21 @@ jobs:
       - name: Format check
         run: pnpm run format:check
 
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: apps/agent/go.sum
+
+      - name: Test docsops-agent
+        working-directory: apps/agent
+        run: go test ./...
+
   build:
     needs: lint
     runs-on: ubuntu-latest

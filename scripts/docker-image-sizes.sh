@@ -19,9 +19,8 @@ build_one docsops-app -f apps/backend/Dockerfile --target app
 build_one docsops-migrate -f apps/backend/Dockerfile --target migrate
 build_one docsops-worker -f apps/backend/Dockerfile --target worker
 build_one docsops-frontend -f apps/frontend/Dockerfile
-build_one docsops-updater -f docker/Dockerfile.updater
 
 echo ""
 echo "Image sizes (${TAG_SUFFIX}):"
 docker image ls --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}' \
-  | rg "docsops-(app|migrate|worker|frontend|updater)\s+${TAG_SUFFIX}"
+  | rg "docsops-(app|migrate|worker|frontend)\s+${TAG_SUFFIX}"

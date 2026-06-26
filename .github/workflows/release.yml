@@ -76,32 +76,64 @@ jobs:
           cache-from: type=gha,ignore-error=true
           cache-to: type=gha,mode=max,ignore-error=true
 
-      - name: Build and push docsops-updater
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.updater
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/docsops-updater:${{ github.ref_name }}
-          cache-from: type=gha,ignore-error=true
-          cache-to: type=gha,mode=max,ignore-error=true
-
       - name: Report pushed image sizes
         run: |
-          for img in docsops-app docsops-migrate docsops-worker docsops-frontend docsops-updater; do
+          for img in docsops-app docsops-migrate docsops-worker docsops-frontend; do
             echo "==> ${img}"
             docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ github.repository_owner }}/${img}:${{ github.ref_name }}" \
               --format 'size={{.Manifest.Size}}' || true
           done
 
-  bundle:
-    needs: build-and-push
+  build-agent:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: apps/agent/go.sum
+
+      - name: Build docsops-agent (linux/amd64)
+        working-directory: apps/agent
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: go build -ldflags="-s -w" -o ../../dist/docsops-agent ./cmd/docsops-agent
+
+      - name: Build docsops-agent (linux/arm64)
+        working-directory: apps/agent
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+        run: go build -ldflags="-s -w" -o ../../dist/docsops-agent-linux-arm64 ./cmd/docsops-agent
+
+      - name: Upload agent binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: docsops-agent-binaries
+          path: |
+            dist/docsops-agent
+            dist/docsops-agent-linux-arm64
+
+  bundle:
+    needs: [build-and-push, build-agent]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download agent binary
+        uses: actions/download-artifact@v4
+        with:
+          name: docsops-agent-binaries
+          path: dist
+
       - name: Build deploy bundle
-        run: DOCSOPS_VERSION="${{ github.ref_name }}" ./scripts/release/build-bundle.sh dist
+        run: DOCSOPS_VERSION="${{ github.ref_name }}" DOCSOPS_AGENT_BINARY=dist/docsops-agent ./scripts/release/build-bundle.sh dist
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
@@ -111,9 +143,10 @@ jobs:
             dist/docsops-${{ github.ref_name }}.tar.gz
             dist/install.sh
             dist/uninstall.sh
+            dist/docsops-agent-linux-arm64
 
   install-test:
-    needs: build-and-push
+    needs: [build-and-push, build-agent]
     runs-on: ubuntu-latest
     concurrency:
       group: release-install-test-${{ github.repository }}
@@ -125,8 +158,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Download agent binary
+        uses: actions/download-artifact@v4
+        with:
+          name: docsops-agent-binaries
+          path: dist
+
       - name: Build deploy bundle for CI
-        run: DOCSOPS_VERSION="${{ github.ref_name }}" ./scripts/release/build-bundle.sh dist
+        run: DOCSOPS_VERSION="${{ github.ref_name }}" DOCSOPS_AGENT_BINARY=dist/docsops-agent ./scripts/release/build-bundle.sh dist
 
       - name: Remove stale DocsOps volumes (legacy CI project name)
         run: |
@@ -155,11 +194,17 @@ jobs:
           ADMIN_PASSWORD: ci-admin-password-12
         run: sudo -E "$DOCSOPS_CI_DIR/scripts/install-prod.sh"
 
+      - name: Verify docsops-agent status
+        run: |
+          TOKEN="$(grep '^DOCSOPS_AGENT_TOKEN=' "$DOCSOPS_CI_ENV" | cut -d= -f2-)"
+          curl -sf -H "Authorization: Bearer ${TOKEN}" http://127.0.0.1:8091/v1/status
+
       - name: Cleanup CI install
         if: always()
         run: |
           CI_DIR="${{ env.DOCSOPS_CI_DIR }}"
           CI_ENV="${{ env.DOCSOPS_CI_ENV }}"
+          sudo systemctl stop docsops-agent.service 2>/dev/null || true
           if [[ -f "$CI_ENV" && -f "${CI_DIR}/docker-compose.prod.yml" ]]; then
             sudo docker compose --env-file "$CI_ENV" \
               -f "${CI_DIR}/docker-compose.yml" \
@@ -189,6 +234,7 @@ jobs:
             dist/docsops-${{ github.ref_name }}.tar.gz
             dist/install.sh
             dist/uninstall.sh
+            dist/docsops-agent-linux-arm64
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

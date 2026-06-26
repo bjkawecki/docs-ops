@@ -25,22 +25,19 @@ const modalCodeBlockStyle = {
   overflowX: 'auto',
 } as const;
 
-const UPDATER_ENV_EXAMPLE = `DOCSOPS_UPDATER_URL=http://docsops-updater:8090
-DOCSOPS_UPDATER_TOKEN=<token from step 1>`;
+const AGENT_ENV_EXAMPLE = `DOCSOPS_AGENT_URL=http://host.docker.internal:8091
+DOCSOPS_AGENT_TOKEN=<token from install>`;
 
-const COMPOSE_UPDATER_UP_COMMAND = `sudo docker compose \\
-  --env-file /etc/docsops/docsops.env \\
-  -f docker-compose.yml \\
-  -f docker-compose.prod.yml \\
-  up -d docsops-updater app docsops-job-worker`;
+const AGENT_STATUS_COMMAND = `curl -sf -H "Authorization: Bearer <token>" \\
+  http://127.0.0.1:8091/v1/status`;
 
 type Props = {
   opened: boolean;
   onClose: () => void;
   latestReleaseTag: string | null;
   releaseUrl: string | null;
-  updaterConfigured?: boolean;
-  updaterMissingEnvVars?: string[];
+  agentConfigured?: boolean;
+  agentMissingEnvVars?: string[];
 };
 
 function OneClickUpdateSetupAlert({
@@ -93,33 +90,25 @@ function OneClickUpdateSetupAlert({
               </List.Item>
             ))}
             <List.Item>
-              <Code>docsops-updater</Code> service running (Docker Compose)
+              <Code>docsops-agent</Code> systemd service running on the host
             </List.Item>
           </List>
           <Text size="sm" fw={500} mt="xs">
-            To enable one-click update on the server:
+            Production installs include the host agent automatically. If this instance was created
+            before the host-agent release, reinstall from a current release bundle.
           </Text>
-          <List type="ordered" size="sm" spacing="xs">
-            <List.Item>
-              Generate a shared secret: <Code>openssl rand -hex 32</Code>
-            </List.Item>
-            <List.Item>
-              Add to <Code>/etc/docsops/docsops.env</Code> (same values for app, worker, and
-              updater):
-              <Code block mt="xs" w="100%" style={modalCodeBlockStyle}>
-                {UPDATER_ENV_EXAMPLE}
-              </Code>
-            </List.Item>
-            <List.Item>
-              Start or restart the stack, including the updater:
-              <Code block mt="xs" w="100%" style={modalCodeBlockStyle}>
-                {COMPOSE_UPDATER_UP_COMMAND}
-              </Code>
-            </List.Item>
-            <List.Item>
-              Reload this page — the Apply update button should appear on System.
-            </List.Item>
-          </List>
+          <Text size="sm" c="dimmed">
+            Expected env entries:
+          </Text>
+          <Code block w="100%" style={modalCodeBlockStyle}>
+            {AGENT_ENV_EXAMPLE}
+          </Code>
+          <Text size="sm" c="dimmed">
+            Check agent health on the server:
+          </Text>
+          <Code block w="100%" style={modalCodeBlockStyle}>
+            {AGENT_STATUS_COMMAND}
+          </Code>
         </Stack>
       </Collapse>
     </Paper>
@@ -131,22 +120,22 @@ export function AdminSystemUpdateStepsModal({
   onClose,
   latestReleaseTag,
   releaseUrl,
-  updaterConfigured = false,
-  updaterMissingEnvVars = [],
+  agentConfigured = false,
+  agentMissingEnvVars = [],
 }: Props) {
   const updateCommand = 'sudo /opt/docsops/scripts/update.sh';
 
   return (
     <Modal opened={opened} onClose={onClose} title="How to update (SSH)" size="md">
       <Stack gap="md">
-        {updaterConfigured ? (
+        {agentConfigured ? (
           <Text size="sm">
             For production, prefer <strong>Apply update</strong> on this tab (automatic backup, then
             upgrade). Use the steps below only for manual updates on the host.
           </Text>
         ) : (
           <>
-            <OneClickUpdateSetupAlert missingEnvVars={updaterMissingEnvVars} modalOpened={opened} />
+            <OneClickUpdateSetupAlert missingEnvVars={agentMissingEnvVars} modalOpened={opened} />
             <Text size="sm">
               Until one-click update is configured, upgrade on the host via SSH. Create an
               operational backup in{' '}
@@ -158,7 +147,7 @@ export function AdminSystemUpdateStepsModal({
           </>
         )}
 
-        {updaterConfigured ? (
+        {agentConfigured ? (
           <Text size="sm" c="dimmed">
             For a manual run, create a backup first in{' '}
             <Text component={Link} to="/admin/backup" fw={500}>
@@ -173,8 +162,8 @@ export function AdminSystemUpdateStepsModal({
         </Text>
         {latestReleaseTag == null ? (
           <Text size="sm" c="dimmed">
-            Without a version argument, <Code>update.sh</Code> uses the latest GitHub release. Pin a
-            version: <Code>sudo /opt/docsops/scripts/update.sh vX.Y.Z</Code>
+            Without a version argument, <Code>update.sh</Code> delegates to{' '}
+            <Code>docsops-agent</Code> and uses the latest GitHub release.
           </Text>
         ) : (
           <Text size="sm" c="dimmed">

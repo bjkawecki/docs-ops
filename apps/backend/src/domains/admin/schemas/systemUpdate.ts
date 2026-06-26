@@ -15,8 +15,8 @@ export const adminSystemUpdateStatusSchema = z.object({
   releaseUrl: z.url().nullable(),
   checkedAt: z.iso.datetime().nullable(),
   checkError: z.string().nullable(),
-  updaterConfigured: z.boolean(),
-  updaterMissingEnvVars: z.array(z.string()),
+  agentConfigured: z.boolean(),
+  agentMissingEnvVars: z.array(z.string()),
   canApplyUpdate: z.boolean(),
   activeUpdateRun: adminUpdateRunSchema.nullable(),
 });

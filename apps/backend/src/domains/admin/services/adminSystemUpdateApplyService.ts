@@ -8,9 +8,9 @@ import {
   tryAcquireMaintenanceLock,
 } from '../../../infrastructure/maintenance/maintenanceModeService.js';
 import {
-  applyUpdateViaSidecar,
-  isUpdaterConfigured,
-} from '../../../infrastructure/updater/updaterSidecarClient.js';
+  applyUpdateViaAgent,
+  isAgentConfigured,
+} from '../../../infrastructure/agent/hostAgentClient.js';
 import type { JobPayloadByType } from '../../../infrastructure/jobs/jobTypes.js';
 import { isBackupEncryptionConfigured } from '../../../infrastructure/crypto/secretBox.js';
 import {
@@ -116,8 +116,8 @@ export async function startAdminSystemUpdateApply(
   prisma: PrismaClient,
   requestedByUserId: string
 ): Promise<{ updateRunId: string; status: 'backing_up' }> {
-  if (!isUpdaterConfigured()) {
-    throw new Error('Updater sidecar is not configured');
+  if (!isAgentConfigured()) {
+    throw new Error('Host agent is not configured');
   }
 
   await assertMaintenanceAvailable(prisma);
@@ -204,11 +204,11 @@ export async function runApplySystemUpdate(
   });
 
   try {
-    await applyUpdateViaSidecar(updateRun.targetReleaseTag);
+    await applyUpdateViaAgent(updateRun.targetReleaseTag, updateRun.id);
     await enqueueJob('maintenance.watch-update', { updateRunId: updateRun.id });
     logger.info(
       { updateRunId: updateRun.id, targetReleaseTag: updateRun.targetReleaseTag },
-      'System update apply triggered via sidecar'
+      'System update apply triggered via host agent'
     );
   } catch (error) {
     await failUpdateRun(prisma, updateRun.id, error);

@@ -47,18 +47,18 @@ describe('Admin updates apply routes', () => {
   let app: Awaited<ReturnType<typeof buildApp>>;
   let adminId: string;
   let prevRepo: string | undefined;
-  let prevUpdaterUrl: string | undefined;
-  let prevUpdaterToken: string | undefined;
+  let prevAgentUrl: string | undefined;
+  let prevAgentToken: string | undefined;
   let prevBackupKey: string | undefined;
 
   beforeAll(async () => {
     prevRepo = process.env.DOCSOPS_UPDATE_GITHUB_REPO;
-    prevUpdaterUrl = process.env.DOCSOPS_UPDATER_URL;
-    prevUpdaterToken = process.env.DOCSOPS_UPDATER_TOKEN;
+    prevAgentUrl = process.env.DOCSOPS_AGENT_URL;
+    prevAgentToken = process.env.DOCSOPS_AGENT_TOKEN;
     prevBackupKey = process.env.BACKUP_ENCRYPTION_KEY;
     process.env.BACKUP_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
-    process.env.DOCSOPS_UPDATER_URL = 'http://docsops-updater:8090';
-    process.env.DOCSOPS_UPDATER_TOKEN = 'test-updater-token';
+    process.env.DOCSOPS_AGENT_URL = 'http://host.docker.internal:8091';
+    process.env.DOCSOPS_AGENT_TOKEN = 'test-agent-token';
 
     app = await buildApp();
     const passwordHash = await hashPassword(PASSWORD);
@@ -77,10 +77,10 @@ describe('Admin updates apply routes', () => {
   afterAll(async () => {
     if (prevRepo === undefined) delete process.env.DOCSOPS_UPDATE_GITHUB_REPO;
     else process.env.DOCSOPS_UPDATE_GITHUB_REPO = prevRepo;
-    if (prevUpdaterUrl === undefined) delete process.env.DOCSOPS_UPDATER_URL;
-    else process.env.DOCSOPS_UPDATER_URL = prevUpdaterUrl;
-    if (prevUpdaterToken === undefined) delete process.env.DOCSOPS_UPDATER_TOKEN;
-    else process.env.DOCSOPS_UPDATER_TOKEN = prevUpdaterToken;
+    if (prevAgentUrl === undefined) delete process.env.DOCSOPS_AGENT_URL;
+    else process.env.DOCSOPS_AGENT_URL = prevAgentUrl;
+    if (prevAgentToken === undefined) delete process.env.DOCSOPS_AGENT_TOKEN;
+    else process.env.DOCSOPS_AGENT_TOKEN = prevAgentToken;
     if (prevBackupKey === undefined) delete process.env.BACKUP_ENCRYPTION_KEY;
     else process.env.BACKUP_ENCRYPTION_KEY = prevBackupKey;
     await app.close();
@@ -159,7 +159,7 @@ describe('Admin updates apply routes', () => {
     expect(backup?.pgBossJobId).toBeTruthy();
   });
 
-  it('GET /admin/system/update-status includes updaterConfigured and activeUpdateRun', async () => {
+  it('GET /admin/system/update-status includes agentConfigured and activeUpdateRun', async () => {
     process.env.DOCSOPS_UPDATE_GITHUB_REPO = 'bjkawecki/docs-ops';
     mockGithubLatest('v0.2.0');
     const cookie = await loginAs(ADMIN_EMAIL);
@@ -170,13 +170,13 @@ describe('Admin updates apply routes', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      updaterConfigured: boolean;
-      updaterMissingEnvVars: string[];
+      agentConfigured: boolean;
+      agentMissingEnvVars: string[];
       canApplyUpdate: boolean;
       activeUpdateRun: unknown;
     };
-    expect(body.updaterConfigured).toBe(true);
-    expect(body.updaterMissingEnvVars).toEqual([]);
+    expect(body.agentConfigured).toBe(true);
+    expect(body.agentMissingEnvVars).toEqual([]);
     expect(body.activeUpdateRun).toBeNull();
     expect(typeof body.canApplyUpdate).toBe('boolean');
     expect(getUpdateCheckGithubRepo()).toBe('bjkawecki/docs-ops');

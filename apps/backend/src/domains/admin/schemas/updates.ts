@@ -7,6 +7,7 @@ export const adminUpdateRunSchema = z.object({
   targetReleaseTag: z.string(),
   backupRunId: z.string().nullable(),
   errorMessage: z.string().nullable(),
+  agentPhase: z.string().nullable(),
   startedAt: z.iso.datetime().nullable(),
   finishedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
