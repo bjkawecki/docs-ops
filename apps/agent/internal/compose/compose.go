@@ -53,6 +53,7 @@ func (r *Runner) supportsWait(ctx context.Context) bool {
 	var out bytes.Buffer
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = r.InstallDir
+	cmd.Env = environForCompose()
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
@@ -61,10 +62,28 @@ func (r *Runner) supportsWait(ctx context.Context) bool {
 	return strings.Contains(out.String(), "--wait")
 }
 
+// environForCompose drops DOCSOPS_* (and COMPOSE_*) inherited from the agent process.
+// systemd loads docsops.env into the agent; after patch_env the file is newer but process
+// env still wins over --env-file in docker compose unless we strip those variables.
+func environForCompose() []string {
+	var out []string
+	for _, entry := range os.Environ() {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(key, "DOCSOPS_") || strings.HasPrefix(key, "COMPOSE_") {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
 func (r *Runner) run(ctx context.Context, args []string) error {
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = r.InstallDir
-	cmd.Env = os.Environ()
+	cmd.Env = environForCompose()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
