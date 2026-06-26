@@ -5,24 +5,6 @@
 #   -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
-  docsops-updater:
-    container_name: ${COMPOSE_PROJECT_NAME:-docsops}-updater
-    image: ${DOCSOPS_IMAGE_PREFIX}/docsops-updater:${DOCSOPS_VERSION}
-    restart: unless-stopped
-    user: root
-    environment:
-      DOCSOPS_UPDATER_TOKEN: ${DOCSOPS_UPDATER_TOKEN:-}
-      DOCSOPS_INSTALL_DIR: /opt/docsops
-      DOCSOPS_ENV_FILE: /etc/docsops/docsops.env
-      DOCSOPS_HEALTH_URL: ${DOCSOPS_HEALTH_URL:-http://host.docker.internal/health}
-      PORT: 8090
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${DOCSOPS_INSTALL_DIR:-/opt/docsops}:/opt/docsops
-      - /etc/docsops/docsops.env:/etc/docsops/docsops.env
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
-
   docsops-migrate:
     container_name: ${COMPOSE_PROJECT_NAME:-docsops}-migrate
     image: ${DOCSOPS_IMAGE_PREFIX}/docsops-migrate:${DOCSOPS_VERSION}
@@ -54,8 +36,10 @@ services:
       ADMIN_VORNAME: ${ADMIN_VORNAME:-}
       ADMIN_NACHNAME: ${ADMIN_NACHNAME:-}
       DOCSOPS_UPDATE_GITHUB_REPO: ${DOCSOPS_UPDATE_GITHUB_REPO:-}
-      DOCSOPS_UPDATER_URL: ${DOCSOPS_UPDATER_URL:-http://docsops-updater:8090}
-      DOCSOPS_UPDATER_TOKEN: ${DOCSOPS_UPDATER_TOKEN:-}
+      DOCSOPS_AGENT_URL: ${DOCSOPS_AGENT_URL:-http://host.docker.internal:8091}
+      DOCSOPS_AGENT_TOKEN: ${DOCSOPS_AGENT_TOKEN:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,8 +67,10 @@ services:
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-}
       PANDOC_ARGS: ${PANDOC_ARGS:---pdf-engine=typst}
-      DOCSOPS_UPDATER_URL: ${DOCSOPS_UPDATER_URL:-http://docsops-updater:8090}
-      DOCSOPS_UPDATER_TOKEN: ${DOCSOPS_UPDATER_TOKEN:-}
+      DOCSOPS_AGENT_URL: ${DOCSOPS_AGENT_URL:-http://host.docker.internal:8091}
+      DOCSOPS_AGENT_TOKEN: ${DOCSOPS_AGENT_TOKEN:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       postgres:
         condition: service_healthy

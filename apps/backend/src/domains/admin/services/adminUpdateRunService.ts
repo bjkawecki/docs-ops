@@ -10,6 +10,7 @@ export function serializeUpdateRun(run: {
   targetReleaseTag: string;
   backupRunId: string | null;
   errorMessage: string | null;
+  agentPhase: string | null;
   startedAt: Date | null;
   finishedAt: Date | null;
   createdAt: Date;
@@ -21,6 +22,7 @@ export function serializeUpdateRun(run: {
     targetReleaseTag: run.targetReleaseTag,
     backupRunId: run.backupRunId,
     errorMessage: run.errorMessage,
+    agentPhase: run.agentPhase,
     startedAt: run.startedAt?.toISOString() ?? null,
     finishedAt: run.finishedAt?.toISOString() ?? null,
     createdAt: run.createdAt.toISOString(),

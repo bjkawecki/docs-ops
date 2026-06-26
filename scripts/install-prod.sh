@@ -159,7 +159,7 @@ main() {
   resolve_install_dir \
     || die "docker-compose.prod.yml nicht gefunden unter ${DOCSOPS_INSTALL_DIR}"
 
-  local stage_total=5
+  local stage_total=6
   if [[ "${DOCSOPS_INSTALL_CONFIRMED:-}" != "1" ]]; then
     stage_total=$((stage_total + 1))
   fi
@@ -188,6 +188,10 @@ main() {
 
   install_stage "Bereitschaft prüfen"
   wait_for_health
+
+  install_stage "Host-Agent einrichten"
+  install_agent_binary
+  install_agent_systemd_unit
 
   if [[ "$INSTALL_SYSTEMD" == "1" || "${DOCSOPS_INSTALL_SYSTEMD:-}" == "1" ]]; then
     install_stage "systemd einrichten"

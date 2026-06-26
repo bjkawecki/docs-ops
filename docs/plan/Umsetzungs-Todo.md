@@ -569,6 +569,14 @@ Basis für PDF-Export-Downloads (§17); Dokumentinhalte liegen im Edit-System al
 [x] **Admin-UI:** „Apply update“ wenn `canApplyUpdate`; Fortschritt `backing_up` → `applying`; SSH-Fallback im Modal wenn Sidecar fehlt.
 [x] **Tests:** Apply-Route, Reconciliation; Doku Env-und-Config.
 
+### Phase 3 – Host-Agent (Go)
+
+Plan: [Plan-Host-Agent](Plan-Host-Agent.md). Ersetzt Sidecar + `updater-exec-update.sh` durch `docsops-agent` (systemd, Go-Binary auf dem Host).
+
+[x] **Agent MVP (3a):** `apps/agent`, API `/v1/status|apply|preflight`, State Machine, Install/systemd, Backend `hostAgentClient`.
+[x] **Sidecar entfernen (3b):** `docsops-updater` aus Compose, Doku.
+[x] **UX & Härtung (3c):** `UpdateRun.agentPhase`, Apply-Modal mit Fortschritt, Doku.
+
 ---
 
 ## 27. Plattform-Export & Migration

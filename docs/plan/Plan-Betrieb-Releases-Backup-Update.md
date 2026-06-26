@@ -338,6 +338,13 @@ Release Notes im Image enthalten nur Versionen, die beim Build mitgeliefert wurd
 
 Siehe auch [Infrastruktur §3](Infrastruktur-und-Deployment.md#3-update-aus-der-app).
 
+### Phase 3 (Host-Agent, Go)
+
+- Ersetzt Updater-Sidecar und Bash/One-Off-Container durch **`docsops-agent`** (systemd auf dem Host, Go-Binary).
+- Explizite State Machine, Preflight, Idempotenz; Env-Patch und `docker compose` direkt auf dem Host.
+- App/Worker rufen Agent per HTTP (`DOCSOPS_AGENT_URL`); kein Docker-Socket in der App, kein `docsops-updater` im Compose-Stack.
+- Details: [Plan-Host-Agent](Plan-Host-Agent.md).
+
 ---
 
 ## 6. Empfohlene Reihenfolge
@@ -348,6 +355,7 @@ Siehe auch [Infrastruktur §3](Infrastruktur-und-Deployment.md#3-update-aus-der-
 4. Backup Phase 2: Restore-UI im Backup-Tab, WebDAV-Ziel, optional Webhook-Härtung
 5. **Plattform-Export & Import** (§4, Umsetzungs-Todo §27) – eigener Admin-Tab Migration
 6. Update Phase 2 (Updater-Sidecar)
+7. Update Phase 3 (Host-Agent, Go) – [Plan-Host-Agent](Plan-Host-Agent.md)
 
 Siehe auch [Infrastruktur §12](Infrastruktur-und-Deployment.md) (Managed Hosting, optional, später).
 

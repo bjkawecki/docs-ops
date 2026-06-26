@@ -1,8 +1,13 @@
-import { Alert, Button, Code, Group, Modal, ScrollArea, Stack, Text } from '@mantine/core';
-import { useEffect, useState } from 'react';
-import type { AdminSystemUpdateStatus } from 'backend/api-types';
-import { useApplySystemUpdate } from '../../../hooks/useAdminUpdateStatus.js';
-import { UPDATE_PROGRESS_STEPS } from './updateProgressSteps.js';
+import { Alert, Button, Code, Group, Modal, ScrollArea, Stack, Stepper, Text } from '@mantine/core';
+import { useEffect, useMemo, useState } from 'react';
+import type { AdminSystemUpdateStatus, AdminUpdateRun } from 'backend/api-types';
+import { useApplySystemUpdate, usePollUpdateRun } from '../../../hooks/useAdminUpdateStatus.js';
+import {
+  UPDATE_PROGRESS_STEPS,
+  updateProgressStepIndex,
+  agentPhaseStepIndex,
+  formatElapsedSince,
+} from './updateProgressSteps.js';
 
 type Props = {
   opened: boolean;
@@ -10,34 +15,69 @@ type Props = {
   status: AdminSystemUpdateStatus;
 };
 
+function resolveActiveRun(
+  status: AdminSystemUpdateStatus,
+  polledRun: AdminUpdateRun | undefined
+): AdminUpdateRun | null {
+  if (polledRun != null) return polledRun;
+  return status.activeUpdateRun;
+}
+
 export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) {
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
+  const [trackingRunId, setTrackingRunId] = useState<string | null>(null);
   const applyMutation = useApplySystemUpdate();
+
+  const pollQuery = usePollUpdateRun(trackingRunId, {
+    enabled: opened && trackingRunId != null,
+  });
+
+  const activeRun = resolveActiveRun(status, pollQuery.data);
+  const inProgress =
+    activeRun != null &&
+    (activeRun.status === 'queued' ||
+      activeRun.status === 'backing_up' ||
+      activeRun.status === 'applying');
 
   useEffect(() => {
     if (!opened) {
       setFailedMessage(null);
+      setTrackingRunId(null);
     }
   }, [opened]);
 
   useEffect(() => {
-    const run = status.activeUpdateRun;
-    if (!opened || run == null) return;
-
-    if (run.status === 'queued' || run.status === 'backing_up' || run.status === 'applying') {
-      onClose();
+    if (opened && status.activeUpdateRun?.id) {
+      setTrackingRunId(status.activeUpdateRun.id);
     }
-  }, [opened, onClose, status.activeUpdateRun]);
+  }, [opened, status.activeUpdateRun?.id]);
+
+  useEffect(() => {
+    if (activeRun?.status === 'failed' && activeRun.errorMessage) {
+      setFailedMessage(activeRun.errorMessage);
+    }
+  }, [activeRun?.status, activeRun?.errorMessage]);
+
+  const stepIndex = useMemo(() => {
+    if (activeRun == null) return -1;
+    if (activeRun.status === 'applying' && activeRun.agentPhase) {
+      return agentPhaseStepIndex(activeRun.agentPhase);
+    }
+    return updateProgressStepIndex(activeRun.status);
+  }, [activeRun]);
+
+  const elapsed = formatElapsedSince(activeRun?.startedAt ?? null, Date.now());
 
   const handleClose = () => {
-    if (applyMutation.isPending) return;
+    if (applyMutation.isPending || inProgress) return;
     onClose();
   };
 
   const handleApply = async () => {
     try {
-      await applyMutation.mutateAsync();
-      onClose();
+      const result = await applyMutation.mutateAsync();
+      setTrackingRunId(result.updateRunId);
+      setFailedMessage(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not start update.';
       setFailedMessage(message);
@@ -45,18 +85,19 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
   };
 
   const tag = status.latestReleaseTag ?? 'vX.Y.Z';
-  const showFailure = failedMessage != null;
+  const showRunFailure = failedMessage != null && !inProgress;
+  const showProgress = inProgress && activeRun != null;
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={showFailure ? 'Update failed' : 'Apply update'}
+      title={showRunFailure ? 'Update failed' : showProgress ? 'Updating DocsOps' : 'Apply update'}
       size="md"
-      closeOnClickOutside={!applyMutation.isPending}
-      closeOnEscape={!applyMutation.isPending}
+      closeOnClickOutside={!applyMutation.isPending && !inProgress}
+      closeOnEscape={!applyMutation.isPending && !inProgress}
     >
-      {showFailure ? (
+      {showRunFailure ? (
         <Stack gap="md">
           <Alert color="red" title="Update failed">
             <ScrollArea.Autosize mah={280}>
@@ -67,6 +108,32 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
           </Alert>
           <Group justify="flex-end">
             <Button onClick={handleClose}>Close</Button>
+          </Group>
+        </Stack>
+      ) : showProgress ? (
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Upgrading to <strong>{activeRun.targetReleaseTag}</strong>
+            {elapsed != null ? ` · ${elapsed}` : ''}
+          </Text>
+          <Stepper active={Math.max(0, stepIndex)} size="sm" orientation="vertical">
+            {UPDATE_PROGRESS_STEPS.map((step) => (
+              <Stepper.Step key={step.key} label={step.label} description={step.detail} />
+            ))}
+          </Stepper>
+          {activeRun.agentPhase ? (
+            <Text size="xs" c="dimmed">
+              Current step: <Code>{activeRun.agentPhase}</Code>
+            </Text>
+          ) : null}
+          <Text size="sm" c="dimmed">
+            You can keep this dialog open. Reload the page after the stack restarts if the UI does
+            not recover automatically.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Run in background
+            </Button>
           </Group>
         </Stack>
       ) : (
@@ -82,10 +149,6 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
               </Text>
             ))}
           </Stack>
-          <Text size="sm" c="dimmed">
-            Progress appears in the banner at the top of the page. You may need to reload after
-            containers restart.
-          </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={handleClose}>
               Cancel

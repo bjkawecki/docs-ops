@@ -1,0 +1,14 @@
+[Unit]
+Description=DocsOps host update agent
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/docsops/docsops.env
+ExecStart=/usr/local/bin/docsops-agent
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

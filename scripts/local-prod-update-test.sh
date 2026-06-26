@@ -96,8 +96,24 @@ parse_args() {
   done
 }
 
+build_agent_binary() {
+  local out="${ROOT}/dist/docsops-agent"
+  if [[ "$SKIP_BUILD" == "1" && -x "$out" ]]; then
+    log "Agent-Binary vorhanden: ${out}"
+    return 0
+  fi
+  if ! command -v go >/dev/null 2>&1; then
+    die "go nicht gefunden – für local-prod-update-test installieren oder --skip-build mit vorhandenem dist/docsops-agent"
+  fi
+  log "Baue docsops-agent …"
+  mkdir -p "${ROOT}/dist"
+  (cd "${ROOT}/apps/agent" && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$out" ./cmd/docsops-agent)
+}
+
 build_bundles() {
   local version archive
+  build_agent_binary
+  export DOCSOPS_AGENT_BINARY="${ROOT}/dist/docsops-agent"
   mkdir -p "$BUNDLE_DIR"
   for version in "$FROM_VERSION" "$TO_VERSION"; do
     archive="${BUNDLE_DIR}/docsops-${version}.tar.gz"
@@ -119,7 +135,7 @@ build_and_tag_images() {
   log "Baue Production-Images (Tag ${BUILD_TAG}) …"
   "${ROOT}/scripts/docker-image-sizes.sh" "$BUILD_TAG"
   for version in "$FROM_VERSION" "$TO_VERSION"; do
-    for svc in app migrate worker frontend updater; do
+    for svc in app migrate worker frontend; do
       docker tag "docsops-${svc}:${BUILD_TAG}" "${IMAGE_PREFIX}/docsops-${svc}:${version}"
     done
   done

@@ -35,7 +35,8 @@ Plan für die technische Umsetzung der internen Dokumentationsplattform (vgl. [D
 - **Version:** Single Source of Truth = `version` in Root-`package.json` (SemVer); Image-Build setzt `APP_VERSION` daraus; Runtime nur Env. Release = Git-Tag `vX.Y.Z` + GitHub Release. Details: [Plan-Betrieb-Releases-Backup-Update](Plan-Betrieb-Releases-Backup-Update.md) §1.
 - **Phasen:**
   - **Phase 1 (empfohlen zuerst):** Admin-UI zeigt installierte vs. verfügbare Version, „Check for updates“, Verweis auf `./scripts/update.sh` auf dem Server; **Backup-Gate** (Hinweis/Pflicht vor Update, vgl. Abschnitt 8).
-  - **Phase 2 (Ein-Klick):** Separater **Updater-Sidecar** – eigener Container/Agent neben dem App-Stack, der nur das Update-Skript ausführt (`scripts/update.sh`, `compose pull`, `compose up`). Die Haupt-App ruft ihn per API an; **nicht** voller Docker-Socket im App-Container (Sicherheit).
+  - **Phase 2 (Ein-Klick):** Separater **Updater-Sidecar** – eigener Container neben dem App-Stack (`scripts/update.sh` via One-Off-Container). Die Haupt-App ruft ihn per API an; **nicht** voller Docker-Socket im App-Container (Sicherheit).
+  - **Phase 3 (geplant):** **Host-Agent** (`docsops-agent`, Go, systemd auf dem Host) ersetzt Sidecar und Shell-Orchestrierung – [Plan-Host-Agent](Plan-Host-Agent.md).
 - **Wichtig:** Daten in Volumes; Rollback = vorheriges Image-Tag. Vollständige Todos: [Umsetzungs-Todo §26](Umsetzungs-Todo.md).
 
 ---

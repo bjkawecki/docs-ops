@@ -2,11 +2,11 @@ import type { PrismaClient } from '../../../generated/prisma/client.js';
 import { resolveAppVersion } from '../appVersion.js';
 import { compareSemver } from '../../domains/admin/utils/compareSemver.js';
 import {
-  getSidecarUpdateStatus,
+  getAgentUpdateStatus,
   getUpdateApplyTimeoutSeconds,
-  isUpdaterConfigured,
-  formatSidecarUpdateFailure,
-} from '../updater/updaterSidecarClient.js';
+  isAgentConfigured,
+  formatAgentUpdateFailure,
+} from '../agent/hostAgentClient.js';
 import {
   completeUpdateRunSuccess,
   failUpdateRun,
@@ -33,19 +33,15 @@ export async function reconcileUpdateRunsOnStartup(prisma: PrismaClient): Promis
       continue;
     }
 
-    if (isUpdaterConfigured()) {
+    if (isAgentConfigured()) {
       try {
-        const sidecarStatus = await getSidecarUpdateStatus();
-        if (
-          !sidecarStatus.running &&
-          sidecarStatus.exitCode != null &&
-          sidecarStatus.exitCode !== 0
-        ) {
-          await failUpdateRun(prisma, run.id, formatSidecarUpdateFailure(sidecarStatus));
+        const agentStatus = await getAgentUpdateStatus();
+        if (!agentStatus.running && agentStatus.exitCode != null && agentStatus.exitCode !== 0) {
+          await failUpdateRun(prisma, run.id, formatAgentUpdateFailure(agentStatus));
           continue;
         }
       } catch {
-        // Sidecar may be unavailable during stack restart; fall through to timeout handling.
+        // Agent may be unavailable during stack restart; fall through to timeout handling.
       }
     }
 

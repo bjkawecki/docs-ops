@@ -15,7 +15,7 @@ export const UPDATE_PROGRESS_STEPS: UpdateProgressStep[] = [
   {
     key: 'apply',
     label: 'Apply release',
-    detail: 'Pull container images and restart the production stack.',
+    detail: 'Download bundle, update configuration, pull images, and restart the stack.',
   },
   {
     key: 'health',
@@ -43,6 +43,24 @@ export function updateProgressStepIndex(status: AdminUpdateRun['status']): numbe
     default:
       return 0;
   }
+}
+
+const AGENT_PHASE_STEP: Record<string, number> = {
+  preflight: 1,
+  download_bundle: 1,
+  extract_bundle: 1,
+  patch_env: 1,
+  pull_images: 1,
+  compose_up: 2,
+  wait_health: 2,
+  verify_version: 2,
+  cleanup: 2,
+  succeeded: 3,
+  failed: -1,
+};
+
+export function agentPhaseStepIndex(phase: string): number {
+  return AGENT_PHASE_STEP[phase] ?? 1;
 }
 
 export function formatElapsedSince(iso: string | null | undefined, nowMs: number): string | null {

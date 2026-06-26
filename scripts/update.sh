@@ -15,17 +15,12 @@ Examples:
   sudo ./scripts/update.sh
   sudo ./scripts/update.sh v0.2.0
 
-Without VERSION, uses the latest GitHub release. Pass a tag to pin a specific version.
-
-Downloads the release bundle, replaces deploy files under ${DOCSOPS_INSTALL_DIR},
-updates DOCSOPS_VERSION in ${DOCSOPS_ENV_FILE}, then runs docker compose pull && up -d.
+Delegates to docsops-agent on the host (systemd). For manual recovery, ensure
+docsops-agent is running and DOCSOPS_AGENT_TOKEN is set in ${DOCSOPS_ENV_FILE}.
 
 Environment (local testing):
   DOCSOPS_BUNDLE_PATH       Path to docsops-vX.Y.Z.tar.gz (skip GitHub download)
   DOCSOPS_SKIP_IMAGE_PULL=1 Skip docker compose pull (use local images)
-
-Rollback: restore a backup of ${DOCSOPS_ENV_FILE} and the previous bundle tarball,
-then re-run update.sh with the previous version tag.
 EOF
 }
 
@@ -37,25 +32,32 @@ main() {
   fi
 
   require_root
-  export DOCSOPS_INSTALL_STAGE_TOTAL=3
-  INSTALL_STAGE_N=0
   resolve_install_dir || die "Keine Installation unter ${DOCSOPS_INSTALL_DIR} gefunden."
   [[ -f "$DOCSOPS_ENV_FILE" ]] || die "${DOCSOPS_ENV_FILE} fehlt – zuerst installieren."
+
+  # shellcheck disable=SC1090
+  set -a
+  source "$DOCSOPS_ENV_FILE"
+  set +a
 
   version="$(resolve_release_version "$version")"
   log "Ziel-Release: ${version}"
 
-  install_release_bundle_to_install_dir "$version"
-  patch_env_version "$version"
-  load_existing_env_optional
+  if ! command -v docsops-agent >/dev/null 2>&1; then
+    die "docsops-agent nicht gefunden. Bitte Production-Install mit Host-Agent ausführen."
+  fi
 
-  install_stage "Container-Images aktualisieren"
-  compose_up_prod
+  export DOCSOPS_AGENT_TOKEN="${DOCSOPS_AGENT_TOKEN:-}"
+  [[ -n "$DOCSOPS_AGENT_TOKEN" ]] || die "DOCSOPS_AGENT_TOKEN fehlt in ${DOCSOPS_ENV_FILE}"
 
-  install_stage "Bereitschaft prüfen"
-  wait_for_health
+  if ! docsops-agent preflight "$version"; then
+    die "Preflight für ${version} fehlgeschlagen."
+  fi
 
-  install_stage "Abschluss"
+  if ! docsops-agent apply "$version"; then
+    die "Update auf ${version} fehlgeschlagen."
+  fi
+
   log "Update auf ${version} abgeschlossen."
 }
 

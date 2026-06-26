@@ -7,10 +7,10 @@ import {
   type JobLogger,
 } from './adminSystemUpdateApplyService.js';
 import {
-  getSidecarUpdateStatus,
+  getAgentUpdateStatus,
   getUpdateApplyTimeoutSeconds,
-  formatSidecarUpdateFailure,
-} from '../../../infrastructure/updater/updaterSidecarClient.js';
+  formatAgentUpdateFailure,
+} from '../../../infrastructure/agent/hostAgentClient.js';
 import type { JobPayloadByType } from '../../../infrastructure/jobs/jobTypes.js';
 
 const POLL_INTERVAL_MS = 5_000;
@@ -46,36 +46,43 @@ export async function runWatchSystemUpdate(
       return;
     }
 
-    let sidecarStatus;
+    let agentStatus;
     try {
-      sidecarStatus = await getSidecarUpdateStatus();
+      agentStatus = await getAgentUpdateStatus();
     } catch (error) {
-      logger.warn({ updateRunId: updateRun.id, error }, 'Updater sidecar status unavailable');
+      logger.warn({ updateRunId: updateRun.id, error }, 'Host agent status unavailable');
       await sleep(POLL_INTERVAL_MS);
       continue;
     }
 
-    if (sidecarStatus.running) {
+    if (agentStatus.phase && agentStatus.phase !== updateRun.agentPhase) {
+      await prisma.updateRun.update({
+        where: { id: updateRun.id },
+        data: { agentPhase: agentStatus.phase },
+      });
+    }
+
+    if (agentStatus.running) {
       await sleep(POLL_INTERVAL_MS);
       continue;
     }
 
-    if (sidecarStatus.exitCode != null && sidecarStatus.exitCode !== 0) {
-      const message = formatSidecarUpdateFailure(sidecarStatus);
+    if (agentStatus.exitCode != null && agentStatus.exitCode !== 0) {
+      const message = formatAgentUpdateFailure(agentStatus);
       await failUpdateRun(prisma, updateRun.id, message);
       logger.error(
         {
           updateRunId: updateRun.id,
-          exitCode: sidecarStatus.exitCode,
-          containerName: sidecarStatus.containerName,
-          containerLogTail: sidecarStatus.containerLogTail,
+          exitCode: agentStatus.exitCode,
+          phase: agentStatus.phase,
+          logTail: agentStatus.logTail,
         },
         'System update failed'
       );
       return;
     }
 
-    if (sidecarStatus.exitCode === 0) {
+    if (agentStatus.exitCode === 0) {
       await sleep(POLL_INTERVAL_MS);
       continue;
     }

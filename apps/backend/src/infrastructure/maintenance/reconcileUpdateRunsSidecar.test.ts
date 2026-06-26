@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '../../../generated/prisma/client.js';
 import { reconcileUpdateRunsOnStartup } from './reconcileUpdateRunsOnStartup.js';
-import * as updaterSidecarClient from '../updater/updaterSidecarClient.js';
+import * as hostAgentClient from '../agent/hostAgentClient.js';
 import * as applyService from '../../domains/admin/services/adminSystemUpdateApplyService.js';
 import * as appVersion from '../appVersion.js';
 
-vi.mock('../updater/updaterSidecarClient.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof updaterSidecarClient>();
+vi.mock('../agent/hostAgentClient.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof hostAgentClient>();
   return {
     ...actual,
-    getSidecarUpdateStatus: vi.fn(),
+    getAgentUpdateStatus: vi.fn(),
     getUpdateApplyTimeoutSeconds: vi.fn(() => 600),
-    isUpdaterConfigured: vi.fn(() => true),
+    isAgentConfigured: vi.fn(() => true),
   };
 });
 
@@ -40,7 +40,7 @@ vi.mock('../appVersion.js', () => ({
   resolveAppVersion: vi.fn(() => '1.0.0'),
 }));
 
-describe('reconcileUpdateRunsOnStartup sidecar fallback', () => {
+describe('reconcileUpdateRunsOnStartup agent fallback', () => {
   const applyingRun = {
     id: 'run-1',
     status: 'applying' as const,
@@ -70,24 +70,21 @@ describe('reconcileUpdateRunsOnStartup sidecar fallback', () => {
     vi.mocked(appVersion.resolveAppVersion).mockReturnValue('0.9.0');
   });
 
-  it('fails applying run when sidecar reports non-zero exit code', async () => {
-    vi.mocked(updaterSidecarClient.getSidecarUpdateStatus).mockResolvedValue({
+  it('fails applying run when agent reports non-zero exit code', async () => {
+    vi.mocked(hostAgentClient.getAgentUpdateStatus).mockResolvedValue({
       running: false,
       version: 'v1.0.0',
+      phase: 'failed',
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       exitCode: 1,
-      error: 'update container failed',
-      containerName: 'docsops-update-run',
-      containerLogTail: null,
+      error: 'compose pull failed',
+      errorCode: 'COMPOSE_PULL_FAILED',
+      logTail: null,
     });
 
     await reconcileUpdateRunsOnStartup(prisma);
 
-    expect(applyService.failUpdateRun).toHaveBeenCalledWith(
-      prisma,
-      'run-1',
-      'update container failed'
-    );
+    expect(applyService.failUpdateRun).toHaveBeenCalledWith(prisma, 'run-1', 'compose pull failed');
   });
 });

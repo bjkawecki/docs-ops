@@ -106,26 +106,26 @@ Lädt das neue Bundle, aktualisiert `DOCSOPS_VERSION` in `/etc/docsops/docsops.e
 
 **Rollback:** Vor dem Update Bundle-Tarball und `/etc/docsops/docsops.env` sichern; bei Problemen alte Version in der Env-Datei setzen, altes Bundle nach `/opt/docsops` entpacken, `docker compose pull && up -d`.
 
-**Admin „Apply update“ (Updater-Sidecar):** Der Dienst `docsops-updater` startet das Update in einem **separaten One-Off-Container** (`<COMPOSE_PROJECT_NAME>-update-run`), damit `compose up` den laufenden Sidecar nicht abbricht. Status und Exit-Code liegen in `/opt/docsops/.update-run-state.json` und unter `GET /internal/status` (Bearer `DOCSOPS_UPDATER_TOKEN`).
+**Admin „Apply update“ (Host-Agent):** `docsops-agent` läuft als **systemd-Dienst auf dem Host** (nicht im Compose-Stack). Die App ruft `POST /v1/apply` über `DOCSOPS_AGENT_URL` an (Standard: `http://host.docker.internal:8091`). Status: `GET /v1/status` mit Bearer `DOCSOPS_AGENT_TOKEN`.
 
-**Updater Troubleshooting:**
+**Agent Troubleshooting:**
 
 ```bash
-# Sidecar läuft?
-docker logs docsops-updater --tail=30
-# Erwartung: docsops-updater listening on 8090 (kein „docker node“-Help)
+# Agent läuft?
+sudo systemctl status docsops-agent
+curl -sf -H "Authorization: Bearer $(grep '^DOCSOPS_AGENT_TOKEN=' /etc/docsops/docsops.env | cut -d= -f2-)" \
+  http://127.0.0.1:8091/v1/status
 
-# Manuell One-Off-Update (wie der Sidecar intern):
-sudo /opt/docsops/scripts/updater-exec-update.sh v0.1.1
-docker ps --filter name=update-run
-docker logs docsops-update-run -f
-sudo tail -100 /opt/docsops/.update-run.log
-
-# Fallback ohne Sidecar (vom Host):
+# Manuell vom Host (wie update.sh intern):
 sudo /opt/docsops/scripts/update.sh v0.1.1
+
+# Agent-Logs (JSON-Lines):
+sudo tail -100 /var/lib/docsops/agent.log
 ```
 
-Hängender Update-Run in der Admin-UI: App neu starten (Reconciliation) oder Sidecar-/Update-Container-Logs prüfen.
+Hängender Update-Run in der Admin-UI: App neu starten (Reconciliation) oder Agent-Status/Logs prüfen.
+
+**Bestehende VMs vor dem Host-Agent-Release:** Stack löschen und mit aktuellem Release neu installieren (`curl | sudo bash`) — kein In-Place-Migrationspfad.
 
 ### Deinstallation
 

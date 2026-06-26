@@ -230,15 +230,6 @@ importers:
         specifier: ^2.1.6
         version: 2.1.9(@types/node@22.19.13)(jsdom@25.0.1)
 
-  apps/updater:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.2
-        version: 24.13.2
-      typescript:
-        specifier: ^5.6.3
-        version: 5.6.3
-
 packages:
 
   '@adobe/css-tools@4.4.4':

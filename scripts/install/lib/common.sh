@@ -407,7 +407,7 @@ write_env_file() {
   image_prefix="${DOCSOPS_IMAGE_PREFIX:-ghcr.io/bjkawecki}"
   version="${DOCSOPS_VERSION}"
   update_github_repo="${DOCSOPS_UPDATE_GITHUB_REPO:-${DOCSOPS_GITHUB_REPO:-bjkawecki/docs-ops}}"
-  updater_token="$(openssl rand -hex 32)"
+  agent_token="$(openssl rand -hex 32)"
 
   install -d -m 700 /etc/docsops
 
@@ -422,8 +422,13 @@ COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-docsops}
 DOCSOPS_VERSION=${version}
 DOCSOPS_IMAGE_PREFIX=${image_prefix}
 DOCSOPS_UPDATE_GITHUB_REPO=${update_github_repo}
-DOCSOPS_UPDATER_URL=http://docsops-updater:8090
-DOCSOPS_UPDATER_TOKEN=${updater_token}
+DOCSOPS_AGENT_URL=http://host.docker.internal:8091
+DOCSOPS_AGENT_TOKEN=${agent_token}
+DOCSOPS_AGENT_LISTEN=127.0.0.1:8091
+DOCSOPS_AGENT_INSTALL_DIR=${DOCSOPS_INSTALL_DIR}
+DOCSOPS_AGENT_ENV_FILE=${DOCSOPS_ENV_FILE}
+DOCSOPS_AGENT_HEALTH_URL=${DOCSOPS_HEALTH_URL:-http://127.0.0.1/health}
+DOCSOPS_EXTRA_COMPOSE_FILES=${DOCSOPS_EXTRA_COMPOSE_FILES:-}
 SESSION_SECRET=${session_secret}
 BACKUP_ENCRYPTION_KEY="${backup_key}"
 ADMIN_EMAIL=${admin_email}
@@ -593,6 +598,23 @@ EOF
   systemctl daemon-reload
   systemctl enable docsops.service
   log "systemd-Unit docsops.service aktiviert"
+}
+
+install_agent_binary() {
+  local src="${DOCSOPS_INSTALL_DIR}/bin/docsops-agent"
+  [[ -f "$src" ]] || die "docsops-agent binary fehlt im Bundle (bin/docsops-agent)."
+  install -m 755 "$src" /usr/local/bin/docsops-agent
+  log "docsops-agent nach /usr/local/bin/docsops-agent installiert"
+}
+
+install_agent_systemd_unit() {
+  local unit_src="${DOCSOPS_INSTALL_DIR}/systemd/docsops-agent.service"
+  [[ -f "$unit_src" ]] || die "systemd/docsops-agent.service fehlt im Bundle."
+  install -m 644 "$unit_src" /etc/systemd/system/docsops-agent.service
+  systemctl daemon-reload
+  systemctl enable docsops-agent.service
+  systemctl restart docsops-agent.service
+  log "systemd-Unit docsops-agent.service aktiviert"
 }
 
 print_finish() {

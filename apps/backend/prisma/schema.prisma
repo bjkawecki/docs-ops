@@ -517,7 +517,7 @@ model BackupRun {
   @@index([createdAt(sort: Desc)])
 }
 
-/// One in-app system update execution (auto-backup then sidecar apply).
+/// One in-app system update execution (auto-backup then host-agent apply).
 model UpdateRun {
   id                String          @id @default(cuid())
   status            UpdateRunStatus @default(queued)
@@ -528,6 +528,7 @@ model UpdateRun {
   triggeredByUserId String?
   triggeredBy       User?           @relation("UpdateRunTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
   errorMessage      String?
+  agentPhase        String?
   startedAt         DateTime?
   finishedAt        DateTime?
   createdAt         DateTime        @default(now())

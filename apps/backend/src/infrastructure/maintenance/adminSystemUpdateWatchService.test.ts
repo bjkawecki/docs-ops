@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { runWatchSystemUpdate } from '../../domains/admin/services/adminSystemUpdateWatchService.js';
-import * as updaterSidecarClient from '../updater/updaterSidecarClient.js';
+import * as hostAgentClient from '../agent/hostAgentClient.js';
 import * as applyService from '../../domains/admin/services/adminSystemUpdateApplyService.js';
 import * as appVersion from '../appVersion.js';
 
-vi.mock('../updater/updaterSidecarClient.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof updaterSidecarClient>();
+vi.mock('../agent/hostAgentClient.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof hostAgentClient>();
   return {
     ...actual,
-    getSidecarUpdateStatus: vi.fn(),
+    getAgentUpdateStatus: vi.fn(),
     getUpdateApplyTimeoutSeconds: vi.fn(() => 60),
   };
 });
@@ -39,6 +39,7 @@ describe('runWatchSystemUpdate', () => {
     status: 'applying' as const,
     targetVersion: '0.1.1',
     targetReleaseTag: 'v0.1.1',
+    agentPhase: null,
     startedAt: new Date(),
     createdAt: new Date(),
   };
@@ -46,6 +47,7 @@ describe('runWatchSystemUpdate', () => {
   const prisma = {
     updateRun: {
       findUnique: vi.fn().mockResolvedValue(updateRun),
+      update: vi.fn(),
     },
   } as unknown as PrismaClient;
 
@@ -55,16 +57,17 @@ describe('runWatchSystemUpdate', () => {
     vi.mocked(appVersion.resolveAppVersion).mockReturnValue('0.1.0');
   });
 
-  it('fails update run when sidecar reports non-zero exit code', async () => {
-    vi.mocked(updaterSidecarClient.getSidecarUpdateStatus).mockResolvedValue({
+  it('fails update run when agent reports non-zero exit code', async () => {
+    vi.mocked(hostAgentClient.getAgentUpdateStatus).mockResolvedValue({
       running: false,
       version: 'v0.1.1',
+      phase: 'failed',
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       exitCode: 1,
       error: 'compose pull failed',
-      containerName: 'docsops-update-run',
-      containerLogTail: null,
+      errorCode: 'COMPOSE_PULL_FAILED',
+      logTail: null,
     });
 
     await runWatchSystemUpdate(prisma, { updateRunId: 'run-1' }, logger);
@@ -74,15 +77,16 @@ describe('runWatchSystemUpdate', () => {
 
   it('completes update run when installed version matches target', async () => {
     vi.mocked(appVersion.resolveAppVersion).mockReturnValue('0.1.1');
-    vi.mocked(updaterSidecarClient.getSidecarUpdateStatus).mockResolvedValue({
+    vi.mocked(hostAgentClient.getAgentUpdateStatus).mockResolvedValue({
       running: false,
       version: 'v0.1.1',
+      phase: 'succeeded',
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       exitCode: 0,
       error: null,
-      containerName: 'docsops-update-run',
-      containerLogTail: null,
+      errorCode: null,
+      logTail: null,
     });
 
     await runWatchSystemUpdate(prisma, { updateRunId: 'run-1' }, logger);

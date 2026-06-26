@@ -7,9 +7,9 @@ import { fetchUpcomingReleaseMarkdown } from './adminUpcomingReleaseNotesService
 import { getSystemSettings } from './adminSystemSettingsService.js';
 import { getActiveUpdateRun } from './adminUpdateRunService.js';
 import {
-  getUpdaterMissingEnvVars,
-  isUpdaterConfigured,
-} from '../../../infrastructure/updater/updaterSidecarClient.js';
+  getAgentMissingEnvVars,
+  isAgentConfigured,
+} from '../../../infrastructure/agent/hostAgentClient.js';
 
 export const DEFAULT_UPDATE_GITHUB_REPO = 'bjkawecki/docs-ops';
 
@@ -32,15 +32,15 @@ const EMPTY_UPCOMING_NOTES = {
 } as const;
 
 const EMPTY_APPLY_FIELDS = {
-  updaterConfigured: false,
-  updaterMissingEnvVars: getUpdaterMissingEnvVars(),
+  agentConfigured: false,
+  agentMissingEnvVars: getAgentMissingEnvVars(),
   canApplyUpdate: false,
   activeUpdateRun: null,
 } as const;
 
 type UpdateStatusCore = Omit<
   AdminSystemUpdateStatus,
-  'updaterConfigured' | 'updaterMissingEnvVars' | 'canApplyUpdate' | 'activeUpdateRun'
+  'agentConfigured' | 'agentMissingEnvVars' | 'canApplyUpdate' | 'activeUpdateRun'
 >;
 
 function stripApplyFields(status: AdminSystemUpdateStatus): UpdateStatusCore {
@@ -65,18 +65,18 @@ async function enrichWithApplyFields(
   prisma: PrismaClient,
   status: UpdateStatusCore
 ): Promise<AdminSystemUpdateStatus> {
-  const updaterConfigured = isUpdaterConfigured();
-  const updaterMissingEnvVars = getUpdaterMissingEnvVars();
+  const agentConfigured = isAgentConfigured();
+  const agentMissingEnvVars = getAgentMissingEnvVars();
   const activeUpdateRun = await getActiveUpdateRun(prisma);
   const canApplyUpdate =
-    updaterConfigured &&
+    agentConfigured &&
     status.updateCheckEnabled &&
     status.updateAvailable &&
     activeUpdateRun == null;
   return {
     ...status,
-    updaterConfigured,
-    updaterMissingEnvVars,
+    agentConfigured,
+    agentMissingEnvVars,
     canApplyUpdate,
     activeUpdateRun,
   };
