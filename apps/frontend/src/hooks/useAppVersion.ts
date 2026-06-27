@@ -16,6 +16,6 @@ export function useAppVersion() {
     },
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    refetchOnReconnect: true,
   });
 }

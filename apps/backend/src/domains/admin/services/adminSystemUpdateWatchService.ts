@@ -41,6 +41,10 @@ export async function runWatchSystemUpdate(
   while (Date.now() - startedMs < timeoutMs) {
     const installedCmp = compareSemver(resolveAppVersion(), updateRun.targetVersion);
     if (installedCmp != null && installedCmp >= 0) {
+      await prisma.updateRun.update({
+        where: { id: updateRun.id },
+        data: { agentPhase: 'succeeded' },
+      });
       await completeUpdateRunSuccess(prisma, updateRun.id);
       logger.info({ updateRunId: updateRun.id }, 'System update completed after version match');
       return;
@@ -59,6 +63,13 @@ export async function runWatchSystemUpdate(
       await prisma.updateRun.update({
         where: { id: updateRun.id },
         data: { agentPhase: agentStatus.phase },
+      });
+    }
+
+    if (!agentStatus.running && agentStatus.phase === 'succeeded') {
+      await prisma.updateRun.update({
+        where: { id: updateRun.id },
+        data: { agentPhase: 'succeeded' },
       });
     }
 

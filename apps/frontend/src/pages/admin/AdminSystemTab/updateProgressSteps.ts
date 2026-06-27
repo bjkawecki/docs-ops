@@ -20,7 +20,8 @@ export const UPDATE_PROGRESS_STEPS: UpdateProgressStep[] = [
   {
     key: 'health',
     label: 'Wait for services',
-    detail: 'Containers restart; the API may be briefly unavailable.',
+    detail:
+      'Containers are restarting. The app may be temporarily unreachable. Connection errors during this step are expected.',
   },
   {
     key: 'reload',
@@ -28,6 +29,32 @@ export const UPDATE_PROGRESS_STEPS: UpdateProgressStep[] = [
     detail: 'After the stack is healthy, reload to use the new version.',
   },
 ];
+
+const AGENT_PHASE_LABELS: Record<string, string> = {
+  preflight: 'Running preflight checks',
+  download_bundle: 'Downloading release bundle',
+  extract_bundle: 'Extracting release bundle',
+  patch_env: 'Updating configuration',
+  pull_images: 'Pulling images',
+  compose_up: 'Restarting containers',
+  wait_health: 'Waiting for health check',
+  verify_version: 'Verifying version',
+  cleanup: 'Finishing up',
+  succeeded: 'Update finished on server',
+  failed: 'Update failed',
+};
+
+const RESTART_AGENT_PHASES = new Set(['compose_up', 'wait_health', 'verify_version']);
+
+export function formatAgentPhaseLabel(phase: string | null | undefined): string | null {
+  if (phase == null || phase.trim() === '') return null;
+  return AGENT_PHASE_LABELS[phase] ?? phase.replace(/_/g, ' ');
+}
+
+export function isRestartPhase(phase: string | null | undefined): boolean {
+  if (phase == null || phase.trim() === '') return false;
+  return RESTART_AGENT_PHASES.has(phase);
+}
 
 export function updateProgressStepIndex(status: AdminUpdateRun['status']): number {
   switch (status) {

@@ -8,6 +8,7 @@ import type {
   PatchAdminSystemSettingsBody,
 } from 'backend/api-types';
 import { apiFetch } from '../api/client.js';
+import { appVersionQueryKey } from './useAppVersion.js';
 
 export const adminUpdateStatusQueryKey = ['admin', 'system', 'update-status'] as const;
 export const adminSystemSettingsQueryKey = ['admin', 'system', 'settings'] as const;
@@ -136,6 +137,9 @@ export function usePollUpdateRun(updateRunId: string | null, options?: { enabled
     if (data?.status === 'succeeded' || data?.status === 'failed') {
       void queryClient.invalidateQueries({ queryKey: adminUpdateStatusQueryKey });
       void queryClient.invalidateQueries({ queryKey: ['maintenance', 'status'] });
+    }
+    if (data?.status === 'succeeded') {
+      void queryClient.invalidateQueries({ queryKey: appVersionQueryKey() });
     }
   }, [query.data, queryClient]);
 

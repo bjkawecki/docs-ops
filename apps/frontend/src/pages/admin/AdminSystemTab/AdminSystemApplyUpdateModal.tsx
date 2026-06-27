@@ -2,12 +2,16 @@ import { Alert, Button, Code, Group, Modal, ScrollArea, Stack, Stepper, Text } f
 import { useEffect, useMemo, useState } from 'react';
 import type { AdminSystemUpdateStatus, AdminUpdateRun } from 'backend/api-types';
 import { useApplySystemUpdate, usePollUpdateRun } from '../../../hooks/useAdminUpdateStatus.js';
+import { useUpdateAutoReload } from '../../../hooks/useUpdateAutoReload.js';
 import {
   UPDATE_PROGRESS_STEPS,
   updateProgressStepIndex,
   agentPhaseStepIndex,
   formatElapsedSince,
+  formatAgentPhaseLabel,
+  isRestartPhase,
 } from './updateProgressSteps.js';
+import { openUpdateStatusPage } from './updateStatusPageUrl.js';
 
 type Props = {
   opened: boolean;
@@ -26,6 +30,7 @@ function resolveActiveRun(
 export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) {
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const [trackingRunId, setTrackingRunId] = useState<string | null>(null);
+  const [dismissedSuccessRunId, setDismissedSuccessRunId] = useState<string | null>(null);
   const applyMutation = useApplySystemUpdate();
 
   const pollQuery = usePollUpdateRun(trackingRunId, {
@@ -39,10 +44,17 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
       activeRun.status === 'backing_up' ||
       activeRun.status === 'applying');
 
+  const showSuccess =
+    activeRun?.status === 'succeeded' &&
+    trackingRunId != null &&
+    activeRun.id === trackingRunId &&
+    dismissedSuccessRunId !== trackingRunId;
+
+  const autoReload = useUpdateAutoReload({ enabled: opened && showSuccess });
+
   useEffect(() => {
     if (!opened) {
       setFailedMessage(null);
-      setTrackingRunId(null);
     }
   }, [opened]);
 
@@ -60,6 +72,9 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
 
   const stepIndex = useMemo(() => {
     if (activeRun == null) return -1;
+    if (activeRun.status === 'succeeded') {
+      return UPDATE_PROGRESS_STEPS.length;
+    }
     if (activeRun.status === 'applying' && activeRun.agentPhase) {
       return agentPhaseStepIndex(activeRun.agentPhase);
     }
@@ -67,9 +82,24 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
   }, [activeRun]);
 
   const elapsed = formatElapsedSince(activeRun?.startedAt ?? null, Date.now());
+  const agentPhaseLabel = formatAgentPhaseLabel(activeRun?.agentPhase);
+  const showRestartAlert =
+    inProgress &&
+    (isRestartPhase(activeRun?.agentPhase) || (pollQuery.isError && trackingRunId != null));
+
+  const handleDismissSuccess = () => {
+    if (trackingRunId != null) {
+      setDismissedSuccessRunId(trackingRunId);
+    }
+    onClose();
+  };
 
   const handleClose = () => {
     if (applyMutation.isPending || inProgress) return;
+    if (showSuccess) {
+      handleDismissSuccess();
+      return;
+    }
     onClose();
   };
 
@@ -77,6 +107,7 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
     try {
       const result = await applyMutation.mutateAsync();
       setTrackingRunId(result.updateRunId);
+      setDismissedSuccessRunId(null);
       setFailedMessage(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not start update.';
@@ -85,14 +116,25 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
   };
 
   const tag = status.latestReleaseTag ?? 'vX.Y.Z';
-  const showRunFailure = failedMessage != null && !inProgress;
+  const showRunFailure = failedMessage != null && !inProgress && !showSuccess;
   const showProgress = inProgress && activeRun != null;
+
+  const modalTitle = showRunFailure
+    ? 'Update failed'
+    : showSuccess
+      ? 'Update completed'
+      : showProgress
+        ? 'Updating DocsOps'
+        : 'Apply update';
+
+  const reloadCountdownText =
+    autoReload.secondsLeft != null ? ` Reloading in ${autoReload.secondsLeft}…` : ' Reloading…';
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={showRunFailure ? 'Update failed' : showProgress ? 'Updating DocsOps' : 'Apply update'}
+      title={modalTitle}
       size="md"
       closeOnClickOutside={!applyMutation.isPending && !inProgress}
       closeOnEscape={!applyMutation.isPending && !inProgress}
@@ -110,27 +152,63 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
             <Button onClick={handleClose}>Close</Button>
           </Group>
         </Stack>
+      ) : showSuccess && activeRun != null ? (
+        <Stack gap="md">
+          <Alert color="green" title="Update completed">
+            DocsOps has been upgraded to <strong>{activeRun.targetReleaseTag}</strong>.
+            {reloadCountdownText}
+          </Alert>
+          <Stepper active={UPDATE_PROGRESS_STEPS.length} size="sm" orientation="vertical">
+            {UPDATE_PROGRESS_STEPS.map((step) => (
+              <Stepper.Step key={step.key} label={step.label} description={step.detail} />
+            ))}
+            <Stepper.Completed>All steps finished.</Stepper.Completed>
+          </Stepper>
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => openUpdateStatusPage(activeRun.targetReleaseTag)}
+            >
+              Open status page
+            </Button>
+            <Button variant="default" onClick={handleDismissSuccess}>
+              Close
+            </Button>
+          </Group>
+        </Stack>
       ) : showProgress ? (
         <Stack gap="md">
           <Text size="sm" c="dimmed">
             Upgrading to <strong>{activeRun.targetReleaseTag}</strong>
             {elapsed != null ? ` · ${elapsed}` : ''}
           </Text>
+          {showRestartAlert ? (
+            <Alert color="yellow" title="Services are restarting">
+              The page may not respond for a while. This is expected, not a failure.
+            </Alert>
+          ) : null}
           <Stepper active={Math.max(0, stepIndex)} size="sm" orientation="vertical">
-            {UPDATE_PROGRESS_STEPS.map((step) => (
-              <Stepper.Step key={step.key} label={step.label} description={step.detail} />
+            {UPDATE_PROGRESS_STEPS.map((step, index) => (
+              <Stepper.Step
+                key={step.key}
+                label={step.label}
+                description={step.detail}
+                loading={index === stepIndex && inProgress}
+              />
             ))}
           </Stepper>
-          {activeRun.agentPhase ? (
+          {agentPhaseLabel ? (
             <Text size="xs" c="dimmed">
-              Current step: <Code>{activeRun.agentPhase}</Code>
+              Current step: {agentPhaseLabel}
             </Text>
           ) : null}
-          <Text size="sm" c="dimmed">
-            You can keep this dialog open. Reload the page after the stack restarts if the UI does
-            not recover automatically.
-          </Text>
           <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => openUpdateStatusPage(activeRun.targetReleaseTag)}
+            >
+              Open status page
+            </Button>
             <Button variant="default" onClick={onClose}>
               Run in background
             </Button>

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiBase } from '../api/client';
 import { maintenanceStatusQueryKey, type MaintenanceStatus } from './useMaintenanceStatus';
+import { adminUpdateStatusQueryKey } from './useAdminUpdateStatus';
+import { appVersionQueryKey } from './useAppVersion';
 import { LiveEventsContext } from './liveEventsContext';
 
 const INITIAL_RECONNECT_MS = 1_000;
@@ -96,9 +98,15 @@ function buildEventsUrl(): string {
   return apiBase ? `${apiBase}${path}` : path;
 }
 
+function invalidatePostMaintenanceQueries(queryClient: ReturnType<typeof useQueryClient>): void {
+  void queryClient.invalidateQueries({ queryKey: appVersionQueryKey() });
+  void queryClient.invalidateQueries({ queryKey: adminUpdateStatusQueryKey });
+}
+
 function catchUpQueries(queryClient: ReturnType<typeof useQueryClient>): void {
   void queryClient.invalidateQueries({ queryKey: ['me', 'notifications', 'unread-count'] });
   void queryClient.invalidateQueries({ queryKey: maintenanceStatusQueryKey() });
+  invalidatePostMaintenanceQueries(queryClient);
 }
 
 /**
@@ -142,6 +150,9 @@ export function useLiveEvents(): { fallbackPollingActive: boolean } {
         return;
       }
       queryClient.setQueryData(maintenanceStatusQueryKey(), event.payload);
+      if (!event.payload.active) {
+        invalidatePostMaintenanceQueries(queryClient);
+      }
     },
     [queryClient]
   );
