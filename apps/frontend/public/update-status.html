@@ -159,7 +159,7 @@
         <dt>Target version</dt>
         <dd id="target-version">—</dd>
         <dt>Current version</dt>
-        <dd id="current-version">—</dd>
+        <dd id="current-version">Checking…</dd>
         <dt>Health</dt>
         <dd id="health-status">—</dd>
         <dt>Last check</dt>
@@ -173,12 +173,14 @@
 
       const params = new URLSearchParams(window.location.search);
       const rawTarget = params.get('target') ?? '';
+      const rawFrom = params.get('from') ?? '';
 
       function normalizeVersion(version) {
         return version.trim().replace(/^v/i, '');
       }
 
       const targetVersion = normalizeVersion(rawTarget);
+      const installedVersion = normalizeVersion(rawFrom);
 
       const statusEl = document.getElementById('status');
       const statusTextEl = document.getElementById('status-text');
@@ -196,6 +198,14 @@
       let redirectTimer = null;
       let redirectRemaining = REDIRECT_SECONDS;
       let hasSucceeded = false;
+      let lastReportedVersion = installedVersion || null;
+
+      function formatCurrentVersion() {
+        if (lastReportedVersion) return lastReportedVersion;
+        return 'Not available yet';
+      }
+
+      currentVersionEl.textContent = formatCurrentVersion();
 
       function setState(state, text, detail) {
         statusEl.dataset.state = state;
@@ -260,7 +270,8 @@
           healthStatusEl.textContent = 'OK';
 
           const version = await fetchVersion();
-          currentVersionEl.textContent = version;
+          lastReportedVersion = normalizeVersion(version);
+          currentVersionEl.textContent = lastReportedVersion;
 
           if (targetVersion && normalizeVersion(version) === targetVersion) {
             hasSucceeded = true;
@@ -286,7 +297,7 @@
           );
         } catch {
           healthStatusEl.textContent = 'Unavailable';
-          currentVersionEl.textContent = '—';
+          currentVersionEl.textContent = formatCurrentVersion();
           setState(
             'restarting',
             'Services are restarting',

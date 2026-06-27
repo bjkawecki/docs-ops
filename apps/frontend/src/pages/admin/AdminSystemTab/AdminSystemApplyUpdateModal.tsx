@@ -14,7 +14,6 @@ import { IconInfoCircle } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { AdminSystemUpdateStatus, AdminUpdateRun } from 'backend/api-types';
 import { useApplySystemUpdate, usePollUpdateRun } from '../../../hooks/useAdminUpdateStatus.js';
-import { useUpdateAutoReload } from '../../../hooks/useUpdateAutoReload.js';
 import {
   UPDATE_PROGRESS_STEPS,
   updateProgressStepIndex,
@@ -22,7 +21,7 @@ import {
   formatElapsedSince,
   isRestartPhase,
 } from './updateProgressSteps.js';
-import { updateStatusPageUrl, openUpdateStatusPage } from './updateStatusPageUrl.js';
+import { openUpdateStatusPage } from './updateStatusPageUrl.js';
 
 type Props = {
   opened: boolean;
@@ -66,22 +65,6 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
   const isRestarting =
     showProgress &&
     (isRestartPhase(activeRun?.agentPhase) || (pollQuery.isError && trackingRunId != null));
-
-  const statusPageUrl = useMemo(
-    () =>
-      activeRun?.targetReleaseTag != null ? updateStatusPageUrl(activeRun.targetReleaseTag) : null,
-    [activeRun?.targetReleaseTag]
-  );
-
-  const restartRedirect = useUpdateAutoReload({
-    enabled: opened && isRestarting && statusPageUrl != null,
-    redirectTo: statusPageUrl,
-  });
-
-  const successRedirect = useUpdateAutoReload({
-    enabled: opened && showSuccess,
-    redirectTo: '/',
-  });
 
   useEffect(() => {
     if (!opened) {
@@ -153,16 +136,6 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
         ? 'Updating DocsOps'
         : 'Apply update';
 
-  const restartCountdownText =
-    restartRedirect.secondsLeft != null
-      ? `Opening update status in ${restartRedirect.secondsLeft}…`
-      : null;
-
-  const successCountdownText =
-    successRedirect.secondsLeft != null
-      ? `Opening DocsOps in ${successRedirect.secondsLeft}…`
-      : 'Opening DocsOps…';
-
   return (
     <Modal
       opened={opened}
@@ -188,8 +161,8 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
       ) : showSuccess && activeRun != null ? (
         <Stack gap="md">
           <Text size="sm">
-            DocsOps has been upgraded to <strong>{activeRun.targetReleaseTag}</strong>.{' '}
-            {successCountdownText}
+            DocsOps has been upgraded to <strong>{activeRun.targetReleaseTag}</strong>. Reload this
+            page to use the new version.
           </Text>
           <Stepper active={UPDATE_PROGRESS_STEPS.length} size="sm" orientation="vertical">
             {UPDATE_PROGRESS_STEPS.map((step) => (
@@ -199,8 +172,9 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
           </Stepper>
           <Group justify="flex-end">
             <Button variant="default" onClick={handleDismissSuccess}>
-              Stay on this page
+              Close
             </Button>
+            <Button onClick={() => window.location.reload()}>Reload page</Button>
           </Group>
         </Stack>
       ) : showProgress ? (
@@ -215,11 +189,16 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
                 <IconInfoCircle size={14} aria-hidden />
               </ThemeIcon>
               <Text size="sm" c="dimmed">
-                Services are restarting. Connection errors are expected.
-                {restartCountdownText != null ? ` ${restartCountdownText}` : ''}
+                Services are restarting. Connection errors are expected. Open the update status page
+                in a new tab to monitor progress.
               </Text>
             </Group>
-          ) : null}
+          ) : (
+            <Text size="sm" c="dimmed">
+              You can close this dialog and keep working. Open the update status page when you want
+              to monitor progress.
+            </Text>
+          )}
           <Stepper active={Math.max(0, stepIndex)} size="sm" orientation="vertical">
             {UPDATE_PROGRESS_STEPS.map((step, index) => (
               <Stepper.Step
@@ -230,30 +209,16 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
               />
             ))}
           </Stepper>
-          {!isRestarting && statusPageUrl != null ? (
-            <Text size="sm" c="dimmed">
-              You can close this dialog.{' '}
-              <Text
-                component="button"
-                type="button"
-                size="sm"
-                c="grape"
-                inherit
-                style={{
-                  cursor: 'pointer',
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  font: 'inherit',
-                  textDecoration: 'underline',
-                }}
-                onClick={() => openUpdateStatusPage(activeRun.targetReleaseTag)}
-              >
-                Open update status page
-              </Text>{' '}
-              in a new tab to monitor progress.
-            </Text>
-          ) : null}
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() =>
+                openUpdateStatusPage(activeRun.targetReleaseTag, status.installedVersion)
+              }
+            >
+              Open update status page
+            </Button>
+          </Group>
         </Stack>
       ) : (
         <Stack gap="md">

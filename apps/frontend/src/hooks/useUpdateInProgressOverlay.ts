@@ -122,7 +122,7 @@ export function useUpdateInProgressOverlay(isAdmin: boolean) {
     targetVersion,
   });
 
-  const visible = (liveInProgress || sticky) && !runFailed;
+  const visible = (liveInProgress || sticky) && !runFailed && phase !== 'success';
 
   const dismiss = useCallback(() => {
     setStickyFlag(false);
@@ -130,6 +130,12 @@ export function useUpdateInProgressOverlay(isAdmin: boolean) {
     setTargetVersion(null);
     setTargetVersionState(null);
   }, []);
+
+  useEffect(() => {
+    if (phase === 'success') {
+      dismiss();
+    }
+  }, [phase, dismiss]);
 
   return {
     visible,

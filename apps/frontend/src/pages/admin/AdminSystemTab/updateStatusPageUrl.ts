@@ -1,11 +1,21 @@
-export function updateStatusPageUrl(targetReleaseTag: string): string {
-  return `/update-status.html?target=${encodeURIComponent(targetReleaseTag)}`;
+export function updateStatusPageUrl(
+  targetReleaseTag: string,
+  installedVersion?: string | null
+): string {
+  const params = new URLSearchParams({ target: targetReleaseTag });
+  if (installedVersion != null && installedVersion.trim() !== '') {
+    params.set('from', installedVersion.trim());
+  }
+  return `/update-status.html?${params.toString()}`;
 }
 
-export function openUpdateStatusPage(targetReleaseTag: string): void {
-  window.open(updateStatusPageUrl(targetReleaseTag), '_blank', 'noopener,noreferrer');
-}
-
-export function goToUpdateStatusPage(targetReleaseTag: string): void {
-  window.location.href = updateStatusPageUrl(targetReleaseTag);
+export function openUpdateStatusPage(
+  targetReleaseTag: string,
+  installedVersion?: string | null
+): void {
+  window.open(
+    updateStatusPageUrl(targetReleaseTag, installedVersion),
+    '_blank',
+    'noopener,noreferrer'
+  );
 }
