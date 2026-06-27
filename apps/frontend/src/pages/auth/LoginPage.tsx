@@ -50,9 +50,10 @@ export function LoginPage() {
     },
   });
 
-  const redirectError = locationState.loginError
-    ? getLoginRedirectErrorDisplay(locationState.loginError)
-    : null;
+  const redirectError =
+    locationState.loginError === 'session_expired'
+      ? getLoginRedirectErrorDisplay(locationState.loginError)
+      : null;
   const loginError = login.isError ? getLoginErrorDisplay(login.error) : redirectError;
   const maintenanceQuery = useMaintenanceStatus();
 

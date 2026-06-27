@@ -11,7 +11,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     if (isPending) return;
     if (isError || !me?.user) {
       void navigate('/login', {
-        state: { from: location.pathname, loginError: 'auth_required' as const },
+        state: { from: location.pathname },
         replace: true,
       });
     }

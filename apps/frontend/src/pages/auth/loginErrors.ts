@@ -15,7 +15,7 @@ function isNetworkError(raw: string): boolean {
   );
 }
 
-/** Shown when AuthGuard redirects unauthenticated users to /login. */
+/** Shown when redirecting to /login with an actionable reason (e.g. session expired). */
 export function getLoginRedirectErrorDisplay(reason: LoginRedirectReason): LoginErrorDisplay {
   if (reason === 'session_expired') {
     return {
