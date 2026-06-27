@@ -1,5 +1,5 @@
 # Erwartet Build-Kontext: Repo-Root (docker build -f apps/backend/Dockerfile .)
-# Targets: migrate (Prisma deploy) | app (API) | worker (PDF-Export via pandoc/typst)
+# Targets: migrate (Prisma deploy) | app (API) | worker (PDF export via typst)
 # Build
 FROM node:24-alpine AS builder
 RUN corepack enable pnpm
@@ -40,7 +40,7 @@ RUN chmod +x /entrypoint.sh
 ENV NODE_ENV=production
 ENTRYPOINT ["/entrypoint.sh"]
 
-# API container (no Prisma CLI, no pandoc)
+# API container (no Prisma CLI, no typst)
 FROM runtime-base AS app
 RUN apk add --no-cache wget
 COPY docker/entrypoint-api-prod.sh /entrypoint.sh
@@ -50,15 +50,14 @@ ENV PORT=8080
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Job worker: PDF export (pandoc + typst – deutlich kleiner als TeX)
+# Job worker: PDF export (typst) + backup tools
 FROM runtime-base AS worker
 ARG TYPST_VERSION=0.13.1
 COPY docker/install-typst-alpine.sh /tmp/install-typst-alpine.sh
-RUN apk add --no-cache pandoc postgresql-client zstd tar wget xz \
+RUN apk add --no-cache postgresql-client zstd tar wget xz \
   && TYPST_VERSION="${TYPST_VERSION}" sh /tmp/install-typst-alpine.sh \
   && rm /tmp/install-typst-alpine.sh
 ENV NODE_ENV=production
-ENV PANDOC_ARGS=--pdf-engine=typst
 COPY docker/entrypoint-worker-prod.sh /entrypoint-worker.sh
 RUN chmod +x /entrypoint-worker.sh
 ENTRYPOINT ["/entrypoint-worker.sh"]

@@ -1,16 +1,29 @@
 import type { JSONContent } from '@tiptap/core';
-import type { BlockDocumentV0, BlockNodeV0 } from '../api/document-types';
+import type { BlockDocument, BlockNodeV0 } from '../api/document-types';
 import { randomId } from './randomId.js';
+
+type InlineMark = 'bold' | 'italic' | 'code';
 
 function newId(): string {
   return randomId();
 }
 
-function textLeaf(text: string): BlockNodeV0 {
-  return { id: newId(), type: 'text', attrs: {}, meta: { text } };
+function readMarks(meta: Record<string, unknown> | undefined): InlineMark[] {
+  const raw = meta?.marks;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((m): m is InlineMark => m === 'bold' || m === 'italic' || m === 'code');
 }
 
-/** Flachtet Kindknoten zu einem String (analog Backend `innerText`). */
+function textLeaf(text: string, marks?: InlineMark[]): BlockNodeV0 {
+  return {
+    id: newId(),
+    type: 'text',
+    attrs: {},
+    meta: marks?.length ? { text, marks } : { text },
+  };
+}
+
+/** Flachtet Kindknoten zu einem String (analog Backend `innerText`, ohne Markup). */
 export function innerTextFromBlockNode(node: BlockNodeV0): string {
   if (node.type === 'text') {
     const t = node.meta?.text;
@@ -35,16 +48,44 @@ function readBlockId(attrs: Record<string, unknown> | undefined): string {
   return typeof raw === 'string' && raw.length > 0 ? raw : newId();
 }
 
-function tiptapTextContent(text: string): JSONContent[] {
-  return text.length > 0 ? [{ type: 'text', text }] : [];
+function pmInlineToTextLeaves(content: JSONContent[] | undefined): BlockNodeV0[] {
+  const leaves: BlockNodeV0[] = [];
+  for (const c of content ?? []) {
+    if (c.type === 'text' && typeof c.text === 'string') {
+      const marks: InlineMark[] = [];
+      for (const mark of c.marks ?? []) {
+        if (mark.type === 'bold') marks.push('bold');
+        if (mark.type === 'italic') marks.push('italic');
+        if (mark.type === 'code') marks.push('code');
+      }
+      leaves.push(textLeaf(c.text, marks));
+    } else if (c.type === 'hardBreak') {
+      leaves.push(textLeaf('\n'));
+    } else if (c.content?.length) {
+      leaves.push(...pmInlineToTextLeaves(c.content));
+    }
+  }
+  return leaves.length > 0 ? leaves : [textLeaf('')];
+}
+
+function blockInlineContentToTiptap(content: BlockNodeV0[] | undefined): JSONContent[] {
+  const out: JSONContent[] = [];
+  for (const leaf of content ?? []) {
+    if (leaf.type !== 'text') continue;
+    const text = innerTextFromBlockNode(leaf);
+    if (!text) continue;
+    const marks = readMarks(leaf.meta);
+    const pmMarks = marks.map((m) => ({ type: m }));
+    out.push({ type: 'text', text, ...(pmMarks.length ? { marks: pmMarks } : {}) });
+  }
+  return out;
 }
 
 function paragraphOurToTiptap(p: BlockNodeV0): JSONContent {
-  const text = innerTextFromBlockNode(p);
   return {
     type: 'paragraph',
     attrs: { blockId: p.id },
-    content: tiptapTextContent(text),
+    content: blockInlineContentToTiptap(p.content),
   };
 }
 
@@ -69,11 +110,10 @@ function ourTopLevelBlockToTiptap(block: BlockNodeV0): JSONContent | null {
         typeof raw === 'number' && Number.isFinite(raw)
           ? Math.min(6, Math.max(1, Math.trunc(raw)))
           : 1;
-      const text = innerTextFromBlockNode(block);
       return {
         type: 'heading',
         attrs: { level, blockId: block.id },
-        content: tiptapTextContent(text),
+        content: blockInlineContentToTiptap(block.content),
       };
     }
     case 'paragraph':
@@ -100,16 +140,23 @@ function ourTopLevelBlockToTiptap(block: BlockNodeV0): JSONContent | null {
     }
     default: {
       const text = innerTextFromBlockNode(block);
+      if (!text) {
+        return {
+          type: 'paragraph',
+          attrs: { blockId: block.id },
+          content: [],
+        };
+      }
       return {
         type: 'paragraph',
         attrs: { blockId: block.id },
-        content: tiptapTextContent(text),
+        content: blockInlineContentToTiptap(block.content) || [{ type: 'text', text }],
       };
     }
   }
 }
 
-export function blockDocumentToTiptapJson(doc: BlockDocumentV0): JSONContent {
+export function blockDocumentToTiptapJson(doc: BlockDocument): JSONContent {
   const content = doc.blocks
     .map(ourTopLevelBlockToTiptap)
     .filter((n): n is JSONContent => n != null);
@@ -130,11 +177,11 @@ export function blockDocumentToTiptapJson(doc: BlockDocumentV0): JSONContent {
 
 function tiptapParagraphToOur(node: JSONContent): BlockNodeV0 {
   const id = readBlockId(node.attrs);
-  const t = pmInlineText(node.content);
+  const leaves = pmInlineToTextLeaves(node.content);
   return {
     id,
     type: 'paragraph',
-    content: [textLeaf(t)],
+    content: leaves,
   };
 }
 
@@ -145,7 +192,7 @@ function tiptapListItemToOur(node: JSONContent): BlockNodeV0 {
     return {
       id: newId(),
       type: 'paragraph',
-      content: [textLeaf(pmInlineText(c.content))],
+      content: pmInlineToTextLeaves(c.content),
     };
   });
   return {
@@ -156,7 +203,19 @@ function tiptapListItemToOur(node: JSONContent): BlockNodeV0 {
   };
 }
 
-export function ensureUniqueBlockIdsInDocument(doc: BlockDocumentV0): BlockDocumentV0 {
+function blockDocumentUsesInlineMarks(doc: BlockDocument): boolean {
+  if (doc.schemaVersion === 1) return true;
+  const walk = (node: BlockNodeV0): boolean => {
+    if (node.type === 'text') {
+      const marks = node.meta?.marks;
+      return Array.isArray(marks) && marks.length > 0;
+    }
+    return (node.content ?? []).some(walk);
+  };
+  return doc.blocks.some(walk);
+}
+
+export function ensureUniqueBlockIdsInDocument(doc: BlockDocument): BlockDocument {
   const seen = new Set<string>();
 
   const walk = (node: BlockNodeV0): BlockNodeV0 => {
@@ -185,12 +244,11 @@ function tiptapTopLevelToOur(node: JSONContent): BlockNodeV0 | null {
         typeof raw === 'number' && Number.isFinite(raw)
           ? Math.min(6, Math.max(1, Math.trunc(raw)))
           : 1;
-      const t = pmInlineText(node.content);
       return {
         id,
         type: 'heading',
         attrs: { level },
-        content: [textLeaf(t)],
+        content: pmInlineToTextLeaves(node.content),
       };
     }
     case 'paragraph':
@@ -220,7 +278,7 @@ function tiptapTopLevelToOur(node: JSONContent): BlockNodeV0 | null {
         return {
           id: readBlockId(node.attrs),
           type: 'paragraph',
-          content: [textLeaf(pmInlineText(node.content))],
+          content: pmInlineToTextLeaves(node.content),
         };
       }
       return null;
@@ -228,7 +286,7 @@ function tiptapTopLevelToOur(node: JSONContent): BlockNodeV0 | null {
   }
 }
 
-export function tiptapJsonToBlockDocument(json: JSONContent): BlockDocumentV0 {
+export function tiptapJsonToBlockDocument(json: JSONContent): BlockDocument {
   if (json.type !== 'doc' || !json.content?.length) {
     return {
       schemaVersion: 0,
@@ -246,5 +304,8 @@ export function tiptapJsonToBlockDocument(json: JSONContent): BlockDocumentV0 {
       blocks: [{ id: newId(), type: 'paragraph', content: [textLeaf('')] }],
     };
   }
-  return ensureUniqueBlockIdsInDocument({ schemaVersion: 0, blocks });
+  const deduped = ensureUniqueBlockIdsInDocument({ schemaVersion: 0, blocks });
+  return blockDocumentUsesInlineMarks(deduped)
+    ? { schemaVersion: 1, blocks: deduped.blocks }
+    : deduped;
 }

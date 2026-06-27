@@ -2,7 +2,10 @@ import { z, treeifyError } from 'zod';
 import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import { DocumentSuggestionStatus } from '../../../../../generated/prisma/client.js';
 import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
-import { safeParseBlockDocumentV0 } from '../blocks/blockSchema.js';
+import {
+  safeParseBlockDocument,
+  normalizeBlockDocumentSchemaVersion,
+} from '../blocks/blockSchema.js';
 import {
   applySuggestionOpsToDocument,
   suggestionOpsArraySchema,
@@ -256,7 +259,7 @@ export async function acceptDocumentSuggestion(
       throw new SuggestionOpsValidationError(applied.error);
     }
 
-    const validated = safeParseBlockDocumentV0(applied.document);
+    const validated = safeParseBlockDocument(applied.document);
     if (!validated.success) {
       throw new SuggestionOpsValidationError(
         'Ergebnis-Blocks ungültig',
@@ -264,7 +267,8 @@ export async function acceptDocumentSuggestion(
       );
     }
 
-    const json = validated.data as unknown as Prisma.InputJsonValue;
+    const normalized = normalizeBlockDocumentSchemaVersion(validated.data);
+    const json = normalized as unknown as Prisma.InputJsonValue;
 
     const updated = await tx.document.updateMany({
       where: {

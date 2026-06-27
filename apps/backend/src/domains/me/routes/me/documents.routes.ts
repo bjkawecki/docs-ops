@@ -244,11 +244,8 @@ function registerMeDocumentsRoutes(app: FastifyInstance): void {
       };
     });
 
-    const openDraftRequests: never[] = [];
-
     return reply.send({
       draftDocuments,
-      openDraftRequests,
       total: totalDrafts,
       limit: query.limit,
       offset: query.offset,

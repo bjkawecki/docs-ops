@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import { DocumentSuggestionStatus } from '../../../../../generated/prisma/client.js';
 import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
+import { normalizeBlockDocumentSchemaVersion } from '../blocks/blockSchema.js';
 
 /** Metadata-only update payload. No lifecycle fields (publishedAt, archivedAt, deletedAt). */
 export type UpdateDocumentMetadataData = {
@@ -78,12 +79,13 @@ export async function publishDocument(
       'Lead-Draft (Blocks) fehlt oder ist ungültig – bitte Inhalt anlegen.'
     );
   }
-  const versionBlocksJson = draftParsed as unknown as Prisma.InputJsonValue;
+  const normalized = normalizeBlockDocumentSchemaVersion(draftParsed);
+  const versionBlocksJson = normalized as unknown as Prisma.InputJsonValue;
   const isRepublish = doc.publishedAt != null;
 
   if (isRepublish) {
     const publishedParsed = parseBlockDocumentFromDb(doc.currentPublishedVersion?.blocks ?? null);
-    if (publishedParsed && JSON.stringify(publishedParsed) === JSON.stringify(draftParsed)) {
+    if (publishedParsed && JSON.stringify(publishedParsed) === JSON.stringify(normalized)) {
       throw new DocumentNotPublishableError(
         'Draft matches the current published version – nothing to publish.'
       );
@@ -104,7 +106,7 @@ export async function publishDocument(
       data: {
         documentId,
         blocks: versionBlocksJson,
-        blocksSchemaVersion: 0,
+        blocksSchemaVersion: normalized.schemaVersion,
         versionNumber,
         createdById: userId,
       },

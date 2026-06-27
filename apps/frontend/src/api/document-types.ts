@@ -14,18 +14,25 @@ export type BlockDocumentV0 = {
   blocks: BlockNodeV0[];
 };
 
+export type BlockDocumentV1 = {
+  schemaVersion: 1;
+  blocks: BlockNodeV0[];
+};
+
+export type BlockDocument = BlockDocumentV0 | BlockDocumentV1;
+
 /** GET /api/v1/documents/:id – Block-Felder (Lead-Draft / Published). */
 export type DocumentBlocksFields = {
   draftRevision: number;
-  blocks: BlockDocumentV0 | null;
-  publishedBlocks: BlockDocumentV0 | null;
+  blocks: BlockDocument | null;
+  publishedBlocks: BlockDocument | null;
   publishedBlocksSchemaVersion: number | null;
 };
 
 /** GET /api/v1/documents/:id/lead-draft */
 export type LeadDraftResponse = {
   draftRevision: number;
-  blocks: BlockDocumentV0 | null;
+  blocks: BlockDocument | null;
   canEdit: boolean;
 };
 

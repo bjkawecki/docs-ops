@@ -7,6 +7,7 @@ import { apiFetch } from '../../api/client';
 import { DocopsLogo } from '../../components/appShell/DocopsLogo';
 import { useMe } from '../../hooks/useMe';
 import { useMeDrafts } from '../../hooks/useMeDrafts';
+import { useMeReviews } from '../../hooks/useMeReviews';
 import { useResolvedColorScheme } from '../../hooks/useResolvedColorScheme';
 import { getAggregatedRecentItems } from '../../hooks/useRecentItems';
 import {
@@ -67,13 +68,6 @@ export function HomePage() {
 
   const latestItems = latestData?.items ?? [];
 
-  const { data: draftsData, isPending: draftsPending } = useMeDrafts(
-    {},
-    { limit: DASHBOARD_CARD_LIMIT, offset: 0 }
-  );
-  const draftDocuments = draftsData?.draftDocuments ?? [];
-  const openDraftRequests = draftsData?.openDraftRequests ?? [];
-
   const isAdmin = me?.user?.isAdmin === true;
   const isCompanyLead = (me?.identity?.companyLeads?.length ?? 0) > 0;
   const isDepartmentLead = (me?.identity?.departmentLeads?.length ?? 0) > 0;
@@ -82,6 +76,18 @@ export function HomePage() {
     isDepartmentLead ||
     isCompanyLead ||
     (me?.identity?.teams?.some((t) => t.role === 'leader') ?? false);
+
+  const { data: draftsData, isPending: draftsPending } = useMeDrafts(
+    {},
+    { limit: DASHBOARD_CARD_LIMIT, offset: 0 }
+  );
+  const draftDocuments = draftsData?.draftDocuments ?? [];
+
+  const { data: reviewsData, isPending: reviewsPending } = useMeReviews(
+    { limit: DASHBOARD_CARD_LIMIT, offset: 0 },
+    { enabled: hasReviewRights }
+  );
+  const pendingReviews = reviewsData?.pendingForReview ?? [];
 
   useEffect(() => {
     const onVisibility = () => setIsTabVisible(document.visibilityState === 'visible');
@@ -249,7 +255,10 @@ export function HomePage() {
         draftsPending={draftsPending}
         draftsTotal={draftsData?.total}
         draftsDataLoaded={draftsData !== undefined}
-        openDraftRequests={openDraftRequests}
+        pendingReviews={pendingReviews}
+        reviewsPending={reviewsPending}
+        reviewsDataLoaded={reviewsData !== undefined}
+        reviewsTotal={reviewsData?.totalPendingForReview}
         hasReviewRights={hasReviewRights}
       />
     </Box>

@@ -12,7 +12,7 @@ import {
   Textarea,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 import type {
@@ -33,6 +33,8 @@ type Props = {
   canPublish: boolean;
   leadDraftBlocks: BlockDocumentV0 | null;
   refetchWhenVisible: boolean;
+  initialSelectedBlockId?: string | null;
+  refetchInterval?: number | false;
 };
 
 export type DocumentSuggestionsPanelHandle = {
@@ -60,7 +62,15 @@ function buildReplacementBlock(source: BlockNodeV0, text: string): BlockNodeV0 {
 
 export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandle, Props>(
   function DocumentSuggestionsPanel(
-    { documentId, currentUserId, canPublish, leadDraftBlocks, refetchWhenVisible }: Props,
+    {
+      documentId,
+      currentUserId,
+      canPublish,
+      leadDraftBlocks,
+      refetchWhenVisible,
+      initialSelectedBlockId,
+      refetchInterval: refetchIntervalProp,
+    }: Props,
     ref
   ) {
     const queryClient = useQueryClient();
@@ -68,6 +78,19 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [replacementText, setReplacementText] = useState('');
     const [formError, setFormError] = useState<string | null>(null);
+
+    useEffect(() => {
+      if (initialSelectedBlockId) {
+        setSelectedBlockId(initialSelectedBlockId);
+      }
+    }, [initialSelectedBlockId, documentId]);
+
+    const pollInterval =
+      refetchIntervalProp !== undefined
+        ? refetchIntervalProp
+        : refetchWhenVisible
+          ? POLL_MS
+          : false;
 
     const q = useQuery<SuggestionsQueryResult>({
       queryKey: ['document', documentId, 'suggestions'],
@@ -78,7 +101,7 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
         return res.json() as Promise<DocumentSuggestionItem[]>;
       },
       enabled: !!documentId,
-      refetchInterval: refetchWhenVisible ? POLL_MS : false,
+      refetchInterval: refetchWhenVisible ? pollInterval : false,
     });
 
     const ld = useQuery({
@@ -89,13 +112,15 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
         return res.json() as Promise<{ draftRevision: number }>;
       },
       enabled: !!documentId && !canPublish,
-      refetchInterval: refetchWhenVisible ? POLL_MS : false,
+      refetchInterval: refetchWhenVisible ? pollInterval : false,
     });
 
     const blockOptions = useMemo(() => {
       const source = leadDraftBlocks?.blocks ?? [];
       return source
-        .filter((b) => ['heading', 'paragraph', 'code'].includes(b.type))
+        .filter((b) =>
+          ['heading', 'paragraph', 'code', 'bullet_list', 'list_item'].includes(b.type)
+        )
         .map((b) => ({ value: b.id, label: editableBlockLabel(b) }));
     }, [leadDraftBlocks?.blocks]);
 
@@ -271,6 +296,10 @@ export const DocumentSuggestionsPanel = forwardRef<DocumentSuggestionsPanelHandl
           <Box>
             <Text size="sm" fw={600} mb="xs">
               Propose a change
+            </Text>
+            <Text size="xs" c="dimmed" mb="sm">
+              Select a block from the current lead draft and submit replacement text. If the draft
+              revision changed, use &quot;Use current draft revision&quot; and try again.
             </Text>
             <Group align="flex-end" wrap="wrap" mb="xs">
               <NumberInput

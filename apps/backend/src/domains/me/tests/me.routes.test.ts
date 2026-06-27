@@ -406,7 +406,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('GET /api/v1/me/drafts mit Session und scope=personal → 200 + draftDocuments, openDraftRequests', async () => {
+  it('GET /api/v1/me/drafts mit Session und scope=personal → 200 + draftDocuments', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -422,12 +422,10 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       draftDocuments: unknown[];
-      openDraftRequests: unknown[];
       limit: number;
       offset: number;
     };
     expect(Array.isArray(body.draftDocuments)).toBe(true);
-    expect(Array.isArray(body.openDraftRequests)).toBe(true);
     expect(body.limit).toBe(20);
     expect(body.offset).toBe(0);
   });

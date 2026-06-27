@@ -1,10 +1,6 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { renderMarkdownToPdfBuffer } from '../pdf/typstPdfExport.js';
 import { jobPayloadSchemas, type JobPayloadByType, type JobType } from './jobTypes.js';
 import { initStorage, type StorageService } from '../storage/index.js';
 import { canWrite } from '../../domains/documents/permissions/canWrite.js';
@@ -23,8 +19,6 @@ import { runOperationalRestore } from '../../domains/admin/services/operationalR
 import { runPlatformExport } from '../../domains/admin/services/platformExportService.js';
 import { runPlatformImport } from '../../domains/admin/services/platformImportService.js';
 import { deliverAdminBroadcastById } from '../../domains/admin/services/adminBroadcastNotificationService.js';
-
-const execFileAsync = promisify(execFile);
 
 let storagePromise: Promise<StorageService | null> | null = null;
 
@@ -95,51 +89,23 @@ async function exportDocumentToPdf(
     throw new Error('Storage not available');
   }
 
-  const workDir = await mkdtemp(join(tmpdir(), 'docsops-export-'));
-  const inputPath = join(workDir, 'input.md');
-  const outputPath = join(workDir, 'output.pdf');
+  const pdfBuffer = await renderMarkdownToPdfBuffer({
+    markdown: markdownBody,
+    title: document.title,
+  });
 
-  try {
-    await writeFile(inputPath, markdownBody, 'utf8');
-    const pandocCommand = process.env.PANDOC_BIN?.trim() || 'pandoc';
-    const pandocExtraArgs = (process.env.PANDOC_ARGS ?? '')
-      .split(/\s+/)
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0);
-    try {
-      await execFileAsync(pandocCommand, [inputPath, ...pandocExtraArgs, '-o', outputPath], {
-        timeout: 120_000,
-        maxBuffer: 4 * 1024 * 1024,
-      });
-    } catch (error) {
-      const code =
-        error && typeof error === 'object' && 'code' in error
-          ? (error as { code?: string }).code
-          : undefined;
-      if (code === 'ENOENT') {
-        throw new Error(
-          `Pandoc binary not found ("${pandocCommand}"). Rebuild the docsops-job-worker image (pandoc + typst) or set PANDOC_BIN.`
-        );
-      }
-      throw error;
-    }
+  const objectKey = `exports/documents/${document.id}/${Date.now()}-${randomUUID()}.pdf`;
+  await storage.uploadStream(objectKey, pdfBuffer, 'application/pdf');
 
-    const pdfBuffer = await readFile(outputPath);
-    const objectKey = `exports/documents/${document.id}/${Date.now()}-${randomUUID()}.pdf`;
-    await storage.uploadStream(objectKey, pdfBuffer, 'application/pdf');
+  await context.prisma.document.update({
+    where: { id: document.id },
+    data: { pdfUrl: objectKey },
+  });
 
-    await context.prisma.document.update({
-      where: { id: document.id },
-      data: { pdfUrl: objectKey },
-    });
-
-    context.logger.info(
-      { documentId: document.id, objectKey },
-      'Stored exported PDF and updated document.pdfUrl'
-    );
-  } finally {
-    await rm(workDir, { recursive: true, force: true });
-  }
+  context.logger.info(
+    { documentId: document.id, objectKey },
+    'Stored exported PDF and updated document.pdfUrl'
+  );
 }
 
 async function reindexIncremental(

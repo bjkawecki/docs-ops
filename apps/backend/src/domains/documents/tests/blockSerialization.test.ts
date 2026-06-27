@@ -40,4 +40,23 @@ describe('block serialization (EPIC-2)', () => {
     expect(text).toContain('Titel');
     expect(text).toContain('Absatztext');
   });
+
+  it('exports inline marks to markdown', () => {
+    const doc = {
+      schemaVersion: 1 as const,
+      blocks: [
+        {
+          id: 'p1',
+          type: 'paragraph',
+          content: [
+            { id: 't1', type: 'text', meta: { text: 'bold', marks: ['bold'] } },
+            { id: 't2', type: 'text', meta: { text: ' text' } },
+          ],
+        },
+      ],
+    };
+    const md = blockDocumentV0ToMarkdown(doc);
+    expect(md).toContain('**bold**');
+    expect(md).toContain(' text');
+  });
 });

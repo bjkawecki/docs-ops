@@ -30,6 +30,7 @@ function invalidateDocumentCollaborationQueries(
   void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
   void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
   void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'suggestions'] });
+  void queryClient.invalidateQueries({ queryKey: ['me', 'reviews'] });
 }
 
 function getFallbackPollSeconds(): number {

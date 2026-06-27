@@ -9,7 +9,8 @@ import {
 } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { RecentItemsCard, SectionCard } from '../../components/contexts';
-import type { DraftDocumentItem, OpenDraftRequestItem } from '../../hooks/useMeDrafts';
+import type { DraftDocumentItem } from '../../hooks/useMeDrafts';
+import type { ReviewSuggestionItem } from '../../hooks/useMeReviews';
 import type { RecentItem } from '../../hooks/useRecentItems';
 import {
   CARD_TITLE_ICON_SIZE,
@@ -34,9 +35,11 @@ export type HomeDashboardSectionGridProps = {
   draftsPending: boolean;
   /** When defined, "My drafts" title includes total count (matches `draftsData?.total`). */
   draftsTotal: number | undefined;
-  /** When true, "Pending review" title includes open request count (matches `draftsData !== undefined`). */
-  draftsDataLoaded: boolean;
-  openDraftRequests: OpenDraftRequestItem[];
+  /** When true, "Pending review" title includes count from reviews API. */
+  reviewsDataLoaded: boolean;
+  pendingReviews: ReviewSuggestionItem[];
+  reviewsPending: boolean;
+  reviewsTotal: number | undefined;
   hasReviewRights: boolean;
 };
 
@@ -51,8 +54,10 @@ export function HomeDashboardSectionGrid({
   draftDocuments,
   draftsPending,
   draftsTotal,
-  draftsDataLoaded,
-  openDraftRequests,
+  reviewsDataLoaded,
+  pendingReviews,
+  reviewsPending,
+  reviewsTotal,
   hasReviewRights,
 }: HomeDashboardSectionGridProps) {
   return (
@@ -229,16 +234,18 @@ export function HomeDashboardSectionGrid({
         {hasReviewRights && (
           <SectionCard
             title={
-              draftsDataLoaded ? `Pending review (${openDraftRequests.length})` : 'Pending review'
+              reviewsDataLoaded && reviewsTotal != null
+                ? `Pending review (${reviewsTotal})`
+                : 'Pending review'
             }
             titleIcon={<IconClipboardCheck size={CARD_TITLE_ICON_SIZE} style={{ flexShrink: 0 }} />}
             viewMoreHref="/reviews"
           >
-            {draftsPending ? (
+            {reviewsPending ? (
               <Text size="sm" c="dimmed">
                 Loading…
               </Text>
-            ) : openDraftRequests.length === 0 ? (
+            ) : pendingReviews.length === 0 ? (
               <Text size="sm" c="dimmed">
                 No pending reviews.
               </Text>
@@ -253,15 +260,20 @@ export function HomeDashboardSectionGrid({
                   minWidth: 0,
                 }}
               >
-                {openDraftRequests.flatMap((dr) => {
-                  const title = dr.documentTitle || dr.documentId;
+                {pendingReviews.flatMap((item) => {
+                  const title = item.documentTitle || item.documentId;
                   return [
-                    <Badge key={`${dr.id}-b`} size="sm" variant="filled" style={{ flexShrink: 0 }}>
+                    <Badge
+                      key={`${item.suggestionId}-b`}
+                      size="sm"
+                      variant="filled"
+                      style={{ flexShrink: 0 }}
+                    >
                       Pending review
                     </Badge>,
                     <Link
-                      key={`${dr.id}-t`}
-                      to={`/documents/${dr.documentId}`}
+                      key={`${item.suggestionId}-t`}
+                      to={`/documents/${item.documentId}?mode=edit&tab=draft`}
                       style={{
                         fontSize: 'var(--mantine-font-size-sm)',
                         overflow: 'hidden',
@@ -273,9 +285,9 @@ export function HomeDashboardSectionGrid({
                       {title}
                     </Link>,
                     <HomeScopeSuffix
-                      key={`${dr.id}-s`}
-                      scopeType={dr.scopeType}
-                      scopeName={dr.scopeName}
+                      key={`${item.suggestionId}-s`}
+                      scopeType={item.scopeType}
+                      scopeName={item.scopeName}
                     />,
                   ];
                 })}

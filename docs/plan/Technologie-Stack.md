@@ -50,7 +50,7 @@ Festgelegter Stack für die interne Dokumentationsplattform. Siehe auch [Infrast
 
 ## 6. Async Tasks / Job-Queue
 
-- **Einsatz:** pg-boss (PostgreSQL als Queue, kein Redis). Worker für: Volltext-Index, Versionierung/Snapshots, Benachrichtigungen (Slack/Teams), PDF-Export. PDF-Export mit Pandoc + Typst im Worker (Markdown → PDF); Ergebnis in MinIO, Download-Link für Nutzer.
+- **Einsatz:** pg-boss (PostgreSQL als Queue, kein Redis). Worker für: Volltext-Index, Versionierung/Snapshots, Benachrichtigungen (Slack/Teams), PDF-Export. PDF-Export mit **Typst** im Worker (Markdown → PDF); Ergebnis in MinIO, Download-Link für Nutzer.
 
 ---
 

@@ -1,11 +1,15 @@
 import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import { treeifyError } from 'zod';
-import { safeParseBlockDocumentV0, type BlockDocumentV0 } from '../blocks/blockSchema.js';
+import {
+  safeParseBlockDocument,
+  normalizeBlockDocumentSchemaVersion,
+  type BlockDocument,
+} from '../blocks/blockSchema.js';
 import { parseBlockDocumentFromDb } from '../blocks/documentBlocksBackfill.js';
 
 export type LeadDraftView = {
   draftRevision: number;
-  blocks: BlockDocumentV0 | null;
+  blocks: BlockDocument | null;
   canEdit: boolean;
 };
 
@@ -47,7 +51,7 @@ export type PatchLeadDraftInput = {
 };
 
 export type PatchLeadDraftResult =
-  | { ok: true; draftRevision: number; blocks: BlockDocumentV0 }
+  | { ok: true; draftRevision: number; blocks: BlockDocument }
   | { ok: false; error: 'not_found' | 'conflict' | 'validation'; issues?: unknown };
 
 /**
@@ -58,11 +62,11 @@ export async function patchLeadDraft(
   documentId: string,
   input: PatchLeadDraftInput
 ): Promise<PatchLeadDraftResult> {
-  const safe = safeParseBlockDocumentV0(input.blocks);
+  const safe = safeParseBlockDocument(input.blocks);
   if (!safe.success) {
     return { ok: false, error: 'validation', issues: treeifyError(safe.error) };
   }
-  const parsed = safe.data;
+  const parsed = normalizeBlockDocumentSchemaVersion(safe.data);
   const json = parsed as unknown as Prisma.InputJsonValue;
 
   const updated = await prisma.document.updateMany({

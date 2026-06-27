@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '../../../../../generated/prisma/client.js';
 import { markdownToBlockDocumentV0 } from './markdownToBlocks.js';
-import { safeParseBlockDocumentV0, type BlockDocumentV0, type BlockNode } from './blockSchema.js';
+import {
+  safeParseBlockDocument,
+  type BlockDocumentV0,
+  type BlockDocument,
+  type BlockNode,
+} from './blockSchema.js';
 
 function seedTextLeaf(text: string): BlockNode {
   return { id: randomUUID(), type: 'text', attrs: {}, meta: { text } };
@@ -59,10 +64,10 @@ export function emptyBlockDocumentJson(): Prisma.InputJsonValue {
   return markdownToBlockDocumentV0('') as unknown as Prisma.InputJsonValue;
 }
 
-/** Parst DB-JSON zu BlockDocument v0; bei ungültigem JSON `null`. */
-export function parseBlockDocumentFromDb(value: unknown): BlockDocumentV0 | null {
+/** Parst DB-JSON zu BlockDocument v0/v1; bei ungültigem JSON `null`. */
+export function parseBlockDocumentFromDb(value: unknown): BlockDocument | null {
   if (value == null) return null;
-  const r = safeParseBlockDocumentV0(value);
+  const r = safeParseBlockDocument(value);
   return r.success ? r.data : null;
 }
 

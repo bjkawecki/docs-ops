@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { blockDocumentSchemaV0 } from '../services/blocks/blockSchema.js';
+import { blockDocumentSchema } from '../services/blocks/blockSchema.js';
 import { paginationQuerySchema } from '../../organisation/schemas/organisation.js';
 
 export { paginationQuerySchema };
@@ -87,7 +87,7 @@ export const updateDocumentBodySchema = z.object({
 /** Body: PATCH Lead-Draft (Block-JSON); Optimistic Lock über `expectedRevision` (optional abgestimmt mit If-Match). */
 export const patchLeadDraftBodySchema = z.object({
   expectedRevision: z.number().int().min(0),
-  blocks: blockDocumentSchemaV0,
+  blocks: blockDocumentSchema,
 });
 
 /** Query: GET …/suggestions – optional nach Status filtern. */

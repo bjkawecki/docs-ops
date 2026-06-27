@@ -162,7 +162,7 @@ Neu oder zu ersetzen (konkrete Pfade in der Implementierung festlegen):
 1. **Datenmigration:** bestehende `Document.content` (Markdown) → Block-JSON (einmaliger Import-Job + Fallback-Reader).
 2. **API-Übergang:** Feature-Flag oder API-Version `v2` für Dokument-Shape (Published als Blocks + Markdown-Export-Feld optional während Übergang).
 3. **Suchindex / FTS:** Indexierung aus **Plaintext/serialisiertem Markdown** aus Blocks (Hintergrund-Job), nicht aus Roh-Markdown-Spalte als alleiniger Quelle.
-4. **PDF-Export:** Pandoc weiter nutzbar über **Markdown-Serialisierung** aus Blocks.
+4. **PDF-Export:** Typst direkt über **Markdown-Serialisierung** aus Blocks.
 5. **Versionierung:** bestehendes `DocumentVersion`-Konzept behalten; Inhalt der Version ist dann serialisiert (JSON oder exportierter Snapshot).
 
 ---

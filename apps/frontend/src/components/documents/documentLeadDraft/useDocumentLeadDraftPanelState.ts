@@ -20,6 +20,7 @@ export type DocumentLeadDraftPanelProps = {
   fallbackBlocks?: BlockDocumentV0 | null;
   onDirtyChange?: (dirty: boolean) => void;
   onLastSyncedChange?: (iso: string | null) => void;
+  refetchInterval?: number | false;
 };
 
 export function useDocumentLeadDraftPanelState({
@@ -31,7 +32,9 @@ export function useDocumentLeadDraftPanelState({
   fallbackBlocks = null,
   onDirtyChange,
   onLastSyncedChange,
+  refetchInterval: refetchIntervalProp,
 }: DocumentLeadDraftPanelProps) {
+  const pollMs = refetchIntervalProp === false ? false : (refetchIntervalProp ?? POLL_MS);
   const queryClient = useQueryClient();
   const editorRef = useRef<LeadDraftTiptapEditorHandle>(null);
   const [dirty, setDirty] = useState(false);
@@ -61,7 +64,7 @@ export function useDocumentLeadDraftPanelState({
       return res.json() as Promise<LeadDraftResponse>;
     },
     enabled: !!documentId,
-    refetchInterval: refetchWhenVisible && !dirty ? POLL_MS : false,
+    refetchInterval: refetchWhenVisible && !dirty ? pollMs : false,
   });
 
   const suggestionsQuery = useQuery({
@@ -73,7 +76,7 @@ export function useDocumentLeadDraftPanelState({
       return res.json() as Promise<DocumentSuggestionItem[]>;
     },
     enabled: !!documentId,
-    refetchInterval: refetchWhenVisible ? POLL_MS : false,
+    refetchInterval: refetchWhenVisible ? pollMs : false,
   });
 
   const data = q.data;

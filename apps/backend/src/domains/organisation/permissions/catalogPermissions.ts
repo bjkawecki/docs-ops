@@ -321,3 +321,27 @@ export async function getWritableCatalogScope(
 
   return { contextIds, documentIdsFromGrants, documentIdsFromCreator };
 }
+
+/**
+ * Context IDs where the user may publish / resolve suggestions (scope lead or personal owner).
+ * Admins receive `{ isAdmin: true }` without enumerating contexts.
+ */
+export async function getPublishableContextIds(
+  prisma: PrismaClient,
+  userId: string
+): Promise<{ isAdmin: boolean; contextIds: string[] }> {
+  const user = await loadUser(prisma, userId);
+  if (!user || user.deletedAt !== null) {
+    return { isAdmin: false, contextIds: [] };
+  }
+  if (user.isAdmin) {
+    return { isAdmin: true, contextIds: [] };
+  }
+
+  const companyIds = user.companyLeads.map((c) => c.companyId);
+  const departmentIds = user.departmentLeads.map((d) => d.departmentId);
+  const teamIds = user.leadOfTeams.map((l) => l.teamId);
+  const ownerOrConditions = buildOwnerOrConditions(companyIds, departmentIds, teamIds);
+  const contextIds = await loadScopedContextIds(prisma, userId, ownerOrConditions);
+  return { isAdmin: false, contextIds };
+}

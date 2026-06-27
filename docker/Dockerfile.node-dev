@@ -5,12 +5,11 @@ FROM node:24-bookworm-slim
 ARG TYPST_VERSION=0.13.1
 COPY docker/install-typst-debian.sh /tmp/install-typst-debian.sh
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends wget pandoc postgresql-client zstd tar xz ca-certificates \
+  && apt-get install -y --no-install-recommends wget postgresql-client zstd tar xz ca-certificates \
   && TYPST_VERSION="${TYPST_VERSION}" sh /tmp/install-typst-debian.sh \
   && rm /tmp/install-typst-debian.sh \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable pnpm
-ENV PANDOC_ARGS=--pdf-engine=typst
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"

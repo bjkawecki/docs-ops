@@ -27,7 +27,26 @@ export const blockDocumentSchemaV0 = z.object({
   blocks: z.array(blockNodeSchema),
 });
 
+export const blockTextMarkSchema = z.enum(['bold', 'italic', 'code']);
+
+export const blockTextMetaSchema = z
+  .object({
+    text: z.string(),
+    marks: z.array(blockTextMarkSchema).optional(),
+  })
+  .passthrough();
+
+/** Block document v1: same tree as v0; text nodes may carry inline `marks` in meta (ADR 002). */
+export const blockDocumentSchemaV1 = z.object({
+  schemaVersion: z.literal(1),
+  blocks: z.array(blockNodeSchema),
+});
+
+export const blockDocumentSchema = z.union([blockDocumentSchemaV0, blockDocumentSchemaV1]);
+
 export type BlockDocumentV0 = z.infer<typeof blockDocumentSchemaV0>;
+export type BlockDocumentV1 = z.infer<typeof blockDocumentSchemaV1>;
+export type BlockDocument = BlockDocumentV0 | BlockDocumentV1;
 
 export function parseBlockDocumentV0(input: unknown): BlockDocumentV0 {
   return blockDocumentSchemaV0.parse(input);
@@ -35,6 +54,37 @@ export function parseBlockDocumentV0(input: unknown): BlockDocumentV0 {
 
 export function safeParseBlockDocumentV0(input: unknown) {
   return blockDocumentSchemaV0.safeParse(input);
+}
+
+export function safeParseBlockDocumentV1(input: unknown) {
+  return blockDocumentSchemaV1.safeParse(input);
+}
+
+export function safeParseBlockDocument(input: unknown) {
+  return blockDocumentSchema.safeParse(input);
+}
+
+export function parseBlockDocument(input: unknown): BlockDocument {
+  return blockDocumentSchema.parse(input);
+}
+
+/** True when document uses v1 or any text node carries marks. */
+export function blockDocumentUsesInlineMarks(doc: BlockDocument): boolean {
+  if (doc.schemaVersion === 1) return true;
+  const walk = (node: BlockNode): boolean => {
+    if (node.type === 'text') {
+      const marks = node.meta?.marks;
+      return Array.isArray(marks) && marks.length > 0;
+    }
+    return (node.content ?? []).some(walk);
+  };
+  return doc.blocks.some(walk);
+}
+
+export function normalizeBlockDocumentSchemaVersion(doc: BlockDocument): BlockDocument {
+  return blockDocumentUsesInlineMarks(doc)
+    ? { schemaVersion: 1, blocks: doc.blocks }
+    : { schemaVersion: 0, blocks: doc.blocks };
 }
 
 /** Minimal example used in tests and docs; not a full editor schema. */

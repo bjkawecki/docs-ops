@@ -22,22 +22,8 @@ export type DraftDocumentItem = {
   scopeName: string;
 };
 
-export type OpenDraftRequestItem = {
-  id: string;
-  documentId: string;
-  documentTitle: string;
-  submittedById: string;
-  submittedByName: string;
-  submittedAt: string;
-  status: string;
-  scopeType: DraftScopeType;
-  scopeId: string | null;
-  scopeName: string;
-};
-
 export type MeDraftsResponse = {
   draftDocuments: DraftDocumentItem[];
-  openDraftRequests: OpenDraftRequestItem[];
   total: number;
   limit: number;
   offset: number;
@@ -84,7 +70,7 @@ export async function fetchMeDrafts(
 }
 
 /**
- * Drafts and open draft requests for a scope (or all if params empty).
+ * Draft documents for a scope (or all if params empty).
  */
 export function useMeDrafts(
   params: MeDraftsScopeParams,

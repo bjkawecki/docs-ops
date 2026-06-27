@@ -2,14 +2,9 @@
   "formatVersion": 1,
   "releases": [
     {
-      "version": "0.1.0",
-      "date": "2026-06-25",
-      "title": "Initial internal release"
-    },
-    {
       "version": "0.2.0",
       "date": "2026-07-01",
-      "title": "Notifications & What's new"
+      "title": "Edit-System v0.2.0"
     },
     {
       "version": "0.3.0",

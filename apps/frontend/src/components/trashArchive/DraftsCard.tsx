@@ -2,11 +2,7 @@ import { Box, Card, Group, Stack, Text } from '@mantine/core';
 import { IconPencil } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { ViewMoreButton } from '../contexts/cardShared';
-import {
-  useMeDrafts,
-  type MeDraftsScopeParams,
-  type OpenDraftRequestItem,
-} from '../../hooks/useMeDrafts';
+import { useMeDrafts, type MeDraftsScopeParams } from '../../hooks/useMeDrafts';
 
 export interface DraftsCardProps {
   scopeParams: MeDraftsScopeParams;
@@ -44,9 +40,7 @@ export function DraftsCard({
   const { data, isPending } = useMeDrafts(scopeParams, { limit, offset: 0, enabled });
 
   const draftDocuments = (data?.draftDocuments ?? []).slice(0, 3);
-  const openDraftRequests = (data?.openDraftRequests ?? []).slice(0, 2);
-
-  const hasDrafts = draftDocuments.length > 0 || openDraftRequests.length > 0;
+  const hasDrafts = draftDocuments.length > 0;
 
   return (
     <Card withBorder padding="md" h="100%">
@@ -65,37 +59,10 @@ export function DraftsCard({
               </Text>
             ) : !hasDrafts ? (
               <Text size="sm" c="dimmed">
-                No drafts or pending review.
+                No unpublished drafts.
               </Text>
             ) : (
-              <>
-                {draftDocuments.length > 0 && (
-                  <>
-                    <Text size="xs" c="dimmed" fw={500}>
-                      Unpublished
-                    </Text>
-                    <DraftPreviewLinks items={draftDocuments} to={(id) => `/documents/${id}`} />
-                  </>
-                )}
-                {openDraftRequests.length > 0 && (
-                  <>
-                    <Text size="xs" c="dimmed" fw={500} mt={draftDocuments.length > 0 ? 'xs' : 0}>
-                      Pending review
-                    </Text>
-                    <Stack gap={4} align="flex-start">
-                      {openDraftRequests.map((dr: OpenDraftRequestItem) => (
-                        <Link
-                          key={dr.id}
-                          to={`/documents/${dr.documentId}`}
-                          style={{ fontSize: 'var(--mantine-font-size-sm)' }}
-                        >
-                          {dr.documentTitle || dr.documentId}
-                        </Link>
-                      ))}
-                    </Stack>
-                  </>
-                )}
-              </>
+              <DraftPreviewLinks items={draftDocuments} to={(id) => `/documents/${id}`} />
             )}
           </Stack>
         </Box>

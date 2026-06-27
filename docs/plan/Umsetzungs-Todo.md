@@ -275,6 +275,8 @@ Detaillierter Plan (Meilenstein): [Plan-15a-Datenmodell-Rechte-Sichtbarkeit](Pla
 
 **Ergebnis 15c (Ziel):** Autoren sehen Published und (optional) Lead-Draft-Stand; sie erstellen **Suggestions**; Lead wendet zu, **veröffentlicht** → neuer Snapshot.
 
+**v0.2.0 (umgesetzt):** Reviews-Inbox (`/reviews`), Autor-UX „Suggest change“, Block schema v1 (Inline-Marks), Typst-PDF, SSE statt Dauer-Polling – siehe [Edit-System-Blocks-PR-Epics.md](Edit-System-Blocks-PR-Epics.md) Post-EPIC Polish.
+
 ### 15d. Konflikte & „auf neuesten Stand“
 
 Im **Zielmodell** lösen sich Konflikte aus **überlappenden Suggestions** (fachliche Entscheidung durch Lead), nicht durch automatisches Zusammenführen paralleler Volltext-Entwürfe – siehe Edit-System-Plan Abschnitt zu Überlappung und Lead-Entscheid.

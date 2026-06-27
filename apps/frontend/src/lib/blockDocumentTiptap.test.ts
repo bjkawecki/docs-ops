@@ -4,7 +4,7 @@ import {
   ensureUniqueBlockIdsInDocument,
   tiptapJsonToBlockDocument,
 } from './blockDocumentTiptap.js';
-import type { BlockDocumentV0 } from '../api/document-types';
+import type { BlockDocument, BlockDocumentV0 } from '../api/document-types';
 
 function hasEmptyTextNode(node: unknown): boolean {
   if (!node || typeof node !== 'object') return false;
@@ -76,5 +76,44 @@ describe('tiptapJsonToBlockDocument', () => {
     });
     const ids = doc.blocks.map((b) => b.id);
     expect(new Set(ids).size).toBe(2);
+  });
+
+  it('preserves bold/italic/code marks as schema v1', () => {
+    const doc = tiptapJsonToBlockDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { blockId: 'p1' },
+          content: [
+            { type: 'text', text: 'Hello ' },
+            { type: 'text', text: 'world', marks: [{ type: 'bold' }] },
+          ],
+        },
+      ],
+    });
+    expect(doc.schemaVersion).toBe(1);
+    const textNodes = doc.blocks[0]?.content ?? [];
+    expect(textNodes.some((n) => n.meta?.marks?.includes('bold'))).toBe(true);
+  });
+
+  it('roundtrips marks through tiptap json', () => {
+    const source: BlockDocument = {
+      schemaVersion: 1,
+      blocks: [
+        {
+          id: 'p1',
+          type: 'paragraph',
+          content: [
+            { id: 't1', type: 'text', meta: { text: 'bold bit', marks: ['bold'] } },
+            { id: 't2', type: 'text', meta: { text: ' normal' } },
+          ],
+        },
+      ],
+    };
+    const json = blockDocumentToTiptapJson(source);
+    const back = tiptapJsonToBlockDocument(json);
+    expect(back.schemaVersion).toBe(1);
+    expect(back.blocks[0]?.content?.[0]?.meta?.marks).toEqual(['bold']);
   });
 });

@@ -5,7 +5,7 @@ import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 import { useMe, meQueryKey } from '../../hooks/useMe';
 import { useMeNotificationsUnreadTotal } from '../../hooks/useMeNotificationsUnreadTotal';
-import { useMeDrafts } from '../../hooks/useMeDrafts';
+import { useMeReviews } from '../../hooks/useMeReviews';
 import { useResolvedColorScheme } from '../../hooks/useResolvedColorScheme';
 import type { AdminUser, DepartmentsRes, TeamsRes } from './appShellNavUtils.js';
 import { getNavLinkStyles } from './appShellNavUtils.js';
@@ -285,8 +285,11 @@ export function useAppShellSidebarData() {
     enabled: !!me?.identity,
   });
 
-  const { data: draftsData } = useMeDrafts({}, { limit: 100, offset: 0, enabled: hasReviewRights });
-  const reviewsCount = draftsData?.openDraftRequests?.length ?? undefined;
+  const { data: reviewsData } = useMeReviews({ limit: 1, offset: 0 }, { enabled: hasReviewRights });
+  const reviewsCount =
+    reviewsData != null && reviewsData.totalPendingForReview > 0
+      ? reviewsData.totalPendingForReview
+      : undefined;
 
   const scopeCountQueries = useQueries({
     queries: [

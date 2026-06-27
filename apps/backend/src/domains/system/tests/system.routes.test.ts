@@ -69,10 +69,10 @@ describe('System routes', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { releases: Array<{ version: string; title: string }> };
-    expect(body.releases.some((item) => item.version === '0.1.0')).toBe(true);
+    expect(body.releases.some((item) => item.version === '0.2.0')).toBe(true);
   });
 
-  it('GET /api/v1/releases/0.1.0 returns markdown', async () => {
+  it('GET /api/v1/releases/0.2.0 returns markdown', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -82,12 +82,12 @@ describe('System routes', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/v1/releases/0.1.0',
+      url: '/api/v1/releases/0.2.0',
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { version: string; markdown: string };
-    expect(body.version).toBe('0.1.0');
+    expect(body.version).toBe('0.2.0');
     expect(body.markdown.length).toBeGreaterThan(0);
   });
 

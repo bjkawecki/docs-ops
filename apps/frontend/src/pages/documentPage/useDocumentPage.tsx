@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { apiFetch } from '../../api/client';
 import { useMe } from '../../hooks/useMe';
+import { useLiveEventsContext } from '../../hooks/liveEventsContext';
 import { notifyApiErrorResponse } from '../../lib/notifyApiError';
 import { scopeToUrl } from '../../lib/scopeNav';
 import { useRecentItemsActions } from '../../hooks/useRecentItems';
@@ -24,6 +25,7 @@ import { useDocumentPageSecondaryQueries } from './useDocumentPageSecondaryQueri
 export function useDocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: me } = useMe();
   const recentActions = useRecentItemsActions();
@@ -55,6 +57,9 @@ export function useDocumentPage() {
     () => document.visibilityState === 'visible'
   );
   const [editTab, setEditTab] = useState<'draft' | 'suggestions' | 'metadata' | 'access'>('draft');
+  const [suggestionTargetBlockId, setSuggestionTargetBlockId] = useState<string | null>(null);
+  const { fallbackPollingActive } = useLiveEventsContext();
+  const collaborationPollInterval = fallbackPollingActive ? 15_000 : false;
   const [leadDraftDirty, setLeadDraftDirty] = useState(false);
   const [leadDraftLastSynced, setLeadDraftLastSynced] = useState<string | null>(null);
   const leadDraftPanelRef = useRef<DocumentLeadDraftPanelHandle>(null);
@@ -70,7 +75,7 @@ export function useDocumentPage() {
       return res.json() as Promise<DocumentResponse>;
     },
     enabled: !!documentId,
-    refetchInterval: isTabVisible ? 15_000 : false,
+    refetchInterval: isTabVisible ? collaborationPollInterval : false,
   });
 
   const contextOwnerId = data?.contextOwnerId ?? null;
@@ -91,6 +96,20 @@ export function useDocumentPage() {
       setEditTagIds(data.documentTags.map((dt) => dt.tag.id));
     }
   }, [data]);
+
+  useEffect(() => {
+    const urlMode = searchParams.get('mode');
+    const urlTab = searchParams.get('tab');
+    if (urlMode === 'edit') setMode('edit');
+    if (
+      urlTab === 'draft' ||
+      urlTab === 'suggestions' ||
+      urlTab === 'metadata' ||
+      urlTab === 'access'
+    ) {
+      setEditTab(urlTab);
+    }
+  }, [documentId, searchParams]);
 
   useEffect(() => {
     if (data?.title) {
@@ -289,6 +308,12 @@ export function useDocumentPage() {
       setSaveLoading(false);
     }
   }, [data, documentId, editDescription, editTagIds, editTitle, queryClient]);
+
+  const handleSuggestChangeFromView = useCallback((blockId: string) => {
+    setSuggestionTargetBlockId(blockId);
+    setEditTab('suggestions');
+    setMode('edit');
+  }, []);
 
   const handleEditClick = () => {
     if (!data) return;
@@ -544,5 +569,8 @@ export function useDocumentPage() {
     handleStartPdfExport,
     handleDeleteTag,
     hasUnsavedChanges,
+    handleSuggestChangeFromView,
+    suggestionTargetBlockId,
+    collaborationPollInterval,
   };
 }

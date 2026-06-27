@@ -10,7 +10,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import type { BlockDocumentV0 } from '../../api/document-types';
+import type { BlockDocument } from '../../api/document-types';
 import {
   blockDocumentToTiptapJson,
   tiptapJsonToBlockDocument,
@@ -19,13 +19,13 @@ import { BlockIdExtension } from '../../tiptap/blockIdExtension';
 import classes from './LeadDraftTiptapEditor.module.css';
 
 export type LeadDraftTiptapEditorHandle = {
-  getBlockDocument: () => BlockDocumentV0;
+  getBlockDocument: () => BlockDocument;
   getCurrentBlockFingerprint: () => string;
 };
 
 type Props = {
   /** Aktueller Server-Stand (wird bei neuem `contentFingerprint` in den Editor übernommen). */
-  sourceDocument: BlockDocumentV0;
+  sourceDocument: BlockDocument;
   /** Z. B. `JSON.stringify(blocks)` – bei Änderung wird `setContent` ausgeführt. */
   contentFingerprint: string;
   /** Basis für Dirty-Erkennung (normalerweise letzter synchronisierter Serverstand). */
@@ -73,10 +73,7 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
           orderedList: false,
           blockquote: false,
           horizontalRule: false,
-          bold: false,
-          italic: false,
           strike: false,
-          code: false,
         }),
         BlockIdExtension,
       ],
@@ -210,7 +207,28 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
               variant={editor.isActive('codeBlock') ? 'filled' : 'light'}
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
             >
-              Code
+              Code block
+            </Button>
+            <Button
+              size="compact-xs"
+              variant={editor.isActive('bold') ? 'filled' : 'light'}
+              onClick={() => editor.chain().focus().toggleBold().run()}
+            >
+              Bold
+            </Button>
+            <Button
+              size="compact-xs"
+              variant={editor.isActive('italic') ? 'filled' : 'light'}
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+            >
+              Italic
+            </Button>
+            <Button
+              size="compact-xs"
+              variant={editor.isActive('code') ? 'filled' : 'light'}
+              onClick={() => editor.chain().focus().toggleCode().run()}
+            >
+              Inline code
             </Button>
             <Button
               size="compact-xs"

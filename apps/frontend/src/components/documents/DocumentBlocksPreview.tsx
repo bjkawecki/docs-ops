@@ -1,4 +1,4 @@
-import { Box, Code, List, Stack, Text, Title } from '@mantine/core';
+import { Box, Button, Code, Group, List, Stack, Text, Title } from '@mantine/core';
 import { Fragment, type ReactNode } from 'react';
 import type { BlockDocumentV0, BlockNodeV0 } from '../../api/document-types';
 import { ensureUniqueBlockIdsInDocument } from '../../lib/blockDocumentTiptap';
@@ -112,10 +112,20 @@ export function blockDocumentToPlainPreview(doc: BlockDocumentV0): string {
 type Props = {
   title: string;
   doc: BlockDocumentV0 | null;
+  canSuggest?: boolean;
+  onSuggestChange?: (blockId: string) => void;
 };
 
+const SUGGESTABLE_BLOCK_TYPES = new Set([
+  'heading',
+  'paragraph',
+  'code',
+  'bullet_list',
+  'list_item',
+]);
+
 /** Lesevorschau aus Blocks – Überschriften inkl. Anker-IDs (TOC / Kommentar-Slugs). */
-export function DocumentBlocksPreview({ title, doc }: Props) {
+export function DocumentBlocksPreview({ title, doc, canSuggest = false, onSuggestChange }: Props) {
   if (doc == null || doc.blocks.length === 0) return null;
   const normalizedDoc = ensureUniqueBlockIdsInDocument(doc);
   const text = blockDocumentToPlainPreview(normalizedDoc);
@@ -130,7 +140,26 @@ export function DocumentBlocksPreview({ title, doc }: Props) {
         {normalizedDoc.blocks.map((block) => {
           const el = renderNode(block, anchorIdByBlockNodeId);
           if (el == null) return null;
-          return <Box key={block.id}>{el}</Box>;
+          const showSuggest =
+            canSuggest && onSuggestChange != null && SUGGESTABLE_BLOCK_TYPES.has(block.type);
+          return (
+            <Box key={block.id}>
+              {showSuggest ? (
+                <Group align="flex-start" justify="space-between" wrap="nowrap" gap="sm">
+                  <Box style={{ flex: 1, minWidth: 0 }}>{el}</Box>
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    onClick={() => onSuggestChange(block.id)}
+                  >
+                    Suggest change
+                  </Button>
+                </Group>
+              ) : (
+                el
+              )}
+            </Box>
+          );
         })}
       </Stack>
     </Box>

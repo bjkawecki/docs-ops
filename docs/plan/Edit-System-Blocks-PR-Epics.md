@@ -194,7 +194,7 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 ## EPIC-8 – Frontend
 
-**Status: umgesetzt** – Types in `document-types.ts`; `DocumentPage` mit erweitertem `DocumentResponse` (inkl. `blocks` / `publishedBlocks`), Polling für Dokument + Lead-Draft + Suggestions bei sichtbarem Tab; Lead-Draft mit **Tiptap** (StarterKit, ohne Bold/Italic/Strike wegen fehlender Persistenz im Block-v0-Modell) + Roundtrip-Konverter `blockDocumentTiptap.ts` + optionales Roh-JSON im Accordion; PATCH unverändert. Autoren-UI: Suggestions POST/Withdraw, Lead nur lesen ohne PATCH; Lesevorschau aus Blocks; paralleles Markdown in der Ansicht ausgeblendet, wenn `publishedBlocks` gesetzt und `content` leer.
+**Status: umgesetzt** – Types in `document-types.ts`; `DocumentPage` mit erweitertem `DocumentResponse` (inkl. `blocks` / `publishedBlocks`), SSE-gesteuerte Invalidierung mit Polling-Fallback; Lead-Draft mit **Tiptap** (Bold/Italic/Inline-Code ab v0.2 / Block schema v1) + Roundtrip-Konverter `blockDocumentTiptap.ts`; Autoren-UI: Suggestions POST/Withdraw; Lesevorschau aus Blocks.
 
 **Dateien:**
 
@@ -252,6 +252,23 @@ Betrifft v. a.: `apps/backend/src/routes/documents.ts`, `apps/backend/src/rout
 
 - **PR-1** bis **PR-2**: klein halten (reviewbar).
 - **PR-3** + **PR-4**: mittel; bei `documents.ts`-Explosion Zwischenrefactor: Handler in `apps/backend/src/routes/documents/` splitten _oder_ Logik nach `services/documents/` ziehen (bestehende Architekturregeln `.cursor/rules/backend-architecture.mdc` / `routes.mdc`).
+
+---
+
+## Post-EPIC Polish (Release v0.2.0)
+
+**Status: umgesetzt** – Meilensteine M0–M5 aus dem Edit-System-Release-Plan:
+
+| Meilenstein | Inhalt                                                                                        |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| **M0**      | Typst PDF-Export (`typstPdfExport.ts`); Pandoc aus Worker-Image entfernt                      |
+| **M1**      | Reviews-Inbox (`GET /me/reviews`, `/reviews`, Dashboard/Sidebar-Badge)                        |
+| **M2**      | Autor-UX: „Suggest change“ aus Published-Ansicht; erweiterte Block-Typen im Suggestions-Panel |
+| **M3**      | Block schema v1 + Inline-Marks (ADR 002); Tiptap Bold/Italic/Code                             |
+| **M4**      | SSE-gesteuerte Invalidierung; Polling nur als Fallback                                        |
+| **M5**      | Release Notes `0.2.0`, QA-Checkliste, Tag `v0.2.0`                                            |
+
+**Dateien:** `apps/backend/src/infrastructure/pdf/typstPdfExport.ts`, `apps/backend/src/domains/me/services/meReviewsService.ts`, `apps/frontend/src/pages/catalog/ReviewsPage.tsx`, `docs/platform/adr/002-block-schema-v1-inline-marks.md`, `content/releases/0.2.0.md`.
 
 ---
 

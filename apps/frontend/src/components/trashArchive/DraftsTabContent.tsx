@@ -1,36 +1,21 @@
-import {
-  Badge,
-  Card,
-  Group,
-  Pagination,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Card, Group, Pagination, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   useMeDrafts,
   type MeDraftsScopeParams,
   type DraftDocumentItem,
-  type OpenDraftRequestItem,
 } from '../../hooks/useMeDrafts';
 import { formatTableDate } from '../../lib/formatDate';
 import { SortableTableTh } from '../ui/SortableTableTh';
 
-type DraftsSortBy = 'title' | 'scopeName' | 'updatedAt' | 'pending';
+type DraftsSortBy = 'title' | 'scopeName' | 'updatedAt';
 
 export interface DraftsTabContentProps {
   scopeParams: MeDraftsScopeParams;
   limit?: number;
   offset?: number;
   enabled?: boolean;
-}
-
-function hasPendingRequest(documentId: string, openDraftRequests: OpenDraftRequestItem[]): boolean {
-  return openDraftRequests.some((r) => r.documentId === documentId);
 }
 
 const DRAFTS_PAGE_SIZE = 10;
@@ -55,7 +40,6 @@ export function DraftsTabContent({
   const limit = limitProp ?? draftsLimit;
   const offset = offsetProp ?? (useUrlPagination ? (page - 1) * draftsLimit : 0);
   const draftsSearch = searchParams.get('draftsSearch') ?? '';
-  const draftsPending = searchParams.get('draftsPending') ?? '';
 
   const setDraftsFilter = useCallback(
     (key: string, value: string | null) => {
@@ -112,9 +96,7 @@ export function DraftsTabContent({
 
   const sortedDrafts = useMemo(() => {
     const draftDocuments = data?.draftDocuments ?? [];
-    const openDraftRequests = data?.openDraftRequests ?? [];
-    const pendingSet = new Set(openDraftRequests.map((r) => r.documentId));
-    const key = (d: DraftDocumentItem): string | number | boolean => {
+    const key = (d: DraftDocumentItem): string | number => {
       switch (sortBy) {
         case 'title':
           return (d.title ?? '').toLowerCase();
@@ -122,8 +104,6 @@ export function DraftsTabContent({
           return (d.scopeName ?? '').toLowerCase();
         case 'updatedAt':
           return new Date(d.updatedAt).getTime();
-        case 'pending':
-          return pendingSet.has(d.id);
         default:
           return new Date(d.updatedAt).getTime();
       }
@@ -132,36 +112,23 @@ export function DraftsTabContent({
     return [...draftDocuments].sort((a, b) => {
       const va = key(a);
       const vb = key(b);
-      if (typeof va === 'boolean' && typeof vb === 'boolean') {
-        const raw = va === vb ? 0 : va ? 1 : -1;
-        return mult * raw;
-      }
       if (typeof va === 'number' && typeof vb === 'number') {
         return mult * (va - vb);
       }
       const c = String(va).localeCompare(String(vb));
       return mult * c;
     });
-  }, [data?.draftDocuments, data?.openDraftRequests, sortBy, sortOrder]);
+  }, [data?.draftDocuments, sortBy, sortOrder]);
 
   const searchLower = draftsSearch.trim().toLowerCase();
   const filteredDrafts = useMemo(() => {
-    const openDraftRequests = data?.openDraftRequests ?? [];
-    let list = sortedDrafts;
-    if (searchLower) {
-      list = list.filter(
-        (d) =>
-          (d.title ?? '').toLowerCase().includes(searchLower) ||
-          (d.scopeName ?? '').toLowerCase().includes(searchLower)
-      );
-    }
-    if (draftsPending === 'yes') {
-      list = list.filter((d) => hasPendingRequest(d.id, openDraftRequests));
-    } else if (draftsPending === 'no') {
-      list = list.filter((d) => !hasPendingRequest(d.id, openDraftRequests));
-    }
-    return list;
-  }, [data?.openDraftRequests, sortedDrafts, searchLower, draftsPending]);
+    if (!searchLower) return sortedDrafts;
+    return sortedDrafts.filter(
+      (d) =>
+        (d.title ?? '').toLowerCase().includes(searchLower) ||
+        (d.scopeName ?? '').toLowerCase().includes(searchLower)
+    );
+  }, [sortedDrafts, searchLower]);
 
   if (isPending) {
     return (
@@ -173,7 +140,6 @@ export function DraftsTabContent({
     );
   }
 
-  const openDraftRequests = data?.openDraftRequests ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / limit) || 1;
 
@@ -189,116 +155,62 @@ export function DraftsTabContent({
             style={{ minWidth: 200 }}
           />
           <Select
-            label="Pending"
-            placeholder="All"
-            data={[
-              { value: '', label: 'All' },
-              { value: 'yes', label: 'Pending' },
-              { value: 'no', label: 'Not pending' },
-            ]}
-            value={draftsPending || null}
-            onChange={(v) => setDraftsFilter('draftsPending', v ?? '')}
-            clearable
-            style={{ minWidth: 140 }}
-          />
-          <Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
-            {draftsSearch.trim() || draftsPending
-              ? `${filteredDrafts.length} of ${total} draft${total !== 1 ? 's' : ''}`
-              : `${total} draft${total !== 1 ? 's' : ''}`}
-          </Text>
-          <Select
-            label="Per page"
+            label="Page size"
             data={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
-            value={String(limit)}
-            onChange={(v) => v && setDraftsLimit(parseInt(v, 10))}
-            style={{ width: 90 }}
+            value={String(draftsLimit)}
+            onChange={(v) => setDraftsLimit(Number(v ?? DRAFTS_PAGE_SIZE))}
+            w={100}
           />
         </Group>
       )}
-      <Table withTableBorder withColumnBorders>
-        <Table.Thead>
-          <Table.Tr>
-            <SortableTableTh
-              label="Title"
-              column="title"
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onClick={() => setSort('title')}
-            />
-            <SortableTableTh
-              label="Context"
-              column="scopeName"
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onClick={() => setSort('scopeName')}
-            />
-            <SortableTableTh
-              label="Pending"
-              column="pending"
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onClick={() => setSort('pending')}
-            />
-            <SortableTableTh
-              label="Last updated"
-              column="updatedAt"
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onClick={() => setSort('updatedAt')}
-            />
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {filteredDrafts.length === 0 ? (
+      {filteredDrafts.length === 0 ? (
+        <Card withBorder padding="md">
+          <Text size="sm" c="dimmed">
+            No unpublished drafts.
+          </Text>
+        </Card>
+      ) : (
+        <Table striped highlightOnHover withTableBorder>
+          <Table.Thead>
             <Table.Tr>
-              <Table.Td colSpan={4}>
-                <Text size="sm" c="dimmed">
-                  {sortedDrafts.length === 0 ? 'No drafts' : 'No drafts match the filters.'}
-                </Text>
-              </Table.Td>
+              <SortableTableTh
+                label="Title"
+                active={sortBy === 'title'}
+                order={sortOrder as 'asc' | 'desc'}
+                onSort={() => setSort('title')}
+              />
+              <SortableTableTh
+                label="Scope"
+                active={sortBy === 'scopeName'}
+                order={sortOrder as 'asc' | 'desc'}
+                onSort={() => setSort('scopeName')}
+              />
+              <SortableTableTh
+                label="Updated"
+                active={sortBy === 'updatedAt'}
+                order={sortOrder as 'asc' | 'desc'}
+                onSort={() => setSort('updatedAt')}
+              />
             </Table.Tr>
-          ) : (
-            filteredDrafts.map((d: DraftDocumentItem) => (
+          </Table.Thead>
+          <Table.Tbody>
+            {filteredDrafts.map((d) => (
               <Table.Tr
                 key={d.id}
-                data-clickable-table-row
-                onClick={() => {
-                  void navigate(`/documents/${d.id}`);
-                }}
+                style={{ cursor: 'pointer' }}
+                onClick={() => void navigate(`/documents/${d.id}`)}
               >
-                <Table.Td>
-                  <Text fw={500} size="sm">
-                    {d.title || d.id}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" c="dimmed">
-                    {d.scopeName || '–'}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  {hasPendingRequest(d.id, openDraftRequests) ? (
-                    <Badge size="sm" variant="filled">
-                      Open
-                    </Badge>
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      –
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{formatTableDate(d.updatedAt)}</Text>
-                </Table.Td>
+                <Table.Td>{d.title}</Table.Td>
+                <Table.Td>{d.scopeName}</Table.Td>
+                <Table.Td>{formatTableDate(d.updatedAt)}</Table.Td>
               </Table.Tr>
-            ))
-          )}
-        </Table.Tbody>
-      </Table>
-
-      {useUrlPagination && (
-        <Group justify="flex-end">
-          <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+      {useUrlPagination && totalPages > 1 && (
+        <Group justify="center">
+          <Pagination total={totalPages} value={page} onChange={setPage} />
         </Group>
       )}
     </Stack>

@@ -88,6 +88,9 @@ export type DocumentPageLoadedLayoutProps = {
   openDelete: () => void;
   openCreateTag: () => void;
   openManageTags: () => void;
+  handleSuggestChangeFromView: (blockId: string) => void;
+  suggestionTargetBlockId: string | null;
+  collaborationPollInterval: number | false;
 };
 
 export function DocumentPageLoadedLayout({
@@ -132,6 +135,9 @@ export function DocumentPageLoadedLayout({
   openDelete,
   openCreateTag,
   openManageTags,
+  handleSuggestChangeFromView,
+  suggestionTargetBlockId,
+  collaborationPollInterval,
 }: DocumentPageLoadedLayoutProps) {
   const docTitle = mode === 'edit' ? editTitle || 'Untitled' : data.title;
   const hasNoContext = data.contextId == null;
@@ -356,7 +362,14 @@ export function DocumentPageLoadedLayout({
                     >
                       {data.publishedBlocks != null && data.publishedBlocks.blocks.length > 0 ? (
                         publishedPlainFromBlocks ? (
-                          <DocumentBlocksPreview title="Content" doc={data.publishedBlocks} />
+                          <DocumentBlocksPreview
+                            title="Content"
+                            doc={data.publishedBlocks}
+                            canSuggest={
+                              !!data.canWrite && !data.canPublish && data.publishedAt != null
+                            }
+                            onSuggestChange={handleSuggestChangeFromView}
+                          />
                         ) : (
                           <Text size="sm" c="dimmed">
                             Published blocks do not contain extractable text for this preview.
@@ -401,6 +414,7 @@ export function DocumentPageLoadedLayout({
                           fallbackBlocks={data.publishedBlocks ?? null}
                           onDirtyChange={setLeadDraftDirty}
                           onLastSyncedChange={setLeadDraftLastSynced}
+                          refetchInterval={collaborationPollInterval}
                         />
                       </Tabs.Panel>
                       <Tabs.Panel value="suggestions" pt="md">
@@ -411,6 +425,8 @@ export function DocumentPageLoadedLayout({
                           canPublish={!!data.canPublish}
                           leadDraftBlocks={data.blocks ?? data.publishedBlocks ?? null}
                           refetchWhenVisible={isTabVisible}
+                          initialSelectedBlockId={suggestionTargetBlockId}
+                          refetchInterval={collaborationPollInterval}
                         />
                       </Tabs.Panel>
                       <Tabs.Panel value="metadata" pt="md">
