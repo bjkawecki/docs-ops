@@ -4,8 +4,12 @@ import type { SystemVersionResponse } from 'backend/api-types';
 import { apiFetch } from '../api/client.js';
 import { useAdminUpdateStatus } from './useAdminUpdateStatus.js';
 import { useMaintenanceStatus } from './useMaintenanceStatus.js';
+import { resolveUpdateOverlayPhase, type UpdateOverlayPhase } from './resolveUpdateOverlayPhase.js';
+
+export type { UpdateOverlayPhase };
 
 const STORAGE_KEY = 'docsops-update-in-progress';
+const TARGET_VERSION_KEY = 'docsops-update-target-version';
 
 function readStickyFlag(): boolean {
   try {
@@ -24,13 +28,31 @@ function setStickyFlag(active: boolean): void {
   }
 }
 
+function readTargetVersion(): string | null {
+  try {
+    return sessionStorage.getItem(TARGET_VERSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setTargetVersion(version: string | null): void {
+  try {
+    if (version != null && version !== '') {
+      sessionStorage.setItem(TARGET_VERSION_KEY, version);
+    } else {
+      sessionStorage.removeItem(TARGET_VERSION_KEY);
+    }
+  } catch {
+    // ignore private mode / blocked storage
+  }
+}
+
 async function fetchSystemVersion(): Promise<SystemVersionResponse> {
   const res = await apiFetch('/api/v1/system/version');
   if (!res.ok) throw new Error('Failed to load app version');
   return res.json() as Promise<SystemVersionResponse>;
 }
-
-export type UpdateOverlayPhase = 'in-progress' | 'reload' | 'failed';
 
 function isUpdateRunInProgress(
   status: string | undefined
@@ -38,10 +60,16 @@ function isUpdateRunInProgress(
   return status === 'queued' || status === 'backing_up' || status === 'applying';
 }
 
+function normalizeReleaseTag(tag: string | null | undefined): string | null {
+  if (tag == null || tag.trim() === '') return null;
+  return tag.trim().replace(/^v/i, '');
+}
+
 export function useUpdateInProgressOverlay(isAdmin: boolean) {
   const maintenanceQuery = useMaintenanceStatus();
   const updateStatusQuery = useAdminUpdateStatus({ enabled: isAdmin });
   const [sticky, setSticky] = useState(readStickyFlag);
+  const [targetVersion, setTargetVersionState] = useState<string | null>(readTargetVersion);
 
   const maintenance = maintenanceQuery.data;
   const activeRun = updateStatusQuery.data?.activeUpdateRun;
@@ -50,26 +78,27 @@ export function useUpdateInProgressOverlay(isAdmin: boolean) {
   const liveInProgress = maintenanceUpdate || runInProgress;
   const runFailed = activeRun?.status === 'failed';
 
+  const apiReachable = !maintenanceQuery.isError && (!isAdmin || !updateStatusQuery.isError);
+
   useEffect(() => {
     if (liveInProgress) {
       setStickyFlag(true);
       setSticky(true);
+      const nextTarget =
+        normalizeReleaseTag(activeRun?.targetReleaseTag) ??
+        normalizeReleaseTag(updateStatusQuery.data?.latestReleaseTag) ??
+        targetVersion;
+      if (nextTarget != null) {
+        setTargetVersion(nextTarget);
+        setTargetVersionState(nextTarget);
+      }
     }
-  }, [liveInProgress]);
-
-  useEffect(() => {
-    if (activeRun?.status === 'succeeded' || runFailed) {
-      setStickyFlag(false);
-      setSticky(false);
-    }
-  }, [activeRun?.status, runFailed]);
-
-  useEffect(() => {
-    if (!maintenance?.active && !runInProgress && sticky) {
-      setStickyFlag(false);
-      setSticky(false);
-    }
-  }, [maintenance?.active, runInProgress, sticky]);
+  }, [
+    liveInProgress,
+    activeRun?.targetReleaseTag,
+    updateStatusQuery.data?.latestReleaseTag,
+    targetVersion,
+  ]);
 
   const shouldPollRecovery = sticky && !liveInProgress && !runFailed;
 
@@ -81,17 +110,25 @@ export function useUpdateInProgressOverlay(isAdmin: boolean) {
     retry: true,
   });
 
-  const phase: UpdateOverlayPhase = runFailed
-    ? 'failed'
-    : shouldPollRecovery && recoveryQuery.isSuccess
-      ? 'reload'
-      : 'in-progress';
+  const phase: UpdateOverlayPhase = resolveUpdateOverlayPhase({
+    runFailed,
+    liveInProgress,
+    agentPhase: activeRun?.agentPhase,
+    sticky,
+    apiReachable,
+    recoveryPolling: shouldPollRecovery,
+    recoverySuccess: recoveryQuery.isSuccess,
+    recoveryVersion: recoveryQuery.data?.version,
+    targetVersion,
+  });
 
   const visible = (liveInProgress || sticky) && !runFailed;
 
   const dismiss = () => {
     setStickyFlag(false);
     setSticky(false);
+    setTargetVersion(null);
+    setTargetVersionState(null);
   };
 
   return {

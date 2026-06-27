@@ -8,6 +8,7 @@ import { AppShellNavbar } from './AppShellNavbar.js';
 import { AppShellSkipLink } from './AppShellSkipLink.js';
 import { useMaintenanceStatus } from '../../hooks/useMaintenanceStatus.js';
 import { useUpdateInProgressOverlay } from '../../hooks/useUpdateInProgressOverlay.js';
+import { useUpdateAutoReload } from '../../hooks/useUpdateAutoReload.js';
 import { LiveEventsProvider } from '../../hooks/LiveEventsProvider.js';
 import { AppShellUpdateBanner } from './AppShellUpdateBanner.js';
 import { useAppShellSidebarData } from './useAppShellSidebarData.js';
@@ -21,6 +22,10 @@ export function AppShell() {
   const maintenanceQuery = useMaintenanceStatus();
   const maintenanceStatus = maintenanceQuery.data;
   const updateOverlay = useUpdateInProgressOverlay(isAdmin);
+  const autoReload = useUpdateAutoReload({
+    enabled: updateOverlay.visible && updateOverlay.phase === 'success',
+    onReload: updateOverlay.dismiss,
+  });
   const sidebarPinned = s.me?.preferences?.sidebarPinned ?? false;
 
   const layout = useAppShellLayout(s.location.pathname, sidebarPinned);
@@ -36,6 +41,7 @@ export function AppShell() {
         <AppShellUpdateBanner
           visible={updateOverlay.visible}
           phase={updateOverlay.phase}
+          reloadCountdownSeconds={autoReload.secondsLeft}
           onReload={() => {
             updateOverlay.dismiss();
             window.location.reload();

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DocsOps update status</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #1a1b1e;
+        --card: #25262b;
+        --text: #c1c2c5;
+        --heading: #fff;
+        --accent: #7950f2;
+        --success: #40c057;
+        --warn: #fab005;
+        --muted: #909296;
+        --border: #373a40;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f8f9fa;
+          --card: #fff;
+          --text: #495057;
+          --heading: #212529;
+          --border: #dee2e6;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+      }
+
+      main {
+        width: min(100%, 32rem);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.75rem;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+      }
+
+      header img {
+        width: 2rem;
+        height: 2rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.125rem;
+        color: var(--heading);
+      }
+
+      .status {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--heading);
+        margin: 0 0 0.5rem;
+      }
+
+      .status[data-state='restarting'] {
+        color: var(--warn);
+      }
+
+      .status[data-state='complete'] {
+        color: var(--success);
+      }
+
+      .detail {
+        margin: 0 0 1rem;
+        line-height: 1.5;
+      }
+
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: 8rem 1fr;
+        gap: 0.35rem 1rem;
+        font-size: 0.9375rem;
+      }
+
+      dt {
+        color: var(--muted);
+      }
+
+      dd {
+        margin: 0;
+        color: var(--heading);
+        word-break: break-word;
+      }
+
+      .spinner {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        display: inline-block;
+        vertical-align: -0.15rem;
+        margin-right: 0.35rem;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      footer {
+        margin-top: 1.25rem;
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/docops.svg" alt="" width="32" height="32" />
+        <h1>DocsOps update status</h1>
+      </header>
+      <p class="status" id="status" data-state="waiting">
+        <span class="spinner" id="spinner"></span>
+        <span id="status-text">Waiting for services…</span>
+      </p>
+      <p class="detail" id="detail">
+        This page keeps checking while DocsOps restarts. Connection errors during this step are
+        expected.
+      </p>
+      <dl>
+        <dt>Target version</dt>
+        <dd id="target-version">—</dd>
+        <dt>Current version</dt>
+        <dd id="current-version">—</dd>
+        <dt>Health</dt>
+        <dd id="health-status">—</dd>
+        <dt>Last check</dt>
+        <dd id="last-check">—</dd>
+      </dl>
+      <footer id="footer">Checking every 3 seconds…</footer>
+    </main>
+    <script>
+      const POLL_MS = 3000;
+      const REDIRECT_SECONDS = 3;
+
+      const params = new URLSearchParams(window.location.search);
+      const rawTarget = params.get('target') ?? '';
+
+      function normalizeVersion(version) {
+        return version.trim().replace(/^v/i, '');
+      }
+
+      const targetVersion = normalizeVersion(rawTarget);
+
+      const statusEl = document.getElementById('status');
+      const statusTextEl = document.getElementById('status-text');
+      const spinnerEl = document.getElementById('spinner');
+      const detailEl = document.getElementById('detail');
+      const targetVersionEl = document.getElementById('target-version');
+      const currentVersionEl = document.getElementById('current-version');
+      const healthStatusEl = document.getElementById('health-status');
+      const lastCheckEl = document.getElementById('last-check');
+      const footerEl = document.getElementById('footer');
+
+      targetVersionEl.textContent = targetVersion || 'Not specified';
+
+      let pollTimer = null;
+      let redirectTimer = null;
+      let redirectRemaining = REDIRECT_SECONDS;
+      let hasSucceeded = false;
+
+      function setState(state, text, detail) {
+        statusEl.dataset.state = state;
+        statusTextEl.textContent = text;
+        detailEl.textContent = detail;
+        spinnerEl.hidden = state === 'complete';
+      }
+
+      function formatTime(date) {
+        return date.toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+      }
+
+      async function checkHealth() {
+        const res = await fetch('/health', { cache: 'no-store' });
+        if (!res.ok) throw new Error('health failed');
+      }
+
+      async function fetchVersion() {
+        const res = await fetch('/api/v1/system/version', { cache: 'no-store' });
+        if (!res.ok) throw new Error('version failed');
+        const data = await res.json();
+        if (typeof data.version !== 'string') throw new Error('invalid version');
+        return data.version;
+      }
+
+      function scheduleRedirect() {
+        if (redirectTimer != null) return;
+        redirectRemaining = REDIRECT_SECONDS;
+        footerEl.textContent = 'Redirecting to DocsOps in ' + redirectRemaining + '…';
+
+        redirectTimer = window.setInterval(function () {
+          redirectRemaining -= 1;
+          if (redirectRemaining <= 0) {
+            window.clearInterval(redirectTimer);
+            redirectTimer = null;
+            window.location.href = '/';
+            return;
+          }
+          footerEl.textContent = 'Redirecting to DocsOps in ' + redirectRemaining + '…';
+        }, 1000);
+      }
+
+      function stopPolling() {
+        if (pollTimer != null) {
+          window.clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      async function pollOnce() {
+        if (hasSucceeded) return;
+
+        const now = new Date();
+        lastCheckEl.textContent = formatTime(now);
+
+        try {
+          await checkHealth();
+          healthStatusEl.textContent = 'OK';
+
+          const version = await fetchVersion();
+          currentVersionEl.textContent = version;
+
+          if (targetVersion && normalizeVersion(version) === targetVersion) {
+            hasSucceeded = true;
+            stopPolling();
+            setState(
+              'complete',
+              'Update complete',
+              'DocsOps is running the target version. You will be redirected shortly.'
+            );
+            footerEl.textContent = 'Redirecting to DocsOps in ' + REDIRECT_SECONDS + '…';
+            scheduleRedirect();
+            return;
+          }
+
+          setState(
+            'running',
+            'Services are running',
+            targetVersion
+              ? 'Waiting for version ' +
+                  targetVersion +
+                  '. The stack may still be finishing the update.'
+              : 'Services responded. Open DocsOps when you are ready.'
+          );
+        } catch {
+          healthStatusEl.textContent = 'Unavailable';
+          currentVersionEl.textContent = '—';
+          setState(
+            'restarting',
+            'Services are restarting',
+            'Connection errors are expected while containers restart.'
+          );
+        }
+      }
+
+      pollOnce();
+      pollTimer = window.setInterval(pollOnce, POLL_MS);
+    </script>
+  </body>
+</html>
