@@ -22,7 +22,7 @@ import {
   formatElapsedSince,
   isRestartPhase,
 } from './updateProgressSteps.js';
-import { updateStatusPageUrl } from './updateStatusPageUrl.js';
+import { updateStatusPageUrl, openUpdateStatusPage } from './updateStatusPageUrl.js';
 
 type Props = {
   opened: boolean;
@@ -234,16 +234,24 @@ export function AdminSystemApplyUpdateModal({ opened, onClose, status }: Props) 
             <Text size="sm" c="dimmed">
               You can close this dialog.{' '}
               <Text
-                component="a"
-                href={statusPageUrl}
+                component="button"
+                type="button"
                 size="sm"
                 c="grape"
                 inherit
-                style={{ cursor: 'pointer' }}
+                style={{
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  font: 'inherit',
+                  textDecoration: 'underline',
+                }}
+                onClick={() => openUpdateStatusPage(activeRun.targetReleaseTag)}
               >
                 Open update status page
               </Text>{' '}
-              to monitor progress in a separate view.
+              in a new tab to monitor progress.
             </Text>
           ) : null}
         </Stack>
