@@ -16,8 +16,8 @@ function bannerText(phase: UpdateOverlayPhase, reloadCountdownSeconds: number | 
       return 'Update may be complete. Reload this page to use the new version.';
     case 'success':
       return reloadCountdownSeconds != null
-        ? `Update complete. Reloading in ${reloadCountdownSeconds}…`
-        : 'Update complete. Reloading…';
+        ? `Update complete. Opening app in ${reloadCountdownSeconds}…`
+        : 'Update complete. Opening app…';
     case 'preparing':
     default:
       return 'System update in progress. Write operations may be temporarily blocked.';

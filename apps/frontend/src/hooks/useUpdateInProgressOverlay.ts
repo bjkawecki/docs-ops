@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { SystemVersionResponse } from 'backend/api-types';
 import { apiFetch } from '../api/client.js';
 import { useAdminUpdateStatus } from './useAdminUpdateStatus.js';
@@ -124,12 +124,12 @@ export function useUpdateInProgressOverlay(isAdmin: boolean) {
 
   const visible = (liveInProgress || sticky) && !runFailed;
 
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     setStickyFlag(false);
     setSticky(false);
     setTargetVersion(null);
     setTargetVersionState(null);
-  };
+  }, []);
 
   return {
     visible,

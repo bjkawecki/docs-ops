@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export const UPDATE_AUTO_RELOAD_SECONDS = 3;
 
 type Options = {
   enabled: boolean;
-  onReload?: () => void;
+  /** Same-window navigation when countdown finishes. Defaults to full page reload. */
+  redirectTo?: string | null;
+  onComplete?: () => void;
 };
 
-export function useUpdateAutoReload({ enabled, onReload }: Options): {
+export function useUpdateAutoReload({ enabled, redirectTo = null, onComplete }: Options): {
   secondsLeft: number | null;
 } {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     if (!enabled) {
@@ -26,8 +30,12 @@ export function useUpdateAutoReload({ enabled, onReload }: Options): {
       if (remaining <= 0) {
         window.clearInterval(intervalId);
         setSecondsLeft(null);
-        onReload?.();
-        window.location.reload();
+        onCompleteRef.current?.();
+        if (redirectTo != null && redirectTo !== '') {
+          window.location.href = redirectTo;
+        } else {
+          window.location.reload();
+        }
         return;
       }
       setSecondsLeft(remaining);
@@ -37,7 +45,7 @@ export function useUpdateAutoReload({ enabled, onReload }: Options): {
       window.clearInterval(intervalId);
       setSecondsLeft(null);
     };
-  }, [enabled, onReload]);
+  }, [enabled, redirectTo]);
 
   return { secondsLeft };
 }

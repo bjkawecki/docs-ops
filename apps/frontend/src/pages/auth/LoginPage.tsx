@@ -141,6 +141,7 @@ export function LoginPage() {
                   id={LOGIN_ERROR_ID}
                   role="alert"
                   color="red"
+                  variant="filled"
                   title={loginError.title}
                   tabIndex={-1}
                 >

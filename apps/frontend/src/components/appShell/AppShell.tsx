@@ -24,7 +24,8 @@ export function AppShell() {
   const updateOverlay = useUpdateInProgressOverlay(isAdmin);
   const autoReload = useUpdateAutoReload({
     enabled: updateOverlay.visible && updateOverlay.phase === 'success',
-    onReload: updateOverlay.dismiss,
+    redirectTo: '/',
+    onComplete: updateOverlay.dismiss,
   });
   const sidebarPinned = s.me?.preferences?.sidebarPinned ?? false;
 

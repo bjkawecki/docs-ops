@@ -20,8 +20,7 @@ export const UPDATE_PROGRESS_STEPS: UpdateProgressStep[] = [
   {
     key: 'health',
     label: 'Wait for services',
-    detail:
-      'Containers are restarting. The app may be temporarily unreachable. Connection errors during this step are expected.',
+    detail: 'The stack is restarting. Connection errors are expected.',
   },
   {
     key: 'reload',

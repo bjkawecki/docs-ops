@@ -5,7 +5,7 @@ import { UPDATE_AUTO_RELOAD_SECONDS, useUpdateAutoReload } from './useUpdateAuto
 describe('useUpdateAutoReload', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubGlobal('location', { ...window.location, reload: vi.fn() });
+    vi.stubGlobal('location', { ...window.location, href: '', reload: vi.fn() });
   });
 
   afterEach(() => {
@@ -32,18 +32,37 @@ describe('useUpdateAutoReload', () => {
     expect(result.current.secondsLeft).toBe(1);
   });
 
-  it('reloads after countdown finishes', () => {
-    const onReload = vi.fn();
+  it('reloads after countdown when no redirectTo is set', () => {
+    const onComplete = vi.fn();
     const reloadMock = vi.fn();
-    vi.stubGlobal('location', { ...window.location, reload: reloadMock });
-    renderHook(() => useUpdateAutoReload({ enabled: true, onReload }));
+    vi.stubGlobal('location', { ...window.location, href: '', reload: reloadMock });
+    renderHook(() => useUpdateAutoReload({ enabled: true, onComplete }));
 
     act(() => {
       vi.advanceTimersByTime(UPDATE_AUTO_RELOAD_SECONDS * 1000);
     });
 
-    expect(onReload).toHaveBeenCalledOnce();
+    expect(onComplete).toHaveBeenCalledOnce();
     expect(reloadMock).toHaveBeenCalledOnce();
+  });
+
+  it('navigates to redirectTo after countdown', () => {
+    const hrefMock = vi.fn();
+    vi.stubGlobal('location', { ...window.location, href: '', assign: hrefMock });
+    Object.defineProperty(window.location, 'href', {
+      set: hrefMock,
+      get: () => '',
+    });
+
+    renderHook(() =>
+      useUpdateAutoReload({ enabled: true, redirectTo: '/update-status.html?target=0.1.1' })
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(UPDATE_AUTO_RELOAD_SECONDS * 1000);
+    });
+
+    expect(hrefMock).toHaveBeenCalledWith('/update-status.html?target=0.1.1');
   });
 
   it('clears countdown when disabled', () => {
