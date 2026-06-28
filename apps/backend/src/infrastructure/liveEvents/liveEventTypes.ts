@@ -59,7 +59,7 @@ export type LiveClientEvent = z.infer<typeof liveClientEventSchema>;
 export const liveNotifyTargetSchema = z.discriminatedUnion('target', [
   z.object({
     target: z.literal('user'),
-    userId: z.uuid(),
+    userId: z.cuid(),
     event: liveClientEventSchema,
   }),
   z.object({

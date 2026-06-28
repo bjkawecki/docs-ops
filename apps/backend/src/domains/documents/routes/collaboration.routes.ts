@@ -64,6 +64,7 @@ import {
 import {
   listDraftEditorPresence,
   registerDraftEditorPresence,
+  unregisterDraftEditorPresence,
 } from '../services/collaboration/draftPresenceRegistry.js';
 
 async function loadDocumentWithCommentModeration(
@@ -404,6 +405,24 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
       const user = (request as RequestWithUser).user;
       const name = user.name?.trim() || user.email || 'Unknown';
       registerDraftEditorPresence(documentId, userId, name);
+      notifyDraftPresenceChanged(prisma, documentId, userId);
+      return reply.status(204).send();
+    }
+  );
+
+  /** DELETE draft presence (leave edit mode / unmount). */
+  app.delete<{ Params: { documentId: string } }>(
+    '/documents/:documentId/draft/presence',
+    {
+      preHandler: [requireAuthPreHandler, preHandlerWrap(requireDocumentAccess('readOrWrite'))],
+    },
+    async (request, reply) => {
+      const { prisma, userId, documentId } = routePrismaUserDocumentId(request);
+      const canReadLead = await canReadLeadDraft(prisma, userId, documentId);
+      if (!canReadLead) {
+        return reply.status(403).send({ error: 'No access to draft presence.' });
+      }
+      unregisterDraftEditorPresence(documentId, userId);
       notifyDraftPresenceChanged(prisma, documentId, userId);
       return reply.status(204).send();
     }

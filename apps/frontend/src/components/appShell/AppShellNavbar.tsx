@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { AppShell as MantineAppShell, Stack, Box, Text, Divider } from '@mantine/core';
+import { AppShell as MantineAppShell, Stack, Box, Text, Divider, Group } from '@mantine/core';
 import {
   IconLayoutDashboard,
   IconListSearch,
@@ -44,39 +44,52 @@ export function AppShellNavbar({
       <Stack justify="space-between" style={{ height: '100%' }}>
         <Box data-sidebar-nav>
           <MantineAppShell.Section>
-            <Link
-              to="/"
-              onClick={onNavigate}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: isMiniRail ? 'center' : 'flex-start',
-                gap: 8,
-                textDecoration: 'none',
-                color: 'inherit',
-              }}
-              aria-label="DocsOps home"
+            <Group
+              justify={isMiniRail ? 'center' : 'space-between'}
+              align="center"
+              wrap="nowrap"
+              gap="xs"
+              mb={isMiniRail ? 'xs' : 0}
             >
-              <DocopsLogo width={isMiniRail ? 36 : 40} height={isMiniRail ? 36 : 40} />
-              {!isMiniRail ? (
-                <Text component="span">
-                  <Text
-                    component="span"
-                    c={s.resolvedColorScheme === 'dark' ? 'white' : 'dimmed'}
-                    style={{ fontWeight: 500, fontSize: '1.5rem', letterSpacing: '-0.05em' }}
-                  >
-                    Docs
+              <Link
+                to="/"
+                onClick={onNavigate}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: isMiniRail ? 'center' : 'flex-start',
+                  gap: 8,
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  flex: isMiniRail ? undefined : 1,
+                  minWidth: 0,
+                }}
+                aria-label="DocsOps home"
+              >
+                <DocopsLogo width={isMiniRail ? 36 : 40} height={isMiniRail ? 36 : 40} />
+                {!isMiniRail ? (
+                  <Text component="span">
+                    <Text
+                      component="span"
+                      c={s.resolvedColorScheme === 'dark' ? 'white' : 'dimmed'}
+                      style={{ fontWeight: 500, fontSize: '1.5rem', letterSpacing: '-0.05em' }}
+                    >
+                      Docs
+                    </Text>
+                    <Text
+                      component="span"
+                      c="var(--mantine-primary-color-filled)"
+                      style={{ fontWeight: 500, fontSize: '1.5rem', letterSpacing: '-0.05em' }}
+                    >
+                      Ops
+                    </Text>
                   </Text>
-                  <Text
-                    component="span"
-                    c="var(--mantine-primary-color-filled)"
-                    style={{ fontWeight: 500, fontSize: '1.5rem', letterSpacing: '-0.05em' }}
-                  >
-                    Ops
-                  </Text>
-                </Text>
+                ) : null}
+              </Link>
+              {showDesktopToggle ? (
+                <AppShellSidebarCollapseToggle isMiniRail={isMiniRail} onToggle={onToggleDesktop} />
               ) : null}
-            </Link>
+            </Group>
             <Divider my="sm" />
           </MantineAppShell.Section>
           <MantineAppShell.Section mt={isMiniRail ? 'sm' : 'xl'}>
@@ -191,11 +204,6 @@ export function AppShellNavbar({
           </MantineAppShell.Section>
         </Box>
         <MantineAppShell.Section>
-          {showDesktopToggle ? (
-            <Box mb="xs">
-              <AppShellSidebarCollapseToggle isMiniRail={isMiniRail} onToggle={onToggleDesktop} />
-            </Box>
-          ) : null}
           <AppShellAccountMenu
             me={s.me}
             accountMenuOpen={s.accountMenuOpen}

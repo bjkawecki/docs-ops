@@ -2,18 +2,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../../../api/client.js';
-import type { BlockDocumentV0, LeadDraftResponse } from '../../../api/document-types.js';
+import type { BlockDocumentV0 } from '../../../api/document-types.js';
 import type { DocumentCollaborationHint } from '../../../hooks/useLiveEvents.js';
 import { countPendingSuggestions } from '../../../lib/draftSuggestionUtils.js';
 import type { LeadDraftTiptapEditorHandle } from '../LeadDraftTiptapEditor.js';
-import { emptyDoc, POLL_MS } from './leadDraftPanelConstants.js';
+import { emptyDoc, POLL_MS, PRESENCE_POLL_MS } from './leadDraftPanelConstants.js';
 import { isDocumentEffectivelyEmpty } from './leadDraftPanelUtils.js';
+import { collaborationHintQueryKey, fetchLeadDraft, leadDraftQueryKey } from './leadDraftQuery.js';
 
 const PRESENCE_HEARTBEAT_MS = 20_000;
-
-function collaborationHintQueryKey(documentId: string) {
-  return ['document', documentId, 'collaboration-hint'] as const;
-}
 
 export type DraftPresenceEditor = {
   userId: string;
@@ -68,14 +65,8 @@ export function useDocumentLeadDraftPanelState({
   }, [lastSyncedAt, onLastSyncedChange]);
 
   const q = useQuery({
-    queryKey: ['document', documentId, 'lead-draft'],
-    queryFn: async () => {
-      const res = await apiFetch(`/api/v1/documents/${documentId}/lead-draft`);
-      if (res.status === 403) return { forbidden: true as const };
-      if (res.status === 404) throw new Error('not-found');
-      if (!res.ok) throw new Error('lead-draft');
-      return res.json() as Promise<LeadDraftResponse>;
-    },
+    queryKey: leadDraftQueryKey(documentId),
+    queryFn: () => fetchLeadDraft(documentId),
     enabled: !!documentId,
     refetchInterval: refetchWhenVisible && !dirty ? pollMs : false,
   });
@@ -101,6 +92,8 @@ export function useDocumentLeadDraftPanelState({
 
   const isRevisionStale = appliedRevision != null && knownServerRevision > appliedRevision;
 
+  const presencePollMs = typeof pollMs === 'number' ? pollMs : PRESENCE_POLL_MS;
+
   const presenceQuery = useQuery({
     queryKey: ['document', documentId, 'draft-presence'],
     queryFn: async (): Promise<DraftPresenceEditor[]> => {
@@ -110,12 +103,15 @@ export function useDocumentLeadDraftPanelState({
       const body = (await res.json()) as { editors: DraftPresenceEditor[] };
       return body.editors;
     },
-    enabled: !!documentId && refetchWhenVisible && !!canEdit,
-    refetchInterval: refetchWhenVisible && canEdit ? pollMs : false,
+    enabled: !!documentId && refetchWhenVisible && !!currentUserId,
+    staleTime: 30_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: refetchWhenVisible && currentUserId ? presencePollMs : false,
   });
 
   useEffect(() => {
-    if (!documentId || !canEdit || !refetchWhenVisible) return;
+    if (!documentId || !refetchWhenVisible || !currentUserId) return;
 
     const sendHeartbeat = () => {
       void apiFetch(`/api/v1/documents/${documentId}/draft/presence`, { method: 'POST' });
@@ -123,12 +119,15 @@ export function useDocumentLeadDraftPanelState({
 
     sendHeartbeat();
     const timer = window.setInterval(sendHeartbeat, PRESENCE_HEARTBEAT_MS);
-    return () => window.clearInterval(timer);
-  }, [canEdit, documentId, refetchWhenVisible]);
+    return () => {
+      window.clearInterval(timer);
+      void apiFetch(`/api/v1/documents/${documentId}/draft/presence`, { method: 'DELETE' });
+    };
+  }, [currentUserId, documentId, refetchWhenVisible]);
 
   const otherEditors = useMemo((): DraftPresenceEditor[] => {
     const editors = presenceQuery.data ?? [];
-    if (!currentUserId) return editors;
+    if (!currentUserId) return [];
     return editors.filter((e) => e.userId !== currentUserId);
   }, [currentUserId, presenceQuery.data]);
 
@@ -179,12 +178,30 @@ export function useDocumentLeadDraftPanelState({
   ]);
 
   useEffect(() => {
-    if (!isRevisionStale || dirty || remotePending) return;
-    void q.refetch();
-  }, [collaborationHint?.draftRevision, dirty, isRevisionStale, q, remotePending]);
+    if (!isRevisionStale) return;
+    void (async () => {
+      const fresh = await q.refetch();
+      const data = fresh.data;
+      if (!data || 'forbidden' in data) return;
+      if (appliedRevision == null) return;
+      if (data.draftRevision <= appliedRevision) return;
+      const freshDoc = data.blocks ?? emptyDoc;
+      if (dirty) {
+        setRemotePending({ revision: data.draftRevision, doc: freshDoc });
+      }
+    })();
+  }, [appliedRevision, collaborationHint?.draftRevision, dirty, isRevisionStale, q]);
 
   const handleSave = useCallback(async () => {
     if (!data || 'forbidden' in data) return false;
+    if (!canPublish && !currentUserId) {
+      notifications.show({
+        color: 'yellow',
+        title: 'Session loading',
+        message: 'Please wait until your session is ready before saving suggestions.',
+      });
+      return false;
+    }
     if (!dirty) return true;
     const parsed = editorRef.current?.getBlockDocument() ?? appliedDoc;
     const expectedRevision = appliedRevision ?? incomingRevision;
@@ -259,6 +276,8 @@ export function useDocumentLeadDraftPanelState({
     appliedDoc,
     appliedRevision,
     applyIncoming,
+    canPublish,
+    currentUserId,
     data,
     documentId,
     incomingRevision,

@@ -10,18 +10,15 @@ import {
   listUserIdsWhoCanReadLeadDraft,
 } from '../../../notifications/services/notificationRecipients.js';
 
-/** SSE to users who can see the lead draft after a save. */
+/** SSE to users who can see the lead draft after a save (includes actor for multi-tab sync). */
 export function notifyLeadDraftCollaborationChanged(
   prisma: PrismaClient,
   documentId: string,
-  actorUserId?: string | null,
+  _actorUserId?: string | null,
   meta?: DocumentCollaborationChangedMeta
 ): void {
   void (async () => {
-    const userIds = excludeUserIds(
-      await listUserIdsWhoCanReadLeadDraft(prisma, documentId),
-      actorUserId
-    );
+    const userIds = await listUserIdsWhoCanReadLeadDraft(prisma, documentId);
     notifyDocumentCollaborationChangedManyFireAndForget(prisma, userIds, documentId, meta);
   })();
 }

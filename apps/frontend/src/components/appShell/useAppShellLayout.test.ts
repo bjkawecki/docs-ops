@@ -14,9 +14,11 @@ vi.mock('@mantine/hooks', async () => {
 
 describe('useAppShellLayout', () => {
   it('uses mini rail when desktop collapsed and sidebar is not pinned', () => {
+    const onSidebarCollapsedChange = vi.fn();
     const { result, rerender } = renderHook(
-      ({ pinned, pathname }) => useAppShellLayout(pathname, pinned),
-      { initialProps: { pinned: false, pathname: '/' } }
+      ({ pinned, collapsed, pathname }) =>
+        useAppShellLayout(pathname, pinned, collapsed, onSidebarCollapsedChange),
+      { initialProps: { pinned: false, collapsed: false, pathname: '/' } }
     );
 
     expect(result.current.isMiniRail).toBe(false);
@@ -28,17 +30,22 @@ describe('useAppShellLayout', () => {
 
     expect(result.current.isMiniRail).toBe(true);
     expect(result.current.navbarWidth).toBe(64);
+    expect(onSidebarCollapsedChange).toHaveBeenCalledWith(true);
 
-    rerender({ pinned: true, pathname: '/' });
+    rerender({ pinned: true, collapsed: true, pathname: '/' });
 
     expect(result.current.isMiniRail).toBe(false);
     expect(result.current.navbarWidth).toBe(260);
   });
 
   it('closes mobile nav when pathname changes', () => {
-    const { result, rerender } = renderHook(({ pathname }) => useAppShellLayout(pathname, false), {
-      initialProps: { pathname: '/' },
-    });
+    const onSidebarCollapsedChange = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ pathname }) => useAppShellLayout(pathname, false, false, onSidebarCollapsedChange),
+      {
+        initialProps: { pathname: '/' },
+      }
+    );
 
     act(() => {
       result.current.toggleMobile();
@@ -50,7 +57,10 @@ describe('useAppShellLayout', () => {
   });
 
   it('hides desktop toggle when sidebar is pinned', () => {
-    const { result } = renderHook(() => useAppShellLayout('/', true));
+    const onSidebarCollapsedChange = vi.fn();
+    const { result } = renderHook(() =>
+      useAppShellLayout('/', true, false, onSidebarCollapsedChange)
+    );
     expect(result.current.showDesktopToggle).toBe(false);
   });
 });

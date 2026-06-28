@@ -9,15 +9,16 @@ import {
 
 describe('liveEventTypes', () => {
   it('parses notification unread NOTIFY envelope', () => {
+    const userId = 'cmqxvsywu000jeimm25vybdcq';
     const raw = JSON.stringify({
       target: 'user',
-      userId: '550e8400-e29b-41d4-a716-446655440000',
+      userId,
       event: { v: LIVE_EVENT_VERSION, type: 'notification.unread-changed' },
     });
     const parsed = parseLiveNotifyPayload(raw);
     expect(parsed).toEqual({
       target: 'user',
-      userId: '550e8400-e29b-41d4-a716-446655440000',
+      userId,
       event: { v: 1, type: 'notification.unread-changed' },
     });
   });
@@ -52,11 +53,36 @@ describe('liveEventTypes', () => {
     );
   });
 
-  it('parses document collaboration NOTIFY envelope', () => {
-    const documentId = 'clh3test000008l008eazy0001';
+  it('parses user-targeted NOTIFY envelope with cuid userId', () => {
+    const userId = 'cmqxvsywu000jeimm25vybdcq';
+    const documentId = 'cmqxvszhw0040eimmotuit0cc';
     const raw = JSON.stringify({
       target: 'user',
-      userId: '550e8400-e29b-41d4-a716-446655440000',
+      userId,
+      event: {
+        v: LIVE_EVENT_VERSION,
+        type: 'document.draft-presence',
+        payload: {
+          documentId,
+          editors: [{ userId, name: 'admin@example.com' }],
+        },
+      },
+    });
+    const parsed = parseLiveNotifyPayload(raw);
+    expect(parsed?.target).toBe('user');
+    expect(liveNotifyTargetSchema.safeParse(parsed).success).toBe(true);
+    if (parsed?.target === 'user') {
+      expect(parsed.userId).toBe(userId);
+      expect(parsed.event.type).toBe('document.draft-presence');
+    }
+  });
+
+  it('parses document collaboration NOTIFY envelope', () => {
+    const documentId = 'cmqxvszhw0040eimmotuit0cc';
+    const userId = 'cmqxvsyvq000ieimm37xsou9t';
+    const raw = JSON.stringify({
+      target: 'user',
+      userId,
       event: {
         v: LIVE_EVENT_VERSION,
         type: 'document.collaboration-changed',

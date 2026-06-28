@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiBase } from '../api/client';
+import {
+  collaborationHintQueryKey,
+  fetchLeadDraft,
+  leadDraftQueryKey,
+} from '../components/documents/documentLeadDraft/leadDraftQuery.js';
 import { maintenanceStatusQueryKey, type MaintenanceStatus } from './useMaintenanceStatus';
 import { adminUpdateStatusQueryKey } from './useAdminUpdateStatus';
 import { appVersionQueryKey } from './useAppVersion';
@@ -35,25 +40,21 @@ type LiveClientEvent =
 
 export type { DocumentCollaborationHint };
 
-function collaborationHintQueryKey(documentId: string) {
-  return ['document', documentId, 'collaboration-hint'] as const;
-}
-
-function handleDocumentCollaborationChanged(
+async function handleDocumentCollaborationChanged(
   queryClient: ReturnType<typeof useQueryClient>,
   documentId: string,
   hint?: DocumentCollaborationHint
-): void {
+): Promise<void> {
   if (hint?.draftRevision != null || hint?.pendingSuggestionCount != null) {
     queryClient.setQueryData(collaborationHintQueryKey(documentId), hint);
   }
-  void queryClient.refetchQueries({
-    queryKey: ['document', documentId, 'lead-draft'],
-    type: 'active',
+  await queryClient.fetchQuery({
+    queryKey: leadDraftQueryKey(documentId),
+    queryFn: () => fetchLeadDraft(documentId),
   });
   void queryClient.refetchQueries({
     queryKey: ['document', documentId],
-    type: 'active',
+    type: 'all',
   });
   void queryClient.invalidateQueries({ queryKey: ['me', 'reviews'] });
 }
@@ -218,7 +219,11 @@ export function useLiveEvents(): { fallbackPollingActive: boolean } {
         return;
       }
       if (event.type === 'document.collaboration-changed') {
-        handleDocumentCollaborationChanged(queryClient, event.payload.documentId, event.payload);
+        void handleDocumentCollaborationChanged(
+          queryClient,
+          event.payload.documentId,
+          event.payload
+        );
         return;
       }
       if (event.type === 'document.draft-presence') {

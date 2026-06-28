@@ -1,5 +1,9 @@
 import { Outlet } from 'react-router-dom';
 import { AppShell as MantineAppShell, Box } from '@mantine/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../../api/client';
+import type { MeResponse } from '../../api/me-types';
+import { meQueryKey } from '../../hooks/useMe';
 import { AppShellDebugMenuSlot } from './AppShellDebugMenuSlot.js';
 import { AppShellImpersonationBannerSlot } from './AppShellImpersonationBannerSlot.js';
 import { AppShellMaintenanceBanner } from './AppShellMaintenanceBanner.js';
@@ -22,8 +26,45 @@ export function AppShell() {
   const maintenanceStatus = maintenanceQuery.data;
   const updateOverlay = useUpdateInProgressOverlay(isAdmin);
   const sidebarPinned = s.me?.preferences?.sidebarPinned ?? false;
+  const sidebarCollapsed = s.me?.preferences?.sidebarCollapsed ?? false;
+  const queryClient = useQueryClient();
 
-  const layout = useAppShellLayout(s.location.pathname, sidebarPinned);
+  const patchSidebarCollapsed = useMutation({
+    mutationFn: async (collapsed: boolean) => {
+      const res = await apiFetch('/api/v1/me/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify({ sidebarCollapsed: collapsed }),
+      });
+      if (!res.ok) throw new Error('Failed to save sidebar preference');
+      return res.json() as Promise<{ sidebarCollapsed?: boolean }>;
+    },
+    onMutate: async (collapsed) => {
+      await queryClient.cancelQueries({ queryKey: meQueryKey });
+      const previousMe = queryClient.getQueryData<MeResponse>(meQueryKey);
+      queryClient.setQueryData(meQueryKey, (old: MeResponse | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          preferences: { ...old.preferences, sidebarCollapsed: collapsed },
+        };
+      });
+      return { previousMe };
+    },
+    onError: (_err, _collapsed, context) => {
+      if (context?.previousMe) {
+        queryClient.setQueryData(meQueryKey, context.previousMe);
+      }
+    },
+  });
+
+  const layout = useAppShellLayout(
+    s.location.pathname,
+    sidebarPinned,
+    sidebarCollapsed,
+    (collapsed) => {
+      patchSidebarCollapsed.mutate(collapsed);
+    }
+  );
 
   const handleNavigate = () => {
     layout.closeMobile();

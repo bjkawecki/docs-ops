@@ -48,6 +48,7 @@ function registerMePreferencesRoutes(app: FastifyInstance): void {
       ...currentPrefs,
       ...(body.theme !== undefined && { theme: body.theme }),
       ...(body.sidebarPinned !== undefined && { sidebarPinned: body.sidebarPinned }),
+      ...(body.sidebarCollapsed !== undefined && { sidebarCollapsed: body.sidebarCollapsed }),
       ...(body.scopeRecentPanelOpen !== undefined && {
         scopeRecentPanelOpen: body.scopeRecentPanelOpen,
       }),

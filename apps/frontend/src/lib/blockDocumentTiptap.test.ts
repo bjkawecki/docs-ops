@@ -119,6 +119,46 @@ describe('tiptapJsonToBlockDocument', () => {
     expect(back.blocks[0]?.content?.[0]?.meta?.marks).toEqual(['bold']);
   });
 
+  it('roundtrips canon with pending insert suggestion without changing block ids', () => {
+    const source: BlockDocument = {
+      schemaVersion: 1,
+      blocks: [
+        {
+          id: 'p1',
+          type: 'paragraph',
+          content: [
+            { id: 't1', type: 'text', meta: { text: 'Hello' } },
+            {
+              id: 't2',
+              type: 'text',
+              meta: {
+                text: ' world',
+                suggestion: {
+                  id: 's1',
+                  kind: 'insert',
+                  authorId: 'author-a',
+                  status: 'pending',
+                  createdAt: '2026-06-16T10:00:00.000Z',
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const json = blockDocumentToTiptapJson(source);
+    const back = tiptapJsonToBlockDocument(json);
+    expect(back.blocks.map((b) => b.id)).toEqual(['p1']);
+    expect(back.blocks[0]?.content?.[0]?.meta?.text).toBe('Hello');
+    expect(back.blocks[0]?.content?.[1]?.meta?.suggestion).toMatchObject({
+      id: 's1',
+      kind: 'insert',
+      authorId: 'author-a',
+      status: 'pending',
+    });
+    expect(back.blocks[0]?.content?.[0]?.meta?.suggestion).toBeUndefined();
+  });
+
   it('omits empty paragraphs without suggestions from export', () => {
     const doc = tiptapJsonToBlockDocument({
       type: 'doc',

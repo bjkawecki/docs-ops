@@ -183,7 +183,7 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
     expect(body.attachmentCount).toBe(0);
   });
 
-  it('PATCH /api/v1/me/preferences → theme und sidebarPinned gespeichert', async () => {
+  it('PATCH /api/v1/me/preferences → theme, sidebarPinned und sidebarCollapsed gespeichert', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -195,20 +195,26 @@ describe('Me routes (GET/PATCH /me, GET/PATCH /me/preferences)', () => {
       method: 'PATCH',
       url: '/api/v1/me/preferences',
       headers: { cookie },
-      payload: { theme: 'dark', sidebarPinned: true },
+      payload: { theme: 'dark', sidebarPinned: true, sidebarCollapsed: true },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { theme: string; sidebarPinned: boolean };
+    const body = res.json() as { theme: string; sidebarPinned: boolean; sidebarCollapsed: boolean };
     expect(body.theme).toBe('dark');
     expect(body.sidebarPinned).toBe(true);
+    expect(body.sidebarCollapsed).toBe(true);
 
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: testUserId },
       select: { preferences: true },
     });
-    const prefs = user.preferences as { theme?: string; sidebarPinned?: boolean } | null;
+    const prefs = user.preferences as {
+      theme?: string;
+      sidebarPinned?: boolean;
+      sidebarCollapsed?: boolean;
+    } | null;
     expect(prefs?.theme).toBe('dark');
     expect(prefs?.sidebarPinned).toBe(true);
+    expect(prefs?.sidebarCollapsed).toBe(true);
   });
 
   it('PATCH /api/v1/me/preferences → primaryColor gespeichert und per GET geliefert', async () => {

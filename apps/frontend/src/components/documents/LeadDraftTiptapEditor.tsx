@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Group, Text } from '@mantine/core';
+import { Badge, Box, Group, Text } from '@mantine/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
@@ -28,6 +28,7 @@ import {
 } from '../../tiptap/suggestionHoverExtension';
 import { SuggestionMarkPopover } from './documentLeadDraft/SuggestionMarkPopover.js';
 import { useDraftSuggestionMutations } from './documentLeadDraft/useDraftSuggestionMutations.js';
+import { LeadDraftEditorToolbar } from './LeadDraftEditorToolbar.js';
 import classes from './LeadDraftTiptapEditor.module.css';
 
 export type LeadDraftTiptapEditorHandle = {
@@ -278,87 +279,7 @@ export const LeadDraftTiptapEditor = forwardRef<LeadDraftTiptapEditorHandle, Pro
             </Badge>
           </Group>
         )}
-        {editable && (
-          <Group gap="xs" mb="sm" wrap="wrap">
-            {authorMode && (
-              <Badge size="sm" color="blue" variant="light">
-                Author mode — changes are suggestions
-              </Badge>
-            )}
-            {!authorMode && (
-              <Badge size="sm" color="teal" variant="light">
-                Lead mode — direct edits
-              </Badge>
-            )}
-            <Button
-              size="compact-xs"
-              variant={editor.isActive('heading', { level: 1 }) ? 'filled' : 'light'}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            >
-              H1
-            </Button>
-            <Button
-              size="compact-xs"
-              variant={editor.isActive('heading', { level: 2 }) ? 'filled' : 'light'}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            >
-              H2
-            </Button>
-            <Button
-              size="compact-xs"
-              variant={editor.isActive('heading', { level: 3 }) ? 'filled' : 'light'}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            >
-              H3
-            </Button>
-            {!authorMode && (
-              <>
-                <Button
-                  size="compact-xs"
-                  variant={editor.isActive('bulletList') ? 'filled' : 'light'}
-                  onClick={() => editor.chain().focus().toggleBulletList().run()}
-                >
-                  List
-                </Button>
-                <Button
-                  size="compact-xs"
-                  variant={editor.isActive('codeBlock') ? 'filled' : 'light'}
-                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                >
-                  Code block
-                </Button>
-              </>
-            )}
-            <Button
-              size="compact-xs"
-              variant={editor.isActive('bold') ? 'filled' : 'light'}
-              onClick={() => editor.chain().focus().toggleBold().run()}
-            >
-              Bold
-            </Button>
-            <Button
-              size="compact-xs"
-              variant={editor.isActive('italic') ? 'filled' : 'light'}
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-            >
-              Italic
-            </Button>
-            <Button
-              size="compact-xs"
-              variant={editor.isActive('code') ? 'filled' : 'light'}
-              onClick={() => editor.chain().focus().toggleCode().run()}
-            >
-              Inline code
-            </Button>
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              onClick={() => editor.chain().focus().setParagraph().run()}
-            >
-              Paragraph
-            </Button>
-          </Group>
-        )}
+        {editable && <LeadDraftEditorToolbar editor={editor} authorMode={authorMode} />}
         <Box className={classes.editorShell}>
           <EditorContent editor={editor} />
         </Box>

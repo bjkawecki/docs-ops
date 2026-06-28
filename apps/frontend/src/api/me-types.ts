@@ -27,6 +27,7 @@ export type MeResponse = {
   preferences: {
     theme?: 'light' | 'dark' | 'auto';
     sidebarPinned?: boolean;
+    sidebarCollapsed?: boolean;
     scopeRecentPanelOpen?: boolean;
     locale?: 'en' | 'de';
     primaryColor?:
