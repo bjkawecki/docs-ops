@@ -9,7 +9,8 @@ import {
   TrashTabContent,
 } from '../../components/trashArchive';
 import { apiFetch } from '../../api/client';
-import { canShowWriteTabs } from '../../lib/canShowWriteTabs';
+import { canShowDraftsTab, canShowTrashArchiveTabs } from '../../lib/canShowWriteTabs';
+import { useCanWriteInScope } from '../../hooks/useCanWriteInScope';
 import { useMe } from '../../hooks/useMe';
 import { useCanViewScopePeople } from '../../hooks/useCanViewScopePeople';
 import { PageWithTabs } from '../../components/ui/PageWithTabs';
@@ -158,7 +159,11 @@ export function DepartmentContextPage() {
   const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
   const departmentDocs = departmentDocsRes?.items ?? [];
 
-  const canWrite = canShowWriteTabs(me, canManage);
+  const { data: canWriteInScopeData } = useCanWriteInScope(
+    departmentId ? { scope: 'department', departmentId } : null
+  );
+  const canShowTrashArchive = canShowTrashArchiveTabs(me, canManage);
+  const canShowDrafts = canShowDraftsTab(me, canManage, canWriteInScopeData?.canWrite === true);
   const {
     invalidateContexts,
     handleEditSuccess,
@@ -170,7 +175,8 @@ export function DepartmentContextPage() {
     queryClient,
     searchParams,
     setSearchParams,
-    canWrite,
+    canShowDrafts,
+    canShowTrashArchive,
     tabPolicy: 'scoped-with-guard',
     scope: { kind: 'department', departmentId: departmentId ?? '' },
     deleteTarget,
@@ -245,7 +251,7 @@ export function DepartmentContextPage() {
               projectsPreview={projectsPreview}
               docsTotal={docsTotal}
               departmentDocs={departmentDocs}
-              canWrite={canWrite}
+              canShowDrafts={canShowDrafts}
               departmentId={departmentId}
               setActiveTab={setActiveTab}
             />
@@ -278,17 +284,31 @@ export function DepartmentContextPage() {
               setDocsPage={setDocsPage}
             />
           </Fragment>,
-          ...(canWrite
+          ...(canShowDrafts || canShowTrashArchive
             ? [
-                <Fragment key="drafts">
-                  <DraftsTabContent scopeParams={{ departmentId }} enabled={!!departmentId} />
-                </Fragment>,
-                <Fragment key="trash">
-                  <TrashTabContent scope="department" departmentId={departmentId ?? undefined} />
-                </Fragment>,
-                <Fragment key="archive">
-                  <ArchiveTabContent scope="department" departmentId={departmentId ?? undefined} />
-                </Fragment>,
+                ...(canShowDrafts
+                  ? [
+                      <Fragment key="drafts">
+                        <DraftsTabContent scopeParams={{ departmentId }} enabled={!!departmentId} />
+                      </Fragment>,
+                    ]
+                  : []),
+                ...(canShowTrashArchive
+                  ? [
+                      <Fragment key="trash">
+                        <TrashTabContent
+                          scope="department"
+                          departmentId={departmentId ?? undefined}
+                        />
+                      </Fragment>,
+                      <Fragment key="archive">
+                        <ArchiveTabContent
+                          scope="department"
+                          departmentId={departmentId ?? undefined}
+                        />
+                      </Fragment>,
+                    ]
+                  : []),
               ]
             : []),
         ]}

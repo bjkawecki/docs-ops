@@ -14,7 +14,7 @@ type Props = {
   projectsPreview: ProjectItem[];
   docsTotal: number;
   departmentDocs: ScopedCatalogDocItem[];
-  canWrite: boolean;
+  canShowDrafts: boolean;
   departmentId: string | undefined;
   setActiveTab: (tab: string) => void;
 };
@@ -26,7 +26,7 @@ export function DepartmentContextOverviewTab({
   projectsPreview,
   docsTotal,
   departmentDocs,
-  canWrite,
+  canShowDrafts,
   departmentId,
   setActiveTab,
 }: Props) {
@@ -42,7 +42,7 @@ export function DepartmentContextOverviewTab({
         noCompanySelected={false}
         documentRows={departmentDocs.slice(0, 5)}
         draftsSlot={
-          canWrite ? (
+          canShowDrafts ? (
             <DraftsCard
               scopeParams={departmentId ? { departmentId } : {}}
               limit={10}

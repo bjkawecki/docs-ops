@@ -15,7 +15,8 @@ import { CreateContextMenu } from '../../components/contexts';
 import { ScopePeopleMenu } from '../../components/scopePeople';
 import { useCanViewScopePeople } from '../../hooks/useCanViewScopePeople';
 import { useMe } from '../../hooks/useMe';
-import { canShowWriteTabs } from '../../lib/canShowWriteTabs';
+import { canShowDraftsTab, canShowTrashArchiveTabs } from '../../lib/canShowWriteTabs';
+import { useCanWriteInScope } from '../../hooks/useCanWriteInScope';
 import { TeamContextPageModals } from './TeamContextPageModals';
 import { TeamDocumentsPanel } from './TeamDocumentsPanel';
 import { TeamOverviewPanel } from './TeamOverviewPanel';
@@ -161,7 +162,11 @@ export function TeamContextPage() {
   const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
   const teamDocs = teamDocsRes?.items ?? [];
 
-  const canWrite = canShowWriteTabs(me, canManage);
+  const { data: canWriteInScopeData } = useCanWriteInScope(
+    teamId ? { scope: 'team', teamId } : null
+  );
+  const canShowTrashArchive = canShowTrashArchiveTabs(me, canManage);
+  const canShowDrafts = canShowDraftsTab(me, canManage, canWriteInScopeData?.canWrite === true);
   const {
     invalidateContexts,
     handleEditSuccess,
@@ -173,7 +178,8 @@ export function TeamContextPage() {
     queryClient,
     searchParams,
     setSearchParams,
-    canWrite,
+    canShowDrafts,
+    canShowTrashArchive,
     tabPolicy: 'scoped-with-guard',
     scope: { kind: 'team', teamId: teamId ?? '' },
     deleteTarget,
@@ -248,7 +254,7 @@ export function TeamContextPage() {
               projectsCount={projects.length}
               docsTotal={docsTotal}
               teamDocs={teamDocs}
-              canWrite={canWrite}
+              canShowDrafts={canShowDrafts}
               teamId={teamId}
               onGoToTab={setActiveTab}
             />
@@ -278,17 +284,25 @@ export function TeamContextPage() {
               setDocsLimit={setDocsLimit}
             />
           </Fragment>,
-          ...(canWrite
+          ...(canShowDrafts || canShowTrashArchive
             ? [
-                <Fragment key="drafts">
-                  <DraftsTabContent scopeParams={{ teamId }} enabled={!!teamId} />
-                </Fragment>,
-                <Fragment key="trash">
-                  <TrashTabContent scope="team" teamId={teamId ?? undefined} />
-                </Fragment>,
-                <Fragment key="archive">
-                  <ArchiveTabContent scope="team" teamId={teamId ?? undefined} />
-                </Fragment>,
+                ...(canShowDrafts
+                  ? [
+                      <Fragment key="drafts">
+                        <DraftsTabContent scopeParams={{ teamId }} enabled={!!teamId} />
+                      </Fragment>,
+                    ]
+                  : []),
+                ...(canShowTrashArchive
+                  ? [
+                      <Fragment key="trash">
+                        <TrashTabContent scope="team" teamId={teamId ?? undefined} />
+                      </Fragment>,
+                      <Fragment key="archive">
+                        <ArchiveTabContent scope="team" teamId={teamId ?? undefined} />
+                      </Fragment>,
+                    ]
+                  : []),
               ]
             : []),
         ]}

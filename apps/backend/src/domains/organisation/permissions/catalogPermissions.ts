@@ -157,12 +157,15 @@ export async function getReadableCatalogScope(
   const companyIds = getCompanyIds(user);
   const departmentIds = uniqueStrings([
     ...user.departmentLeads.map((d) => d.departmentId),
+    ...user.authorOfDepartments.map((d) => d.departmentId),
     ...user.teamMemberships.map((m) => m.team.departmentId),
     ...user.leadOfTeams.map((l) => l.team.departmentId),
+    ...user.authorOfTeams.map((a) => a.team.departmentId),
   ]);
   const teamIds = uniqueStrings([
     ...user.teamMemberships.map((m) => m.team.id),
     ...user.leadOfTeams.map((l) => l.teamId),
+    ...user.authorOfTeams.map((a) => a.teamId),
   ]);
   const uniqueDepartmentIds = uniqueStrings(departmentIds);
 

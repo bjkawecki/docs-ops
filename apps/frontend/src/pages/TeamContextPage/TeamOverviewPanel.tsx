@@ -10,7 +10,7 @@ export type TeamOverviewPanelProps = {
   projectsCount: number;
   docsTotal: number;
   teamDocs: TeamDocItem[];
-  canWrite: boolean;
+  canShowDrafts: boolean;
   teamId: string;
   onGoToTab: (tab: string) => void;
 };
@@ -22,7 +22,7 @@ export function TeamOverviewPanel({
   projectsCount,
   docsTotal,
   teamDocs,
-  canWrite,
+  canShowDrafts,
   teamId,
   onGoToTab,
 }: TeamOverviewPanelProps) {
@@ -38,7 +38,7 @@ export function TeamOverviewPanel({
         noCompanySelected={false}
         documentRows={teamDocs.slice(0, 5)}
         draftsSlot={
-          canWrite ? (
+          canShowDrafts ? (
             <DraftsCard
               scopeParams={{ teamId }}
               limit={10}

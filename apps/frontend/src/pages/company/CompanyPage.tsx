@@ -11,7 +11,8 @@ import {
 import { apiFetch } from '../../api/client';
 import { useMe } from '../../hooks/useMe';
 import { useCanViewScopePeople } from '../../hooks/useCanViewScopePeople';
-import { canShowWriteTabs } from '../../lib/canShowWriteTabs';
+import { canShowDraftsTab, canShowTrashArchiveTabs } from '../../lib/canShowWriteTabs';
+import { useCanWriteInScope } from '../../hooks/useCanWriteInScope';
 import { PageWithTabs } from '../../components/ui/PageWithTabs';
 import { CreateContextMenu } from '../../components/contexts';
 import { ScopePeopleMenu } from '../../components/scopePeople';
@@ -159,7 +160,13 @@ export function CompanyPage() {
   const docsTotal = companyDocsRes?.total ?? 0;
   const docsTotalPages = Math.ceil(docsTotal / docsLimit) || 1;
 
-  const canWrite = effectiveCompanyId != null && canShowWriteTabs(me, canManage);
+  const { data: canWriteInScopeData } = useCanWriteInScope(
+    effectiveCompanyId != null ? { scope: 'company', companyId: effectiveCompanyId } : null
+  );
+  const canShowTrashArchive = effectiveCompanyId != null && canShowTrashArchiveTabs(me, canManage);
+  const canShowDrafts =
+    effectiveCompanyId != null &&
+    canShowDraftsTab(me, canManage, canWriteInScopeData?.canWrite === true);
   const {
     invalidateContexts,
     handleEditSuccess,
@@ -171,7 +178,8 @@ export function CompanyPage() {
     queryClient,
     searchParams,
     setSearchParams,
-    canWrite,
+    canShowDrafts,
+    canShowTrashArchive,
     tabPolicy: 'scoped-with-guard',
     scope: { kind: 'company', companyId: effectiveCompanyId ?? '' },
     deleteTarget,
@@ -263,6 +271,7 @@ export function CompanyPage() {
               docsPending={docsPending}
               docsPreview={docsPreview}
               setActiveTab={setActiveTab}
+              canShowDrafts={canShowDrafts}
             />
           </Fragment>,
           <Fragment key="processes">
@@ -298,22 +307,30 @@ export function CompanyPage() {
               setDocsPage={setDocsPage}
             />
           </Fragment>,
-          ...(canWrite
+          ...(canShowDrafts || canShowTrashArchive
             ? [
-                <Fragment key="drafts">
-                  <DraftsTabContent
-                    scopeParams={
-                      effectiveCompanyId != null ? { companyId: effectiveCompanyId } : {}
-                    }
-                    enabled={effectiveCompanyId != null}
-                  />
-                </Fragment>,
-                <Fragment key="trash">
-                  <TrashTabContent scope="company" companyId={effectiveCompanyId} />
-                </Fragment>,
-                <Fragment key="archive">
-                  <ArchiveTabContent scope="company" companyId={effectiveCompanyId} />
-                </Fragment>,
+                ...(canShowDrafts
+                  ? [
+                      <Fragment key="drafts">
+                        <DraftsTabContent
+                          scopeParams={
+                            effectiveCompanyId != null ? { companyId: effectiveCompanyId } : {}
+                          }
+                          enabled={effectiveCompanyId != null}
+                        />
+                      </Fragment>,
+                    ]
+                  : []),
+                ...(canShowTrashArchive
+                  ? [
+                      <Fragment key="trash">
+                        <TrashTabContent scope="company" companyId={effectiveCompanyId} />
+                      </Fragment>,
+                      <Fragment key="archive">
+                        <ArchiveTabContent scope="company" companyId={effectiveCompanyId} />
+                      </Fragment>,
+                    ]
+                  : []),
               ]
             : []),
         ]}

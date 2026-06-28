@@ -16,6 +16,7 @@ type Props = {
   docsPending: boolean;
   docsPreview: ScopedCatalogDocItem[];
   setActiveTab: (tab: string) => void;
+  canShowDrafts: boolean;
 };
 
 export function CompanyPageOverviewTab({
@@ -28,6 +29,7 @@ export function CompanyPageOverviewTab({
   docsPending,
   docsPreview,
   setActiveTab,
+  canShowDrafts,
 }: Props) {
   return (
     <ScopedContextOverviewCards
@@ -41,7 +43,7 @@ export function CompanyPageOverviewTab({
       docsPending={docsPending}
       documentRows={docsPreview}
       draftsSlot={
-        effectiveCompanyId != null ? (
+        effectiveCompanyId != null && canShowDrafts ? (
           <DraftsCard
             scopeParams={{ companyId: effectiveCompanyId }}
             limit={10}

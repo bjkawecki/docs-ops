@@ -13,11 +13,12 @@ const BASE_TABS = [
   { value: 'documents', label: 'Documents' },
 ] as const;
 
-const WRITE_TABS = [
-  { value: 'drafts', label: 'Drafts' },
+const DRAFTS_TAB = { value: 'drafts', label: 'Drafts' } as const;
+const TRASH_ARCHIVE_TABS = [
   { value: 'trash', label: 'Trash' },
   { value: 'archive', label: 'Archive' },
 ] as const;
+const WRITE_TABS = [DRAFTS_TAB, ...TRASH_ARCHIVE_TABS] as const;
 
 export type ScopedContextChromeScope =
   | { kind: 'team'; teamId: string }
@@ -31,7 +32,10 @@ export interface UseScopedContextPageChromeArgs {
   queryClient: QueryClient;
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
-  canWrite: boolean;
+  /** Show Drafts tab (authors with write access in scope, not only leads). */
+  canShowDrafts: boolean;
+  /** Show Trash and Archive tabs (admin or scope lead). */
+  canShowTrashArchive: boolean;
   tabPolicy: ScopedContextTabPolicy;
   scope: ScopedContextChromeScope;
   deleteTarget: DeleteTarget | null;
@@ -46,7 +50,8 @@ export function useScopedContextPageChrome({
   queryClient,
   searchParams,
   setSearchParams,
-  canWrite,
+  canShowDrafts,
+  canShowTrashArchive,
   tabPolicy,
   scope,
   deleteTarget,
@@ -134,8 +139,12 @@ export function useScopedContextPageChrome({
     if (tabPolicy === 'personal-all') {
       return [...BASE_TABS, ...WRITE_TABS];
     }
-    return [...BASE_TABS, ...(canWrite ? WRITE_TABS : [])];
-  }, [canWrite, tabPolicy]);
+    const extra = [
+      ...(canShowDrafts ? [DRAFTS_TAB] : []),
+      ...(canShowTrashArchive ? TRASH_ARCHIVE_TABS : []),
+    ];
+    return [...BASE_TABS, ...extra];
+  }, [canShowDrafts, canShowTrashArchive, tabPolicy]);
 
   const activeTab = searchParams.get('tab') || 'overview';
 
@@ -154,10 +163,13 @@ export function useScopedContextPageChrome({
 
   useEffect(() => {
     if (tabPolicy !== 'scoped-with-guard') return;
-    if (!canWrite && ['drafts', 'trash', 'archive'].includes(activeTab)) {
+    const blocked =
+      (activeTab === 'drafts' && !canShowDrafts) ||
+      ((activeTab === 'trash' || activeTab === 'archive') && !canShowTrashArchive);
+    if (blocked) {
       setActiveTab('overview');
     }
-  }, [activeTab, canWrite, setActiveTab, tabPolicy]);
+  }, [activeTab, canShowDrafts, canShowTrashArchive, setActiveTab, tabPolicy]);
 
   return {
     invalidateContexts,
