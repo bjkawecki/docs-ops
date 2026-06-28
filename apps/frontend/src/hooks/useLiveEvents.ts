@@ -10,6 +10,11 @@ const INITIAL_RECONNECT_MS = 1_000;
 const MAX_RECONNECT_MS = 30_000;
 const MAX_RECONNECT_ATTEMPTS = 8;
 
+type DocumentCollaborationHint = {
+  draftRevision?: number;
+  pendingSuggestionCount?: number;
+};
+
 type LiveClientEvent =
   | { v: 1; type: 'notification.unread-changed' }
   | {
@@ -20,7 +25,7 @@ type LiveClientEvent =
   | {
       v: 1;
       type: 'document.collaboration-changed';
-      payload: { documentId: string };
+      payload: { documentId: string } & DocumentCollaborationHint;
     }
   | {
       v: 1;
@@ -28,12 +33,28 @@ type LiveClientEvent =
       payload: { documentId: string; editors: Array<{ userId: string; name: string }> };
     };
 
-function invalidateDocumentCollaborationQueries(
+export type { DocumentCollaborationHint };
+
+function collaborationHintQueryKey(documentId: string) {
+  return ['document', documentId, 'collaboration-hint'] as const;
+}
+
+function handleDocumentCollaborationChanged(
   queryClient: ReturnType<typeof useQueryClient>,
-  documentId: string
+  documentId: string,
+  hint?: DocumentCollaborationHint
 ): void {
-  void queryClient.invalidateQueries({ queryKey: ['document', documentId] });
-  void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
+  if (hint?.draftRevision != null || hint?.pendingSuggestionCount != null) {
+    queryClient.setQueryData(collaborationHintQueryKey(documentId), hint);
+  }
+  void queryClient.refetchQueries({
+    queryKey: ['document', documentId, 'lead-draft'],
+    type: 'active',
+  });
+  void queryClient.refetchQueries({
+    queryKey: ['document', documentId],
+    type: 'active',
+  });
   void queryClient.invalidateQueries({ queryKey: ['me', 'reviews'] });
 }
 
@@ -94,10 +115,27 @@ function parseLiveClientEvent(data: string): LiveClientEvent | null {
       if (payload == null || typeof payload !== 'object') return null;
       const documentId = (payload as Record<string, unknown>).documentId;
       if (typeof documentId !== 'string' || documentId.length === 0) return null;
+      const draftRevision = (payload as Record<string, unknown>).draftRevision;
+      const pendingSuggestionCount = (payload as Record<string, unknown>).pendingSuggestionCount;
+      const hint: DocumentCollaborationHint = {};
+      if (
+        typeof draftRevision === 'number' &&
+        Number.isInteger(draftRevision) &&
+        draftRevision >= 0
+      ) {
+        hint.draftRevision = draftRevision;
+      }
+      if (
+        typeof pendingSuggestionCount === 'number' &&
+        Number.isInteger(pendingSuggestionCount) &&
+        pendingSuggestionCount >= 0
+      ) {
+        hint.pendingSuggestionCount = pendingSuggestionCount;
+      }
       return {
         v: 1,
         type: 'document.collaboration-changed',
-        payload: { documentId },
+        payload: { documentId, ...hint },
       };
     }
     if (event.type === 'document.draft-presence') {
@@ -180,7 +218,7 @@ export function useLiveEvents(): { fallbackPollingActive: boolean } {
         return;
       }
       if (event.type === 'document.collaboration-changed') {
-        invalidateDocumentCollaborationQueries(queryClient, event.payload.documentId);
+        handleDocumentCollaborationChanged(queryClient, event.payload.documentId, event.payload);
         return;
       }
       if (event.type === 'document.draft-presence') {

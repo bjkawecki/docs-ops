@@ -2,7 +2,6 @@ import { Alert, Badge, Button, Group, Modal, Stack, Text, Textarea, Tooltip } fr
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useMemo } from 'react';
 import { LeadDraftTiptapEditor } from '../LeadDraftTiptapEditor.js';
-import { DraftSuggestionActions } from './DraftSuggestionActions.js';
 import type { DocumentLeadDraftPanelViewProps } from './useDocumentLeadDraftPanelState.js';
 
 export type { DocumentLeadDraftPanelViewProps };
@@ -25,11 +24,14 @@ export function DocumentLeadDraftPanelView({
   appliedFingerprint,
   setDirty,
   handleSave,
+  handleLoadLatest,
   otherEditors,
   rawJsonOpened,
   setRawJsonOpened,
   isAdmin,
   pendingSuggestionCount,
+  knownServerRevision,
+  isRevisionStale,
   editorMode,
   currentUserId,
   currentUserName,
@@ -55,24 +57,29 @@ export function DocumentLeadDraftPanelView({
 
   return (
     <Stack gap="sm">
-      {remotePending && (
+      {(remotePending || (isRevisionStale && dirty)) && (
         <Alert color="yellow" title="Remote update available">
           <Stack gap="xs">
             <Text size="sm">
-              A newer draft revision is available on the server. Your local unsaved changes are kept
-              until you decide.
+              {remotePending
+                ? `A newer draft revision (${remotePending.revision}) is available on the server. Your local unsaved changes are kept until you decide.`
+                : `Draft revision ${knownServerRevision} is available on the server (you have ${appliedRevision ?? incomingRevision}). Reload to see the latest content.`}
             </Text>
             <Group gap="xs">
               <Button
                 size="compact-sm"
                 variant="filled"
-                onClick={() => applyIncoming(remotePending.revision, remotePending.doc)}
+                onClick={() => {
+                  void handleLoadLatest();
+                }}
               >
                 Load latest
               </Button>
-              <Button size="compact-sm" variant="default" onClick={() => setRemotePending(null)}>
-                Keep mine
-              </Button>
+              {remotePending && (
+                <Button size="compact-sm" variant="default" onClick={() => setRemotePending(null)}>
+                  Keep mine
+                </Button>
+              )}
             </Group>
           </Stack>
         </Alert>
@@ -108,6 +115,11 @@ export function DocumentLeadDraftPanelView({
         {pendingSuggestionCount > 0 && (
           <Badge color="yellow">{pendingSuggestionCount} pending suggestion(s)</Badge>
         )}
+        {isRevisionStale && !remotePending && (
+          <Badge color="orange" variant="light">
+            Server revision {knownServerRevision}
+          </Badge>
+        )}
         {lastSyncedAt && (
           <Text size="xs" c="dimmed">
             Last synced: {new Date(lastSyncedAt).toLocaleTimeString()}
@@ -132,15 +144,6 @@ export function DocumentLeadDraftPanelView({
           </Stack>
         </Alert>
       )}
-
-      <DraftSuggestionActions
-        documentId={documentId}
-        draftRevision={appliedRevision ?? incomingRevision}
-        blocks={appliedDoc}
-        canPublish={!!canPublish}
-        currentUserId={currentUserId}
-        onApplied={(revision, doc) => applyIncoming(revision, doc)}
-      />
 
       <LeadDraftTiptapEditor
         ref={editorRef}

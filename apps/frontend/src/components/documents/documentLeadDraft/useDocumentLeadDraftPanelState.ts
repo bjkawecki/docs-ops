@@ -3,11 +3,17 @@ import { notifications } from '@mantine/notifications';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../../../api/client.js';
 import type { BlockDocumentV0, LeadDraftResponse } from '../../../api/document-types.js';
+import type { DocumentCollaborationHint } from '../../../hooks/useLiveEvents.js';
+import { countPendingSuggestions } from '../../../lib/draftSuggestionUtils.js';
 import type { LeadDraftTiptapEditorHandle } from '../LeadDraftTiptapEditor.js';
 import { emptyDoc, POLL_MS } from './leadDraftPanelConstants.js';
 import { isDocumentEffectivelyEmpty } from './leadDraftPanelUtils.js';
 
 const PRESENCE_HEARTBEAT_MS = 20_000;
+
+function collaborationHintQueryKey(documentId: string) {
+  return ['document', documentId, 'collaboration-hint'] as const;
+}
 
 export type DraftPresenceEditor = {
   userId: string;
@@ -77,12 +83,23 @@ export function useDocumentLeadDraftPanelState({
   const data = q.data;
   const canEdit = data && !('forbidden' in data) && data.canEdit;
   const incomingRevision = data && !('forbidden' in data) ? data.draftRevision : 0;
-  const pendingSuggestionCount =
-    data && !('forbidden' in data) ? (data.pendingSuggestionCount ?? 0) : 0;
+
+  const { data: collaborationHint } = useQuery<DocumentCollaborationHint | null>({
+    queryKey: collaborationHintQueryKey(documentId),
+    queryFn: (): DocumentCollaborationHint | null => null,
+    initialData: null,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+  });
+  const knownServerRevision = Math.max(incomingRevision, collaborationHint?.draftRevision ?? 0);
+
+  const pendingSuggestionCount = useMemo(() => countPendingSuggestions(appliedDoc), [appliedDoc]);
 
   useEffect(() => {
     onPendingSuggestionCountChange?.(pendingSuggestionCount);
   }, [onPendingSuggestionCountChange, pendingSuggestionCount]);
+
+  const isRevisionStale = appliedRevision != null && knownServerRevision > appliedRevision;
 
   const presenceQuery = useQuery({
     queryKey: ['document', documentId, 'draft-presence'],
@@ -123,14 +140,18 @@ export function useDocumentLeadDraftPanelState({
   const serverFingerprint = useMemo(() => JSON.stringify(serverDoc), [serverDoc]);
   const appliedFingerprint = useMemo(() => JSON.stringify(appliedDoc), [appliedDoc]);
 
-  const applyIncoming = useCallback((revision: number, doc: BlockDocumentV0) => {
-    setAppliedRevision(revision);
-    setAppliedDoc(doc);
-    setDirty(false);
-    setRemotePending(null);
-    const now = new Date().toISOString();
-    setLastSyncedAt(now);
-  }, []);
+  const applyIncoming = useCallback(
+    (revision: number, doc: BlockDocumentV0) => {
+      setAppliedRevision(revision);
+      setAppliedDoc(doc);
+      setDirty(false);
+      setRemotePending(null);
+      const now = new Date().toISOString();
+      setLastSyncedAt(now);
+      queryClient.removeQueries({ queryKey: collaborationHintQueryKey(documentId) });
+    },
+    [documentId, queryClient]
+  );
 
   useEffect(() => {
     if (!data || 'forbidden' in data) return;
@@ -156,6 +177,11 @@ export function useDocumentLeadDraftPanelState({
     serverDoc,
     serverFingerprint,
   ]);
+
+  useEffect(() => {
+    if (!isRevisionStale || dirty || remotePending) return;
+    void q.refetch();
+  }, [collaborationHint?.draftRevision, dirty, isRevisionStale, q, remotePending]);
 
   const handleSave = useCallback(async () => {
     if (!data || 'forbidden' in data) return false;
@@ -241,6 +267,17 @@ export function useDocumentLeadDraftPanelState({
     dirty,
   ]);
 
+  const handleLoadLatest = useCallback(async () => {
+    if (remotePending) {
+      applyIncoming(remotePending.revision, remotePending.doc);
+      return;
+    }
+    const result = await q.refetch();
+    const fresh = result.data;
+    if (fresh && !('forbidden' in fresh) && fresh.blocks) {
+      applyIncoming(fresh.draftRevision, fresh.blocks);
+    }
+  }, [applyIncoming, q, remotePending]);
   const publishedFallbackAvailable = !isDocumentEffectivelyEmpty(fallbackBlocks);
   const draftLooksEmpty = isDocumentEffectivelyEmpty(appliedDoc);
 
@@ -290,6 +327,7 @@ export function useDocumentLeadDraftPanelState({
     setRemotePending,
     applyIncoming,
     handleSave,
+    handleLoadLatest,
     handleResetDraftFromPublished,
     canEdit,
     canPublish,
@@ -301,6 +339,8 @@ export function useDocumentLeadDraftPanelState({
     draftLooksEmpty,
     isAdmin,
     pendingSuggestionCount,
+    knownServerRevision,
+    isRevisionStale,
     editorMode: canPublish ? ('lead' as const) : ('author' as const),
   };
   return state;

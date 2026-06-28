@@ -127,7 +127,10 @@ export function useDocumentPage() {
         });
       }
       if (visible && documentId) {
-        void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'lead-draft'] });
+        void queryClient.refetchQueries({
+          queryKey: ['document', documentId, 'lead-draft'],
+          type: 'active',
+        });
         void queryClient.invalidateQueries({
           queryKey: ['document', documentId, 'draft-presence'],
         });

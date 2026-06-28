@@ -1,5 +1,8 @@
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
-import { notifyDocumentCollaborationChangedManyFireAndForget } from '../../../../infrastructure/liveEvents/documentCollaborationLiveEvents.js';
+import {
+  notifyDocumentCollaborationChangedManyFireAndForget,
+  type DocumentCollaborationChangedMeta,
+} from '../../../../infrastructure/liveEvents/documentCollaborationLiveEvents.js';
 import { notifyDraftPresenceChangedManyFireAndForget } from '../../../../infrastructure/liveEvents/draftPresenceLiveEvents.js';
 import {
   excludeUserIds,
@@ -11,14 +14,15 @@ import {
 export function notifyLeadDraftCollaborationChanged(
   prisma: PrismaClient,
   documentId: string,
-  actorUserId?: string | null
+  actorUserId?: string | null,
+  meta?: DocumentCollaborationChangedMeta
 ): void {
   void (async () => {
     const userIds = excludeUserIds(
       await listUserIdsWhoCanReadLeadDraft(prisma, documentId),
       actorUserId
     );
-    notifyDocumentCollaborationChangedManyFireAndForget(prisma, userIds, documentId);
+    notifyDocumentCollaborationChangedManyFireAndForget(prisma, userIds, documentId, meta);
   })();
 }
 

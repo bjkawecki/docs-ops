@@ -12,6 +12,8 @@ export type PublicMaintenanceStatusPayload = z.infer<typeof publicMaintenanceSta
 
 export const documentCollaborationChangedPayloadSchema = z.object({
   documentId: z.cuid(),
+  draftRevision: z.number().int().nonnegative().optional(),
+  pendingSuggestionCount: z.number().int().nonnegative().optional(),
 });
 
 export type DocumentCollaborationChangedPayload = z.infer<

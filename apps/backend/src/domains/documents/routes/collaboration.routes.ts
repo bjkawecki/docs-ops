@@ -186,7 +186,10 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
 
       reply.header('ETag', `"${patchResult.draftRevision}"`);
       if (patchResult.hadContentChange) {
-        notifyLeadDraftCollaborationChanged(prisma, documentId, userId);
+        notifyLeadDraftCollaborationChanged(prisma, documentId, userId, {
+          draftRevision: patchResult.draftRevision,
+          pendingSuggestionCount: patchResult.pendingSuggestionCount,
+        });
       }
       return reply.send({
         draftRevision: patchResult.draftRevision,
@@ -233,7 +236,10 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
         return reply.status(409).send({ error: result.error });
       }
       reply.header('ETag', `"${result.draftRevision}"`);
-      notifyLeadDraftCollaborationChanged(prisma, documentId, userId);
+      notifyLeadDraftCollaborationChanged(prisma, documentId, userId, {
+        draftRevision: result.draftRevision,
+        pendingSuggestionCount: result.pendingSuggestionCount,
+      });
       return reply.send({
         draftRevision: result.draftRevision,
         blocks: result.blocks,
@@ -278,7 +284,10 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
         return reply.status(409).send({ error: result.error });
       }
       reply.header('ETag', `"${result.draftRevision}"`);
-      notifyLeadDraftCollaborationChanged(prisma, documentId, userId);
+      notifyLeadDraftCollaborationChanged(prisma, documentId, userId, {
+        draftRevision: result.draftRevision,
+        pendingSuggestionCount: result.pendingSuggestionCount,
+      });
       return reply.send({
         draftRevision: result.draftRevision,
         blocks: result.blocks,
@@ -322,7 +331,10 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
         return reply.status(409).send({ error: result.error });
       }
       reply.header('ETag', `"${result.draftRevision}"`);
-      notifyLeadDraftCollaborationChanged(prisma, documentId, userId);
+      notifyLeadDraftCollaborationChanged(prisma, documentId, userId, {
+        draftRevision: result.draftRevision,
+        pendingSuggestionCount: result.pendingSuggestionCount,
+      });
       return reply.send({
         draftRevision: result.draftRevision,
         blocks: result.blocks,
@@ -365,7 +377,10 @@ export const registerCollaborationRoutes = (app: FastifyInstance): void => {
         return reply.status(409).send({ error: result.error });
       }
       reply.header('ETag', `"${result.draftRevision}"`);
-      notifyLeadDraftCollaborationChanged(prisma, documentId, userId);
+      notifyLeadDraftCollaborationChanged(prisma, documentId, userId, {
+        draftRevision: result.draftRevision,
+        pendingSuggestionCount: result.pendingSuggestionCount,
+      });
       return reply.send({
         draftRevision: result.draftRevision,
         blocks: result.blocks,
